@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Box, Text, useInput, useStdout, useFocus } from "ink";
+import { Box, Text, useInput, useStdout } from "ink";
 
 interface ModalOption {
   label: string;
@@ -67,9 +67,6 @@ export function Modal({
   const allOptions = sections.flatMap((section) => section.options);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  // Auto-focus when modal opens
-  const { isFocused } = useFocus({ autoFocus: isOpen, id: "modal" });
-
   useEffect(() => {
     const handleResize = () => {
       setDimensions({
@@ -91,6 +88,7 @@ export function Modal({
     }
   }, [isOpen]);
 
+  // Handle input - active only when modal is open
   useInput(
     (_input, key) => {
       if (key.escape) {
@@ -119,7 +117,7 @@ export function Modal({
         return;
       }
     },
-    { isActive: isOpen && isFocused }
+    { isActive: isOpen }
   );
 
   if (!isOpen) return null;

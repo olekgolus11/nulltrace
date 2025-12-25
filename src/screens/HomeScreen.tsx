@@ -47,7 +47,7 @@ export function HomeScreen({ onNavigateToSecond }: HomeScreenProps) {
         focusPrevious();
       }
     },
-    { isActive: !isModalOpen }
+    { isActive: !isModalOpen },
   );
 
   const handleModalSelect = (value: string) => {
