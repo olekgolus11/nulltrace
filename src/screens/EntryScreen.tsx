@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
+import { SessionList } from "../components/index.ts";
 import { theme } from "../theme.ts";
 
 interface EntryScreenProps {
@@ -178,60 +179,10 @@ export function EntryScreen({ onStartPentest }: EntryScreenProps) {
         paddingTop={1}
         paddingBottom={1}
       >
-        <box marginBottom={1}>
-          <text fg={theme.accent.primary}>
-            <strong>◆ Previous Sessions</strong>
-          </text>
-        </box>
-
-        <box flexDirection="column" gap={0}>
-          {mockSessions.map((session, idx) => {
-            const isSelected = idx === selectedSession;
-            return (
-              <box
-                key={session.url}
-                flexDirection="column"
-                backgroundColor={isSelected ? theme.bg.elevated : undefined}
-                paddingLeft={1}
-                paddingRight={1}
-                marginBottom={1}
-              >
-                <box>
-                  <text
-                    fg={isSelected ? theme.accent.primary : theme.text.primary}
-                  >
-                    {isSelected ? (
-                      <strong>▸ {session.url}</strong>
-                    ) : (
-                      `  ${session.url}`
-                    )}
-                  </text>
-                </box>
-                <box paddingLeft={2}>
-                  <text fg={theme.text.dim}>{session.date}</text>
-                  <text fg={theme.text.dim}> · </text>
-                  <text
-                    fg={
-                      session.vulns > 5
-                        ? theme.severity.critical
-                        : session.vulns > 0
-                          ? theme.severity.medium
-                          : theme.severity.low
-                    }
-                  >
-                    {session.vulns} vulns
-                  </text>
-                </box>
-              </box>
-            );
-          })}
-        </box>
-
-        {/* Session count */}
-        <box flexGrow={1} />
-        <box>
-          <text fg={theme.text.dim}>{mockSessions.length} sessions total</text>
-        </box>
+        <SessionList
+          sessions={mockSessions}
+          selectedIndex={selectedSession}
+        />
       </box>
     </box>
   );

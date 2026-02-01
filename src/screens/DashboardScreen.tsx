@@ -1,5 +1,14 @@
 import { useState } from "react";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
+import {
+  Header,
+  Panel,
+  StatusBar,
+  ChatWindow,
+  SitemapList,
+  VulnerabilityList,
+  VulnerabilityCounts,
+} from "../components/index.ts";
 import { theme } from "../theme.ts";
 
 interface DashboardScreenProps {
@@ -8,34 +17,123 @@ interface DashboardScreenProps {
   onBack: () => void;
 }
 
-// Mock data for the dashboard
-const mockVulnerabilities = {
-  critical: 2,
-  high: 5,
-  medium: 8,
-  low: 12,
-  info: 15,
-  total: 42,
-};
-
+// Mock data
 const mockSitemap = [
-  { path: "/", status: 200, type: "HTML" },
-  { path: "/api", status: 200, type: "JSON" },
-  { path: "/login", status: 200, type: "HTML" },
-  { path: "/admin", status: 403, type: "HTML" },
-  { path: "/api/users", status: 200, type: "JSON" },
-  { path: "/api/auth", status: 401, type: "JSON" },
-  { path: "/assets", status: 200, type: "DIR" },
-  { path: "/robots.txt", status: 200, type: "TEXT" },
+  { path: "/", status: 200, type: "GET" },
+  { path: "/admin", status: 403, type: "GET" },
+  { path: "/admin/login", status: 200, type: "POST" },
+  { path: "/admin/dashboard", status: 401, type: "GET" },
+  { path: "/admin/users", status: 401, type: "GET" },
+  { path: "/api", status: 200, type: "GET" },
+  { path: "/api/v1", status: 200, type: "GET" },
+  { path: "/api/v1/users", status: 200, type: "GET" },
+  { path: "/api/v1/products", status: 200, type: "GET" },
+  { path: "/api/v1/orders", status: 201, type: "POST" },
+  { path: "/api/health", status: 200, type: "GET" },
+  { path: "/shop", status: 200, type: "GET" },
+  { path: "/shop/products", status: 200, type: "GET" },
+  { path: "/shop/cart", status: 200, type: "GET" },
+  { path: "/shop/checkout", status: 200, type: "POST" },
+  { path: "/about", status: 200, type: "GET" },
+  { path: "/contact", status: 200, type: "GET" },
+  { path: "/robots.txt", status: 200, type: "GET" },
+  { path: "/.git", status: 403, type: "GET" },
+];
+
+const mockVulnerabilities = [
+  {
+    id: "1",
+    severity: "critical" as const,
+    title: "Reflected XSS",
+    path: "/admin/search?q=",
+  },
+  {
+    id: "2",
+    severity: "critical" as const,
+    title: "SQL Injection",
+    path: "/api/v1/users?id=",
+  },
+  {
+    id: "3",
+    severity: "high" as const,
+    title: "CSRF Missing Token",
+    path: "/shop/checkout",
+  },
+  {
+    id: "4",
+    severity: "medium" as const,
+    title: "Directory Listing",
+    path: "/uploads/",
+  },
+  {
+    id: "5",
+    severity: "medium" as const,
+    title: "Sensitive Data Exposure",
+    path: "/.git/config",
+  },
+  {
+    id: "6",
+    severity: "low" as const,
+    title: "Missing Security Headers",
+    path: "/",
+  },
+  {
+    id: "7",
+    severity: "info" as const,
+    title: "Outdated jQuery",
+    path: "/js/jquery-1.12.4.min.js",
+  },
+];
+
+const mockChatMessages = [
+  {
+    id: "1",
+    sender: "system" as const,
+    content: "Session started. Initiating reconnaissance...",
+    timestamp: "14:32",
+  },
+  {
+    id: "2",
+    sender: "ai" as const,
+    content:
+      "I've completed the initial scan of the target. Found 23 endpoints and identified several potential attack vectors.",
+    timestamp: "14:32",
+  },
+  {
+    id: "3",
+    sender: "user" as const,
+    content: "What are the most critical findings?",
+    timestamp: "14:33",
+  },
+  {
+    id: "4",
+    sender: "ai" as const,
+    content:
+      "The most critical findings are: 1) SQL Injection vulnerability in /api/v1/users with the 'id' parameter. 2) Reflected XSS in the admin search functionality. 3) Exposed .git directory containing sensitive configuration.",
+    timestamp: "14:33",
+  },
+  {
+    id: "5",
+    sender: "user" as const,
+    content: "Can you elaborate on the SQL injection?",
+    timestamp: "14:34",
+  },
+  {
+    id: "6",
+    sender: "ai" as const,
+    content:
+      "The /api/v1/users endpoint accepts an 'id' parameter that appears to be directly concatenated into SQL queries without parameterization. I detected this using boolean-based blind testing. The backend appears to be MySQL 8.x. Recommend running SQLMap for full exploitation analysis.",
+    timestamp: "14:34",
+  },
 ];
 
 const tools = [
-  { id: "nmap", name: "Nmap", description: "Port scanning & service detection", icon: "🔍" },
-  { id: "nuclei", name: "Nuclei", description: "Vulnerability scanner", icon: "🎯" },
-  { id: "ffuf", name: "FFUF", description: "Fuzzing & directory discovery", icon: "🌪️" },
-  { id: "sqlmap", name: "SQLMap", description: "SQL injection testing", icon: "💉" },
-  { id: "zap", name: "ZAP", description: "Web application scanner", icon: "⚡" },
-  { id: "nikto", name: "Nikto", description: "Web server scanner", icon: "🛡️" },
+  { id: "nmap", name: "Nmap", description: "Port scan", icon: "🔍" },
+  { id: "nuclei", name: "Nuclei", description: "Vuln scan", icon: "🎯" },
+  { id: "ffuf", name: "FFUF", description: "Fuzzing", icon: "🌪️" },
+  { id: "sqlmap", name: "SQLMap", description: "SQL Inject", icon: "💉" },
+  { id: "zap", name: "ZAP", description: "Web scan", icon: "⚡" },
+  { id: "nikto", name: "Nikto", description: "Server scan", icon: "🛡️" },
 ];
 
 export function DashboardScreen({
@@ -44,9 +142,19 @@ export function DashboardScreen({
   onBack,
 }: DashboardScreenProps) {
   const { width, height } = useTerminalDimensions();
+
+  // Focus management
+  const [activePanel, setActivePanel] = useState<
+    "sitemap" | "vulns" | "chat" | "tools"
+  >("chat");
+
+  // Selection states
   const [selectedTool, setSelectedTool] = useState(0);
   const [selectedSitemapItem, setSelectedSitemapItem] = useState(0);
-  const [focusArea, setFocusArea] = useState<"tools" | "sitemap">("tools");
+  const [selectedVulnItem, setSelectedVulnItem] = useState(0);
+
+  // Chat state
+  const [chatInput, setChatInput] = useState("");
 
   useKeyboard((key) => {
     // Back to entry screen
@@ -55,46 +163,77 @@ export function DashboardScreen({
       return;
     }
 
-    // Tab to switch focus areas
+    // Tab to cycle through panels
     if (key.name === "tab") {
-      setFocusArea((prev) => (prev === "tools" ? "sitemap" : "tools"));
+      const panels: Array<"sitemap" | "vulns" | "chat" | "tools"> = [
+        "sitemap",
+        "vulns",
+        "chat",
+        "tools",
+      ];
+      const currentIndex = panels.indexOf(activePanel);
+      const nextIndex = (currentIndex + 1) % panels.length;
+      const nextPanel = panels[nextIndex];
+      if (nextPanel) {
+        setActivePanel(nextPanel);
+      }
       return;
     }
 
-    // Handle tool navigation
-    if (focusArea === "tools") {
-      if (key.name === "up") {
-        setSelectedTool((prev) => Math.max(0, prev - 1));
-      }
-      if (key.name === "down") {
-        setSelectedTool((prev) => Math.min(tools.length - 1, prev + 1));
-      }
-      if (key.name === "return") {
-        const tool = tools[selectedTool];
-        if (tool) {
-          onSelectTool(tool.id, targetUrl);
+    // Handle navigation based on active panel
+    switch (activePanel) {
+      case "tools":
+        if (key.name === "up") {
+          setSelectedTool((prev) => Math.max(0, prev - 1));
         }
-      }
-    }
+        if (key.name === "down") {
+          setSelectedTool((prev) => Math.min(tools.length - 1, prev + 1));
+        }
+        if (key.name === "return") {
+          const tool = tools[selectedTool];
+          if (tool) {
+            onSelectTool(tool.id, targetUrl);
+          }
+        }
+        break;
 
-    // Handle sitemap navigation
-    if (focusArea === "sitemap") {
-      if (key.name === "up") {
-        setSelectedSitemapItem((prev) => Math.max(0, prev - 1));
-      }
-      if (key.name === "down") {
-        setSelectedSitemapItem((prev) =>
-          Math.min(mockSitemap.length - 1, prev + 1),
-        );
-      }
+      case "sitemap":
+        if (key.name === "up") {
+          setSelectedSitemapItem((prev) => Math.max(0, prev - 1));
+        }
+        if (key.name === "down") {
+          setSelectedSitemapItem((prev) =>
+            Math.min(mockSitemap.length - 1, prev + 1),
+          );
+        }
+        break;
+
+      case "vulns":
+        if (key.name === "up") {
+          setSelectedVulnItem((prev) => Math.max(0, prev - 1));
+        }
+        if (key.name === "down") {
+          setSelectedVulnItem((prev) =>
+            Math.min(mockVulnerabilities.length - 1, prev + 1),
+          );
+        }
+        break;
+
+      case "chat":
+        if (key.name === "return" && chatInput.trim()) {
+          // Handle chat submit
+          setChatInput("");
+        }
+        break;
     }
   });
 
-  const sidebarWidth = 35;
-  const mainWidth = width - sidebarWidth - 1;
+  const leftPanelWidth = 40;
+  const rightPanelWidth = 40;
+  const centerPanelWidth = width - leftPanelWidth - rightPanelWidth - 2;
   const headerHeight = 3;
-  const vulnPanelHeight = 8;
-  const contentHeight = height - headerHeight - 1;
+  const statusBarHeight = 1;
+  const contentHeight = height - headerHeight - statusBarHeight;
 
   return (
     <box
@@ -104,163 +243,13 @@ export function DashboardScreen({
       backgroundColor={theme.bg.primary}
     >
       {/* Header */}
-      <box
-        height={headerHeight}
-        flexDirection="row"
-        alignItems="center"
-        paddingLeft={2}
-        paddingRight={2}
-        backgroundColor={theme.bg.panel}
-      >
-        <box flexGrow={1}>
-          <text>
-            <span fg={theme.accent.primary}>
-              <strong>◆ PenTest AI</strong>
-            </span>
-            <span fg={theme.text.dim}> | </span>
-            <span fg={theme.text.primary}>Target: </span>
-            <span fg={theme.accent.secondary}>{targetUrl}</span>
-          </text>
-        </box>
-        <box>
-          <text fg={theme.text.dim}>
-            <span fg={theme.text.secondary}>
-              <strong>ESC</strong>
-            </span>{" "}
-            back{" "}
-            <span fg={theme.text.secondary}>
-              <strong>Tab</strong>
-            </span>{" "}
-            switch{" "}
-            <span fg={theme.text.secondary}>
-              <strong>q</strong>
-            </span>{" "}
-            quit
-          </text>
-        </box>
-      </box>
+      <Header targetUrl={targetUrl} showControls={false} />
 
-      {/* Main content */}
+      {/* Main content - Three column layout */}
       <box flexDirection="row" height={contentHeight}>
-        {/* Left panel - Vuln summary + Sitemap */}
+        {/* Left panel - Sitemap (top) + Vulnerabilities (bottom) */}
         <box
-          width={mainWidth}
-          height={contentHeight}
-          flexDirection="column"
-          paddingLeft={2}
-          paddingRight={2}
-          paddingTop={1}
-        >
-          {/* Vulnerability Summary Panel */}
-          <box
-            flexDirection="column"
-            marginBottom={2}
-            border
-            borderColor={theme.border.default}
-            paddingLeft={2}
-            paddingRight={2}
-            paddingTop={1}
-            paddingBottom={1}
-          >
-            <box marginBottom={1}>
-              <text fg={theme.accent.primary}>
-                <strong>◆ Vulnerability Summary</strong>
-              </text>
-            </box>
-            <box flexDirection="row" gap={4}>
-              <box>
-                <text fg={theme.severity.critical}>
-                  <strong>CRITICAL: {mockVulnerabilities.critical}</strong>
-                </text>
-              </box>
-              <box>
-                <text fg={theme.severity.high}>
-                  <strong>HIGH: {mockVulnerabilities.high}</strong>
-                </text>
-              </box>
-              <box>
-                <text fg={theme.severity.medium}>
-                  <strong>MED: {mockVulnerabilities.medium}</strong>
-                </text>
-              </box>
-              <box>
-                <text fg={theme.severity.low}>
-                  <strong>LOW: {mockVulnerabilities.low}</strong>
-                </text>
-              </box>
-              <box>
-                <text fg={theme.severity.info}>
-                  <strong>INFO: {mockVulnerabilities.info}</strong>
-                </text>
-              </box>
-              <box flexGrow={1} />
-              <box>
-                <text fg={theme.text.secondary}>
-                  <strong>TOTAL: {mockVulnerabilities.total}</strong>
-                </text>
-              </box>
-            </box>
-          </box>
-
-          {/* Sitemap Panel */}
-          <box
-            flexDirection="column"
-            flexGrow={1}
-            border
-            borderColor={
-              focusArea === "sitemap" ? theme.accent.primary : theme.border.default
-            }
-            paddingLeft={2}
-            paddingRight={2}
-            paddingTop={1}
-            paddingBottom={1}
-          >
-            <box marginBottom={1}>
-              <text fg={theme.accent.primary}>
-                <strong>◆ Discovered URLs</strong>
-                <span fg={theme.text.dim}> ({mockSitemap.length} found)</span>
-              </text>
-            </box>
-            <box flexDirection="column" gap={0}>
-              {mockSitemap.map((item, idx) => {
-                const isSelected = idx === selectedSitemapItem && focusArea === "sitemap";
-                const statusColor =
-                  item.status >= 400
-                    ? theme.severity.critical
-                    : item.status >= 300
-                      ? theme.accent.warning
-                      : theme.severity.low;
-                return (
-                  <box
-                    key={item.path}
-                    flexDirection="row"
-                    backgroundColor={isSelected ? theme.bg.elevated : undefined}
-                    paddingLeft={1}
-                    paddingRight={1}
-                  >
-                    <box width={20}>
-                      <text
-                        fg={isSelected ? theme.accent.primary : theme.text.primary}
-                      >
-                        {isSelected ? <strong>▸ {item.path}</strong> : `  ${item.path}`}
-                      </text>
-                    </box>
-                    <box width={8}>
-                      <text fg={statusColor}>{item.status}</text>
-                    </box>
-                    <box>
-                      <text fg={theme.text.dim}>{item.type}</text>
-                    </box>
-                  </box>
-                );
-              })}
-            </box>
-          </box>
-        </box>
-
-        {/* Right sidebar - Tools */}
-        <box
-          width={sidebarWidth}
+          width={leftPanelWidth}
           height={contentHeight}
           flexDirection="column"
           backgroundColor={theme.bg.panel}
@@ -269,58 +258,127 @@ export function DashboardScreen({
           paddingTop={1}
           paddingBottom={1}
         >
-          <box marginBottom={1}>
-            <text fg={theme.accent.primary}>
-              <strong>◆ Security Tools</strong>
-            </text>
+          {/* Sitemap Panel */}
+          <box flexDirection="column" marginBottom={1}>
+            <box marginBottom={1}>
+              <text fg={theme.accent.primary}>
+                <strong>Sitemap</strong>
+              </text>
+            </box>
+            <box flexGrow={1}>
+              <SitemapList
+                items={mockSitemap}
+                selectedIndex={selectedSitemapItem}
+                focused={activePanel === "sitemap"}
+              />
+            </box>
           </box>
 
-          <box flexDirection="column" gap={1}>
-            {tools.map((tool, idx) => {
-              const isSelected = idx === selectedTool && focusArea === "tools";
-              return (
-                <box
-                  key={tool.id}
-                  flexDirection="column"
-                  backgroundColor={isSelected ? theme.bg.elevated : undefined}
-                  paddingLeft={1}
-                  paddingRight={1}
-                  paddingTop={1}
-                  paddingBottom={1}
-                  border={isSelected}
-                  borderColor={isSelected ? theme.accent.primary : undefined}
-                >
-                  <box flexDirection="row" gap={1} alignItems="center">
-                    <text>{tool.icon}</text>
+          {/* Vulnerabilities Panel */}
+          <box flexDirection="column" flexGrow={1}>
+            <box marginBottom={1}>
+              <text fg={theme.accent.primary}>
+                <strong>Vulnerabilities</strong>
+              </text>
+            </box>
+            <VulnerabilityList
+              vulnerabilities={mockVulnerabilities}
+              selectedIndex={selectedVulnItem}
+              focused={activePanel === "vulns"}
+            />
+          </box>
+        </box>
+
+        {/* Center panel - AI Chat */}
+        <box
+          width={centerPanelWidth}
+          height={contentHeight}
+          flexDirection="column"
+          paddingLeft={2}
+          paddingRight={2}
+          paddingTop={1}
+          paddingBottom={1}
+        >
+          <Panel
+            title="AI Assistant"
+            flexGrow={1}
+            focused={activePanel === "chat"}
+          >
+            <ChatWindow
+              messages={mockChatMessages}
+              inputValue={chatInput}
+              onInputChange={setChatInput}
+              onSubmit={() => {}}
+              focused={activePanel === "chat"}
+            />
+          </Panel>
+        </box>
+
+        {/* Right panel - Tools + Quick Actions */}
+        <box
+          width={rightPanelWidth}
+          height={contentHeight}
+          flexDirection="column"
+          backgroundColor={theme.bg.panel}
+          paddingLeft={1}
+          paddingRight={1}
+          paddingTop={1}
+          paddingBottom={1}
+        >
+          {/* Tools Section */}
+          <box marginBottom={2}>
+            <box marginBottom={1}>
+              <text fg={theme.accent.primary}>
+                <strong>Actions</strong>
+              </text>
+            </box>
+            <box flexDirection="column" gap={1}>
+              {tools.map((tool, idx) => {
+                const isSelected =
+                  idx === selectedTool && activePanel === "tools";
+                return (
+                  <box
+                    key={tool.id}
+                    flexDirection="column"
+                    backgroundColor={isSelected ? theme.bg.elevated : undefined}
+                    paddingLeft={1}
+                    paddingTop={1}
+                    paddingBottom={1}
+                    border={isSelected}
+                    borderColor={isSelected ? theme.accent.primary : undefined}
+                  >
                     <text
-                      fg={isSelected ? theme.accent.primary : theme.text.primary}
+                      fg={
+                        isSelected ? theme.accent.primary : theme.text.primary
+                      }
                     >
                       {isSelected ? <strong>{tool.name}</strong> : tool.name}
                     </text>
-                  </box>
-                  <box paddingLeft={3}>
                     <text fg={theme.text.dim}>{tool.description}</text>
                   </box>
-                </box>
-              );
-            })}
+                );
+              })}
+            </box>
           </box>
 
-          <box flexGrow={1} />
-          <box marginTop={1}>
-            <text fg={theme.text.dim}>
-              <span fg={theme.text.secondary}>
-                <strong>↑↓</strong>
-              </span>{" "}
-              navigate{" "}
-              <span fg={theme.text.secondary}>
-                <strong>Enter</strong>
-              </span>{" "}
-              run
-            </text>
+          {/* Quick Actions */}
+          <box flexDirection="column">
+            <box marginBottom={1}>
+              <text fg={theme.accent.primary}>
+                <strong>Quick Actions</strong>
+              </text>
+            </box>
+            <box flexDirection="column" gap={0}>
+              <text fg={theme.text.secondary}>r Re-scan</text>
+              <text fg={theme.text.secondary}>e Export report</text>
+              <text fg={theme.text.secondary}>s Settings</text>
+            </box>
           </box>
         </box>
       </box>
+
+      {/* Status Bar */}
+      <StatusBar activePanel={activePanel} />
     </box>
   );
 }
