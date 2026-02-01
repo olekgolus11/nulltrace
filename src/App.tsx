@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { useApp, useInput } from "ink";
-import { EntryScreen, DashboardScreen, ToolScreen } from "./screens/index.ts";
+import { useKeyboard, useRenderer } from "@opentui/react";
+import { EntryScreen } from "./screens/EntryScreen.tsx";
 
 type Screen =
   | { type: "entry" }
   | { type: "dashboard"; targetUrl: string }
   | { type: "tool"; toolId: string; toolName: string; targetUrl: string };
 
-// Tool name mapping
+// Tool name mapping (for future use)
 const toolNames: Record<string, string> = {
   nmap: "Nmap",
   nuclei: "Nuclei",
@@ -19,18 +19,19 @@ const toolNames: Record<string, string> = {
 
 export function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>({ type: "entry" });
-  const { exit } = useApp();
+  const renderer = useRenderer();
 
   // Global quit handler
-  useInput((input) => {
-    if (input === "q") {
-      exit();
+  useKeyboard((key) => {
+    if (key.name === "q") {
+      renderer.destroy();
     }
   });
 
   const handleStartPentest = (url: string) => {
     // Normalize URL
     const normalizedUrl = url.startsWith("http") ? url : `https://${url}`;
+    console.log("Starting pentest for:", normalizedUrl);
     setCurrentScreen({ type: "dashboard", targetUrl: normalizedUrl });
   };
 
@@ -56,23 +57,39 @@ export function App() {
       return <EntryScreen onStartPentest={handleStartPentest} />;
 
     case "dashboard":
+      // Placeholder for future DashboardScreen
       return (
-        <DashboardScreen
-          targetUrl={currentScreen.targetUrl}
-          onSelectTool={(toolId) =>
-            handleSelectTool(toolId, currentScreen.targetUrl)
-          }
-          onBack={handleBackToEntry}
-        />
+        <box
+          flexDirection="column"
+          justifyContent="center"
+          alignItems="center"
+          height="100%"
+        >
+          <text>
+            <strong>Dashboard Screen (Coming Soon)</strong>
+          </text>
+          <text>Target URL: {currentScreen.targetUrl}</text>
+          <text>Press 'q' to quit</text>
+        </box>
       );
 
     case "tool":
+      // Placeholder for future ToolScreen
       return (
-        <ToolScreen
-          toolId={currentScreen.toolId}
-          toolName={currentScreen.toolName}
-          onBack={() => handleBackToDashboard(currentScreen.targetUrl)}
-        />
+        <box
+          flexDirection="column"
+          justifyContent="center"
+          alignItems="center"
+          height="100%"
+        >
+          <text>
+            <strong>Tool Screen (Coming Soon)</strong>
+          </text>
+          <text>
+            Tool: {currentScreen.toolName} ({currentScreen.toolId})
+          </text>
+          <text>Press 'q' to quit</text>
+        </box>
       );
 
     default:
