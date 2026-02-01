@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useKeyboard, useRenderer } from "@opentui/react";
-import { EntryScreen } from "./screens/EntryScreen.tsx";
+import { EntryScreen, DashboardScreen } from "./screens/index.ts";
 
 type Screen =
   | { type: "entry" }
@@ -57,20 +57,14 @@ export function App() {
       return <EntryScreen onStartPentest={handleStartPentest} />;
 
     case "dashboard":
-      // Placeholder for future DashboardScreen
       return (
-        <box
-          flexDirection="column"
-          justifyContent="center"
-          alignItems="center"
-          height="100%"
-        >
-          <text>
-            <strong>Dashboard Screen (Coming Soon)</strong>
-          </text>
-          <text>Target URL: {currentScreen.targetUrl}</text>
-          <text>Press 'q' to quit</text>
-        </box>
+        <DashboardScreen
+          targetUrl={currentScreen.targetUrl}
+          onSelectTool={(toolId) =>
+            handleSelectTool(toolId, currentScreen.targetUrl)
+          }
+          onBack={handleBackToEntry}
+        />
       );
 
     case "tool":
