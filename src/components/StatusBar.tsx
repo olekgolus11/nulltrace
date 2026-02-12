@@ -15,8 +15,9 @@ export function StatusBar({ activePanel, showBack = true }: StatusBarProps) {
 
   return (
     <box
-      height={1}
+      height={3}
       flexDirection="row"
+      flexGrow={1}
       backgroundColor={theme.bg.panel}
       paddingLeft={1}
       paddingRight={1}
@@ -61,11 +62,7 @@ export function StatusBar({ activePanel, showBack = true }: StatusBarProps) {
               key={panel.id}
               fg={isActive ? theme.accent.primary : theme.text.dim}
             >
-              {isActive ? (
-                <strong>[{panel.label}]</strong>
-              ) : (
-                `[${panel.label}]`
-              )}
+              {isActive ? <strong>[{panel.label}]</strong> : `[${panel.label}]`}
             </text>
           );
         })}

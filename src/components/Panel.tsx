@@ -30,8 +30,8 @@ export function Panel({
   focused = false,
   marginBottom,
   padding,
-  paddingLeft = 2,
-  paddingRight = 2,
+  paddingLeft = 1,
+  paddingRight = 1,
   paddingTop = 1,
   paddingBottom = 1,
 }: PanelProps) {

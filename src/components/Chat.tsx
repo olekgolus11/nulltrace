@@ -14,12 +14,14 @@ export function ChatMessage({ sender, content, timestamp }: ChatMessageProps) {
   return (
     <box flexDirection="column" marginBottom={1}>
       <box flexDirection="row" gap={1}>
-        <text fg={isAI ? theme.chat.ai : isUser ? theme.chat.user : theme.chat.system}>
+        <text
+          fg={
+            isAI ? theme.chat.ai : isUser ? theme.chat.user : theme.chat.system
+          }
+        >
           <strong>{isAI ? "◆ AI" : isUser ? "● You" : "○ System"}</strong>
         </text>
-        {timestamp && (
-          <text fg={theme.text.dim}>{timestamp}</text>
-        )}
+        {timestamp && <text fg={theme.text.dim}>{timestamp}</text>}
       </box>
       <box paddingLeft={2}>
         <text fg={theme.text.primary}>{content}</text>
@@ -57,8 +59,15 @@ export function ChatWindow({
       {/* Messages area */}
       <box flexDirection="column" flexGrow={1} paddingBottom={1}>
         {messages.length === 0 ? (
-          <box flexDirection="column" alignItems="center" justifyContent="center" flexGrow={1}>
-            <text fg={theme.text.dim}>No messages yet. Start a conversation!</text>
+          <box
+            flexDirection="column"
+            alignItems="center"
+            justifyContent="center"
+            flexGrow={1}
+          >
+            <text fg={theme.text.dim}>
+              No messages yet. Start a conversation!
+            </text>
           </box>
         ) : (
           messages.map((msg) => (

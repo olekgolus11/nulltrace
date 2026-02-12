@@ -242,7 +242,6 @@ export function DashboardScreen({
       height={height}
       backgroundColor={theme.bg.primary}
     >
-      {/* Header */}
       <Header targetUrl={targetUrl} showControls={false} />
 
       {/* Main content - Three column layout */}
@@ -252,41 +251,43 @@ export function DashboardScreen({
           width={leftPanelWidth}
           height={contentHeight}
           flexDirection="column"
-          backgroundColor={theme.bg.panel}
-          paddingLeft={1}
-          paddingRight={1}
-          paddingTop={1}
-          paddingBottom={1}
         >
           {/* Sitemap Panel */}
-          <box flexDirection="column" marginBottom={1}>
-            <box marginBottom={1}>
-              <text fg={theme.accent.primary}>
-                <strong>Sitemap</strong>
-              </text>
+          <Panel
+            title="Sitemap"
+            flexGrow={1}
+            focused={activePanel === "sitemap"}
+          >
+            <box flexDirection="column">
+              <box flexGrow={1}>
+                <SitemapList
+                  items={mockSitemap}
+                  selectedIndex={selectedSitemapItem}
+                  focused={activePanel === "sitemap"}
+                />
+              </box>
             </box>
-            <box flexGrow={1}>
-              <SitemapList
-                items={mockSitemap}
-                selectedIndex={selectedSitemapItem}
-                focused={activePanel === "sitemap"}
-              />
-            </box>
-          </box>
+          </Panel>
 
           {/* Vulnerabilities Panel */}
-          <box flexDirection="column" flexGrow={1}>
-            <box marginBottom={1}>
-              <text fg={theme.accent.primary}>
-                <strong>Vulnerabilities</strong>
-              </text>
+          <Panel
+            title="Vulnerabilities"
+            flexGrow={1}
+            focused={activePanel === "vulns"}
+          >
+            <box flexDirection="column" flexGrow={1}>
+              <VulnerabilityList
+                vulnerabilities={mockVulnerabilities}
+                selectedIndex={selectedVulnItem}
+                focused={activePanel === "vulns"}
+              />
             </box>
             <VulnerabilityList
               vulnerabilities={mockVulnerabilities}
               selectedIndex={selectedVulnItem}
               focused={activePanel === "vulns"}
             />
-          </box>
+          </Panel>
         </box>
 
         {/* Center panel - AI Chat */}
@@ -294,10 +295,6 @@ export function DashboardScreen({
           width={centerPanelWidth}
           height={contentHeight}
           flexDirection="column"
-          paddingLeft={2}
-          paddingRight={2}
-          paddingTop={1}
-          paddingBottom={1}
         >
           <Panel
             title="AI Assistant"
@@ -319,65 +316,58 @@ export function DashboardScreen({
           width={rightPanelWidth}
           height={contentHeight}
           flexDirection="column"
-          backgroundColor={theme.bg.panel}
-          paddingLeft={1}
-          paddingRight={1}
-          paddingTop={1}
-          paddingBottom={1}
         >
-          {/* Tools Section */}
-          <box marginBottom={2}>
-            <box marginBottom={1}>
-              <text fg={theme.accent.primary}>
-                <strong>Actions</strong>
-              </text>
-            </box>
-            <box flexDirection="column" gap={1}>
-              {tools.map((tool, idx) => {
-                const isSelected =
-                  idx === selectedTool && activePanel === "tools";
-                return (
-                  <box
-                    key={tool.id}
-                    flexDirection="column"
-                    backgroundColor={isSelected ? theme.bg.elevated : undefined}
-                    paddingLeft={1}
-                    paddingTop={1}
-                    paddingBottom={1}
-                    border={isSelected}
-                    borderColor={isSelected ? theme.accent.primary : undefined}
-                  >
-                    <text
-                      fg={
-                        isSelected ? theme.accent.primary : theme.text.primary
+          <Panel title="Tools" flexGrow={1} focused={activePanel === "tools"}>
+            {/* Tools Section */}
+            <box marginBottom={2}>
+              <box flexDirection="column" gap={1}>
+                {tools.map((tool, idx) => {
+                  const isSelected =
+                    idx === selectedTool && activePanel === "tools";
+                  return (
+                    <box
+                      key={tool.id}
+                      flexDirection="column"
+                      backgroundColor={
+                        isSelected ? theme.bg.elevated : undefined
+                      }
+                      paddingLeft={1}
+                      paddingTop={1}
+                      paddingBottom={1}
+                      border={isSelected}
+                      borderColor={
+                        isSelected ? theme.accent.primary : undefined
                       }
                     >
-                      {isSelected ? <strong>{tool.name}</strong> : tool.name}
-                    </text>
-                    <text fg={theme.text.dim}>{tool.description}</text>
-                  </box>
-                );
-              })}
+                      <text
+                        fg={
+                          isSelected ? theme.accent.primary : theme.text.primary
+                        }
+                      >
+                        {isSelected ? <strong>{tool.name}</strong> : tool.name}
+                      </text>
+                      <text fg={theme.text.dim}>{tool.description}</text>
+                    </box>
+                  );
+                })}
+              </box>
             </box>
-          </box>
-
-          {/* Quick Actions */}
-          <box flexDirection="column">
-            <box marginBottom={1}>
-              <text fg={theme.accent.primary}>
-                <strong>Quick Actions</strong>
-              </text>
+            <box flexDirection="column">
+              <box marginBottom={1}>
+                <text fg={theme.accent.primary}>
+                  <strong>Quick Actions</strong>
+                </text>
+              </box>
+              <box flexDirection="column" gap={0}>
+                <text fg={theme.text.secondary}>r Re-scan</text>
+                <text fg={theme.text.secondary}>e Export report</text>
+                <text fg={theme.text.secondary}>s Settings</text>
+              </box>
             </box>
-            <box flexDirection="column" gap={0}>
-              <text fg={theme.text.secondary}>r Re-scan</text>
-              <text fg={theme.text.secondary}>e Export report</text>
-              <text fg={theme.text.secondary}>s Settings</text>
-            </box>
-          </box>
+          </Panel>
         </box>
       </box>
 
-      {/* Status Bar */}
       <StatusBar activePanel={activePanel} />
     </box>
   );

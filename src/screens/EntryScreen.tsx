@@ -174,15 +174,12 @@ export function EntryScreen({ onStartPentest }: EntryScreenProps) {
         height={height}
         flexDirection="column"
         backgroundColor={theme.bg.panel}
-        paddingLeft={1}
-        paddingRight={1}
+        paddingLeft={2}
+        paddingRight={2}
         paddingTop={1}
         paddingBottom={1}
       >
-        <SessionList
-          sessions={mockSessions}
-          selectedIndex={selectedSession}
-        />
+        <SessionList sessions={mockSessions} selectedIndex={selectedSession} />
       </box>
     </box>
   );

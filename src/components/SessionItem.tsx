@@ -25,18 +25,15 @@ export function SessionItem({ session, isSelected }: SessionItemProps) {
       backgroundColor={isSelected ? theme.bg.elevated : undefined}
       paddingLeft={1}
       paddingRight={1}
-      marginBottom={1}
+      paddingBottom={1}
+      paddingTop={1}
     >
       <box>
         <text fg={isSelected ? theme.accent.primary : theme.text.primary}>
-          {isSelected ? (
-            <strong>▸ {session.url}</strong>
-          ) : (
-            `  ${session.url}`
-          )}
+          {isSelected ? <strong>▸ {session.url}</strong> : `  ${session.url}`}
         </text>
       </box>
-      <box paddingLeft={2}>
+      <box flexDirection="row" paddingLeft={2}>
         <text fg={theme.text.dim}>{session.date}</text>
         <text fg={theme.text.dim}> · </text>
         <text fg={vulnColor}>{session.vulns} vulns</text>
@@ -57,7 +54,7 @@ export function SessionList({
   title = "Previous Sessions",
 }: SessionListProps) {
   return (
-    <box flexDirection="column" width={30} flexGrow={1}>
+    <box flexDirection="column" flexGrow={1}>
       <box marginBottom={1}>
         <text fg={theme.accent.primary}>
           <strong>◆ {title}</strong>
