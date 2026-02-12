@@ -5,10 +5,14 @@ import {
   Panel,
   StatusBar,
   ChatWindow,
-  SitemapList,
   VulnerabilityList,
   VulnerabilityCounts,
 } from "../components/index.ts";
+import {
+  SitemapTree,
+  buildTree,
+  flattenTree,
+} from "../components/SitemapTree.tsx";
 import { theme } from "../theme.ts";
 
 interface DashboardScreenProps {
@@ -18,27 +22,34 @@ interface DashboardScreenProps {
 }
 
 // Mock data
-const mockSitemap = [
-  { path: "/", status: 200, type: "GET" },
-  { path: "/admin", status: 403, type: "GET" },
-  { path: "/admin/login", status: 200, type: "POST" },
-  { path: "/admin/dashboard", status: 401, type: "GET" },
-  { path: "/admin/users", status: 401, type: "GET" },
-  { path: "/api", status: 200, type: "GET" },
-  { path: "/api/v1", status: 200, type: "GET" },
-  { path: "/api/v1/users", status: 200, type: "GET" },
-  { path: "/api/v1/products", status: 200, type: "GET" },
-  { path: "/api/v1/orders", status: 201, type: "POST" },
-  { path: "/api/health", status: 200, type: "GET" },
-  { path: "/shop", status: 200, type: "GET" },
-  { path: "/shop/products", status: 200, type: "GET" },
-  { path: "/shop/cart", status: 200, type: "GET" },
-  { path: "/shop/checkout", status: 200, type: "POST" },
-  { path: "/about", status: 200, type: "GET" },
-  { path: "/contact", status: 200, type: "GET" },
-  { path: "/robots.txt", status: 200, type: "GET" },
-  { path: "/.git", status: 403, type: "GET" },
+const mockSitemapFlat = [
+  { path: "/", status: 200, method: "GET" },
+  { path: "/admin", status: 403, method: "GET" },
+  { path: "/admin/login", status: 200, method: "POST" },
+  { path: "/admin/dashboard", status: 401, method: "GET" },
+  { path: "/admin/users", status: 401, method: "GET" },
+  { path: "/api", status: 200, method: "GET" },
+  { path: "/api/v1", status: 200, method: "GET" },
+  { path: "/api/v1/users", status: 200, method: "GET" },
+  { path: "/api/v1/prod", status: 200, method: "GET" },
+  { path: "/api/v1/orders", status: 201, method: "POST" },
+  { path: "/api/v2", status: 200, method: "GET" },
+  { path: "/api/v2/users", status: 200, method: "GET" },
+  { path: "/api/v2/prod", status: 200, method: "GET" },
+  { path: "/api/v2/orderssssssss", status: 201, method: "POST" },
+  { path: "/api/health", status: 200, method: "GET" },
+  { path: "/shop", status: 200, method: "GET" },
+  { path: "/shop/products", status: 200, method: "GET" },
+  { path: "/shop/cart", status: 200, method: "GET" },
+  { path: "/shop/checkout", status: 200, method: "POST" },
+  { path: "/about", status: 200, method: "GET" },
+  { path: "/contact", status: 200, method: "GET" },
+  { path: "/robots.txt", status: 200, method: "GET" },
+  { path: "/.git", status: 403, method: "GET" },
 ];
+
+const mockSitemapTree = buildTree(mockSitemapFlat);
+const mockSitemapFlatNodes = flattenTree(mockSitemapTree);
 
 const mockVulnerabilities = [
   {
@@ -203,7 +214,7 @@ export function DashboardScreen({
         }
         if (key.name === "down") {
           setSelectedSitemapItem((prev) =>
-            Math.min(mockSitemap.length - 1, prev + 1),
+            Math.min(mockSitemapFlatNodes.length - 1, prev + 1),
           );
         }
         break;
@@ -235,6 +246,23 @@ export function DashboardScreen({
   const statusBarHeight = 1;
   const contentHeight = height - headerHeight - statusBarHeight;
 
+  // Calculate scrollbox dimensions for left panels.
+  // Both Sitemap and Vulns panels split the left column evenly (flexGrow=1).
+  // Each gets roughly half of contentHeight.
+  const leftPanelHalf = Math.floor(contentHeight / 2);
+
+  // Sitemap panel: border=2 rows, padding=0, internal "Sitemap" title=1 row
+  // scrollbox height = half - border(2) - title(1)
+  const sitemapScrollHeight = Math.max(1, leftPanelHalf - 2);
+  // Sitemap panel: border=2 cols, padding=0
+  const sitemapScrollWidth = Math.max(1, leftPanelWidth - 2);
+
+  // Vulns panel: border=2 rows, paddingTop=1+paddingBottom=1, title row=1+marginBottom=1
+  // scrollbox height = half - border(2) - padding(2) - title+margin(2)
+  const vulnsScrollHeight = Math.max(1, leftPanelHalf - 2 - 2 - 2);
+  // Vulns panel: border=2 cols, paddingLeft=1+paddingRight=1
+  const vulnsScrollWidth = Math.max(1, leftPanelWidth - 2 - 2);
+
   return (
     <box
       flexDirection="column"
@@ -243,54 +271,52 @@ export function DashboardScreen({
       backgroundColor={theme.bg.primary}
     >
       <Header targetUrl={targetUrl} showControls={false} />
-
-      {/* Main content - Three column layout */}
       <box flexDirection="row" height={contentHeight}>
-        {/* Left panel - Sitemap (top) + Vulnerabilities (bottom) */}
         <box
           width={leftPanelWidth}
           height={contentHeight}
           flexDirection="column"
         >
-          {/* Sitemap Panel */}
           <Panel
-            title="Sitemap"
             flexGrow={1}
             focused={activePanel === "sitemap"}
+            paddingLeft={0}
+            paddingRight={0}
+            paddingTop={0}
+            paddingBottom={0}
           >
-            <box flexDirection="column">
-              <box flexGrow={1}>
-                <SitemapList
-                  items={mockSitemap}
-                  selectedIndex={selectedSitemapItem}
-                  focused={activePanel === "sitemap"}
-                />
-              </box>
-            </box>
+            <scrollbox
+              height={sitemapScrollHeight}
+              width={sitemapScrollWidth}
+              focused={activePanel === "sitemap"}
+              scrollX={true}
+            >
+              <SitemapTree
+                nodes={mockSitemapTree}
+                selectedIndex={selectedSitemapItem}
+                focused={activePanel === "sitemap"}
+              />
+            </scrollbox>
           </Panel>
 
-          {/* Vulnerabilities Panel */}
           <Panel
             title="Vulnerabilities"
             flexGrow={1}
             focused={activePanel === "vulns"}
           >
-            <box flexDirection="column" flexGrow={1}>
+            <scrollbox
+              height={vulnsScrollHeight}
+              width={vulnsScrollWidth}
+              focused={activePanel === "vulns"}
+            >
               <VulnerabilityList
                 vulnerabilities={mockVulnerabilities}
                 selectedIndex={selectedVulnItem}
                 focused={activePanel === "vulns"}
               />
-            </box>
-            <VulnerabilityList
-              vulnerabilities={mockVulnerabilities}
-              selectedIndex={selectedVulnItem}
-              focused={activePanel === "vulns"}
-            />
+            </scrollbox>
           </Panel>
         </box>
-
-        {/* Center panel - AI Chat */}
         <box
           width={centerPanelWidth}
           height={contentHeight}
@@ -310,15 +336,12 @@ export function DashboardScreen({
             />
           </Panel>
         </box>
-
-        {/* Right panel - Tools + Quick Actions */}
         <box
           width={rightPanelWidth}
           height={contentHeight}
           flexDirection="column"
         >
           <Panel title="Tools" flexGrow={1} focused={activePanel === "tools"}>
-            {/* Tools Section */}
             <box marginBottom={2}>
               <box flexDirection="column" gap={1}>
                 {tools.map((tool, idx) => {

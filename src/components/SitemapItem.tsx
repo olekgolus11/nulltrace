@@ -26,13 +26,9 @@ export function SitemapItem({ item, isSelected }: SitemapItemProps) {
       paddingLeft={1}
       paddingRight={1}
     >
-      <box width={20}>
+      <box width={20} overflow="hidden">
         <text fg={isSelected ? theme.accent.primary : theme.text.primary}>
-          {isSelected ? (
-            <strong>▸ {item.path}</strong>
-          ) : (
-            `  ${item.path}`
-          )}
+          {isSelected ? <strong>▸ {item.path}</strong> : `  ${item.path}`}
         </text>
       </box>
       <box width={8}>
@@ -51,7 +47,11 @@ interface SitemapListProps {
   focused: boolean;
 }
 
-export function SitemapList({ items, selectedIndex, focused }: SitemapListProps) {
+export function SitemapList({
+  items,
+  selectedIndex,
+  focused,
+}: SitemapListProps) {
   return (
     <box flexDirection="column" gap={0}>
       {items.map((item, idx) => (
