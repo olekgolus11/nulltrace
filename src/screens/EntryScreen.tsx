@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
-import { SessionList } from "../components/index.ts";
-import { theme } from "../theme.ts";
+import { SessionList } from "../components/index";
+import { theme } from "../theme";
 
 interface EntryScreenProps {
   onStartPentest: (url: string) => void;
@@ -159,11 +159,7 @@ export function EntryScreen({ onStartPentest }: EntryScreenProps) {
             <span fg={theme.text.secondary}>
               <strong>Enter</strong>
             </span>{" "}
-            select{" "}
-            <span fg={theme.text.secondary}>
-              <strong>q</strong>
-            </span>{" "}
-            quit
+            select
           </text>
         </box>
       </box>

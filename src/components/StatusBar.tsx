@@ -1,4 +1,4 @@
-import { theme } from "../theme.ts";
+import { theme } from "../theme";
 
 interface StatusBarProps {
   activePanel: "sitemap" | "vulns" | "chat" | "tools";
@@ -45,11 +45,7 @@ export function StatusBar({ activePanel, showBack = true }: StatusBarProps) {
               </span>{" "}
               back
             </>
-          )}{" "}
-          <span fg={theme.text.secondary}>
-            <strong>q</strong>
-          </span>{" "}
-          quit
+          )}
         </text>
       </box>
 

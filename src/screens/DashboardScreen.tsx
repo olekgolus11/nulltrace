@@ -290,6 +290,7 @@ export function DashboardScreen({
               width={sitemapScrollWidth}
               focused={activePanel === "sitemap"}
               scrollX={true}
+              stickyScroll={false}
             >
               <SitemapTree
                 nodes={mockSitemapTree}
@@ -308,6 +309,7 @@ export function DashboardScreen({
               height={vulnsScrollHeight}
               width={vulnsScrollWidth}
               focused={activePanel === "vulns"}
+              scrollX={true}
             >
               <VulnerabilityList
                 vulnerabilities={mockVulnerabilities}

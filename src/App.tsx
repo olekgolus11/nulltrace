@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { useKeyboard, useRenderer } from "@opentui/react";
-import { EntryScreen, DashboardScreen } from "./screens/index.ts";
+import { EntryScreen, DashboardScreen } from "./screens/index";
 
 type Screen =
   | { type: "entry" }
@@ -19,14 +18,6 @@ const toolNames: Record<string, string> = {
 
 export function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>({ type: "entry" });
-  const renderer = useRenderer();
-
-  // Global quit handler
-  useKeyboard((key) => {
-    if (key.name === "q") {
-      renderer.destroy();
-    }
-  });
 
   const handleStartPentest = (url: string) => {
     // Normalize URL

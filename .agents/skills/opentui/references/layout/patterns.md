@@ -12,7 +12,7 @@ function App() {
     <box width="100%" height="100%">
       {/* Content fills terminal */}
     </box>
-  )
+  );
 }
 ```
 
@@ -28,18 +28,18 @@ function AppLayout() {
       <box height={3} borderStyle="single" borderBottom>
         <text>Header</text>
       </box>
-      
+
       {/* Content - fills remaining space */}
       <box flexGrow={1}>
         <text>Main Content</text>
       </box>
-      
+
       {/* Footer - fixed height */}
       <box height={1}>
         <text>Status: Ready</text>
       </box>
     </box>
-  )
+  );
 }
 ```
 
@@ -53,13 +53,13 @@ function SidebarLayout() {
       <box width={25} borderStyle="single" borderRight>
         <text>Sidebar</text>
       </box>
-      
+
       {/* Main - fills remaining space */}
       <box flexGrow={1}>
         <text>Main Content</text>
       </box>
     </box>
-  )
+  );
 }
 ```
 
@@ -69,10 +69,10 @@ Responsive based on terminal width:
 
 ```tsx
 function ResponsiveSidebar() {
-  const dims = useTerminalDimensions()  // React: useTerminalDimensions()
-  const showSidebar = dims.width > 60
-  const sidebarWidth = Math.min(30, Math.floor(dims.width * 0.3))
-  
+  const dims = useTerminalDimensions(); // React: useTerminalDimensions()
+  const showSidebar = dims.width > 60;
+  const sidebarWidth = Math.min(30, Math.floor(dims.width * 0.3));
+
   return (
     <box flexDirection="row" width="100%" height="100%">
       {showSidebar && (
@@ -84,7 +84,7 @@ function ResponsiveSidebar() {
         <text>Main</text>
       </box>
     </box>
-  )
+  );
 }
 ```
 
@@ -111,12 +111,7 @@ function ResponsiveSidebar() {
 ### Both Axes
 
 ```tsx
-<box
-  width="100%"
-  height="100%"
-  justifyContent="center"
-  alignItems="center"
->
+<box width="100%" height="100%" justifyContent="center" alignItems="center">
   <box width={40} height={10} border>
     <text>Centered both ways</text>
   </box>
@@ -129,8 +124,8 @@ Centered overlay:
 
 ```tsx
 function Modal({ children, visible }) {
-  if (!visible) return null
-  
+  if (!visible) return null;
+
   return (
     <box
       position="absolute"
@@ -153,7 +148,7 @@ function Modal({ children, visible }) {
         {children}
       </box>
     </box>
-  )
+  );
 }
 ```
 
@@ -163,8 +158,8 @@ Using flexWrap:
 
 ```tsx
 function Grid({ items, columns = 3 }) {
-  const itemWidth = `${Math.floor(100 / columns)}%`
-  
+  const itemWidth = `${Math.floor(100 / columns)}%`;
+
   return (
     <box flexDirection="row" flexWrap="wrap" width="100%">
       {items.map((item, i) => (
@@ -173,7 +168,7 @@ function Grid({ items, columns = 3 }) {
         </box>
       ))}
     </box>
-  )
+  );
 }
 ```
 
@@ -192,7 +187,7 @@ function HorizontalSplit({ ratio = 0.5 }) {
         <text>Right Panel</text>
       </box>
     </box>
-  )
+  );
 }
 ```
 
@@ -209,7 +204,7 @@ function VerticalSplit({ ratio = 0.5 }) {
         <text>Bottom Panel</text>
       </box>
     </box>
-  )
+  );
 }
 ```
 
@@ -224,11 +219,9 @@ function FormField({ label, children }) {
       <box width={15}>
         <text>{label}:</text>
       </box>
-      <box flexGrow={1}>
-        {children}
-      </box>
+      <box flexGrow={1}>{children}</box>
     </box>
-  )
+  );
 }
 
 function LoginForm() {
@@ -246,7 +239,7 @@ function LoginForm() {
         </box>
       </box>
     </box>
-  )
+  );
 }
 ```
 
@@ -263,13 +256,11 @@ function TabBar({ tabs, activeIndex, onSelect }) {
           backgroundColor={i === activeIndex ? "#333" : "transparent"}
           onMouseDown={() => onSelect(i)}
         >
-          <text fg={i === activeIndex ? "#fff" : "#888"}>
-            {tab}
-          </text>
+          <text fg={i === activeIndex ? "#fff" : "#888"}>{tab}</text>
         </box>
       ))}
     </box>
-  )
+  );
 }
 ```
 
@@ -286,13 +277,13 @@ function StickyFooterLayout() {
         {/* Your content here */}
         <text>Content that might be short</text>
       </box>
-      
+
       {/* Footer pushed to bottom */}
       <box height={1}>
         <text fg="#888">Press ? for help | q to quit</text>
       </box>
     </box>
-  )
+  );
 }
 ```
 
@@ -314,7 +305,7 @@ function Tooltip({ x, y, children }) {
     >
       {children}
     </box>
-  )
+  );
 }
 ```
 
@@ -324,13 +315,13 @@ Different layouts based on terminal size:
 
 ```tsx
 function ResponsiveApp() {
-  const { width, height } = useTerminalDimensions()
-  
+  const { width, height } = useTerminalDimensions();
+
   // Define breakpoints
-  const isSmall = width < 60
-  const isMedium = width >= 60 && width < 100
-  const isLarge = width >= 100
-  
+  const isSmall = width < 60;
+  const isMedium = width >= 60 && width < 100;
+  const isLarge = width >= 100;
+
   if (isSmall) {
     // Mobile-like: stacked layout
     return (
@@ -338,27 +329,37 @@ function ResponsiveApp() {
         <Navigation />
         <Content />
       </box>
-    )
+    );
   }
-  
+
   if (isMedium) {
     // Tablet-like: sidebar + content
     return (
       <box flexDirection="row">
-        <box width={20}><Navigation /></box>
-        <box flexGrow={1}><Content /></box>
+        <box width={20}>
+          <Navigation />
+        </box>
+        <box flexGrow={1}>
+          <Content />
+        </box>
       </box>
-    )
+    );
   }
-  
+
   // Large: full layout
   return (
     <box flexDirection="row">
-      <box width={25}><Navigation /></box>
-      <box flexGrow={1}><Content /></box>
-      <box width={30}><Sidebar /></box>
+      <box width={25}>
+        <Navigation />
+      </box>
+      <box flexGrow={1}>
+        <Content />
+      </box>
+      <box width={30}>
+        <Sidebar />
+      </box>
     </box>
-  )
+  );
 }
 ```
 
@@ -372,17 +373,13 @@ function EqualColumns() {
         <text>Short content</text>
       </box>
       <box flexGrow={1} border>
-        <text>
-          Longer content that
-          spans multiple lines
-          and takes up space
-        </text>
+        <text>Longer content that spans multiple lines and takes up space</text>
       </box>
       <box flexGrow={1} border>
         <text>Medium content</text>
       </box>
     </box>
-  )
+  );
 }
 ```
 
@@ -393,12 +390,12 @@ Consistent spacing patterns:
 ```tsx
 // Spacer component
 function Spacer({ size = 1 }) {
-  return <box height={size} width={size} />
+  return <box height={size} width={size} />;
 }
 
 // Divider component
 function Divider() {
-  return <box height={1} width="100%" backgroundColor="#333" />
+  return <box height={1} width="100%" backgroundColor="#333" />;
 }
 
 // Usage
@@ -408,5 +405,38 @@ function Divider() {
   <Divider />
   <Spacer size={2} />
   <text>Section 2</text>
+</box>;
+```
+
+### Axis Shorthand Props
+
+Use `paddingX`/`paddingY` and `marginX`/`marginY` for horizontal/vertical spacing:
+
+```tsx
+// Horizontal padding (left + right)
+<box paddingX={4}>
+  <text>4 chars padding left and right</text>
+</box>
+
+// Vertical padding (top + bottom)
+<box paddingY={2}>
+  <text>2 lines padding top and bottom</text>
+</box>
+
+// Horizontal margin for centering-like effect
+<box marginX={10}>
+  <text>Indented content</text>
+</box>
+
+// Combined for card-like spacing
+<box paddingX={3} paddingY={1} marginY={1} border>
+  <text>Nicely spaced card</text>
 </box>
 ```
+
+These are shorthand for:
+
+- `paddingX={n}` = `paddingLeft={n}` + `paddingRight={n}`
+- `paddingY={n}` = `paddingTop={n}` + `paddingBottom={n}`
+- `marginX={n}` = `marginLeft={n}` + `marginRight={n}`
+- `marginY={n}` = `marginTop={n}` + `marginBottom={n}`
