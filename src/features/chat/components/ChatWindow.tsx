@@ -1,0 +1,56 @@
+import { theme } from "../../../app/theme/theme";
+import { ChatWindowProps } from "../model/chat.types";
+import { ChatMessage } from "./ChatMessage";
+
+export function ChatWindow({
+  messages,
+  inputValue,
+  onInputChange,
+  onSubmit,
+  placeholder = "Ask about vulnerabilities, request scans...",
+  focused = false,
+}: ChatWindowProps) {
+  return (
+    <box flexDirection="column" flexGrow={1}>
+      <box flexDirection="column" flexGrow={1} paddingBottom={1}>
+        {messages.length === 0 ? (
+          <box
+            flexDirection="column"
+            alignItems="center"
+            justifyContent="center"
+            flexGrow={1}
+          >
+            <text fg={theme.text.dim}>
+              No messages yet. Start a conversation!
+            </text>
+          </box>
+        ) : (
+          messages.map((msg) => (
+            <ChatMessage
+              key={msg.id}
+              sender={msg.sender}
+              content={msg.content}
+              timestamp={msg.timestamp}
+            />
+          ))
+        )}
+      </box>
+
+      <box flexDirection="row" gap={1} alignItems="center">
+        <text fg={theme.accent.primary}>{">"}</text>
+        <input
+          value={inputValue}
+          onChange={onInputChange}
+          placeholder={placeholder}
+          width="100%"
+          focused={focused}
+          backgroundColor={theme.bg.input}
+          textColor={theme.text.primary}
+          cursorColor={theme.accent.primary}
+          focusedBackgroundColor={theme.bg.elevated}
+          placeholderColor={theme.text.dim}
+        />
+      </box>
+    </box>
+  );
+}

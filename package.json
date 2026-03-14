@@ -4,8 +4,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "bun run src/index.tsx",
-    "dev": "bun --watch run src/index.tsx"
+    "start": "bun run src/main/index.tsx",
+    "dev": "bun --watch run src/main/index.tsx"
   },
   "devDependencies": {
     "@types/bun": "latest",
