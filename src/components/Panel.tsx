@@ -1,15 +1,21 @@
-import { Box, Text, type BoxProps } from "ink";
-import { theme, boxChars } from "../theme.ts";
-import type { ReactNode } from "react";
+import { theme } from "../theme.ts";
 
 interface PanelProps {
   title?: string;
-  children: ReactNode;
-  width?: number | string;
-  height?: number | string;
+  children: React.ReactNode;
+  width?: number;
+  height?: number;
+  flexGrow?: number;
+  flexDirection?: "row" | "column";
+  border?: boolean;
   borderColor?: string;
   focused?: boolean;
+  marginBottom?: number;
   padding?: number;
+  paddingLeft?: number;
+  paddingRight?: number;
+  paddingTop?: number;
+  paddingBottom?: number;
 }
 
 export function Panel({
@@ -17,60 +23,43 @@ export function Panel({
   children,
   width,
   height,
-  borderColor,
+  flexGrow,
+  flexDirection = "column",
+  border = true,
+  borderColor = theme.border.default,
   focused = false,
-  padding = 1,
+  marginBottom,
+  padding,
+  paddingLeft = 1,
+  paddingRight = 1,
+  paddingTop = 1,
+  paddingBottom = 1,
 }: PanelProps) {
-  const activeBorderColor = focused
-    ? theme.border.focus
-    : borderColor || theme.border.muted;
+  const finalBorderColor = focused ? theme.accent.primary : borderColor;
 
   return (
-    <Box
-      flexDirection="column"
+    <box
       width={width}
       height={height}
-      borderStyle="round"
-      borderColor={activeBorderColor}
-      backgroundColor={theme.bg.panel}
+      flexGrow={flexGrow}
+      flexDirection={flexDirection}
+      border={border}
+      borderColor={finalBorderColor}
+      marginBottom={marginBottom}
+      padding={padding}
+      paddingLeft={paddingLeft}
+      paddingRight={paddingRight}
+      paddingTop={paddingTop}
+      paddingBottom={paddingBottom}
     >
       {title && (
-        <Box marginTop={-1} marginLeft={1}>
-          <Text color={focused ? theme.accent.primary : theme.text.secondary}>
-            {" "}
-            {title}{" "}
-          </Text>
-        </Box>
+        <box marginBottom={1}>
+          <text fg={theme.accent.primary}>
+            <strong>◆ {title}</strong>
+          </text>
+        </box>
       )}
-      <Box
-        flexDirection="column"
-        paddingX={padding}
-        paddingY={padding > 0 ? 0 : 0}
-        flexGrow={1}
-      >
-        {children}
-      </Box>
-    </Box>
+      {children}
+    </box>
   );
 }
-
-// Simpler panel without border for inline sections
-interface SectionProps {
-  title: string;
-  children: ReactNode;
-  titleColor?: string;
-}
-
-export function Section({ title, children, titleColor }: SectionProps) {
-  return (
-    <Box flexDirection="column" marginBottom={1}>
-      <Text bold color={titleColor || theme.accent.primary}>
-        {title}
-      </Text>
-      <Box flexDirection="column" paddingLeft={1}>
-        {children}
-      </Box>
-    </Box>
-  );
-}
-

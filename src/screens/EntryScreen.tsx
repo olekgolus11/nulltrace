@@ -1,8 +1,7 @@
-import { useState, useEffect } from "react";
-import { Box, Text, useInput, useStdout } from "ink";
-import { theme } from "../theme.ts";
-import { Panel } from "../components/Panel.tsx";
-import { TextInput } from "../components/TextInput.tsx";
+import { useState } from "react";
+import { useKeyboard, useTerminalDimensions } from "@opentui/react";
+import { SessionList } from "../components/index";
+import { theme } from "../theme";
 
 interface EntryScreenProps {
   onStartPentest: (url: string) => void;
@@ -30,32 +29,14 @@ const titleArt = [
 ];
 
 export function EntryScreen({ onStartPentest }: EntryScreenProps) {
-  const { stdout } = useStdout();
-  const [dimensions, setDimensions] = useState({
-    width: stdout.columns || 80,
-    height: stdout.rows || 24,
-  });
+  const { width, height } = useTerminalDimensions();
   const [url, setUrl] = useState("");
   const [selectedSession, setSelectedSession] = useState(-1);
   const [focusArea, setFocusArea] = useState<"input" | "sessions">("input");
 
-  useEffect(() => {
-    const handleResize = () => {
-      setDimensions({
-        width: stdout.columns || 80,
-        height: stdout.rows || 24,
-      });
-    };
-
-    stdout.on("resize", handleResize);
-    return () => {
-      stdout.off("resize", handleResize);
-    };
-  }, [stdout]);
-
-  useInput((input, key) => {
+  useKeyboard((key) => {
     // Tab to switch focus areas
-    if (key.tab) {
+    if (key.name === "tab") {
       setFocusArea((prev) => (prev === "input" ? "sessions" : "input"));
       if (focusArea === "input") {
         setSelectedSession(0);
@@ -67,164 +48,135 @@ export function EntryScreen({ onStartPentest }: EntryScreenProps) {
 
     // Handle session navigation
     if (focusArea === "sessions") {
-      if (key.upArrow) {
+      if (key.name === "up") {
         setSelectedSession((prev) => Math.max(0, prev - 1));
       }
-      if (key.downArrow) {
+      if (key.name === "down") {
         setSelectedSession((prev) =>
-          Math.min(mockSessions.length - 1, prev + 1)
+          Math.min(mockSessions.length - 1, prev + 1),
         );
       }
-      if (key.return && selectedSession >= 0) {
-        onStartPentest(mockSessions[selectedSession].url);
+      if (key.name === "return" && selectedSession >= 0) {
+        const session = mockSessions[selectedSession];
+        if (session) {
+          onStartPentest(session.url);
+        }
       }
     }
 
     // Submit URL
-    if (focusArea === "input" && key.return && url.trim()) {
+    if (focusArea === "input" && key.name === "return" && url.trim()) {
       onStartPentest(url.trim());
     }
   });
 
   const sidebarWidth = 30;
-  const mainWidth = dimensions.width - sidebarWidth - 2;
+  const mainWidth = width - sidebarWidth - 2;
 
   return (
-    <Box
+    <box
       flexDirection="row"
-      width={dimensions.width}
-      height={dimensions.height}
+      width={width}
+      height={height}
       backgroundColor={theme.bg.primary}
     >
       {/* Main content area */}
-      <Box
+      <box
         width={mainWidth}
-        height={dimensions.height}
+        height={height}
         flexDirection="column"
         justifyContent="center"
         alignItems="center"
-        paddingX={2}
+        paddingLeft={2}
+        paddingRight={2}
       >
         {/* ASCII Title */}
-        <Box flexDirection="column" alignItems="center" marginBottom={2}>
+        <box flexDirection="column" alignItems="center" marginBottom={2}>
           {titleArt.map((line, idx) => (
-            <Text key={`title-${idx}`} color={theme.accent.primary}>
+            <text key={`title-${idx}`} fg={theme.accent.primary}>
               {line}
-            </Text>
+            </text>
           ))}
-        </Box>
+        </box>
 
         {/* Subtitle */}
-        <Box marginBottom={2}>
-          <Text color={theme.text.secondary}>
+        <box marginBottom={2}>
+          <text fg={theme.text.secondary}>
             AI-powered penetration testing assistant for web applications
-          </Text>
-        </Box>
+          </text>
+        </box>
 
         {/* URL Input */}
-        <Box flexDirection="column" alignItems="center" marginBottom={2}>
-          <Box marginBottom={1}>
-            <Text color={theme.text.muted}>Enter target URL to begin:</Text>
-          </Box>
-          <TextInput
-            value={url}
-            onChange={setUrl}
-            onSubmit={(val) => val.trim() && onStartPentest(val.trim())}
-            placeholder="https://target-website.com"
-            width={50}
-            focused={focusArea === "input"}
-            prefix="◆"
-          />
-        </Box>
+        <box flexDirection="column" alignItems="center" marginBottom={2}>
+          <box marginBottom={1}>
+            <text fg={theme.text.muted}>Enter target URL to begin:</text>
+          </box>
+          <box flexDirection="row" gap={1} alignItems="center">
+            <text fg={theme.accent.primary}>
+              <strong>◆</strong>
+            </text>
+            <input
+              value={url}
+              onChange={(newValue) => setUrl(newValue)}
+              placeholder="https://target-website.com"
+              width={50}
+              focused={focusArea === "input"}
+              backgroundColor={theme.bg.input}
+              textColor={theme.text.primary}
+              cursorColor={theme.accent.primary}
+              focusedBackgroundColor={theme.bg.elevated}
+              placeholderColor={theme.text.dim}
+            />
+          </box>
+        </box>
 
         {/* Start button hint */}
-        <Box marginTop={1}>
-          <Text color={theme.text.dim}>
-            Press <Text color={theme.accent.primary}>Enter</Text> to start
-            pentest or <Text color={theme.accent.primary}>Tab</Text> to browse
-            sessions
-          </Text>
-        </Box>
+        <box marginTop={1}>
+          <text fg={theme.text.dim}>
+            Press{" "}
+            <span fg={theme.accent.primary}>
+              <strong>Enter</strong>
+            </span>{" "}
+            to start pentest or{" "}
+            <span fg={theme.accent.primary}>
+              <strong>Tab</strong>
+            </span>{" "}
+            to browse sessions
+          </text>
+        </box>
 
         {/* Footer hints */}
-        <Box
-          position="absolute"
-          marginTop={dimensions.height - 3}
-          marginLeft={2}
-        >
-          <Text color={theme.text.dim}>
-            <Text color={theme.text.secondary}>Tab</Text> switch focus{" "}
-            <Text color={theme.text.secondary}>↑↓</Text> navigate{" "}
-            <Text color={theme.text.secondary}>Enter</Text> select{" "}
-            <Text color={theme.text.secondary}>q</Text> quit
-          </Text>
-        </Box>
-      </Box>
+        <box position="absolute" marginTop={height - 3} marginLeft={2}>
+          <text fg={theme.text.dim}>
+            <span fg={theme.text.secondary}>
+              <strong>Tab</strong>
+            </span>{" "}
+            switch focus{" "}
+            <span fg={theme.text.secondary}>
+              <strong>↑↓</strong>
+            </span>{" "}
+            navigate{" "}
+            <span fg={theme.text.secondary}>
+              <strong>Enter</strong>
+            </span>{" "}
+            select
+          </text>
+        </box>
+      </box>
 
       {/* Sessions sidebar */}
-      <Box
+      <box
         width={sidebarWidth}
-        height={dimensions.height}
+        height={height}
         flexDirection="column"
         backgroundColor={theme.bg.panel}
-        paddingX={1}
-        paddingY={1}
+        paddingLeft={2}
+        paddingRight={2}
+        paddingTop={1}
+        paddingBottom={1}
       >
-        <Box marginBottom={1}>
-          <Text color={theme.accent.primary} bold>
-            ◆ Previous Sessions
-          </Text>
-        </Box>
-
-        <Box flexDirection="column" gap={0}>
-          {mockSessions.map((session, idx) => {
-            const isSelected = idx === selectedSession;
-            return (
-              <Box
-                key={session.url}
-                flexDirection="column"
-                backgroundColor={isSelected ? theme.bg.elevated : undefined}
-                paddingX={1}
-                marginBottom={1}
-              >
-                <Box>
-                  <Text
-                    color={isSelected ? theme.accent.primary : theme.text.primary}
-                    bold={isSelected}
-                  >
-                    {isSelected ? "▸ " : "  "}
-                    {session.url}
-                  </Text>
-                </Box>
-                <Box paddingLeft={2}>
-                  <Text color={theme.text.dim}>{session.date}</Text>
-                  <Text color={theme.text.dim}> · </Text>
-                  <Text
-                    color={
-                      session.vulns > 5
-                        ? theme.severity.critical
-                        : session.vulns > 0
-                          ? theme.severity.medium
-                          : theme.severity.low
-                    }
-                  >
-                    {session.vulns} vulns
-                  </Text>
-                </Box>
-              </Box>
-            );
-          })}
-        </Box>
-
-        {/* Session count */}
-        <Box flexGrow={1} />
-        <Box>
-          <Text color={theme.text.dim}>
-            {mockSessions.length} sessions total
-          </Text>
-        </Box>
-      </Box>
-    </Box>
+        <SessionList sessions={mockSessions} selectedIndex={selectedSession} />
+      </box>
+    </box>
   );
 }
-

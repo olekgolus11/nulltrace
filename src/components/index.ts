@@ -1,17 +1,21 @@
-// Core components
-export { Button } from "./Button.tsx";
-export { Modal } from "./Modal.tsx";
-export { Screen } from "./Screen.tsx";
-export { Sidebar } from "./Sidebar.tsx";
+// Layout components
+export { Panel } from "./Panel.tsx";
+export { Header } from "./Header.tsx";
+export { StatusBar } from "./StatusBar.tsx";
 
-// New PenTest AI components
-export { Panel, Section } from "./Panel.tsx";
-export { TextInput, InlineInput } from "./TextInput.tsx";
-export { ChatMessage, ChatWindow } from "./ChatMessage.tsx";
-export { SitemapTree, mockSitemap } from "./SitemapTree.tsx";
+// Display components
+export {
+  VulnerabilityBadge,
+  VulnerabilitySummary,
+} from "./VulnerabilityBadge.tsx";
 export {
   VulnerabilityList,
-  VulnSummary,
-  mockVulnerabilities,
+  VulnerabilityCounts,
 } from "./VulnerabilityList.tsx";
-export { ToolButton, ToolGrid } from "./ToolButton.tsx";
+export { ChatMessage, ChatWindow } from "./Chat.tsx";
+
+// List components
+export { ToolCard, ToolList } from "./ToolCard.tsx";
+export { SitemapItem, SitemapList } from "./SitemapItem.tsx";
+export { SitemapTree, buildTree, flattenTree } from "./SitemapTree.tsx";
+export { SessionItem, SessionList } from "./SessionItem.tsx";
