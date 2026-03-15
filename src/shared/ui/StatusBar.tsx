@@ -1,17 +1,26 @@
 import { theme } from "../../app/theme/theme";
 
 interface StatusBarProps {
-  activePanel: "sitemap" | "vulns" | "chat" | "tools";
+  activePanel: string;
   showBack?: boolean;
+  hintText?: string;
+  panels?: Array<{ id: string; label: string }>;
 }
 
-export function StatusBar({ activePanel, showBack = true }: StatusBarProps) {
-  const panels = [
+export function StatusBar({
+  activePanel,
+  showBack = true,
+  hintText,
+  panels = [
     { id: "sitemap", label: "SITEMAP" },
     { id: "vulns", label: "VULNS" },
     { id: "chat", label: "CHAT" },
     { id: "tools", label: "TOOLS" },
-  ];
+  ],
+}: StatusBarProps) {
+  const defaultHintText = `Tab switch panel  Up/Down navigate  Enter select${
+    showBack ? "  ESC back" : ""
+  }`;
 
   return (
     <box
@@ -24,29 +33,7 @@ export function StatusBar({ activePanel, showBack = true }: StatusBarProps) {
     >
       {/* Left side - Keyboard shortcuts */}
       <box flexGrow={1}>
-        <text fg={theme.text.dim}>
-          <span fg={theme.text.secondary}>
-            <strong>Tab</strong>
-          </span>{" "}
-          switch panel{" "}
-          <span fg={theme.text.secondary}>
-            <strong>↑↓</strong>
-          </span>{" "}
-          navigate{" "}
-          <span fg={theme.text.secondary}>
-            <strong>Enter</strong>
-          </span>{" "}
-          select
-          {showBack && (
-            <>
-              {" "}
-              <span fg={theme.text.secondary}>
-                <strong>ESC</strong>
-              </span>{" "}
-              back
-            </>
-          )}
-        </text>
+        <text fg={theme.text.dim}>{hintText ?? defaultHintText}</text>
       </box>
 
       {/* Right side - Panel indicators */}

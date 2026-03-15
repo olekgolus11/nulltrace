@@ -3,7 +3,7 @@ import { theme } from "../../../app/theme/theme";
 import { SessionList } from "../../session/components/SessionList";
 import { EntryScreenProps } from "../model/entry.types";
 import { mockSessions } from "../data/entry.mock";
-import { titleArtBlood } from "../data/entry.constants";
+import { titleArtBlood, titleArtRebel } from "../data/entry.constants";
 import { useEntryShortcuts } from "../hooks/use-entry-shortcuts";
 
 export function EntryScreen({ onStartPentest }: EntryScreenProps) {
