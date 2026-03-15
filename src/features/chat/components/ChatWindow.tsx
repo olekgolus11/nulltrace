@@ -36,13 +36,12 @@ export function ChatWindow({
         )}
       </box>
 
-      <box flexDirection="row" gap={1} alignItems="center">
+      <box flexDirection="row" gap={1} alignItems="center" width="100%">
         <text fg={theme.accent.primary}>{">"}</text>
         <input
           value={inputValue}
           onChange={onInputChange}
           placeholder={placeholder}
-          width="100%"
           focused={focused}
           backgroundColor={theme.bg.input}
           textColor={theme.text.primary}
