@@ -5,6 +5,7 @@ import { EntryScreenProps } from "../model/entry.types";
 import { mockSessions } from "../data/entry.mock";
 import { titleArt } from "../data/entry.constants";
 import { useEntryShortcuts } from "../hooks/use-entry-shortcuts";
+import { useState } from "react";
 
 export function EntryScreen({ onStartPentest }: EntryScreenProps) {
   const { width, height } = useTerminalDimensions();
@@ -58,7 +59,7 @@ export function EntryScreen({ onStartPentest }: EntryScreenProps) {
               value={entryState.urlInput}
               onChange={setUrlInput}
               placeholder="https://target-website.com"
-              // onSubmit={submitUrlInput}
+              onSubmit={submitUrlInput}
               width={50}
               focused={entryState.activePanel === "input"}
               backgroundColor={theme.bg.input}

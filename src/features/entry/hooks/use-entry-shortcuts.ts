@@ -71,9 +71,13 @@ export function useEntryShortcuts({
     dispatch({ type: "SET_URL_INPUT", value });
   };
 
-  const submitUrlInput = () => {
-    console.log("submitUrlInput", state.urlInput);
-    const url = state.urlInput.trim();
+  const submitUrlInput = (arg: unknown) => {
+    const value = typeof arg === "string" ? arg : "";
+    const nextValue = value.trim() ? value : state.urlInput;
+
+    if (!nextValue.trim()) return;
+
+    const url = nextValue.trim();
     if (!url) return;
     onStartPentest(url);
   };
@@ -103,9 +107,9 @@ export function useEntryShortcuts({
       return;
     }
 
-    if (key.name === "enter" || key.name === "return") {
-      submitUrlInput();
-    }
+    // if (key.name === "enter" || key.name === "return") {
+    //   submitUrlInput();
+    // }
   });
 
   return {
