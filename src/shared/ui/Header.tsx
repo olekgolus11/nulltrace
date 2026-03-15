@@ -9,7 +9,7 @@ interface HeaderProps {
 }
 
 export function Header({
-  title = "PenTest AI",
+  title = "Nulltrace",
   subtitle,
   targetUrl,
 }: HeaderProps) {

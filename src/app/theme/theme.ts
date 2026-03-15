@@ -1,4 +1,4 @@
-// Cyber Teal Theme - Color palette for PenTest AI TUI
+// Cyber Teal Theme - Color palette for Nulltrace TUI
 export const theme = {
   // Backgrounds
   bg: {

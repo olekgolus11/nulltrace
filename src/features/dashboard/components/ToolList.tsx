@@ -3,7 +3,7 @@ import { ToolCard } from "./ToolCard";
 
 export function ToolList({ tools, selectedIndex, focused }: ToolListProps) {
   return (
-    <box flexDirection="column" gap={1}>
+    <box flexDirection="column">
       {tools.map((tool, idx) => (
         <ToolCard
           key={tool.id}

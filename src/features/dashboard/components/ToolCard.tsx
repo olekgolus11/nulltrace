@@ -5,7 +5,8 @@ export function ToolCard({ tool, isSelected }: ToolCardProps) {
   return (
     <box
       flexDirection="row"
-      alignItems="space-between"
+      justifyContent="space-between"
+      alignItems="center"
       width="100%"
       backgroundColor={isSelected ? theme.bg.elevated : undefined}
       paddingLeft={1}

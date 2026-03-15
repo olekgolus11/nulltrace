@@ -1,5 +1,5 @@
 {
-  "name": "pentest-ai-opencode",
+  "name": "nulltrace",
   "module": "src/index.tsx",
   "type": "module",
   "private": true,
