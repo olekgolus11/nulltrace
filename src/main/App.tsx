@@ -9,7 +9,6 @@ export function App() {
 
   const handleStartPentest = (url: string) => {
     const normalizedUrl = url.startsWith("http") ? url : `https://${url}`;
-    console.log("Starting pentest for:", normalizedUrl);
     setCurrentScreen({ type: "dashboard", targetUrl: normalizedUrl });
   };
 

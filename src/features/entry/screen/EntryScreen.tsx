@@ -3,9 +3,8 @@ import { theme } from "../../../app/theme/theme";
 import { SessionList } from "../../session/components/SessionList";
 import { EntryScreenProps } from "../model/entry.types";
 import { mockSessions } from "../data/entry.mock";
-import { titleArt } from "../data/entry.constants";
+import { titleArtBlood } from "../data/entry.constants";
 import { useEntryShortcuts } from "../hooks/use-entry-shortcuts";
-import { useState } from "react";
 
 export function EntryScreen({ onStartPentest }: EntryScreenProps) {
   const { width, height } = useTerminalDimensions();
@@ -34,7 +33,7 @@ export function EntryScreen({ onStartPentest }: EntryScreenProps) {
         paddingRight={2}
       >
         <box flexDirection="column" alignItems="center" marginBottom={2}>
-          {titleArt.map((line, idx) => (
+          {titleArtBlood.map((line, idx) => (
             <text key={`title-${idx}`} fg={theme.accent.primary}>
               {line}
             </text>
