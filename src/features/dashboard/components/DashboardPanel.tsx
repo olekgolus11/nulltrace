@@ -28,6 +28,8 @@ export function DashboardPanel({
       flexDirection={flexDirection}
       border={border}
       borderColor={finalBorderColor}
+      title={title ? ` \u2726 ${title} ` : undefined}
+      titleAlignment="left"
       marginBottom={marginBottom}
       padding={padding}
       paddingLeft={paddingLeft}
@@ -35,13 +37,6 @@ export function DashboardPanel({
       paddingTop={paddingTop}
       paddingBottom={paddingBottom}
     >
-      {title && (
-        <box marginBottom={1}>
-          <text fg={theme.accent.primary}>
-            <strong>◆ {title}</strong>
-          </text>
-        </box>
-      )}
       {children}
     </box>
   );

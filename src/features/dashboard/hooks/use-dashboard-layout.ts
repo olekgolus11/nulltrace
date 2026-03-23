@@ -13,6 +13,7 @@ export const useDashboardLayout = ({
   const centerPanelWidth = width - leftPanelWidth - rightPanelWidth;
   const headerHeight = 3;
   const statusBarHeight = 1;
+  // The dashboard body fills whatever vertical space remains below chrome.
   const contentHeight = height - headerHeight - statusBarHeight;
 
   // Calculate scrollbox dimensions for left panels.
