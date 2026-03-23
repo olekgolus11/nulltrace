@@ -1,20 +1,6 @@
-import { theme } from "../../../app/theme/theme";
-import {
-  NmapFieldId,
-  NmapFormState,
-  NmapTiming,
-} from "../model/tool.types";
-
-const FIELD_IDS: NmapFieldId[] = [
-  "target",
-  "ports",
-  "timing",
-  "serviceDetection",
-  "osDetection",
-  "defaultScripts",
-  "aggressive",
-  "extraArgs",
-];
+import { theme } from "../../../../app/theme/theme";
+import { nmapFieldOrder, nmapTimingOptions } from "../config/nmap.config";
+import { NmapFormState, NmapTiming } from "../types/nmap.types";
 
 function ToggleRow({
   label,
@@ -48,18 +34,25 @@ export function NmapForm({
     value: string | boolean | NmapTiming,
   ) => void;
 }) {
-  const selectedId = FIELD_IDS[selectedField];
+  const selectedId = nmapFieldOrder[selectedField];
 
   return (
     <box flexDirection="column">
       <box flexDirection="row" marginBottom={1}>
         <box width={20}>
-          <text fg={selectedId === "target" ? theme.accent.primary : theme.text.secondary}>
+          <text
+            fg={
+              selectedId === "target"
+                ? theme.accent.primary
+                : theme.text.secondary
+            }
+          >
             {selectedId === "target" ? "> Target" : "  Target"}
           </text>
         </box>
         <input
           value={form.target}
+          width={"100%"}
           onChange={(value) => onFieldChange("target", value)}
           placeholder="scanme.nmap.org"
           focused={focused && selectedId === "target"}
@@ -73,7 +66,13 @@ export function NmapForm({
 
       <box flexDirection="row" marginBottom={1}>
         <box width={20}>
-          <text fg={selectedId === "ports" ? theme.accent.primary : theme.text.secondary}>
+          <text
+            fg={
+              selectedId === "ports"
+                ? theme.accent.primary
+                : theme.text.secondary
+            }
+          >
             {selectedId === "ports" ? "> Ports" : "  Ports"}
           </text>
         </box>
@@ -92,12 +91,22 @@ export function NmapForm({
 
       <box flexDirection="row" marginBottom={1}>
         <box width={20}>
-          <text fg={selectedId === "timing" ? theme.accent.primary : theme.text.secondary}>
+          <text
+            fg={
+              selectedId === "timing"
+                ? theme.accent.primary
+                : theme.text.secondary
+            }
+          >
             {selectedId === "timing" ? "> Timing" : "  Timing"}
           </text>
         </box>
-        <text fg={selectedId === "timing" ? theme.text.primary : theme.text.secondary}>
-          {["T2", "T3", "T4", "T5"]
+        <text
+          fg={
+            selectedId === "timing" ? theme.text.primary : theme.text.secondary
+          }
+        >
+          {nmapTimingOptions
             .map((option) => (option === form.timing ? `[${option}]` : option))
             .join("  ")}{" "}
         </text>
@@ -127,7 +136,13 @@ export function NmapForm({
 
       <box flexDirection="row">
         <box width={20}>
-          <text fg={selectedId === "extraArgs" ? theme.accent.primary : theme.text.secondary}>
+          <text
+            fg={
+              selectedId === "extraArgs"
+                ? theme.accent.primary
+                : theme.text.secondary
+            }
+          >
             {selectedId === "extraArgs" ? "> Extra args" : "  Extra args"}
           </text>
         </box>

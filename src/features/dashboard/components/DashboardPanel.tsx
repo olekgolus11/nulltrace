@@ -15,7 +15,7 @@ export function DashboardPanel({
   padding,
   paddingLeft = 1,
   paddingRight = 1,
-  paddingTop = 1,
+  paddingTop = 0,
   paddingBottom = 1,
 }: PanelProps) {
   const finalBorderColor = focused ? theme.accent.primary : borderColor;

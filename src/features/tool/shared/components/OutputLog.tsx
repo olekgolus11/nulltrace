@@ -1,4 +1,4 @@
-import { theme } from "../../../app/theme/theme";
+import { theme } from "../../../../app/theme/theme";
 
 export function OutputLog({
   lines,
@@ -18,7 +18,11 @@ export function OutputLog({
           lines.map((line, index) => (
             <text
               key={`line-${index}-${line}`}
-              fg={line.startsWith("[execution failed]") ? theme.accent.critical : theme.text.primary}
+              fg={
+                line.startsWith("[execution failed]")
+                  ? theme.accent.critical
+                  : theme.text.primary
+              }
             >
               {line || " "}
             </text>

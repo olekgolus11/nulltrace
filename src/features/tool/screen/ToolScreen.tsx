@@ -1,13 +1,16 @@
+import { useEffect } from "react";
 import { useTerminalDimensions } from "@opentui/react";
 import { theme } from "../../../app/theme/theme";
 import { ChatWindow } from "../../chat/components/ChatWindow";
 import { DashboardPanel } from "../../dashboard/components/DashboardPanel";
 import { useToolLayout } from "../hooks/use-tool-layout";
-import { useToolShortcuts } from "../hooks/use-tool-shortcuts";
-import { ToolWorkspace } from "../components/ToolWorkspace";
-import { ToolScreenProps } from "../model/tool.types";
+import { ToolScreenProps } from "../shared/types/tool-screen.types";
 import { Header } from "../../../shared/ui/Header";
 import { StatusBar } from "../../../shared/ui/StatusBar";
+import { useToolWorkspaceStore } from "../shared/store/tool-workspace.store";
+import { useToolKeyboardNavigation } from "../shared/hooks/use-tool-keyboard-navigation";
+import { ActiveToolWorkspace } from "../shared/components/ActiveToolWorkspace";
+import { toolPanels } from "../shared/registry/tool-registry";
 
 export function ToolScreen({
   toolId,
@@ -17,19 +20,25 @@ export function ToolScreen({
 }: ToolScreenProps) {
   const { width, height } = useTerminalDimensions();
   const layout = useToolLayout({ width, height });
-  const {
-    toolState,
-    generatedCommand,
-    setChatInput,
-    submitChat,
-    setNmapField,
-    setCommandInput,
-    runCommand,
-  } = useToolShortcuts({
-    toolId,
-    targetUrl,
-    onBack,
-  });
+  const activePanel = useToolWorkspaceStore((state) => state.activePanel);
+  const chatMessages = useToolWorkspaceStore((state) => state.chatMessages);
+  const chatInput = useToolWorkspaceStore((state) => state.chatInput);
+  const setChatInput = useToolWorkspaceStore((state) => state.setChatInput);
+  const submitChat = useToolWorkspaceStore((state) => state.submitChat);
+  const initializeWorkspace = useToolWorkspaceStore(
+    (state) => state.initializeWorkspace,
+  );
+  const stopCommand = useToolWorkspaceStore((state) => state.stopCommand);
+
+  useToolKeyboardNavigation(onBack);
+
+  useEffect(() => {
+    initializeWorkspace(toolId, targetUrl);
+
+    return () => {
+      stopCommand();
+    };
+  }, [initializeWorkspace, stopCommand, targetUrl, toolId]);
 
   return (
     <box
@@ -50,14 +59,14 @@ export function ToolScreen({
           height={layout.contentHeight}
           flexDirection="column"
         >
-          <DashboardPanel title="Operator Chat" flexGrow={1} focused={toolState.activePanel === "chat"}>
+          <DashboardPanel title="Operator Chat" flexGrow={1} focused={activePanel === "chat"}>
             <ChatWindow
-              messages={toolState.chatMessages}
-              inputValue={toolState.chatInput}
+              messages={chatMessages}
+              inputValue={chatInput}
               onInputChange={setChatInput}
               onSubmit={submitChat}
               placeholder={`Ask about ${toolName} usage, flags, or scan strategy...`}
-              focused={toolState.activePanel === "chat"}
+              focused={activePanel === "chat"}
             />
           </DashboardPanel>
         </box>
@@ -67,36 +76,13 @@ export function ToolScreen({
           height={layout.contentHeight}
           flexDirection="column"
         >
-          <ToolWorkspace
-            toolId={toolId}
-            toolName={toolName}
-            activePanel={toolState.activePanel}
-            selectedFormField={toolState.selectedFormField}
-            nmapForm={toolState.nmapForm}
-            commandInput={toolState.commandInput}
-            generatedCommand={generatedCommand}
-            commandSource={toolState.commandSource}
-            outputLines={toolState.outputLines}
-            executionStatus={toolState.executionStatus}
-            lastExitCode={toolState.lastExitCode}
-            onNmapFieldChange={setNmapField}
-            onCommandChange={setCommandInput}
-            onRunCommand={runCommand}
-            formHeight={layout.formPanelHeight}
-            commandHeight={layout.commandPanelHeight}
-            outputHeight={layout.outputScrollHeight}
-          />
+          <ActiveToolWorkspace toolId={toolId} />
         </box>
       </box>
 
       <StatusBar
-        activePanel={toolState.activePanel}
-        panels={[
-          { id: "chat", label: "CHAT" },
-          { id: "form", label: "FORM" },
-          { id: "command", label: "COMMAND" },
-          { id: "output", label: "OUTPUT" },
-        ]}
+        activePanel={activePanel}
+        panels={toolPanels}
         hintText="Tab switch panel  Up/Down move field  Left/Right timing  Enter run/toggle  Ctrl+R run  Ctrl+G reset cmd  ESC back"
       />
     </box>

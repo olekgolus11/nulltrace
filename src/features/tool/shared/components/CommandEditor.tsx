@@ -1,4 +1,4 @@
-import { theme } from "../../../app/theme/theme";
+import { theme } from "../../../../app/theme/theme";
 
 function getStatusColor(status: "idle" | "running" | "success" | "error") {
   switch (status) {
@@ -38,7 +38,13 @@ export function CommandEditor({
         <box flexGrow={1}>
           <text fg={theme.text.secondary}>
             Mode:{" "}
-            <span fg={commandSource === "manual" ? theme.accent.warning : theme.accent.primary}>
+            <span
+              fg={
+                commandSource === "manual"
+                  ? theme.accent.warning
+                  : theme.accent.primary
+              }
+            >
               {commandSource === "manual" ? "manual" : "generated"}
             </span>
           </text>
@@ -58,7 +64,7 @@ export function CommandEditor({
           value={commandInput}
           onChange={onCommandChange}
           onSubmit={onRun}
-          placeholder="nmap -sV target"
+          placeholder="tool command"
           focused={focused}
           backgroundColor={theme.bg.input}
           textColor={theme.text.primary}
@@ -77,7 +83,9 @@ export function CommandEditor({
       {commandSource === "manual" && commandInput !== generatedCommand ? (
         <text fg={theme.text.dim}>Generated: {generatedCommand}</text>
       ) : (
-        <text fg={theme.text.dim}>Generated command stays in sync with the form.</text>
+        <text fg={theme.text.dim}>
+          Generated command stays in sync with the form.
+        </text>
       )}
     </box>
   );

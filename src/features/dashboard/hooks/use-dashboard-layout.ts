@@ -20,15 +20,13 @@ export const useDashboardLayout = ({
   // Each gets roughly half of contentHeight.
   const leftPanelHalf = Math.floor(contentHeight / 2);
 
-  // Sitemap panel: border=2 rows, padding=0, internal "Sitemap" title=1 row
-  // scrollbox height = half - border(2) - title(1)
+  // Sitemap panel: title lives in the top border, so only the border consumes rows.
   const sitemapScrollHeight = Math.max(1, leftPanelHalf - 2);
   // Sitemap panel: border=2 cols, padding=0
   const sitemapScrollWidth = Math.max(1, leftPanelWidth - 2);
 
-  // Vulns panel: border=2 rows, paddingTop=1+paddingBottom=1, title row=1+marginBottom=1
-  // scrollbox height = half - border(2) - padding(2) - title+margin(2)
-  const vulnsScrollHeight = Math.max(1, leftPanelHalf - 2 - 2 - 2);
+  // Vulns panel: title lives in the top border, so only border and padding consume rows.
+  const vulnsScrollHeight = Math.max(1, leftPanelHalf - 2 - 2);
   // Vulns panel: border=2 cols, paddingLeft=1+paddingRight=1
   const vulnsScrollWidth = Math.max(1, leftPanelWidth - 2 - 2);
 

@@ -27,12 +27,9 @@ export const LeftDashboardPanel = ({
       flexDirection="column"
     >
       <DashboardPanel
+        title="Sitemap"
         flexGrow={1}
         focused={dashboardState.activePanel === "sitemap"}
-        paddingLeft={0}
-        paddingRight={0}
-        paddingTop={0}
-        paddingBottom={0}
       >
         <scrollbox
           height={layout.sitemapScrollHeight}

@@ -1,4 +1,7 @@
-import { UseToolLayoutProps, UseToolLayoutResult } from "../model/tool.types";
+import {
+  UseToolLayoutProps,
+  UseToolLayoutResult,
+} from "../shared/types/tool-screen.types";
 
 export function useToolLayout({
   width,
@@ -10,7 +13,10 @@ export function useToolLayout({
   const statusBarHeight = 3;
   const contentHeight = Math.max(12, height - headerHeight - statusBarHeight);
 
-  const formPanelHeight = Math.min(16, Math.max(14, Math.floor(contentHeight * 0.46)));
+  const formPanelHeight = Math.min(
+    16,
+    Math.max(14, Math.floor(contentHeight * 0.46)),
+  );
   const commandPanelHeight = 8;
   const outputPanelHeight = Math.max(
     8,
