@@ -27,6 +27,7 @@ export const LeftDashboardPanel = ({
       flexDirection="column"
     >
       <DashboardPanel
+        title="Sitemap"
         flexGrow={1}
         focused={dashboardState.activePanel === "sitemap"}
         paddingLeft={0}
