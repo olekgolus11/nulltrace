@@ -10,7 +10,7 @@ export function useToolLayout({
   const leftPanelWidth = Math.min(44, Math.max(34, Math.floor(width * 0.34)));
   const rightPanelWidth = Math.max(40, width - leftPanelWidth);
   const headerHeight = 3;
-  const statusBarHeight = 3;
+  const statusBarHeight = 1;
   const contentHeight = Math.max(12, height - headerHeight - statusBarHeight);
 
   const formPanelHeight = Math.min(

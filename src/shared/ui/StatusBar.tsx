@@ -24,9 +24,8 @@ export function StatusBar({
 
   return (
     <box
-      height={3}
+      height={1}
       flexDirection="row"
-      flexGrow={1}
       backgroundColor={theme.bg.panel}
       paddingLeft={1}
       paddingRight={1}

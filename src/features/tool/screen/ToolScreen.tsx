@@ -59,7 +59,11 @@ export function ToolScreen({
           height={layout.contentHeight}
           flexDirection="column"
         >
-          <DashboardPanel title="Operator Chat" flexGrow={1} focused={activePanel === "chat"}>
+          <DashboardPanel
+            title="Operator Chat"
+            flexGrow={1}
+            focused={activePanel === "chat"}
+          >
             <ChatWindow
               messages={chatMessages}
               inputValue={chatInput}
