@@ -37,6 +37,9 @@ export const LeftDashboardPanel = ({
           focused={dashboardState.activePanel === "sitemap"}
           scrollX={true}
           stickyScroll={false}
+          verticalScrollbarOptions={{
+            width: 2,
+          }}
         >
           <SitemapTree
             nodes={mockSitemapTree}
@@ -56,6 +59,9 @@ export const LeftDashboardPanel = ({
           width={layout.vulnsScrollWidth}
           focused={dashboardState.activePanel === "vulns"}
           scrollX={true}
+          verticalScrollbarOptions={{
+            width: 2,
+          }}
         >
           <VulnerabilityList
             vulnerabilities={mockVulnerabilities}
