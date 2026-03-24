@@ -12,10 +12,17 @@ function ToggleRow({
   selected: boolean;
 }) {
   return (
-    <box marginBottom={1}>
-      <text fg={selected ? theme.accent.primary : theme.text.secondary}>
-        {selected ? ">" : " "} [{value ? "x" : " "}] {label}
-      </text>
+    <box>
+      <box flexDirection="row" alignItems="center">
+        <box width={2}>
+          <text fg={selected ? theme.accent.primary : theme.text.secondary}>
+            {selected ? ">" : " "}
+          </text>
+        </box>
+        <text fg={selected ? theme.accent.primary : theme.text.secondary}>
+          [{value ? "x" : " "}] {label}
+        </text>
+      </box>
     </box>
   );
 }
@@ -38,7 +45,7 @@ export function NmapForm({
 
   return (
     <box flexDirection="column">
-      <box flexDirection="row" marginBottom={1}>
+      <box flexDirection="row" width="100%">
         <box width={20}>
           <text
             fg={
@@ -50,21 +57,23 @@ export function NmapForm({
             {selectedId === "target" ? "> Target" : "  Target"}
           </text>
         </box>
-        <input
-          value={form.target}
-          width={"100%"}
-          onChange={(value) => onFieldChange("target", value)}
-          placeholder="scanme.nmap.org"
-          focused={focused && selectedId === "target"}
-          backgroundColor={theme.bg.input}
-          textColor={theme.text.primary}
-          cursorColor={theme.accent.primary}
-          focusedBackgroundColor={theme.bg.elevated}
-          placeholderColor={theme.text.dim}
-        />
+        <box flexGrow={1} minWidth={0}>
+          <input
+            value={form.target}
+            width="100%"
+            onChange={(value) => onFieldChange("target", value)}
+            placeholder="scanme.nmap.org"
+            focused={focused && selectedId === "target"}
+            backgroundColor={theme.bg.input}
+            textColor={theme.text.primary}
+            cursorColor={theme.accent.primary}
+            focusedBackgroundColor={theme.bg.elevated}
+            placeholderColor={theme.text.dim}
+          />
+        </box>
       </box>
 
-      <box flexDirection="row" marginBottom={1}>
+      <box flexDirection="row" width="100%">
         <box width={20}>
           <text
             fg={
@@ -76,20 +85,23 @@ export function NmapForm({
             {selectedId === "ports" ? "> Ports" : "  Ports"}
           </text>
         </box>
-        <input
-          value={form.ports}
-          onChange={(value) => onFieldChange("ports", value)}
-          placeholder="80,443,8080"
-          focused={focused && selectedId === "ports"}
-          backgroundColor={theme.bg.input}
-          textColor={theme.text.primary}
-          cursorColor={theme.accent.primary}
-          focusedBackgroundColor={theme.bg.elevated}
-          placeholderColor={theme.text.dim}
-        />
+        <box flexGrow={1} minWidth={0}>
+          <input
+            value={form.ports}
+            width="100%"
+            onChange={(value) => onFieldChange("ports", value)}
+            placeholder="80,443,8080"
+            focused={focused && selectedId === "ports"}
+            backgroundColor={theme.bg.input}
+            textColor={theme.text.primary}
+            cursorColor={theme.accent.primary}
+            focusedBackgroundColor={theme.bg.elevated}
+            placeholderColor={theme.text.dim}
+          />
+        </box>
       </box>
 
-      <box flexDirection="row" marginBottom={1}>
+      <box flexDirection="row" width="100%">
         <box width={20}>
           <text
             fg={
@@ -134,7 +146,7 @@ export function NmapForm({
         selected={focused && selectedId === "aggressive"}
       />
 
-      <box flexDirection="row">
+      <box flexDirection="row" width="100%">
         <box width={20}>
           <text
             fg={
@@ -146,17 +158,20 @@ export function NmapForm({
             {selectedId === "extraArgs" ? "> Extra args" : "  Extra args"}
           </text>
         </box>
-        <input
-          value={form.extraArgs}
-          onChange={(value) => onFieldChange("extraArgs", value)}
-          placeholder="--open --reason"
-          focused={focused && selectedId === "extraArgs"}
-          backgroundColor={theme.bg.input}
-          textColor={theme.text.primary}
-          cursorColor={theme.accent.primary}
-          focusedBackgroundColor={theme.bg.elevated}
-          placeholderColor={theme.text.dim}
-        />
+        <box flexGrow={1} minWidth={0}>
+          <input
+            value={form.extraArgs}
+            width="100%"
+            onChange={(value) => onFieldChange("extraArgs", value)}
+            placeholder="--open --reason"
+            focused={focused && selectedId === "extraArgs"}
+            backgroundColor={theme.bg.input}
+            textColor={theme.text.primary}
+            cursorColor={theme.accent.primary}
+            focusedBackgroundColor={theme.bg.elevated}
+            placeholderColor={theme.text.dim}
+          />
+        </box>
       </box>
     </box>
   );

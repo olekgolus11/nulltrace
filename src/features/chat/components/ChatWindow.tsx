@@ -37,18 +37,23 @@ export function ChatWindow({
       </box>
 
       <box flexDirection="row" gap={1} alignItems="center" width="100%">
-        <text fg={theme.accent.primary}>{">"}</text>
-        <input
-          value={inputValue}
-          onChange={onInputChange}
-          placeholder={placeholder}
-          focused={focused}
-          backgroundColor={theme.bg.input}
-          textColor={theme.text.primary}
-          cursorColor={theme.accent.primary}
-          focusedBackgroundColor={theme.bg.elevated}
-          placeholderColor={theme.text.dim}
-        />
+        <box width={2} flexShrink={0}>
+          <text fg={theme.accent.primary}>{">"}</text>
+        </box>
+        <box flexGrow={1} minWidth={0}>
+          <input
+            value={inputValue}
+            onChange={onInputChange}
+            width="100%"
+            placeholder={placeholder}
+            focused={focused}
+            backgroundColor={theme.bg.input}
+            textColor={theme.text.primary}
+            cursorColor={theme.accent.primary}
+            focusedBackgroundColor={theme.bg.elevated}
+            placeholderColor={theme.text.dim}
+          />
+        </box>
       </box>
     </box>
   );

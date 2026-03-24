@@ -58,20 +58,30 @@ export function CommandEditor({
         </text>
       </box>
 
-      <box flexDirection="row" gap={1} alignItems="center" marginBottom={1}>
-        <text fg={theme.accent.primary}>{">"}</text>
-        <input
-          value={commandInput}
-          onChange={onCommandChange}
-          onSubmit={onRun}
-          placeholder="tool command"
-          focused={focused}
-          backgroundColor={theme.bg.input}
-          textColor={theme.text.primary}
-          cursorColor={theme.accent.primary}
-          focusedBackgroundColor={theme.bg.elevated}
-          placeholderColor={theme.text.dim}
-        />
+      <box
+        flexDirection="row"
+        alignItems="center"
+        marginBottom={1}
+        width="100%"
+      >
+        <box width={2} flexShrink={0}>
+          <text fg={theme.accent.primary}>{">"}</text>
+        </box>
+        <box flexGrow={1} minWidth={0}>
+          <input
+            value={commandInput}
+            onChange={onCommandChange}
+            width="100%"
+            onSubmit={onRun}
+            placeholder="tool command"
+            focused={focused}
+            backgroundColor={theme.bg.input}
+            textColor={theme.text.primary}
+            cursorColor={theme.accent.primary}
+            focusedBackgroundColor={theme.bg.elevated}
+            placeholderColor={theme.text.dim}
+          />
+        </box>
       </box>
 
       <box marginBottom={1}>
