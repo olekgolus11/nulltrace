@@ -40,6 +40,8 @@ export interface UseDashboardLayoutResult {
   leftPanelWidth: number;
   rightPanelWidth: number;
   centerPanelWidth: number;
+  leftPanelTopHeight: number;
+  leftPanelBottomHeight: number;
   sitemapScrollHeight: number;
   sitemapScrollWidth: number;
   vulnsScrollHeight: number;

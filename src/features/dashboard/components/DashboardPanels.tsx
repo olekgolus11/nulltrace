@@ -28,7 +28,7 @@ export const LeftDashboardPanel = ({
     >
       <DashboardPanel
         title="Sitemap"
-        flexGrow={1}
+        height={layout.leftPanelTopHeight}
         focused={dashboardState.activePanel === "sitemap"}
       >
         <scrollbox
@@ -51,7 +51,7 @@ export const LeftDashboardPanel = ({
 
       <DashboardPanel
         title="Vulnerabilities"
-        flexGrow={1}
+        height={layout.leftPanelBottomHeight}
         focused={dashboardState.activePanel === "vulns"}
       >
         <scrollbox
