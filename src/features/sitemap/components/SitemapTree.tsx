@@ -13,7 +13,7 @@ export function SitemapTree({
   const selectedPath = selectedNode ? selectedNode.path : null;
 
   return (
-    <box>
+    <box flexDirection="column">
       {nodes.map((node, idx) => (
         <SitemapTreeItem
           key={node.path}

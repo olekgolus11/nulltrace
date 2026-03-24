@@ -21,24 +21,19 @@ export const useDashboardLayout = ({
   // Each gets roughly half of contentHeight.
   const leftPanelHalf = Math.floor(contentHeight / 2);
 
-  // Sitemap panel: title lives in the top border, so only the border consumes rows.
-  const sitemapScrollHeight = Math.max(1, leftPanelHalf - 2);
-  // Sitemap panel: border=2 cols, padding=0
-  const sitemapScrollWidth = Math.max(1, leftPanelWidth - 2);
-
-  // Vulns panel: title lives in the top border, so only border and padding consume rows.
-  const vulnsScrollHeight = Math.max(1, leftPanelHalf - 2 - 2);
-  // Vulns panel: border=2 cols, paddingLeft=1+paddingRight=1
-  const vulnsScrollWidth = Math.max(1, leftPanelWidth - 2 - 2);
+  // Both left panels use the same border + padding chrome, so the viewport
+  // needs to exclude the full inner frame area.
+  const innerPanelHeight = Math.max(1, leftPanelHalf - 3);
+  const innerPanelWidth = Math.max(1, leftPanelWidth - 4);
 
   return {
     contentHeight,
     leftPanelWidth,
     rightPanelWidth,
     centerPanelWidth,
-    sitemapScrollHeight,
-    sitemapScrollWidth,
-    vulnsScrollHeight,
-    vulnsScrollWidth,
+    sitemapScrollHeight: innerPanelHeight,
+    sitemapScrollWidth: innerPanelWidth,
+    vulnsScrollHeight: innerPanelHeight,
+    vulnsScrollWidth: innerPanelWidth,
   };
 };
