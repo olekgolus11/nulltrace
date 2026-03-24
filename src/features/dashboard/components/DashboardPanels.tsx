@@ -1,3 +1,4 @@
+import { ScrollBoxRenderable } from "@opentui/core";
 import { theme } from "../../../app/theme/theme";
 import { ChatWindow } from "../../chat/components/ChatWindow";
 import { SitemapTree } from "../../sitemap/components/SitemapTree";
@@ -16,9 +17,13 @@ import { ToolList } from "./ToolList";
 export const LeftDashboardPanel = ({
   dashboardState,
   layout,
+  sitemapScrollRef,
+  vulnsScrollRef,
 }: {
   dashboardState: DashboardState;
   layout: UseDashboardLayoutResult;
+  sitemapScrollRef: React.RefObject<ScrollBoxRenderable | null>;
+  vulnsScrollRef: React.RefObject<ScrollBoxRenderable | null>;
 }) => {
   return (
     <box
@@ -33,9 +38,9 @@ export const LeftDashboardPanel = ({
         paddingBottom={0}
       >
         <scrollbox
+          ref={sitemapScrollRef}
           height={layout.sitemapScrollHeight}
           width={layout.sitemapScrollWidth}
-          focused={dashboardState.activePanel === "sitemap"}
           scrollX={true}
           stickyScroll={false}
           verticalScrollbarOptions={{
@@ -57,9 +62,9 @@ export const LeftDashboardPanel = ({
         paddingBottom={0}
       >
         <scrollbox
+          ref={vulnsScrollRef}
           height={layout.vulnsScrollHeight}
           width={layout.vulnsScrollWidth}
-          focused={dashboardState.activePanel === "vulns"}
           scrollX={true}
           verticalScrollbarOptions={{
             width: 2,

@@ -1,11 +1,12 @@
+import { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
+import { useRef, useReducer } from "react";
 import {
   mockSitemapFlatNodes,
   mockVulnerabilities,
 } from "../data/dashboard.mock";
 import { tools } from "../data/tool-catalog";
 import { UseDashboardShortcutsProps } from "../model/dashboard.types";
-import { useReducer } from "react";
 import {
   DashboardPanel,
   DashboardState,
@@ -100,6 +101,8 @@ export function useDashboardShortcuts({
   onBack,
   onSelectTool,
 }: UseDashboardShortcutsProps) {
+  const sitemapScrollRef = useRef<ScrollBoxRenderable | null>(null);
+  const vulnsScrollRef = useRef<ScrollBoxRenderable | null>(null);
   const reducer = createDashboardReducer({
     toolCount: tools.length,
     sitemapCount: mockSitemapFlatNodes.length,
@@ -157,12 +160,14 @@ export function useDashboardShortcuts({
 
       case "sitemap":
         if (key.name === "up") {
+          sitemapScrollRef.current?.scrollBy(-1, "step");
           dispatch({
             type: "MOVE_SITEMAP_SELECTION",
             delta: -1,
           });
         }
         if (key.name === "down") {
+          sitemapScrollRef.current?.scrollBy(1, "step");
           dispatch({
             type: "MOVE_SITEMAP_SELECTION",
             delta: 1,
@@ -172,12 +177,14 @@ export function useDashboardShortcuts({
 
       case "vulns":
         if (key.name === "up") {
+          vulnsScrollRef.current?.scrollBy(-1, "step");
           dispatch({
             type: "MOVE_VULN_SELECTION",
             delta: -1,
           });
         }
         if (key.name === "down") {
+          vulnsScrollRef.current?.scrollBy(1, "step");
           dispatch({
             type: "MOVE_VULN_SELECTION",
             delta: 1,
@@ -196,5 +203,11 @@ export function useDashboardShortcuts({
     dispatch({ type: "SUBMIT_CHAT" });
   };
 
-  return { dashboardState: state, setChatInput, submitChat };
+  return {
+    dashboardState: state,
+    setChatInput,
+    submitChat,
+    sitemapScrollRef,
+    vulnsScrollRef,
+  };
 }
