@@ -30,6 +30,7 @@ export const LeftDashboardPanel = ({
         title="Sitemap"
         height={layout.leftPanelTopHeight}
         focused={dashboardState.activePanel === "sitemap"}
+        paddingBottom={0}
       >
         <scrollbox
           height={layout.sitemapScrollHeight}
@@ -53,6 +54,7 @@ export const LeftDashboardPanel = ({
         title="Vulnerabilities"
         height={layout.leftPanelBottomHeight}
         focused={dashboardState.activePanel === "vulns"}
+        paddingBottom={0}
       >
         <scrollbox
           height={layout.vulnsScrollHeight}

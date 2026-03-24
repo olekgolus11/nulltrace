@@ -23,8 +23,8 @@ export const useDashboardLayout = ({
 
   // Both left panels use the same border + padding chrome, so the viewport
   // needs to exclude the full inner frame area.
-  const sitemapScrollHeight = Math.max(1, leftPanelTopHeight - 3);
-  const vulnsScrollHeight = Math.max(1, leftPanelBottomHeight - 3);
+  const sitemapScrollHeight = Math.max(1, leftPanelTopHeight - 2);
+  const vulnsScrollHeight = Math.max(1, leftPanelBottomHeight - 2);
   const innerPanelWidth = Math.max(1, leftPanelWidth - 4);
 
   return {
