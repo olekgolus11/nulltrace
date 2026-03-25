@@ -125,8 +125,10 @@ export function NmapForm({
         <text fg={theme.text.dim}>use left/right</text>
       </box>
 
-      <box marginTop={1}>
-        <text fg={theme.text.secondary}>{"  "}Flags</text>
+      <box flexDirection="row" alignItems="center" marginTop={1}>
+        <box width={20}>
+          <text fg={theme.text.secondary}>{"  "}Flags</text>
+        </box>
       </box>
 
       <box flexDirection="column" paddingLeft={2}>
@@ -150,6 +152,14 @@ export function NmapForm({
           value={form.aggressive}
           selected={focused && selectedId === "aggressive"}
         />
+        {form.aggressive ? (
+          <box flexDirection="row" alignItems="center">
+            <box width={2} />
+            <text fg={theme.text.dim}>
+              Aggressive profile overrides service, OS, and script flags.
+            </text>
+          </box>
+        ) : null}
       </box>
 
       <box flexDirection="row" width="100%" marginTop={1}>
