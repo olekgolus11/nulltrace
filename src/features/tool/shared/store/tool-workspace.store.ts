@@ -46,7 +46,7 @@ function getNextPanel(current: ToolPanel): ToolPanel {
 }
 
 interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
-  initializeWorkspace: (toolId: string, targetUrl: string) => void;
+  initializeWorkspace: (toolName: string, targetUrl: string) => void;
   cyclePanel: () => void;
   setActivePanel: (panel: ToolPanel) => void;
   openHelp: () => void;
@@ -67,7 +67,7 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
 }
 
 export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
-  toolId: null,
+  toolName: null,
   targetUrl: "",
   activePanel: "form",
   isHelpOpen: false,
@@ -80,13 +80,13 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
   lastExitCode: null,
   toolData: null,
 
-  initializeWorkspace: (toolId, targetUrl) => {
-    const toolModule = toolRegistry[toolId];
+  initializeWorkspace: (toolName, targetUrl) => {
+    const toolModule = toolRegistry[toolName];
     const toolData = toolModule?.createInitialToolData(targetUrl) ?? null;
     const generatedCommand = toolModule?.buildGeneratedCommand(toolData) ?? "";
 
     set({
-      toolId,
+      toolName,
       targetUrl,
       activePanel: "form",
       isHelpOpen: false,
@@ -161,7 +161,9 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
 
   syncGeneratedCommand: () => {
     const state = get();
-    const toolModule = state.toolId ? toolRegistry[state.toolId] : undefined;
+    const toolModule = state.toolName
+      ? toolRegistry[state.toolName]
+      : undefined;
     const generatedCommand =
       toolModule?.buildGeneratedCommand(state.toolData) ?? "";
 
@@ -170,7 +172,9 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
 
   resetCommandToGenerated: () => {
     const state = get();
-    const toolModule = state.toolId ? toolRegistry[state.toolId] : undefined;
+    const toolModule = state.toolName
+      ? toolRegistry[state.toolName]
+      : undefined;
     const generatedCommand =
       toolModule?.buildGeneratedCommand(state.toolData) ?? "";
 

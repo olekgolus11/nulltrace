@@ -18,22 +18,17 @@ import {
 } from "../shared/types/tool-screen.types";
 
 function getToolData(
-  toolId: ToolName,
+  toolName: ToolName,
   targetUrl: string,
   toolData: unknown,
 ): ToolData {
   return (
     (toolData as ToolData | null) ??
-    toolRegistry[toolId].createInitialToolData(targetUrl)
+    toolRegistry[toolName].createInitialToolData(targetUrl)
   );
 }
 
-export function ToolScreen({
-  toolId,
-  toolName,
-  targetUrl,
-  onBack,
-}: ToolScreenProps) {
+export function ToolScreen({ toolName, targetUrl, onBack }: ToolScreenProps) {
   const { width, height } = useTerminalDimensions();
   const layout = useToolLayout({ width, height });
   const activePanel = useToolWorkspaceStore((state) => state.activePanel);
@@ -47,18 +42,18 @@ export function ToolScreen({
   );
   const stopCommand = useToolWorkspaceStore((state) => state.stopCommand);
   const toolData = useToolWorkspaceStore((state) =>
-    getToolData(toolId, targetUrl, state.toolData),
+    getToolData(toolName, targetUrl, state.toolData),
   );
 
   useToolKeyboardNavigation(onBack);
 
   useEffect(() => {
-    initializeWorkspace(toolId, targetUrl);
+    initializeWorkspace(toolName, targetUrl);
 
     return () => {
       stopCommand();
     };
-  }, [initializeWorkspace, stopCommand, targetUrl, toolId]);
+  }, [initializeWorkspace, stopCommand, targetUrl, toolName]);
 
   return (
     <box
@@ -100,12 +95,12 @@ export function ToolScreen({
           height={layout.contentHeight}
           flexDirection="column"
         >
-          <ActiveToolWorkspace toolId={toolId} />
+          <ActiveToolWorkspace toolName={toolName} />
         </box>
       </box>
 
       {isHelpOpen && Number.isFinite(toolData.selectedField) ? (
-        <ToolHelpDialog toolName={toolId} fieldId={toolData.selectedField} />
+        <ToolHelpDialog toolName={toolName} fieldId={toolData.selectedField} />
       ) : null}
 
       <StatusBar

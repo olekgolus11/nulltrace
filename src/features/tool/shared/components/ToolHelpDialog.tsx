@@ -14,13 +14,6 @@ export function ToolHelpDialog<ToolFieldId extends number>({
   const fieldName = toolFieldOrder[fieldId];
   const help = helpContent[toolName]?.[fieldName];
 
-  if (!help)
-    return (
-      <box>
-        <text>No help available for this field.</text>
-      </box>
-    );
-
   return (
     <box
       position="absolute"
@@ -46,15 +39,21 @@ export function ToolHelpDialog<ToolFieldId extends number>({
         <box flexDirection="row" marginBottom={1}>
           <box flexGrow={1}>
             <text fg={theme.accent.primary}>
-              <strong>{help.title}</strong>
+              <strong>{help?.title ?? "Help"}</strong>
             </text>
           </box>
           <text fg={theme.text.dim}>Ctrl+H or Esc close</text>
         </box>
 
-        <text fg={theme.text.primary}>{help.summary}</text>
-        <text fg={theme.text.secondary}>Command: {help.commandEffect}</text>
-        <text fg={theme.text.dim}>Tip: {help.guidance}</text>
+        {help ? (
+          <>
+            <text fg={theme.text.primary}>{help.summary}</text>
+            <text fg={theme.text.secondary}>Command: {help.commandEffect}</text>
+            <text fg={theme.text.dim}>Tip: {help.guidance}</text>
+          </>
+        ) : (
+          <text fg={theme.text.dim}>No help available for this field.</text>
+        )}
       </box>
     </box>
   );

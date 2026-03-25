@@ -33,7 +33,9 @@ export function useToolKeyboardNavigation(onBack: () => void) {
       return;
     }
 
-    const toolModule = state.toolId ? toolRegistry[state.toolId] : undefined;
+    const toolModule = state.toolName
+      ? toolRegistry[state.toolName]
+      : undefined;
     if (!toolModule?.handleFormKey) {
       return;
     }

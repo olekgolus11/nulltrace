@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { DashboardScreen } from "../features/dashboard/screen/DashboardScreen";
-import { tools } from "../features/dashboard/data/tool-catalog";
+import { ToolName } from "../features/tool/shared/types/tool-screen.types";
 import { Screen } from "./routes";
 import { EntryScreen } from "../features/entry/screen/EntryScreen";
 import { ToolScreen } from "../features/tool/screen/ToolScreen";
@@ -13,11 +13,10 @@ export function App() {
     setCurrentScreen({ type: "dashboard", targetUrl: normalizedUrl });
   };
 
-  const handleSelectTool = (toolId: string, targetUrl: string) => {
+  const handleSelectTool = (toolName: ToolName, targetUrl: string) => {
     setCurrentScreen({
       type: "tool",
-      toolId,
-      toolName: tools.find((t) => t.id === toolId)?.name || toolId,
+      toolName,
       targetUrl,
     });
   };
@@ -38,8 +37,8 @@ export function App() {
       return (
         <DashboardScreen
           targetUrl={currentScreen.targetUrl}
-          onSelectTool={(toolId) =>
-            handleSelectTool(toolId, currentScreen.targetUrl)
+          onSelectTool={(toolName) =>
+            handleSelectTool(toolName, currentScreen.targetUrl)
           }
           onBack={handleBackToEntry}
         />
@@ -48,7 +47,6 @@ export function App() {
     case "tool":
       return (
         <ToolScreen
-          toolId={currentScreen.toolId}
           toolName={currentScreen.toolName}
           targetUrl={currentScreen.targetUrl}
           onBack={() => handleBackToDashboard(currentScreen.targetUrl)}

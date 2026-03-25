@@ -2,8 +2,8 @@ import { createElement } from "react";
 import { DashboardPanel } from "../../../dashboard/components/DashboardPanel";
 import { toolRegistry } from "../registry/tool-registry";
 
-export function ActiveToolWorkspace({ toolId }: { toolId: string }) {
-  const toolModule = toolRegistry[toolId];
+export function ActiveToolWorkspace({ toolName }: { toolName: string }) {
+  const toolModule = toolRegistry[toolName];
 
   if (!toolModule) {
     return (

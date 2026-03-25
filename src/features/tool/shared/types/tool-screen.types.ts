@@ -17,8 +17,7 @@ export interface ToolCatalogItem {
 }
 
 export interface ToolScreenProps {
-  toolId: ToolName;
-  toolName: string;
+  toolName: ToolName;
   targetUrl: string;
   onBack: () => void;
 }
@@ -39,7 +38,7 @@ export interface UseToolLayoutResult {
 }
 
 export interface ToolWorkspaceStoreState {
-  toolId: string | null;
+  toolName: string | null;
   targetUrl: string;
   activePanel: ToolPanel;
   isHelpOpen: boolean;
