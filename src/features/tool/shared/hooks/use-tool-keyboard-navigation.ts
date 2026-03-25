@@ -6,6 +6,13 @@ export function useToolKeyboardNavigation(onBack: () => void) {
   useKeyboard((key) => {
     const state = useToolWorkspaceStore.getState();
 
+    if (state.isHelpOpen) {
+      if (key.name === "escape" || (key.ctrl && key.name === "h")) {
+        state.closeHelp();
+      }
+      return;
+    }
+
     if (key.name === "escape") {
       onBack();
       return;
@@ -33,7 +40,9 @@ export function useToolKeyboardNavigation(onBack: () => void) {
 
     toolModule.handleFormKey(key, state, {
       updateToolData: (updater) => state.updateToolData(updater),
-      syncGeneratedCommand: () => useToolWorkspaceStore.getState().syncGeneratedCommand(),
+      syncGeneratedCommand: () =>
+        useToolWorkspaceStore.getState().syncGeneratedCommand(),
+      toggleHelp: () => useToolWorkspaceStore.getState().toggleHelp(),
     });
   });
 }

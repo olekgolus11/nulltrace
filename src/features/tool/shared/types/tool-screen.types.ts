@@ -1,3 +1,4 @@
+import { ComponentType } from "react";
 import { ChatMessageData } from "../../../chat/model/chat.types";
 
 export type ToolPanel = "chat" | "form" | "command" | "output";
@@ -32,6 +33,7 @@ export interface ToolWorkspaceStoreState {
   toolId: string | null;
   targetUrl: string;
   activePanel: ToolPanel;
+  isHelpOpen: boolean;
   chatInput: string;
   chatMessages: ChatMessageData[];
   commandInput: string;
@@ -40,4 +42,29 @@ export interface ToolWorkspaceStoreState {
   executionStatus: ExecutionStatus;
   lastExitCode: number | null;
   toolData: unknown;
+}
+
+export interface ToolKeyboardApi {
+  updateToolData: (updater: (current: unknown) => unknown) => void;
+  syncGeneratedCommand: () => void;
+  toggleHelp: () => void;
+}
+
+export interface ToolKeyEvent {
+  name?: string;
+  ctrl?: boolean;
+}
+
+export interface ToolModule {
+  id: string;
+  name: string;
+  description: string;
+  Workspace: ComponentType;
+  createInitialToolData: (targetUrl: string) => unknown;
+  buildGeneratedCommand: (toolData: unknown) => string;
+  handleFormKey?: (
+    key: ToolKeyEvent,
+    state: ToolWorkspaceStoreState,
+    api: ToolKeyboardApi,
+  ) => boolean;
 }

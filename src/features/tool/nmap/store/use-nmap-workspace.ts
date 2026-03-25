@@ -17,6 +17,7 @@ export function useNmapWorkspace() {
   );
   const commandInput = useToolWorkspaceStore((state) => state.commandInput);
   const commandSource = useToolWorkspaceStore((state) => state.commandSource);
+  const isHelpOpen = useToolWorkspaceStore((state) => state.isHelpOpen);
   const executionStatus = useToolWorkspaceStore(
     (state) => state.executionStatus,
   );
@@ -52,6 +53,7 @@ export function useNmapWorkspace() {
     commandInput,
     generatedCommand,
     commandSource,
+    isHelpOpen,
     executionStatus,
     lastExitCode,
     outputLines,

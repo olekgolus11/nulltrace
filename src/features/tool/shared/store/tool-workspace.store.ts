@@ -49,6 +49,9 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
   initializeWorkspace: (toolId: string, targetUrl: string) => void;
   cyclePanel: () => void;
   setActivePanel: (panel: ToolPanel) => void;
+  openHelp: () => void;
+  closeHelp: () => void;
+  toggleHelp: () => void;
   setChatInput: (value: string) => void;
   submitChat: () => void;
   setCommandInput: (value: string) => void;
@@ -67,6 +70,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
   toolId: null,
   targetUrl: "",
   activePanel: "form",
+  isHelpOpen: false,
   chatInput: "",
   chatMessages: initialChatMessages,
   commandInput: "",
@@ -85,6 +89,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       toolId,
       targetUrl,
       activePanel: "form",
+      isHelpOpen: false,
       chatInput: "",
       chatMessages: initialChatMessages,
       commandInput: generatedCommand,
@@ -102,6 +107,12 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
     })),
 
   setActivePanel: (panel) => set({ activePanel: panel }),
+
+  openHelp: () => set({ isHelpOpen: true }),
+
+  closeHelp: () => set({ isHelpOpen: false }),
+
+  toggleHelp: () => set((state) => ({ isHelpOpen: !state.isHelpOpen })),
 
   setChatInput: (value) => set({ chatInput: value }),
 

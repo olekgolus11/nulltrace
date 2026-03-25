@@ -25,3 +25,10 @@ export interface NmapToolData {
   form: NmapFormState;
   selectedField: number;
 }
+
+export interface NmapHelpContent {
+  title: string;
+  summary: string;
+  commandEffect: string;
+  guidance: string;
+}
