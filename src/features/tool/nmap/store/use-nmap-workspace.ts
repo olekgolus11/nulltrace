@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useToolWorkspaceStore } from "../../shared/store/tool-workspace.store";
 import { nmapCommandService } from "../services/nmap-command.service";
 import { NmapFormState, NmapTiming, NmapToolData } from "../types/nmap.types";
@@ -16,6 +15,9 @@ export function useNmapWorkspace() {
     getNmapToolData(state.toolData),
   );
   const commandInput = useToolWorkspaceStore((state) => state.commandInput);
+  const generatedCommand = useToolWorkspaceStore(
+    (state) => state.generatedCommand,
+  );
   const commandSource = useToolWorkspaceStore((state) => state.commandSource);
   const isHelpOpen = useToolWorkspaceStore((state) => state.isHelpOpen);
   const executionStatus = useToolWorkspaceStore(
@@ -23,18 +25,13 @@ export function useNmapWorkspace() {
   );
   const lastExitCode = useToolWorkspaceStore((state) => state.lastExitCode);
   const outputLines = useToolWorkspaceStore((state) => state.outputLines);
-  const setCommandInput = useToolWorkspaceStore(
-    (state) => state.setCommandInput,
+  const setManualCommandInput = useToolWorkspaceStore(
+    (state) => state.setManualCommandInput,
   );
   const runCommand = useToolWorkspaceStore((state) => state.runCommand);
   const updateToolData = useToolWorkspaceStore((state) => state.updateToolData);
   const syncGeneratedCommand = useToolWorkspaceStore(
     (state) => state.syncGeneratedCommand,
-  );
-
-  const generatedCommand = useMemo(
-    () => nmapCommandService.buildCommand(toolData),
-    [toolData],
   );
 
   const setField = (
@@ -58,7 +55,7 @@ export function useNmapWorkspace() {
     lastExitCode,
     outputLines,
     setField,
-    setCommandInput,
+    setManualCommandInput,
     runCommand,
   };
 }

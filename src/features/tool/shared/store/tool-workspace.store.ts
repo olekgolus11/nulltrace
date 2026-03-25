@@ -33,6 +33,22 @@ const initialOutputLines = [
   "Use the form to build a scan or edit the full command manually.",
 ];
 
+const initialWorkspaceState: ToolWorkspaceStoreState = {
+  toolName: null,
+  targetUrl: "",
+  activePanel: "form",
+  isHelpOpen: false,
+  chatInput: "",
+  chatMessages: initialChatMessages,
+  commandInput: "",
+  generatedCommand: "",
+  commandSource: "generated",
+  outputLines: initialOutputLines,
+  executionStatus: "idle",
+  lastExitCode: null,
+  toolData: null,
+};
+
 function formatTime() {
   return new Date().toLocaleTimeString([], {
     hour: "2-digit",
@@ -54,8 +70,8 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
   toggleHelp: () => void;
   setChatInput: (value: string) => void;
   submitChat: () => void;
-  setCommandInput: (value: string) => void;
-  setGeneratedCommand: (value: string) => void;
+  setManualCommandInput: (value: string) => void;
+  refreshGeneratedCommand: (value: string) => void;
   syncGeneratedCommand: () => void;
   resetCommandToGenerated: () => void;
   startExecution: (command: string) => void;
@@ -67,18 +83,7 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
 }
 
 export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
-  toolName: null,
-  targetUrl: "",
-  activePanel: "form",
-  isHelpOpen: false,
-  chatInput: "",
-  chatMessages: initialChatMessages,
-  commandInput: "",
-  commandSource: "generated",
-  outputLines: initialOutputLines,
-  executionStatus: "idle",
-  lastExitCode: null,
-  toolData: null,
+  ...initialWorkspaceState,
 
   initializeWorkspace: (toolName, targetUrl) => {
     const toolModule = toolRegistry[toolName];
@@ -93,6 +98,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       chatInput: "",
       chatMessages: initialChatMessages,
       commandInput: generatedCommand,
+      generatedCommand,
       commandSource: "generated",
       outputLines: initialOutputLines,
       executionStatus: "idle",
@@ -144,19 +150,24 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       };
     }),
 
-  setCommandInput: (value) =>
+  setManualCommandInput: (value) =>
     set({
       commandInput: value,
       commandSource: "manual" satisfies CommandSource,
     }),
 
-  setGeneratedCommand: (value) =>
+  refreshGeneratedCommand: (value) =>
     set((state) => {
       if (state.commandSource === "manual") {
-        return state;
+        return {
+          generatedCommand: value,
+        };
       }
 
-      return { commandInput: value };
+      return {
+        commandInput: value,
+        generatedCommand: value,
+      };
     }),
 
   syncGeneratedCommand: () => {
@@ -167,19 +178,12 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
     const generatedCommand =
       toolModule?.buildGeneratedCommand(state.toolData) ?? "";
 
-    get().setGeneratedCommand(generatedCommand);
+    get().refreshGeneratedCommand(generatedCommand);
   },
 
   resetCommandToGenerated: () => {
-    const state = get();
-    const toolModule = state.toolName
-      ? toolRegistry[state.toolName]
-      : undefined;
-    const generatedCommand =
-      toolModule?.buildGeneratedCommand(state.toolData) ?? "";
-
     set({
-      commandInput: generatedCommand,
+      commandInput: get().generatedCommand,
       commandSource: "generated",
     });
   },

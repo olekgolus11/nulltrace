@@ -45,6 +45,7 @@ export interface ToolWorkspaceStoreState {
   chatInput: string;
   chatMessages: ChatMessageData[];
   commandInput: string;
+  generatedCommand: string;
   commandSource: CommandSource;
   outputLines: string[];
   executionStatus: ExecutionStatus;

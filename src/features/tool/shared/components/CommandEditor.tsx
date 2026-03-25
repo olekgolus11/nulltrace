@@ -32,6 +32,14 @@ export function CommandEditor({
   onCommandChange: (value: string) => void;
   onRun: () => void;
 }) {
+  const handleCommandChange = (value: string) => {
+    if (!focused || value === commandInput) {
+      return;
+    }
+
+    onCommandChange(value);
+  };
+
   return (
     <box flexDirection="column" flexGrow={1}>
       <box flexDirection="row" marginBottom={1}>
@@ -69,8 +77,10 @@ export function CommandEditor({
         </box>
         <box flexGrow={1} minWidth={0}>
           <input
+            key={commandSource}
             value={commandInput}
-            onChange={onCommandChange}
+            onInput={handleCommandChange}
+            onChange={handleCommandChange}
             width="100%"
             onSubmit={onRun}
             placeholder="tool command"

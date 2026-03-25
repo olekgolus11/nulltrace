@@ -19,7 +19,7 @@ export function NmapWorkspace() {
     lastExitCode,
     outputLines,
     setField,
-    setCommandInput,
+    setManualCommandInput,
     runCommand,
   } = useNmapWorkspace();
 
@@ -50,7 +50,7 @@ export function NmapWorkspace() {
           focused={activePanel === "command"}
           executionStatus={executionStatus}
           lastExitCode={lastExitCode}
-          onCommandChange={setCommandInput}
+          onCommandChange={setManualCommandInput}
           onRun={() => void runCommand()}
         />
       </DashboardPanel>
