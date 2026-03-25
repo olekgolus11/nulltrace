@@ -125,28 +125,34 @@ export function NmapForm({
         <text fg={theme.text.dim}>use left/right</text>
       </box>
 
-      <ToggleRow
-        label="Service/version detection (-sV)"
-        value={form.serviceDetection}
-        selected={focused && selectedId === "serviceDetection"}
-      />
-      <ToggleRow
-        label="OS detection (-O)"
-        value={form.osDetection}
-        selected={focused && selectedId === "osDetection"}
-      />
-      <ToggleRow
-        label="Default scripts (-sC)"
-        value={form.defaultScripts}
-        selected={focused && selectedId === "defaultScripts"}
-      />
-      <ToggleRow
-        label="Aggressive profile (-A)"
-        value={form.aggressive}
-        selected={focused && selectedId === "aggressive"}
-      />
+      <box marginTop={1}>
+        <text fg={theme.text.secondary}>{"  "}Flags</text>
+      </box>
 
-      <box flexDirection="row" width="100%">
+      <box flexDirection="column" paddingLeft={2}>
+        <ToggleRow
+          label="Service/version detection (-sV)"
+          value={form.serviceDetection}
+          selected={focused && selectedId === "serviceDetection"}
+        />
+        <ToggleRow
+          label="OS detection (-O)"
+          value={form.osDetection}
+          selected={focused && selectedId === "osDetection"}
+        />
+        <ToggleRow
+          label="Default scripts (-sC)"
+          value={form.defaultScripts}
+          selected={focused && selectedId === "defaultScripts"}
+        />
+        <ToggleRow
+          label="Aggressive profile (-A)"
+          value={form.aggressive}
+          selected={focused && selectedId === "aggressive"}
+        />
+      </box>
+
+      <box flexDirection="row" width="100%" marginTop={1}>
         <box width={20}>
           <text
             fg={
