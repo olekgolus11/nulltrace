@@ -24,7 +24,7 @@ export function SitemapTreeItem({
   const childPrefix = prefix + (isLast ? treeChars.empty : treeChars.vertical);
 
   return (
-    <box flexDirection="column" flexGrow={1}>
+    <box flexDirection="column">
       {/* This node's row */}
       <box
         flexDirection="row"

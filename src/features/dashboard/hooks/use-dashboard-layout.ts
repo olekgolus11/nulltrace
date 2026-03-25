@@ -16,29 +16,27 @@ export const useDashboardLayout = ({
   // The dashboard body fills whatever vertical space remains below chrome.
   const contentHeight = height - headerHeight - statusBarHeight;
 
-  // Calculate scrollbox dimensions for left panels.
-  // Both Sitemap and Vulns panels split the left column evenly (flexGrow=1).
-  // Each gets roughly half of contentHeight.
-  const leftPanelHalf = Math.floor(contentHeight / 2);
+  // Split the left column explicitly so the top panel gets the extra row
+  // when the available height is odd.
+  const leftPanelTopHeight = Math.ceil(contentHeight / 2);
+  const leftPanelBottomHeight = contentHeight - leftPanelTopHeight;
 
-  // Sitemap panel: title lives in the top border, so only the border consumes rows.
-  const sitemapScrollHeight = Math.max(1, leftPanelHalf - 2);
-  // Sitemap panel: border=2 cols, padding=0
-  const sitemapScrollWidth = Math.max(1, leftPanelWidth - 2);
-
-  // Vulns panel: title lives in the top border, so only border and padding consume rows.
-  const vulnsScrollHeight = Math.max(1, leftPanelHalf - 2 - 2);
-  // Vulns panel: border=2 cols, paddingLeft=1+paddingRight=1
-  const vulnsScrollWidth = Math.max(1, leftPanelWidth - 2 - 2);
+  // Both left panels use the same border + padding chrome, so the viewport
+  // needs to exclude the full inner frame area.
+  const sitemapScrollHeight = Math.max(1, leftPanelTopHeight - 2);
+  const vulnsScrollHeight = Math.max(1, leftPanelBottomHeight - 2);
+  const innerPanelWidth = Math.max(1, leftPanelWidth - 4);
 
   return {
     contentHeight,
     leftPanelWidth,
     rightPanelWidth,
     centerPanelWidth,
+    leftPanelTopHeight,
+    leftPanelBottomHeight,
     sitemapScrollHeight,
-    sitemapScrollWidth,
+    sitemapScrollWidth: innerPanelWidth,
     vulnsScrollHeight,
-    vulnsScrollWidth,
+    vulnsScrollWidth: innerPanelWidth,
   };
 };

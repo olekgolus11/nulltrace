@@ -14,11 +14,6 @@ export function SitemapTree({
 
   return (
     <box flexDirection="column">
-      <box>
-        <text fg={theme.text.secondary}>
-          <strong> Sitemap</strong>
-        </text>
-      </box>
       {nodes.map((node, idx) => (
         <SitemapTreeItem
           key={node.path}

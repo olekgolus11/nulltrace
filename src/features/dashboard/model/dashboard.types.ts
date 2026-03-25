@@ -1,15 +1,15 @@
-import { DashboardState } from "./dashboard.state";
+import { ToolName } from "../../tool/shared/types/tool-screen.types";
 
 export interface DashboardScreenProps {
   targetUrl: string;
-  onSelectTool: (toolId: string, targetUrl: string) => void;
+  onSelectTool: (toolName: ToolName, targetUrl: string) => void;
   onBack: () => void;
 }
 
 export interface UseDashboardShortcutsProps {
   targetUrl: string;
   onBack: () => void;
-  onSelectTool: (toolId: string, targetUrl: string) => void;
+  onSelectTool: (toolName: ToolName, targetUrl: string) => void;
 }
 
 export interface PanelProps {
@@ -40,6 +40,8 @@ export interface UseDashboardLayoutResult {
   leftPanelWidth: number;
   rightPanelWidth: number;
   centerPanelWidth: number;
+  leftPanelTopHeight: number;
+  leftPanelBottomHeight: number;
   sitemapScrollHeight: number;
   sitemapScrollWidth: number;
   vulnsScrollHeight: number;
@@ -47,7 +49,7 @@ export interface UseDashboardLayoutResult {
 }
 
 export interface Tool {
-  id: string;
+  id: ToolName;
   name: string;
   description: string;
   icon: string;

@@ -21,7 +21,13 @@ export function DashboardScreen({
     width,
     height,
   });
-  const { dashboardState, setChatInput, submitChat } = useDashboardShortcuts({
+  const {
+    dashboardState,
+    setChatInput,
+    submitChat,
+    sitemapScrollRef,
+    vulnsScrollRef,
+  } = useDashboardShortcuts({
     targetUrl,
     onBack,
     onSelectTool,
@@ -36,7 +42,12 @@ export function DashboardScreen({
     >
       <Header targetUrl={targetUrl} showControls={false} />
       <box flexDirection="row" height={layout.contentHeight}>
-        <LeftDashboardPanel layout={layout} dashboardState={dashboardState} />
+        <LeftDashboardPanel
+          layout={layout}
+          dashboardState={dashboardState}
+          sitemapScrollRef={sitemapScrollRef}
+          vulnsScrollRef={vulnsScrollRef}
+        />
         <CenterDashboardPanel
           layout={layout}
           dashboardState={dashboardState}
