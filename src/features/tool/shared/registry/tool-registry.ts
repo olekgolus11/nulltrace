@@ -3,9 +3,15 @@ import {
   nmapBooleanFields,
   nmapFieldOrder,
 } from "../../nmap/config/nmap.config";
+import { nmapHelpContent } from "../../nmap/data/nmap-help";
 import { nmapCommandService } from "../../nmap/services/nmap-command.service";
 import { NmapFieldId, NmapToolData } from "../../nmap/types/nmap.types";
-import { ToolModule, ToolPanel } from "../types/tool-screen.types";
+import {
+  ToolHelpContent,
+  ToolModule,
+  ToolName,
+  ToolPanel,
+} from "../types/tool-screen.types";
 
 export const toolRegistry: Record<string, ToolModule> = {
   nmap: {
@@ -99,3 +105,15 @@ export const toolPanels: Array<{ id: ToolPanel; label: string }> = [
   { id: "command", label: "COMMAND" },
   { id: "output", label: "OUTPUT" },
 ];
+
+export const helpContent: Record<
+  ToolName,
+  Record<string, ToolHelpContent> | null
+> = {
+  nmap: nmapHelpContent,
+  nuclei: null,
+  ffuf: null,
+  sqlmap: null,
+  zap: null,
+  nikto: null,
+};

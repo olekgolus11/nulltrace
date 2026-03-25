@@ -1,6 +1,7 @@
-import { NmapFieldId, NmapHelpContent } from "../types/nmap.types";
+import { ToolHelpContent } from "../../shared/types/tool-screen.types";
+import { NmapFieldId } from "../types/nmap.types";
 
-export const nmapHelpContent: Record<NmapFieldId, NmapHelpContent> = {
+export const nmapHelpContent: Record<NmapFieldId, ToolHelpContent> = {
   target: {
     title: "Target",
     summary: "The host or network you want Nmap to scan.",

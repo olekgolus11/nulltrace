@@ -1,14 +1,23 @@
 import { ComponentType } from "react";
 import { ChatMessageData } from "../../../chat/model/chat.types";
 
+export type ToolName = "nmap" | "nuclei" | "ffuf" | "sqlmap" | "zap" | "nikto";
+
 export type ToolPanel = "chat" | "form" | "command" | "output";
 
 export type ExecutionStatus = "idle" | "running" | "success" | "error";
 
 export type CommandSource = "generated" | "manual";
 
+export interface ToolCatalogItem {
+  id: ToolName;
+  name: string;
+  description: string;
+  icon: string;
+}
+
 export interface ToolScreenProps {
-  toolId: string;
+  toolId: ToolName;
   toolName: string;
   targetUrl: string;
   onBack: () => void;
@@ -60,11 +69,23 @@ export interface ToolModule {
   name: string;
   description: string;
   Workspace: ComponentType;
-  createInitialToolData: (targetUrl: string) => unknown;
+  createInitialToolData: (targetUrl: string) => ToolData;
   buildGeneratedCommand: (toolData: unknown) => string;
   handleFormKey?: (
     key: ToolKeyEvent,
     state: ToolWorkspaceStoreState,
     api: ToolKeyboardApi,
   ) => boolean;
+}
+
+export interface ToolData {
+  form: Record<string, unknown>;
+  selectedField: number;
+}
+
+export interface ToolHelpContent {
+  title: string;
+  summary: string;
+  commandEffect: string;
+  guidance: string;
 }

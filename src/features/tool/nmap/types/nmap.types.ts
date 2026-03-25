@@ -1,3 +1,5 @@
+import { ToolData } from "../../shared/types/tool-screen.types";
+
 export type NmapTiming = "T2" | "T3" | "T4" | "T5";
 
 export type NmapFieldId =
@@ -10,7 +12,7 @@ export type NmapFieldId =
   | "aggressive"
   | "extraArgs";
 
-export interface NmapFormState {
+export interface NmapFormState extends Record<string, unknown> {
   target: string;
   ports: string;
   timing: NmapTiming;
@@ -21,14 +23,7 @@ export interface NmapFormState {
   extraArgs: string;
 }
 
-export interface NmapToolData {
+export interface NmapToolData extends ToolData {
   form: NmapFormState;
   selectedField: number;
-}
-
-export interface NmapHelpContent {
-  title: string;
-  summary: string;
-  commandEffect: string;
-  guidance: string;
 }

@@ -1,9 +1,25 @@
 import { theme } from "../../../../app/theme/theme";
-import { nmapHelpContent } from "../data/nmap-help";
-import { NmapFieldId } from "../types/nmap.types";
+import { fieldOrder } from "../config/tool.config";
+import { helpContent } from "../registry/tool-registry";
+import { ToolName } from "../types/tool-screen.types";
 
-export function NmapHelpDialog({ fieldId }: { fieldId: NmapFieldId }) {
-  const help = nmapHelpContent[fieldId];
+export function ToolHelpDialog<ToolFieldId extends number>({
+  fieldId,
+  toolName,
+}: {
+  fieldId: ToolFieldId;
+  toolName: ToolName;
+}) {
+  const toolFieldOrder = fieldOrder[toolName];
+  const fieldName = toolFieldOrder[fieldId];
+  const help = helpContent[toolName]?.[fieldName];
+
+  if (!help)
+    return (
+      <box>
+        <text>No help available for this field.</text>
+      </box>
+    );
 
   return (
     <box
@@ -17,7 +33,7 @@ export function NmapHelpDialog({ fieldId }: { fieldId: NmapFieldId }) {
     >
       <box
         width={68}
-        height={10}
+        height={"auto"}
         flexDirection="column"
         border
         borderColor={theme.accent.primary}

@@ -1,16 +1,32 @@
-import { useEffect } from "react";
 import { useTerminalDimensions } from "@opentui/react";
+import { useEffect } from "react";
 import { theme } from "../../../app/theme/theme";
+import { Header } from "../../../shared/ui/Header";
+import { StatusBar } from "../../../shared/ui/StatusBar";
 import { ChatWindow } from "../../chat/components/ChatWindow";
 import { DashboardPanel } from "../../dashboard/components/DashboardPanel";
 import { useToolLayout } from "../hooks/use-tool-layout";
-import { ToolScreenProps } from "../shared/types/tool-screen.types";
-import { Header } from "../../../shared/ui/Header";
-import { StatusBar } from "../../../shared/ui/StatusBar";
-import { useToolWorkspaceStore } from "../shared/store/tool-workspace.store";
-import { useToolKeyboardNavigation } from "../shared/hooks/use-tool-keyboard-navigation";
 import { ActiveToolWorkspace } from "../shared/components/ActiveToolWorkspace";
-import { toolPanels } from "../shared/registry/tool-registry";
+import { ToolHelpDialog } from "../shared/components/ToolHelpDialog";
+import { useToolKeyboardNavigation } from "../shared/hooks/use-tool-keyboard-navigation";
+import { toolPanels, toolRegistry } from "../shared/registry/tool-registry";
+import { useToolWorkspaceStore } from "../shared/store/tool-workspace.store";
+import {
+  ToolData,
+  ToolName,
+  ToolScreenProps,
+} from "../shared/types/tool-screen.types";
+
+function getToolData(
+  toolId: ToolName,
+  targetUrl: string,
+  toolData: unknown,
+): ToolData {
+  return (
+    (toolData as ToolData | null) ??
+    toolRegistry[toolId].createInitialToolData(targetUrl)
+  );
+}
 
 export function ToolScreen({
   toolId,
@@ -25,10 +41,14 @@ export function ToolScreen({
   const chatInput = useToolWorkspaceStore((state) => state.chatInput);
   const setChatInput = useToolWorkspaceStore((state) => state.setChatInput);
   const submitChat = useToolWorkspaceStore((state) => state.submitChat);
+  const isHelpOpen = useToolWorkspaceStore((state) => state.isHelpOpen);
   const initializeWorkspace = useToolWorkspaceStore(
     (state) => state.initializeWorkspace,
   );
   const stopCommand = useToolWorkspaceStore((state) => state.stopCommand);
+  const toolData = useToolWorkspaceStore((state) =>
+    getToolData(toolId, targetUrl, state.toolData),
+  );
 
   useToolKeyboardNavigation(onBack);
 
@@ -83,6 +103,10 @@ export function ToolScreen({
           <ActiveToolWorkspace toolId={toolId} />
         </box>
       </box>
+
+      {isHelpOpen && Number.isFinite(toolData.selectedField) ? (
+        <ToolHelpDialog toolName={toolId} fieldId={toolData.selectedField} />
+      ) : null}
 
       <StatusBar
         activePanel={activePanel}

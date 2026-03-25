@@ -4,9 +4,7 @@ import { CommandEditor } from "../../shared/components/CommandEditor";
 import { OutputLog } from "../../shared/components/OutputLog";
 import { useNmapWorkspace } from "../store/use-nmap-workspace";
 import { NmapForm } from "./NmapForm";
-import { NmapHelpDialog } from "./NmapHelpDialog";
 import { useTerminalDimensions } from "@opentui/react";
-import { nmapFieldOrder } from "../config/nmap.config";
 
 export function NmapWorkspace() {
   const { width, height } = useTerminalDimensions();
@@ -17,7 +15,6 @@ export function NmapWorkspace() {
     commandInput,
     generatedCommand,
     commandSource,
-    isHelpOpen,
     executionStatus,
     lastExitCode,
     outputLines,
@@ -25,7 +22,6 @@ export function NmapWorkspace() {
     setCommandInput,
     runCommand,
   } = useNmapWorkspace();
-  const selectedFieldId = nmapFieldOrder[toolData.selectedField];
 
   return (
     <box flexDirection="column" flexGrow={1}>
@@ -70,10 +66,6 @@ export function NmapWorkspace() {
           height={layout.outputScrollHeight}
         />
       </DashboardPanel>
-
-      {isHelpOpen && selectedFieldId ? (
-        <NmapHelpDialog fieldId={selectedFieldId} />
-      ) : null}
     </box>
   );
 }
