@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { ChatMessageData } from "../../../chat/model/chat.types";
+import { sessionRepository } from "../../../session/services/session.repository";
 import { commandRunnerService } from "../services/command-runner.service";
 import {
   CommandSource,
@@ -35,6 +36,7 @@ const initialOutputLines = [
 
 const initialWorkspaceState: ToolWorkspaceStoreState = {
   toolName: null,
+  sessionId: null,
   targetUrl: "",
   activePanel: "form",
   isHelpOpen: false,
@@ -46,6 +48,7 @@ const initialWorkspaceState: ToolWorkspaceStoreState = {
   outputLines: initialOutputLines,
   executionStatus: "idle",
   lastExitCode: null,
+  currentToolRunId: null,
   toolData: null,
 };
 
@@ -62,7 +65,11 @@ function getNextPanel(current: ToolPanel): ToolPanel {
 }
 
 interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
-  initializeWorkspace: (toolName: string, targetUrl: string) => void;
+  initializeWorkspace: (
+    toolName: string,
+    targetUrl: string,
+    sessionId: string,
+  ) => void;
   cyclePanel: () => void;
   setActivePanel: (panel: ToolPanel) => void;
   openHelp: () => void;
@@ -75,7 +82,7 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
   syncGeneratedCommand: () => void;
   resetCommandToGenerated: () => void;
   startExecution: (command: string) => void;
-  appendOutput: (lines: string[]) => void;
+  appendOutput: (lines: string[], stream?: "stdout" | "stderr") => void;
   finishExecution: (status: ExecutionStatus, exitCode: number | null) => void;
   runCommand: () => Promise<void>;
   stopCommand: () => void;
@@ -85,13 +92,14 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
 export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
   ...initialWorkspaceState,
 
-  initializeWorkspace: (toolName, targetUrl) => {
+  initializeWorkspace: (toolName, targetUrl, sessionId) => {
     const toolModule = toolRegistry[toolName];
     const toolData = toolModule?.createInitialToolData(targetUrl) ?? null;
     const generatedCommand = toolModule?.buildGeneratedCommand(toolData) ?? "";
 
     set({
       toolName,
+      sessionId,
       targetUrl,
       activePanel: "form",
       isHelpOpen: false,
@@ -103,6 +111,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       outputLines: initialOutputLines,
       executionStatus: "idle",
       lastExitCode: null,
+      currentToolRunId: null,
       toolData,
     });
   },
@@ -189,21 +198,46 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
   },
 
   startExecution: (command) =>
-    set({
-      outputLines: [`$ ${command}`, ""],
-      executionStatus: "running",
-      lastExitCode: null,
+    set((state) => {
+      const toolRun = state.sessionId && state.toolName
+        ? sessionRepository.recordToolRun(state.sessionId, {
+            toolName: state.toolName,
+            command,
+            commandSource: state.commandSource,
+            status: "running",
+          })
+        : null;
+
+      return {
+        outputLines: [`$ ${command}`, ""],
+        executionStatus: "running" satisfies ExecutionStatus,
+        lastExitCode: null,
+        currentToolRunId: toolRun?.id ?? null,
+      };
     }),
 
-  appendOutput: (lines) =>
-    set((state) => ({
-      outputLines: [...state.outputLines, ...lines],
-    })),
+  appendOutput: (lines, stream = "stdout") =>
+    set((state) => {
+      if (state.currentToolRunId) {
+        sessionRepository.appendToolRunLog(state.currentToolRunId, lines, stream);
+      }
+
+      return {
+        outputLines: [...state.outputLines, ...lines],
+      };
+    }),
 
   finishExecution: (status, exitCode) =>
-    set({
-      executionStatus: status,
-      lastExitCode: exitCode,
+    set((state) => {
+      if (state.currentToolRunId) {
+        sessionRepository.finishToolRun(state.currentToolRunId, status, exitCode);
+      }
+
+      return {
+        executionStatus: status,
+        lastExitCode: exitCode,
+        currentToolRunId: null,
+      };
     }),
 
   runCommand: async () => {
@@ -216,9 +250,15 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
     get().startExecution(command);
 
     try {
-      const exitCode = await commandRunnerService.run(command, (lines) => {
-        get().appendOutput(lines);
-      });
+      const exitCode = await commandRunnerService.run(
+        command,
+        (lines) => {
+          get().appendOutput(lines, "stdout");
+        },
+        (lines) => {
+          get().appendOutput(lines, "stderr");
+        },
+      );
 
       get().finishExecution(exitCode === 0 ? "success" : "error", exitCode);
       get().appendOutput(["", `[process exited with code ${exitCode}]`]);

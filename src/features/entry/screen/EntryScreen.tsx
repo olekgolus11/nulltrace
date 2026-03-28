@@ -1,16 +1,19 @@
 import { useTerminalDimensions } from "@opentui/react";
 import { theme } from "../../../app/theme/theme";
-import { SessionList } from "../../session/components/SessionList";
+import { useState } from "react";
 import { EntryScreenProps } from "../model/entry.types";
-import { mockSessions } from "../data/entry.mock";
+import { SessionList } from "../../session/components/SessionList";
 import { titleArtBlood, titleArtRebel } from "../data/entry.constants";
 import { useEntryShortcuts } from "../hooks/use-entry-shortcuts";
+import { sessionRepository } from "../../session/services/session.repository";
 
-export function EntryScreen({ onStartPentest }: EntryScreenProps) {
+export function EntryScreen({ onStartPentest, onOpenSession }: EntryScreenProps) {
   const { width, height } = useTerminalDimensions();
+  const [targets] = useState(() => sessionRepository.listTargetsWithSessions());
   const { entryState, setUrlInput, submitUrlInput } = useEntryShortcuts({
-    sessions: mockSessions,
+    targets,
     onStartPentest,
+    onOpenSession,
   });
 
   const sidebarWidth = 30;
@@ -114,8 +117,9 @@ export function EntryScreen({ onStartPentest }: EntryScreenProps) {
         paddingBottom={1}
       >
         <SessionList
-          sessions={mockSessions}
-          selectedIndex={entryState.selectedSession}
+          targets={targets}
+          expandedTargetIds={entryState.expandedTargetIds}
+          selectedIndex={entryState.selectedRow}
           focused={entryState.activePanel === "sessions"}
         />
       </box>

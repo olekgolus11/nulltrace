@@ -1,8 +1,12 @@
+import { TargetSummary } from "../../session/model/session.types";
+
 export interface EntryScreenProps {
   onStartPentest: (url: string) => void;
+  onOpenSession: (sessionId: string) => void;
 }
 
 export interface UseEntryShortcutsProps {
-  sessions: { url: string; date: string; vulns: number }[];
+  targets: TargetSummary[];
   onStartPentest: (targetUrl: string) => void;
+  onOpenSession: (sessionId: string) => void;
 }

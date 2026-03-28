@@ -12,6 +12,7 @@ import { Header } from "../../../shared/ui/Header";
 import { StatusBar } from "../../../shared/ui/StatusBar";
 
 export function DashboardScreen({
+  sessionId,
   targetUrl,
   onSelectTool,
   onBack,
@@ -28,6 +29,7 @@ export function DashboardScreen({
     sitemapScrollRef,
     vulnsScrollRef,
   } = useDashboardShortcuts({
+    sessionId,
     targetUrl,
     onBack,
     onSelectTool,

@@ -2,12 +2,14 @@ export type EntryPanel = "input" | "sessions";
 
 export interface EntryState {
   activePanel: EntryPanel;
-  selectedSession: number;
+  selectedRow: number;
   urlInput: string;
+  expandedTargetIds: Record<string, boolean>;
 }
 
 export const initialEntryState: EntryState = {
   activePanel: "input",
-  selectedSession: 0,
+  selectedRow: 0,
   urlInput: "",
+  expandedTargetIds: {},
 };

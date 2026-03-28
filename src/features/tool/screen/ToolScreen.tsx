@@ -28,7 +28,12 @@ function getToolData(
   );
 }
 
-export function ToolScreen({ toolName, targetUrl, onBack }: ToolScreenProps) {
+export function ToolScreen({
+  toolName,
+  sessionId,
+  targetUrl,
+  onBack,
+}: ToolScreenProps) {
   const { width, height } = useTerminalDimensions();
   const layout = useToolLayout({ width, height });
   const activePanel = useToolWorkspaceStore((state) => state.activePanel);
@@ -48,12 +53,12 @@ export function ToolScreen({ toolName, targetUrl, onBack }: ToolScreenProps) {
   useToolKeyboardNavigation(onBack);
 
   useEffect(() => {
-    initializeWorkspace(toolName, targetUrl);
+    initializeWorkspace(toolName, targetUrl, sessionId);
 
     return () => {
       stopCommand();
     };
-  }, [initializeWorkspace, stopCommand, targetUrl, toolName]);
+  }, [initializeWorkspace, sessionId, stopCommand, targetUrl, toolName]);
 
   return (
     <box
@@ -106,7 +111,7 @@ export function ToolScreen({ toolName, targetUrl, onBack }: ToolScreenProps) {
       <StatusBar
         activePanel={activePanel}
         panels={toolPanels}
-        hintText="Tab switch panel  Up/Down move field  Left/Right timing  Enter run/toggle  Ctrl+H help  Ctrl+R run  Ctrl+G reset cmd  ESC back"
+        hintText="Tab switch panel  Up/Down move field  Enter run/toggle  Ctrl+H help  Ctrl+R run  Ctrl+G reset cmd  ESC back"
       />
     </box>
   );

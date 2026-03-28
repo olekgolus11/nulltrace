@@ -18,6 +18,7 @@ export interface ToolCatalogItem {
 
 export interface ToolScreenProps {
   toolName: ToolName;
+  sessionId: string;
   targetUrl: string;
   onBack: () => void;
 }
@@ -39,6 +40,7 @@ export interface UseToolLayoutResult {
 
 export interface ToolWorkspaceStoreState {
   toolName: string | null;
+  sessionId: string | null;
   targetUrl: string;
   activePanel: ToolPanel;
   isHelpOpen: boolean;
@@ -50,6 +52,7 @@ export interface ToolWorkspaceStoreState {
   outputLines: string[];
   executionStatus: ExecutionStatus;
   lastExitCode: number | null;
+  currentToolRunId: string | null;
   toolData: unknown;
 }
 

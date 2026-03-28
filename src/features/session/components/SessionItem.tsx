@@ -2,32 +2,38 @@ import { theme } from "../../../app/theme/theme";
 import { SessionItemProps } from "../model/session.types";
 
 export function SessionItem({ session, isSelected }: SessionItemProps) {
-  const vulnColor =
-    session.vulns > 5
-      ? theme.severity.critical
-      : session.vulns > 0
-        ? theme.severity.medium
-        : theme.severity.low;
-
   return (
     <box
       flexDirection="column"
-      backgroundColor={isSelected ? theme.bg.elevated : undefined}
+      backgroundColor={theme.bg.elevated}
       paddingLeft={1}
       paddingRight={1}
       paddingBottom={1}
-      paddingTop={1}
     >
       <box>
         <text fg={isSelected ? theme.accent.primary : theme.text.primary}>
-          {isSelected ? <strong>▸ {session.url}</strong> : `  ${session.url}`}
+          {isSelected ? (
+            <strong>
+              ↳{"  "}
+              {formatTimestamp(session.createdAt)}
+            </strong>
+          ) : (
+            <strong>
+              {"   "}
+              {formatTimestamp(session.createdAt)}
+            </strong>
+          )}
         </text>
-      </box>
-      <box flexDirection="row" paddingLeft={2}>
-        <text fg={theme.text.dim}>{session.date}</text>
-        <text fg={theme.text.dim}> · </text>
-        <text fg={vulnColor}>{session.vulns} vulns</text>
       </box>
     </box>
   );
+}
+
+function formatTimestamp(value: string) {
+  return new Date(value).toLocaleString([], {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
