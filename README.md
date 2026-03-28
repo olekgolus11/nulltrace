@@ -2,14 +2,11 @@
 
 <img width="645" height="196" alt="image" src="https://github.com/user-attachments/assets/edc9f320-83cb-426d-ad1c-8b036abce22c" />
 
-
 NullTrace is an AI-assisted penetration testing terminal UI built with Bun, React 19, and OpenTUI.
 
 It is a research-driven prototype created as part of a thesis project on how large language models can support web application penetration testing. The current codebase focuses on a terminal-first workflow: guided target entry, a dashboard for reconnaissance context, and a reusable tool shell for running security tooling from one place.
 
 <img width="1470" height="905" alt="image" src="https://github.com/user-attachments/assets/9c77faf7-1e76-46ac-8ba7-f2f6d6c8544a" />
-
-
 
 ## Current State
 
@@ -36,7 +33,6 @@ This repository is shared primarily for research visibility and project document
 - an `nmap` tool flow that generates and runs commands from guided form inputs
 
 <img width="1470" height="912" alt="image" src="https://github.com/user-attachments/assets/de63473c-99ff-4146-9188-517b8b24c66a" />
-
 
 ## Tech Stack
 
@@ -109,11 +105,6 @@ The broader project goal is to explore whether large language models can meaning
 - accelerating reconnaissance and initial tool orchestration
 - helping interpret tool output and findings
 - supporting a conversational, context-aware testing workflow
-
-Additional project notes and source material:
-
-- [PENTEST_TOOLS.md](./PENTEST_TOOLS.md)
-- [OPIS_PRACY.md](./OPIS_PRACY.md)
 
 ## Roadmap
 
