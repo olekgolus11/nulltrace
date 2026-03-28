@@ -1,9 +1,10 @@
 import { useKeyboard } from "@opentui/react";
 import { useEffect, useReducer } from "react";
 import {
-  flattenSessionRows,
-  getInitialExpandedTargetIds,
+  buildSessionSidebarRows,
+  getInitialExpandedTargetId,
 } from "../../session/model/session-list";
+import { useSessionContextStore } from "../../session/store/session-context.store";
 import {
   EntryPanel,
   EntryState,
@@ -16,7 +17,7 @@ type EntryAction =
   | { type: "MOVE_SELECTION"; delta: -1 | 1; rowCount: number }
   | { type: "SET_URL_INPUT"; value: string }
   | { type: "TOGGLE_TARGET"; targetId: string }
-  | { type: "INITIALIZE_TARGETS"; expandedTargetIds: Record<string, boolean> }
+  | { type: "INITIALIZE_TARGET"; targetId: string | null }
   | { type: "CLAMP_SELECTION"; rowCount: number };
 
 const PANELS: EntryPanel[] = ["input", "sessions"];
@@ -61,20 +62,15 @@ function createEntryReducer() {
       case "TOGGLE_TARGET":
         return {
           ...state,
-          expandedTargetIds: {
-            ...state.expandedTargetIds,
-            [action.targetId]:
-              state.expandedTargetIds[action.targetId] === false,
-          },
+          expandedTargetId:
+            state.expandedTargetId === action.targetId ? null : action.targetId,
         };
 
-      case "INITIALIZE_TARGETS":
+      case "INITIALIZE_TARGET":
         return {
           ...state,
-          expandedTargetIds:
-            Object.keys(state.expandedTargetIds).length > 0
-              ? state.expandedTargetIds
-              : action.expandedTargetIds,
+          expandedTargetId: action.targetId,
+          hasInitializedTargetExpansion: true,
         };
 
       case "CLAMP_SELECTION":
@@ -98,10 +94,16 @@ export function useEntryShortcuts({
   onStartPentest,
   onOpenSession,
 }: UseEntryShortcutsProps) {
-  const initialExpandedTargetIds = getInitialExpandedTargetIds(targets);
+  const currentSessionId = useSessionContextStore((state) => state.sessionId);
+  const initialExpandedTargetId = getInitialExpandedTargetId(targets);
   const reducer = createEntryReducer();
   const [state, dispatch] = useReducer(reducer, initialEntryState);
-  const rows = flattenSessionRows(targets, state.expandedTargetIds);
+  const expandedTargetId = state.expandedTargetId;
+  const rows = buildSessionSidebarRows(
+    targets,
+    expandedTargetId,
+    currentSessionId,
+  );
 
   const setUrlInput = (value: string) => {
     dispatch({ type: "SET_URL_INPUT", value });
@@ -120,17 +122,17 @@ export function useEntryShortcuts({
 
   useEffect(() => {
     if (
-      Object.keys(state.expandedTargetIds).length > 0 ||
-      Object.keys(initialExpandedTargetIds).length === 0
+      state.hasInitializedTargetExpansion ||
+      initialExpandedTargetId === null
     ) {
       return;
     }
 
     dispatch({
-      type: "INITIALIZE_TARGETS",
-      expandedTargetIds: initialExpandedTargetIds,
+      type: "INITIALIZE_TARGET",
+      targetId: initialExpandedTargetId,
     });
-  }, [initialExpandedTargetIds, state.expandedTargetIds]);
+  }, [initialExpandedTargetId, state.hasInitializedTargetExpansion]);
 
   useEffect(() => {
     dispatch({
@@ -146,12 +148,12 @@ export function useEntryShortcuts({
     if (row.type === "target") {
       dispatch({
         type: "TOGGLE_TARGET",
-        targetId: row.targetId,
+        targetId: row.target.id,
       });
       return;
     }
 
-    onOpenSession(row.sessionId);
+    onOpenSession(row.session.id);
   };
 
   useKeyboard((key) => {
@@ -172,7 +174,7 @@ export function useEntryShortcuts({
         if (row?.type === "target") {
           dispatch({
             type: "TOGGLE_TARGET",
-            targetId: row.targetId,
+            targetId: row.target.id,
           });
         }
       }

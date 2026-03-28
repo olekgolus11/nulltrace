@@ -5,6 +5,7 @@ import { Header } from "../../../shared/ui/Header";
 import { StatusBar } from "../../../shared/ui/StatusBar";
 import { ChatWindow } from "../../chat/components/ChatWindow";
 import { DashboardPanel } from "../../dashboard/components/DashboardPanel";
+import { useSessionContextStore } from "../../session/store/session-context.store";
 import { useToolLayout } from "../hooks/use-tool-layout";
 import { ActiveToolWorkspace } from "../shared/components/ActiveToolWorkspace";
 import { ToolHelpDialog } from "../shared/components/ToolHelpDialog";
@@ -28,13 +29,10 @@ function getToolData(
   );
 }
 
-export function ToolScreen({
-  toolName,
-  sessionId,
-  targetUrl,
-  onBack,
-}: ToolScreenProps) {
+export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
   const { width, height } = useTerminalDimensions();
+  const sessionId = useSessionContextStore((state) => state.sessionId);
+  const targetUrl = useSessionContextStore((state) => state.targetUrl);
   const layout = useToolLayout({ width, height });
   const activePanel = useToolWorkspaceStore((state) => state.activePanel);
   const chatMessages = useToolWorkspaceStore((state) => state.chatMessages);
@@ -53,6 +51,10 @@ export function ToolScreen({
   useToolKeyboardNavigation(onBack);
 
   useEffect(() => {
+    if (!sessionId || !targetUrl) {
+      return;
+    }
+
     initializeWorkspace(toolName, targetUrl, sessionId);
 
     return () => {

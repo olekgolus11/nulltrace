@@ -4,12 +4,14 @@ export interface EntryState {
   activePanel: EntryPanel;
   selectedRow: number;
   urlInput: string;
-  expandedTargetIds: Record<string, boolean>;
+  expandedTargetId: string | null;
+  hasInitializedTargetExpansion: boolean;
 }
 
 export const initialEntryState: EntryState = {
   activePanel: "input",
   selectedRow: 0,
   urlInput: "",
-  expandedTargetIds: {},
+  expandedTargetId: null,
+  hasInitializedTargetExpansion: false,
 };

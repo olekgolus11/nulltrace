@@ -25,22 +25,32 @@ export interface SessionDetail {
   lastActivityAt: string;
 }
 
-export interface TargetListRow {
+export interface SessionSidebarTargetRow {
   type: "target";
-  targetId: string;
+  id: string;
+  target: TargetSummary;
+  isExpanded: boolean;
+  latestSessionId: string | null;
 }
 
-export interface SessionListRow {
+export interface SessionSidebarSessionRow {
   type: "session";
-  targetId: string;
-  sessionId: string;
+  id: string;
+  target: TargetSummary;
+  session: SessionSummary;
+  isCurrent: boolean;
+  isLatest: boolean;
 }
 
-export type SessionSidebarRow = TargetListRow | SessionListRow;
+export type SessionSidebarRow =
+  | SessionSidebarTargetRow
+  | SessionSidebarSessionRow;
 
 export interface SessionItemProps {
   session: SessionSummary;
   isSelected: boolean;
+  isCurrent?: boolean;
+  isLatest?: boolean;
 }
 
 export interface SessionTargetItemProps {
@@ -50,9 +60,20 @@ export interface SessionTargetItemProps {
 }
 
 export interface SessionListProps {
-  targets: TargetSummary[];
-  expandedTargetIds: Record<string, boolean>;
+  rows: SessionSidebarRow[];
   selectedIndex: number;
   title?: string;
   focused: boolean;
+}
+
+export interface SessionContextState {
+  sessionId: string | null;
+  targetId: string | null;
+  targetUrl: string;
+  setCurrentSession: (context: {
+    sessionId: string;
+    targetId: string;
+    targetUrl: string;
+  }) => void;
+  clearCurrentSession: () => void;
 }

@@ -1,62 +1,19 @@
-import { sessionDatabase } from "./session-database";
+import {
+  FindingSnapshotInput,
+  SessionDetailRow,
+  SessionRecord,
+  SessionRow,
+  TargetRecord,
+  TargetRow,
+  ToolRunInput,
+  ToolRunRecord,
+} from "../model/session.repository.types";
 import {
   SessionDetail,
   SessionSummary,
   TargetSummary,
 } from "../model/session.types";
-
-interface TargetRow {
-  id: string;
-  normalizedUrl: string;
-  displayUrl: string;
-  createdAt: string;
-  lastActivityAt: string;
-  sessionCount: number;
-}
-
-interface SessionRow {
-  id: string;
-  targetId: string;
-  displayUrl: string;
-  createdAt: string;
-  lastActivityAt: string;
-}
-
-interface SessionDetailRow {
-  id: string;
-  targetId: string;
-  normalizedUrl: string;
-  displayUrl: string;
-  createdAt: string;
-  lastActivityAt: string;
-}
-
-interface ToolRunInput {
-  toolName: string;
-  command: string;
-  commandSource: string;
-  status: string;
-}
-
-interface ToolRunRecord {
-  id: string;
-  sessionId: string;
-  toolName: string;
-  command: string;
-  commandSource: string;
-  status: string;
-  startedAt: string;
-  endedAt: string | null;
-  exitCode: number | null;
-}
-
-interface FindingSnapshotInput {
-  sourceTool: string;
-  kind: string;
-  severity: string;
-  title: string;
-  payload: unknown;
-}
+import { sessionDatabase } from "./session-database";
 
 function createTimestamp() {
   return new Date().toISOString();
@@ -102,7 +59,7 @@ export const sessionRepository = {
       return existingTarget;
     }
 
-    const target = {
+    const target: TargetRecord = {
       id: createId(),
       normalizedUrl,
       displayUrl,
@@ -125,7 +82,7 @@ export const sessionRepository = {
   },
 
   createSession(targetId: string) {
-    const session = {
+    const session: SessionRecord = {
       id: createId(),
       targetId,
       createdAt: createTimestamp(),

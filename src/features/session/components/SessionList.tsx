@@ -1,74 +1,63 @@
 import { theme } from "../../../app/theme/theme";
-import { flattenSessionRows } from "../model/session-list";
-import { SessionListProps } from "../model/session.types";
+import { SessionListProps, SessionSidebarRow } from "../model/session.types";
 import { SessionItem } from "./SessionItem";
 import { SessionTargetItem } from "./SessionTargetItem";
 
+function getSummaryCounts(rows: SessionSidebarRow[]) {
+  return rows.reduce(
+    (summary, row) => {
+      if (row.type === "target") {
+        summary.targetCount += 1;
+      }
+      if (row.type === "session") {
+        summary.sessionCount += 1;
+      }
+      return summary;
+    },
+    { targetCount: 0, sessionCount: 0 },
+  );
+}
+
 export function SessionList({
-  targets,
-  expandedTargetIds,
+  rows,
   selectedIndex,
   title = "Previous Sessions",
   focused,
 }: SessionListProps) {
-  const rows = flattenSessionRows(targets, expandedTargetIds);
-  const totalSessions = targets.reduce(
-    (sessionCount, target) => sessionCount + target.sessionCount,
-    0,
-  );
+  const summary = getSummaryCounts(rows);
 
   return (
     <box flexDirection="column" flexGrow={1}>
-      <box marginBottom={1}>
+      <box marginBottom={1} flexDirection="column">
         <text fg={theme.accent.primary}>
           <strong>◆ {title}</strong>
         </text>
       </box>
 
-      <box flexDirection="column" gap={0}>
-        {rows.map((row, idx) => {
-          const isSelected = idx === selectedIndex && focused;
-
-          if (row.type === "target") {
-            const target = targets.find((item) => item.id === row.targetId);
-            if (!target) {
-              return null;
-            }
-
-            return (
-              <SessionTargetItem
-                key={target.id}
-                target={target}
-                isExpanded={expandedTargetIds[target.id] !== false}
-                isSelected={isSelected}
-              />
-            );
-          }
-
-          const target = targets.find((item) => item.id === row.targetId);
-          const session = target?.sessions.find(
-            (item) => item.id === row.sessionId,
-          );
-
-          if (!session) {
-            return null;
-          }
-
-          return (
-            <SessionItem
-              key={session.id}
-              session={session}
-              isSelected={isSelected}
+      <box flexDirection="column">
+        {rows.map((row, index) =>
+          row.type === "target" ? (
+            <SessionTargetItem
+              key={row.id}
+              target={row.target}
+              isExpanded={row.isExpanded}
+              isSelected={index === selectedIndex && focused}
             />
-          );
-        })}
+          ) : (
+            <SessionItem
+              key={row.id}
+              session={row.session}
+              isSelected={index === selectedIndex && focused}
+              isCurrent={row.isCurrent}
+              isLatest={row.isLatest}
+            />
+          ),
+        )}
       </box>
 
       <box flexGrow={1} />
       <box>
-        <text fg={theme.text.dim}>
-          {targets.length} targets · {totalSessions} sessions
-        </text>
+        <text fg={theme.text.dim}>{summary.targetCount} targets</text>
       </box>
     </box>
   );

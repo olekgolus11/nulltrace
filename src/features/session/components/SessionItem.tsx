@@ -1,34 +1,6 @@
 import { theme } from "../../../app/theme/theme";
 import { SessionItemProps } from "../model/session.types";
 
-export function SessionItem({ session, isSelected }: SessionItemProps) {
-  return (
-    <box
-      flexDirection="column"
-      backgroundColor={theme.bg.elevated}
-      paddingLeft={1}
-      paddingRight={1}
-      paddingBottom={1}
-    >
-      <box>
-        <text fg={isSelected ? theme.accent.primary : theme.text.primary}>
-          {isSelected ? (
-            <strong>
-              ↳{"  "}
-              {formatTimestamp(session.createdAt)}
-            </strong>
-          ) : (
-            <strong>
-              {"   "}
-              {formatTimestamp(session.createdAt)}
-            </strong>
-          )}
-        </text>
-      </box>
-    </box>
-  );
-}
-
 function formatTimestamp(value: string) {
   return new Date(value).toLocaleString([], {
     month: "2-digit",
@@ -36,4 +8,50 @@ function formatTimestamp(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function getSessionBadges({
+  isCurrent,
+  isLatest,
+}: {
+  isCurrent: boolean;
+  isLatest: boolean;
+}) {
+  const badges: string[] = [];
+
+  if (isCurrent) {
+    badges.push("current");
+  }
+
+  if (isLatest) {
+    badges.push("latest");
+  }
+
+  return badges.join(" · ");
+}
+
+export function SessionItem({
+  session,
+  isSelected,
+  isCurrent = false,
+  isLatest = false,
+}: SessionItemProps) {
+  const badgeText = getSessionBadges({ isCurrent, isLatest });
+
+  return (
+    <box flexDirection="column" paddingLeft={2} paddingBottom={1}>
+      <text fg={isSelected ? theme.accent.primary : theme.text.secondary}>
+        {isSelected ? (
+          <strong>└─ {formatTimestamp(session.createdAt)}</strong>
+        ) : (
+          `└─ ${formatTimestamp(session.createdAt)}`
+        )}
+      </text>
+      {badgeText ? (
+        <text fg={theme.text.dim} paddingLeft={3}>
+          {badgeText}
+        </text>
+      ) : null}
+    </box>
+  );
 }

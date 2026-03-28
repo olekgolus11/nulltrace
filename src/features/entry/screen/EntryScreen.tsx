@@ -10,13 +10,13 @@ import { sessionRepository } from "../../session/services/session.repository";
 export function EntryScreen({ onStartPentest, onOpenSession }: EntryScreenProps) {
   const { width, height } = useTerminalDimensions();
   const [targets] = useState(() => sessionRepository.listTargetsWithSessions());
-  const { entryState, setUrlInput, submitUrlInput } = useEntryShortcuts({
+  const { entryState, rows, setUrlInput, submitUrlInput } = useEntryShortcuts({
     targets,
     onStartPentest,
     onOpenSession,
   });
 
-  const sidebarWidth = 30;
+  const sidebarWidth = 38;
   const mainWidth = width - sidebarWidth;
 
   return (
@@ -117,8 +117,7 @@ export function EntryScreen({ onStartPentest, onOpenSession }: EntryScreenProps)
         paddingBottom={1}
       >
         <SessionList
-          targets={targets}
-          expandedTargetIds={entryState.expandedTargetIds}
+          rows={rows}
           selectedIndex={entryState.selectedRow}
           focused={entryState.activePanel === "sessions"}
         />

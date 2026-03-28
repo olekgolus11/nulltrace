@@ -1,36 +1,43 @@
 import {
   SessionSidebarRow,
+  SessionSummary,
   TargetSummary,
 } from "./session.types";
 
-export function getInitialExpandedTargetIds(
-  targets: TargetSummary[],
-): Record<string, boolean> {
-  return targets.reduce<Record<string, boolean>>((expandedTargetIds, target) => {
-    expandedTargetIds[target.id] = true;
-    return expandedTargetIds;
-  }, {});
+export function getInitialExpandedTargetId(targets: TargetSummary[]) {
+  return targets[0]?.id ?? null;
 }
 
-export function flattenSessionRows(
+function getLatestSessionId(sessions: SessionSummary[]) {
+  return sessions[0]?.id ?? null;
+}
+
+export function buildSessionSidebarRows(
   targets: TargetSummary[],
-  expandedTargetIds: Record<string, boolean>,
+  expandedTargetId: string | null,
+  currentSessionId: string | null,
 ) {
   return targets.reduce<SessionSidebarRow[]>((rows, target) => {
     rows.push({
       type: "target",
-      targetId: target.id,
+      id: target.id,
+      target,
+      isExpanded: target.id === expandedTargetId,
+      latestSessionId: getLatestSessionId(target.sessions),
     });
 
-    if (expandedTargetIds[target.id] === false) {
+    if (target.id !== expandedTargetId) {
       return rows;
     }
 
-    target.sessions.forEach((session) => {
+    target.sessions.forEach((session, sessionIndex) => {
       rows.push({
         type: "session",
-        targetId: target.id,
-        sessionId: session.id,
+        id: session.id,
+        target,
+        session,
+        isCurrent: session.id === currentSessionId,
+        isLatest: sessionIndex === 0,
       });
     });
 

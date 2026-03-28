@@ -18,8 +18,6 @@ export interface ToolCatalogItem {
 
 export interface ToolScreenProps {
   toolName: ToolName;
-  sessionId: string;
-  targetUrl: string;
   onBack: () => void;
 }
 

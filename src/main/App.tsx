@@ -2,6 +2,7 @@ import { useState } from "react";
 import { DashboardScreen } from "../features/dashboard/screen/DashboardScreen";
 import { sessionRepository } from "../features/session/services/session.repository";
 import { normalizeTargetUrl } from "../features/session/services/session-url";
+import { useSessionContextStore } from "../features/session/store/session-context.store";
 import { ToolName } from "../features/tool/shared/types/tool-screen.types";
 import { Screen } from "./routes";
 import { EntryScreen } from "../features/entry/screen/EntryScreen";
@@ -9,6 +10,9 @@ import { ToolScreen } from "../features/tool/screen/ToolScreen";
 
 export function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>({ type: "entry" });
+  const setCurrentSession = useSessionContextStore(
+    (state) => state.setCurrentSession,
+  );
 
   const handleStartPentest = (url: string) => {
     const { normalizedUrl, displayUrl } = normalizeTargetUrl(url);
@@ -18,10 +22,14 @@ export function App() {
     );
     const session = sessionRepository.createSession(target.id);
 
+    setCurrentSession({
+      sessionId: session.id,
+      targetId: target.id,
+      targetUrl: target.displayUrl,
+    });
+
     setCurrentScreen({
       type: "dashboard",
-      sessionId: session.id,
-      targetUrl: target.displayUrl,
     });
   };
 
@@ -33,23 +41,21 @@ export function App() {
 
     sessionRepository.touchSessionActivity(session.id);
 
+    setCurrentSession({
+      sessionId: session.id,
+      targetId: session.targetId,
+      targetUrl: session.displayUrl,
+    });
+
     setCurrentScreen({
       type: "dashboard",
-      sessionId: session.id,
-      targetUrl: session.displayUrl,
     });
   };
 
-  const handleSelectTool = (
-    toolName: ToolName,
-    targetUrl: string,
-    sessionId: string,
-  ) => {
+  const handleSelectTool = (toolName: ToolName) => {
     setCurrentScreen({
       type: "tool",
       toolName,
-      sessionId,
-      targetUrl,
     });
   };
 
@@ -57,8 +63,8 @@ export function App() {
     setCurrentScreen({ type: "entry" });
   };
 
-  const handleBackToDashboard = (targetUrl: string, sessionId: string) => {
-    setCurrentScreen({ type: "dashboard", targetUrl, sessionId });
+  const handleBackToDashboard = () => {
+    setCurrentScreen({ type: "dashboard" });
   };
 
   switch (currentScreen.type) {
@@ -73,15 +79,7 @@ export function App() {
     case "dashboard":
       return (
         <DashboardScreen
-          sessionId={currentScreen.sessionId}
-          targetUrl={currentScreen.targetUrl}
-          onSelectTool={(toolName) =>
-            handleSelectTool(
-              toolName,
-              currentScreen.targetUrl,
-              currentScreen.sessionId,
-            )
-          }
+          onSelectTool={handleSelectTool}
           onBack={handleBackToEntry}
         />
       );
@@ -90,14 +88,7 @@ export function App() {
       return (
         <ToolScreen
           toolName={currentScreen.toolName}
-          sessionId={currentScreen.sessionId}
-          targetUrl={currentScreen.targetUrl}
-          onBack={() =>
-            handleBackToDashboard(
-              currentScreen.targetUrl,
-              currentScreen.sessionId,
-            )
-          }
+          onBack={handleBackToDashboard}
         />
       );
 
