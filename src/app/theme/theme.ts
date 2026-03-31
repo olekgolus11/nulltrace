@@ -1,3 +1,5 @@
+import { RGBA } from "@opentui/core";
+
 // Cyber Teal Theme - Color palette for Nulltrace TUI
 export const theme = {
   // Backgrounds
@@ -6,6 +8,7 @@ export const theme = {
     panel: "#111827", // Dark Slate - panel backgrounds
     elevated: "#1e293b", // Slightly lighter for elevated elements
     input: "#0f172a", // Input field background
+    overlay: RGBA.fromInts(0, 0, 0, 140), // Semi-transparent modal overlay
   },
 
   // Accent colors

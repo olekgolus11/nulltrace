@@ -21,6 +21,7 @@ export function ToolHelpDialog<ToolFieldId extends number>({
       top={0}
       width="100%"
       height="100%"
+      backgroundColor={theme.bg.overlay}
       justifyContent="center"
       alignItems="center"
     >
