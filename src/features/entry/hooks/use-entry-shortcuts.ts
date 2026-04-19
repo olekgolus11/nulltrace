@@ -93,6 +93,7 @@ export function useEntryShortcuts({
   targets,
   onStartPentest,
   onOpenSession,
+  onCreateSessionFromTarget,
 }: UseEntryShortcutsProps) {
   const currentSessionId = useSessionContextStore((state) => state.sessionId);
   const initialExpandedTargetId = getInitialExpandedTargetId(targets);
@@ -156,6 +157,14 @@ export function useEntryShortcuts({
     onOpenSession(row.session.id);
   };
 
+  const createSessionFromSelectedTarget = () => {
+    const row = rows[state.selectedRow];
+    if (!row) return;
+
+    const target = row.target;
+    onCreateSessionFromTarget(target);
+  };
+
   useKeyboard((key) => {
     if (key.name === "tab") {
       dispatch({ type: "CYCLE_PANEL" });
@@ -163,6 +172,10 @@ export function useEntryShortcuts({
     }
 
     if (state.activePanel === "sessions") {
+      if (key.ctrl && key.name === "n") {
+        createSessionFromSelectedTarget();
+        return;
+      }
       if (key.name === "up") {
         dispatch({ type: "MOVE_SELECTION", delta: -1, rowCount: rows.length });
       }

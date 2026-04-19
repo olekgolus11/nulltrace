@@ -14,12 +14,10 @@ export function App() {
     (state) => state.setCurrentSession,
   );
 
-  const handleStartPentest = (url: string) => {
-    const { normalizedUrl, displayUrl } = normalizeTargetUrl(url);
-    const target = sessionRepository.findOrCreateTarget(
-      normalizedUrl,
-      displayUrl,
-    );
+  const openNewSessionForTarget = (target: {
+    id: string;
+    displayUrl: string;
+  }) => {
     const session = sessionRepository.createSession(target.id);
 
     setCurrentSession({
@@ -31,6 +29,15 @@ export function App() {
     setCurrentScreen({
       type: "dashboard",
     });
+  };
+
+  const handleStartPentest = (url: string) => {
+    const { normalizedUrl, displayUrl } = normalizeTargetUrl(url);
+    const target = sessionRepository.findOrCreateTarget(
+      normalizedUrl,
+      displayUrl,
+    );
+    openNewSessionForTarget(target);
   };
 
   const handleOpenSession = (sessionId: string) => {
@@ -73,6 +80,7 @@ export function App() {
         <EntryScreen
           onStartPentest={handleStartPentest}
           onOpenSession={handleOpenSession}
+          onCreateSessionFromTarget={openNewSessionForTarget}
         />
       );
 

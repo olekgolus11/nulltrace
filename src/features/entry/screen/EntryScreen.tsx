@@ -7,13 +7,18 @@ import { titleArtBlood, titleArtRebel } from "../data/entry.constants";
 import { useEntryShortcuts } from "../hooks/use-entry-shortcuts";
 import { sessionRepository } from "../../session/services/session.repository";
 
-export function EntryScreen({ onStartPentest, onOpenSession }: EntryScreenProps) {
+export function EntryScreen({
+  onStartPentest,
+  onOpenSession,
+  onCreateSessionFromTarget,
+}: EntryScreenProps) {
   const { width, height } = useTerminalDimensions();
   const [targets] = useState(() => sessionRepository.listTargetsWithSessions());
   const { entryState, rows, setUrlInput, submitUrlInput } = useEntryShortcuts({
     targets,
     onStartPentest,
     onOpenSession,
+    onCreateSessionFromTarget,
   });
 
   const sidebarWidth = 38;
@@ -101,7 +106,11 @@ export function EntryScreen({ onStartPentest, onOpenSession }: EntryScreenProps)
             <span fg={theme.text.secondary}>
               <strong>Enter</strong>
             </span>{" "}
-            select
+            select{" "}
+            <span fg={theme.text.secondary}>
+              <strong>Ctrl+N</strong>
+            </span>{" "}
+            new session
           </text>
         </box>
       </box>
