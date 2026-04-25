@@ -1,5 +1,10 @@
 import { useKeyboard } from "@opentui/react";
-import { useReducer } from "react";
+import { useEffect, useReducer } from "react";
+import {
+  buildSessionSidebarRows,
+  getInitialExpandedTargetId,
+} from "../../session/model/session-list";
+import { useSessionContextStore } from "../../session/store/session-context.store";
 import {
   EntryPanel,
   EntryState,
@@ -9,8 +14,11 @@ import { UseEntryShortcutsProps } from "../model/entry.types";
 
 type EntryAction =
   | { type: "CYCLE_PANEL" }
-  | { type: "MOVE_SESSION_SELECTION"; delta: -1 | 1 }
-  | { type: "SET_URL_INPUT"; value: string };
+  | { type: "MOVE_SELECTION"; delta: -1 | 1; rowCount: number }
+  | { type: "SET_URL_INPUT"; value: string }
+  | { type: "TOGGLE_TARGET"; targetId: string }
+  | { type: "INITIALIZE_TARGET"; targetId: string | null }
+  | { type: "CLAMP_SELECTION"; rowCount: number };
 
 const PANELS: EntryPanel[] = ["input", "sessions"];
 
@@ -23,7 +31,7 @@ function getNextPanel(current: EntryPanel): EntryPanel {
   return PANELS[(currentIndex + 1) % PANELS.length]!;
 }
 
-function createEntryReducer(counts: { sessionCount: number }) {
+function createEntryReducer() {
   return function dashboardReducer(
     state: EntryState,
     action: EntryAction,
@@ -35,13 +43,13 @@ function createEntryReducer(counts: { sessionCount: number }) {
           activePanel: getNextPanel(state.activePanel),
         };
 
-      case "MOVE_SESSION_SELECTION":
+      case "MOVE_SELECTION":
         return {
           ...state,
-          selectedSession: clamp(
-            state.selectedSession + action.delta,
+          selectedRow: clamp(
+            state.selectedRow + action.delta,
             0,
-            Math.max(0, counts.sessionCount - 1),
+            Math.max(0, action.rowCount - 1),
           ),
         };
 
@@ -51,6 +59,30 @@ function createEntryReducer(counts: { sessionCount: number }) {
           urlInput: action.value,
         };
 
+      case "TOGGLE_TARGET":
+        return {
+          ...state,
+          expandedTargetId:
+            state.expandedTargetId === action.targetId ? null : action.targetId,
+        };
+
+      case "INITIALIZE_TARGET":
+        return {
+          ...state,
+          expandedTargetId: action.targetId,
+          hasInitializedTargetExpansion: true,
+        };
+
+      case "CLAMP_SELECTION":
+        return {
+          ...state,
+          selectedRow: clamp(
+            state.selectedRow,
+            0,
+            Math.max(0, action.rowCount - 1),
+          ),
+        };
+
       default:
         return state;
     }
@@ -58,14 +90,21 @@ function createEntryReducer(counts: { sessionCount: number }) {
 }
 
 export function useEntryShortcuts({
-  sessions,
+  targets,
   onStartPentest,
+  onOpenSession,
+  onCreateSessionFromTarget,
 }: UseEntryShortcutsProps) {
-  const reducer = createEntryReducer({
-    sessionCount: sessions.length,
-  });
-
+  const currentSessionId = useSessionContextStore((state) => state.sessionId);
+  const initialExpandedTargetId = getInitialExpandedTargetId(targets);
+  const reducer = createEntryReducer();
   const [state, dispatch] = useReducer(reducer, initialEntryState);
+  const expandedTargetId = state.expandedTargetId;
+  const rows = buildSessionSidebarRows(
+    targets,
+    expandedTargetId,
+    currentSessionId,
+  );
 
   const setUrlInput = (value: string) => {
     dispatch({ type: "SET_URL_INPUT", value });
@@ -82,10 +121,48 @@ export function useEntryShortcuts({
     onStartPentest(url);
   };
 
+  useEffect(() => {
+    if (
+      state.hasInitializedTargetExpansion ||
+      initialExpandedTargetId === null
+    ) {
+      return;
+    }
+
+    dispatch({
+      type: "INITIALIZE_TARGET",
+      targetId: initialExpandedTargetId,
+    });
+  }, [initialExpandedTargetId, state.hasInitializedTargetExpansion]);
+
+  useEffect(() => {
+    dispatch({
+      type: "CLAMP_SELECTION",
+      rowCount: rows.length,
+    });
+  }, [rows.length]);
+
   const submitSelectedSession = () => {
-    const session = sessions[state.selectedSession];
-    if (!session) return;
-    onStartPentest(session.url);
+    const row = rows[state.selectedRow];
+    if (!row) return;
+
+    if (row.type === "target") {
+      dispatch({
+        type: "TOGGLE_TARGET",
+        targetId: row.target.id,
+      });
+      return;
+    }
+
+    onOpenSession(row.session.id);
+  };
+
+  const createSessionFromSelectedTarget = () => {
+    const row = rows[state.selectedRow];
+    if (!row) return;
+
+    const target = row.target;
+    onCreateSessionFromTarget(target);
   };
 
   useKeyboard((key) => {
@@ -95,25 +172,35 @@ export function useEntryShortcuts({
     }
 
     if (state.activePanel === "sessions") {
+      if (key.ctrl && key.name === "n") {
+        createSessionFromSelectedTarget();
+        return;
+      }
       if (key.name === "up") {
-        dispatch({ type: "MOVE_SESSION_SELECTION", delta: -1 });
+        dispatch({ type: "MOVE_SELECTION", delta: -1, rowCount: rows.length });
       }
       if (key.name === "down") {
-        dispatch({ type: "MOVE_SESSION_SELECTION", delta: 1 });
+        dispatch({ type: "MOVE_SELECTION", delta: 1, rowCount: rows.length });
+      }
+      if (key.name === "left" || key.name === "right") {
+        const row = rows[state.selectedRow];
+        if (row?.type === "target") {
+          dispatch({
+            type: "TOGGLE_TARGET",
+            targetId: row.target.id,
+          });
+        }
       }
       if (key.name === "enter" || key.name === "return") {
         submitSelectedSession();
       }
       return;
     }
-
-    // if (key.name === "enter" || key.name === "return") {
-    //   submitUrlInput();
-    // }
   });
 
   return {
     entryState: state,
+    rows,
     setUrlInput,
     submitUrlInput,
   };

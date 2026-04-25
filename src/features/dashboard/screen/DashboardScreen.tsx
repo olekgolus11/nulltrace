@@ -10,13 +10,11 @@ import { useDashboardShortcuts } from "../hooks/use-dashboard-shortcuts";
 import { DashboardScreenProps } from "../model/dashboard.types";
 import { Header } from "../../../shared/ui/Header";
 import { StatusBar } from "../../../shared/ui/StatusBar";
+import { useSessionContextStore } from "../../session/store/session-context.store";
 
-export function DashboardScreen({
-  targetUrl,
-  onSelectTool,
-  onBack,
-}: DashboardScreenProps) {
+export function DashboardScreen({ onSelectTool, onBack }: DashboardScreenProps) {
   const { width, height } = useTerminalDimensions();
+  const targetUrl = useSessionContextStore((state) => state.targetUrl);
   const layout = useDashboardLayout({
     width,
     height,
@@ -28,7 +26,6 @@ export function DashboardScreen({
     sitemapScrollRef,
     vulnsScrollRef,
   } = useDashboardShortcuts({
-    targetUrl,
     onBack,
     onSelectTool,
   });

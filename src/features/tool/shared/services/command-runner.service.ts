@@ -39,7 +39,11 @@ export class CommandRunnerService {
     this.currentProcess = null;
   }
 
-  async run(command: string, onLines: (lines: string[]) => void) {
+  async run(
+    command: string,
+    onStdoutLines: (lines: string[]) => void,
+    onStderrLines: (lines: string[]) => void,
+  ) {
     this.stop();
 
     const proc = Bun.spawn({
@@ -52,8 +56,8 @@ export class CommandRunnerService {
     this.currentProcess = proc;
 
     await Promise.all([
-      readStream(proc.stdout, onLines),
-      readStream(proc.stderr, onLines),
+      readStream(proc.stdout, onStdoutLines),
+      readStream(proc.stderr, onStderrLines),
     ]);
 
     const exitCode = await proc.exited;

@@ -97,7 +97,6 @@ function createDashboardReducer(counts: {
 }
 
 export function useDashboardShortcuts({
-  targetUrl,
   onBack,
   onSelectTool,
 }: UseDashboardShortcutsProps) {
@@ -153,7 +152,7 @@ export function useDashboardShortcuts({
         if (key.name === "return") {
           const tool = tools[state.selectedTool];
           if (tool) {
-            onSelectTool(tool.id, targetUrl);
+            onSelectTool(tool.id);
           }
         }
         break;

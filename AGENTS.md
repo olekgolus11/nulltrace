@@ -193,6 +193,9 @@ config/
 - Read nearby feature files before editing to match local patterns.
 - Check whether a feature already has a hook, store, service, config, or registry entry before adding a new one.
 - Prefer extending existing mock/config data and the current tool shell instead of inventing parallel structures.
+- Use the Linear MCP tools as the default task-tracking system for this repository when work should be recorded or planned.
+- AI agents should create or update Linear tasks instead of keeping separate ad hoc task lists when task tracking is needed.
+- If an AI agent finds a bug during implementation, review, or verification, it should add a Linear issue for it and apply the `Bug` label.
 - Verify impacted code with `bunx tsc --noEmit` and manual app checks when practical.
 - Run existing tests only when they already cover the changed path and are genuinely useful for validation.
 - If you cannot run verification, say so clearly in your handoff.

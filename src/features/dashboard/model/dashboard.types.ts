@@ -1,15 +1,13 @@
 import { ToolName } from "../../tool/shared/types/tool-screen.types";
 
 export interface DashboardScreenProps {
-  targetUrl: string;
-  onSelectTool: (toolName: ToolName, targetUrl: string) => void;
+  onSelectTool: (toolName: ToolName) => void;
   onBack: () => void;
 }
 
 export interface UseDashboardShortcutsProps {
-  targetUrl: string;
   onBack: () => void;
-  onSelectTool: (toolName: ToolName, targetUrl: string) => void;
+  onSelectTool: (toolName: ToolName) => void;
 }
 
 export interface PanelProps {

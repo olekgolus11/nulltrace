@@ -1,33 +1,57 @@
 import { theme } from "../../../app/theme/theme";
 import { SessionItemProps } from "../model/session.types";
 
-export function SessionItem({ session, isSelected }: SessionItemProps) {
-  const vulnColor =
-    session.vulns > 5
-      ? theme.severity.critical
-      : session.vulns > 0
-        ? theme.severity.medium
-        : theme.severity.low;
+function formatTimestamp(value: string) {
+  return new Date(value).toLocaleString([], {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getSessionBadges({
+  isCurrent,
+  isLatest,
+}: {
+  isCurrent: boolean;
+  isLatest: boolean;
+}) {
+  const badges: string[] = [];
+
+  if (isCurrent) {
+    badges.push("current");
+  }
+
+  if (isLatest) {
+    badges.push("latest");
+  }
+
+  return badges.join(" · ");
+}
+
+export function SessionItem({
+  session,
+  isSelected,
+  isCurrent = false,
+  isLatest = false,
+}: SessionItemProps) {
+  const badgeText = getSessionBadges({ isCurrent, isLatest });
 
   return (
-    <box
-      flexDirection="column"
-      backgroundColor={isSelected ? theme.bg.elevated : undefined}
-      paddingLeft={1}
-      paddingRight={1}
-      paddingBottom={1}
-      paddingTop={1}
-    >
-      <box>
-        <text fg={isSelected ? theme.accent.primary : theme.text.primary}>
-          {isSelected ? <strong>▸ {session.url}</strong> : `  ${session.url}`}
+    <box flexDirection="column" paddingLeft={2} paddingBottom={1}>
+      <text fg={isSelected ? theme.accent.primary : theme.text.secondary}>
+        {isSelected ? (
+          <strong>└─ {formatTimestamp(session.createdAt)}</strong>
+        ) : (
+          `└─ ${formatTimestamp(session.createdAt)}`
+        )}
+      </text>
+      {badgeText ? (
+        <text fg={theme.text.dim} paddingLeft={3}>
+          {badgeText}
         </text>
-      </box>
-      <box flexDirection="row" paddingLeft={2}>
-        <text fg={theme.text.dim}>{session.date}</text>
-        <text fg={theme.text.dim}> · </text>
-        <text fg={vulnColor}>{session.vulns} vulns</text>
-      </box>
+      ) : null}
     </box>
   );
 }
