@@ -15,20 +15,22 @@ This repository is an active prototype and should be read as an in-progress rese
 Today the app includes:
 
 - a landing screen for starting an assessment against a target URL
+- persisted target and session records backed by local SQLite storage
 - a dashboard layout with sitemap, chat, vulnerability summary, and tool catalog panels
-- a reusable tool system with workspace state, command editing, output logging, and keyboard navigation
+- a reusable tool system with workspace state, command editing, persisted output logs, and keyboard navigation
 - an implemented `nmap` workflow with guided scan options and generated commands
-- placeholder catalog entries for future tools such as `nuclei`, `ffuf`, `sqlmap`, `zap`, and `nikto`
+- catalog-only placeholders for future tools such as `nuclei`, `ffuf`, `sqlmap`, `zap`, and `nikto`
 
-Some views are still powered by mock data, several tools are not implemented yet, and the command orchestration model is still evolving.
+Some views are still powered by mock data, several tools are not implemented yet, and the command orchestration model is still evolving. Local persistence exists for sessions, tool runs, output logs, and finding snapshots, but dashboard panels do not yet consume that stored data end to end.
 
 This repository is shared primarily for research visibility and project documentation.
 
 ## What Works Today
 
 - target URL entry flow with lightweight session-oriented navigation
+- saved target/session browsing, reopening, and `Ctrl+N` session creation from the selected sidebar target
 - a dashboard that combines chat, sitemap, vulnerability summary, and tool discovery panels
-- a shared tool workspace shell with command editing and output logging
+- a shared tool workspace shell with command editing, persisted run records, and output logging
 - keyboard-driven navigation patterns across the TUI
 - an `nmap` tool flow that generates and runs commands from guided form inputs
 
@@ -41,6 +43,7 @@ This repository is shared primarily for research visibility and project document
 - React 19
 - OpenTUI (`@opentui/react`, `@opentui/core`)
 - Zustand
+- Bun SQLite (`bun:sqlite`)
 
 ## Run Locally
 
@@ -86,7 +89,20 @@ bun test
 - Dashboard and entry flows use local React state and reducers.
 - Shared tool workspaces are managed with Zustand stores.
 - The tool shell is designed to host multiple security tools through a common workspace model.
+- Session data is stored locally in a SQLite database using `bun:sqlite`.
 - The current command execution boundary lives in the shared tool shell and executes shell commands through `zsh -lc`.
+- Command output is recorded to persisted tool-run logs; restoring prior workspace context from those logs is still in progress.
+- Long-running commands have a basic process stop path, but operator-facing cancel controls and state polish are still in progress.
+
+## Local Storage
+
+NullTrace creates a local `nulltrace.sqlite` database for prototype state.
+
+- macOS: `~/Library/Application Support/nulltrace/nulltrace.sqlite`
+- Linux and other Unix-like systems: `$XDG_DATA_HOME/nulltrace/nulltrace.sqlite` or `~/.local/share/nulltrace/nulltrace.sqlite`
+- Windows: `%APPDATA%/nulltrace/nulltrace.sqlite`
+
+The database currently stores targets, sessions, tool runs, output log lines, and finding snapshots.
 
 ## Safety And Authorized Use
 
@@ -109,7 +125,7 @@ The broader project goal is to explore whether large language models can meaning
 ## Roadmap
 
 - Expand the tool registry beyond `nmap`
-- Replace mock data with persisted scan/session data
-- Add safer command execution controls and validation
+- Wire dashboard views to persisted scan/session data
+- Add safer command execution controls, validation, and clearer cancellation UX
 - Introduce authenticated testing workflows with secure secret handling
 - Improve reporting and result correlation across tools
