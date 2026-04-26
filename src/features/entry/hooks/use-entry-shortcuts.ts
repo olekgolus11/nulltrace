@@ -70,7 +70,6 @@ function createEntryReducer() {
         return {
           ...state,
           expandedTargetId: action.targetId,
-          hasInitializedTargetExpansion: true,
         };
 
       case "CLAMP_SELECTION":
@@ -122,10 +121,7 @@ export function useEntryShortcuts({
   };
 
   useEffect(() => {
-    if (
-      state.hasInitializedTargetExpansion ||
-      initialExpandedTargetId === null
-    ) {
+    if (initialExpandedTargetId === null) {
       return;
     }
 
@@ -133,7 +129,7 @@ export function useEntryShortcuts({
       type: "INITIALIZE_TARGET",
       targetId: initialExpandedTargetId,
     });
-  }, [initialExpandedTargetId, state.hasInitializedTargetExpansion]);
+  }, [initialExpandedTargetId]);
 
   useEffect(() => {
     dispatch({
@@ -181,15 +177,6 @@ export function useEntryShortcuts({
       }
       if (key.name === "down") {
         dispatch({ type: "MOVE_SELECTION", delta: 1, rowCount: rows.length });
-      }
-      if (key.name === "left" || key.name === "right") {
-        const row = rows[state.selectedRow];
-        if (row?.type === "target") {
-          dispatch({
-            type: "TOGGLE_TARGET",
-            targetId: row.target.id,
-          });
-        }
       }
       if (key.name === "enter" || key.name === "return") {
         submitSelectedSession();

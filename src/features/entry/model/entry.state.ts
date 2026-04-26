@@ -5,7 +5,6 @@ export interface EntryState {
   selectedRow: number;
   urlInput: string;
   expandedTargetId: string | null;
-  hasInitializedTargetExpansion: boolean;
 }
 
 export const initialEntryState: EntryState = {
@@ -13,5 +12,4 @@ export const initialEntryState: EntryState = {
   selectedRow: 0,
   urlInput: "",
   expandedTargetId: null,
-  hasInitializedTargetExpansion: false,
 };
