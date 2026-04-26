@@ -20,7 +20,7 @@ export function StatusBar({
 }: StatusBarProps) {
   const defaultHintText = `Tab switch panel  Up/Down navigate  Enter select${
     showBack ? "  ESC back" : ""
-  }`;
+  }  Ctrl+Q quit`;
 
   return (
     <box

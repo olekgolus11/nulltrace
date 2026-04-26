@@ -317,6 +317,29 @@ export const sessionRepository = {
       .run(sessionId, createTimestamp());
   },
 
+  cancelToolRun(toolRunId: string) {
+    sessionDatabase
+      .query(
+        `UPDATE tool_runs
+         SET status = ?2,
+             ended_at = ?3
+         WHERE id = ?1`,
+      )
+      .run(toolRunId, "cancelled", createTimestamp());
+
+    const sessionId = sessionDatabase
+      .query<{ sessionId: string }, [string]>(
+        `SELECT session_id AS sessionId
+         FROM tool_runs
+         WHERE id = ?1`,
+      )
+      .get(toolRunId)?.sessionId;
+
+    if (sessionId) {
+      this.touchSessionActivity(sessionId);
+    }
+  },
+
   finishToolRun(toolRunId: string, status: string, exitCode: number | null) {
     sessionDatabase
       .query(

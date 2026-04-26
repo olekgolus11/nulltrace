@@ -1,3 +1,4 @@
+import { useKeyboard, useRenderer } from "@opentui/react";
 import { useState } from "react";
 import { DashboardScreen } from "../features/dashboard/screen/DashboardScreen";
 import { sessionRepository } from "../features/session/services/session.repository";
@@ -9,10 +10,17 @@ import { EntryScreen } from "../features/entry/screen/EntryScreen";
 import { ToolScreen } from "../features/tool/screen/ToolScreen";
 
 export function App() {
+  const renderer = useRenderer();
   const [currentScreen, setCurrentScreen] = useState<Screen>({ type: "entry" });
   const setCurrentSession = useSessionContextStore(
     (state) => state.setCurrentSession,
   );
+
+  useKeyboard((key) => {
+    if (key.ctrl && key.name === "q") {
+      renderer.destroy();
+    }
+  });
 
   const openNewSessionForTarget = (target: {
     id: string;

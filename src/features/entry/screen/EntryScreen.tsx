@@ -96,17 +96,21 @@ export function EntryScreen({
         <box position="absolute" marginTop={height - 3} marginLeft={2}>
           <text fg={theme.text.dim}>
             <span fg={theme.text.secondary}>
+              <strong>Ctrl+Q</strong>
+            </span>{" "}
+            quit{" | "}
+            <span fg={theme.text.secondary}>
               <strong>Tab</strong>
             </span>{" "}
-            switch focus{" "}
+            switch focus{" | "}
             <span fg={theme.text.secondary}>
               <strong>↑↓</strong>
             </span>{" "}
-            navigate{" "}
+            navigate{" | "}
             <span fg={theme.text.secondary}>
               <strong>Enter</strong>
             </span>{" "}
-            select{" "}
+            select{" | "}
             <span fg={theme.text.secondary}>
               <strong>Ctrl+N</strong>
             </span>{" "}

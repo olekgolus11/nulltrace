@@ -34,8 +34,8 @@ async function readStream(
 export class CommandRunnerService {
   private currentProcess: ReturnType<typeof Bun.spawn> | null = null;
 
-  stop() {
-    this.currentProcess?.kill();
+  stop(signal: NodeJS.Signals = "SIGINT") {
+    this.currentProcess?.kill(signal);
     this.currentProcess = null;
   }
 
