@@ -5,7 +5,12 @@ export type ToolName = "nmap" | "nuclei" | "ffuf" | "sqlmap" | "zap" | "nikto";
 
 export type ToolPanel = "chat" | "form" | "command" | "output";
 
-export type ExecutionStatus = "idle" | "running" | "success" | "error";
+export type ExecutionStatus =
+  | "idle"
+  | "running"
+  | "success"
+  | "cancelled"
+  | "error";
 
 export type CommandSource = "generated" | "manual";
 

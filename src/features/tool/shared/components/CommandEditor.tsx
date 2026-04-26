@@ -1,11 +1,14 @@
 import { theme } from "../../../../app/theme/theme";
+import { ExecutionStatus } from "../types/tool-screen.types";
 
-function getStatusColor(status: "idle" | "running" | "success" | "error") {
+function getStatusColor(status: ExecutionStatus) {
   switch (status) {
     case "running":
       return theme.accent.warning;
     case "success":
       return theme.accent.low;
+    case "cancelled":
+      return theme.accent.warning;
     case "error":
       return theme.accent.critical;
     default:
@@ -27,7 +30,7 @@ export function CommandEditor({
   generatedCommand: string;
   commandSource: "generated" | "manual";
   focused: boolean;
-  executionStatus: "idle" | "running" | "success" | "error";
+  executionStatus: ExecutionStatus;
   lastExitCode: number | null;
   onCommandChange: (value: string) => void;
   onRun: () => void;
@@ -99,7 +102,8 @@ export function CommandEditor({
 
       <box marginBottom={1}>
         <text fg={theme.text.dim}>
-          Enter submits. Ctrl+R runs. Ctrl+G restores the generated command.
+          Enter submits. Ctrl+R runs. Ctrl+C cancels. Ctrl+G restores the
+          generated command.
         </text>
       </box>
 

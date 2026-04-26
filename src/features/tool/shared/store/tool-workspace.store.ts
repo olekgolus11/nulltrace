@@ -84,6 +84,7 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
   startExecution: (command: string) => void;
   appendOutput: (lines: string[], stream?: "stdout" | "stderr") => void;
   finishExecution: (status: ExecutionStatus, exitCode: number | null) => void;
+  cancelExecution: () => void;
   runCommand: () => Promise<void>;
   stopCommand: () => void;
   updateToolData: (updater: (current: unknown) => unknown) => void;
@@ -199,14 +200,15 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
 
   startExecution: (command) =>
     set((state) => {
-      const toolRun = state.sessionId && state.toolName
-        ? sessionRepository.recordToolRun(state.sessionId, {
-            toolName: state.toolName,
-            command,
-            commandSource: state.commandSource,
-            status: "running",
-          })
-        : null;
+      const toolRun =
+        state.sessionId && state.toolName
+          ? sessionRepository.recordToolRun(state.sessionId, {
+              toolName: state.toolName,
+              command,
+              commandSource: state.commandSource,
+              status: "running",
+            })
+          : null;
 
       return {
         outputLines: [`$ ${command}`, ""],
@@ -219,7 +221,11 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
   appendOutput: (lines, stream = "stdout") =>
     set((state) => {
       if (state.currentToolRunId) {
-        sessionRepository.appendToolRunLog(state.currentToolRunId, lines, stream);
+        sessionRepository.appendToolRunLog(
+          state.currentToolRunId,
+          lines,
+          stream,
+        );
       }
 
       return {
@@ -229,13 +235,43 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
 
   finishExecution: (status, exitCode) =>
     set((state) => {
-      if (state.currentToolRunId) {
-        sessionRepository.finishToolRun(state.currentToolRunId, status, exitCode);
+      if (!state.currentToolRunId) {
+        return state;
       }
+
+      sessionRepository.finishToolRun(
+        state.currentToolRunId,
+        status,
+        exitCode,
+      );
 
       return {
         executionStatus: status,
         lastExitCode: exitCode,
+        currentToolRunId: null,
+      };
+    }),
+
+  cancelExecution: () =>
+    set((state) => {
+      if (state.executionStatus !== "running") {
+        return state;
+      }
+
+      const cancelMessage = "[run cancelled by operator]";
+
+      if (state.currentToolRunId) {
+        sessionRepository.appendToolRunLog(
+          state.currentToolRunId,
+          ["", cancelMessage],
+        );
+        sessionRepository.cancelToolRun(state.currentToolRunId);
+      }
+
+      return {
+        outputLines: [...state.outputLines, "", cancelMessage],
+        executionStatus: "cancelled",
+        lastExitCode: null,
         currentToolRunId: null,
       };
     }),
@@ -260,9 +296,17 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
         },
       );
 
+      if (get().executionStatus === "cancelled") {
+        return;
+      }
+
       get().finishExecution(exitCode === 0 ? "success" : "error", exitCode);
       get().appendOutput(["", `[process exited with code ${exitCode}]`]);
     } catch (error) {
+      if (get().executionStatus === "cancelled") {
+        return;
+      }
+
       const message =
         error instanceof Error ? error.message : "Unknown execution error";
       get().appendOutput(["", `[execution failed] ${message}`]);

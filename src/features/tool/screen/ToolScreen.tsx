@@ -113,7 +113,7 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
       <StatusBar
         activePanel={activePanel}
         panels={toolPanels}
-        hintText="Tab switch panel  Up/Down move field  Enter run/toggle  Ctrl+H help  Ctrl+R run  Ctrl+G reset cmd  ESC back"
+        hintText="Tab switch panel  Up/Down move field  Enter run/toggle  Ctrl+H help  Ctrl+R run  Ctrl+C cancel  Ctrl+G reset cmd  ESC back  Ctrl+Q quit"
       />
     </box>
   );

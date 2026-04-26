@@ -33,6 +33,12 @@ export function useToolKeyboardNavigation(onBack: () => void) {
       return;
     }
 
+    if (key.ctrl && key.name === "c" && state.executionStatus === "running") {
+      state.cancelExecution();
+      state.stopCommand();
+      return;
+    }
+
     const toolModule = state.toolName
       ? toolRegistry[state.toolName]
       : undefined;
