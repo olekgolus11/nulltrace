@@ -443,7 +443,8 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       commandInput: selectedHistoryRun.command,
       commandSource: "manual",
       activePanel: "command",
-      selectedHistoryRun,
+      outputLines: initialOutputLines,
+      selectedHistoryRun: null,
       selectedHistoryRunId: selectedHistoryRun.id,
       isHistoricPreview: false,
     });
