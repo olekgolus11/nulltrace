@@ -23,6 +23,40 @@ export function useToolKeyboardNavigation(onBack: () => void) {
       return;
     }
 
+    if (state.activePanel === "history") {
+      if (key.name === "up") {
+        state.moveHistorySelection(-1);
+        return;
+      }
+
+      if (key.name === "down") {
+        state.moveHistorySelection(1);
+        return;
+      }
+
+      if (key.name === "return" || key.name === "enter") {
+        if (state.selectedHistoryRunId) {
+          state.selectHistoryRun(state.selectedHistoryRunId);
+        }
+        return;
+      }
+
+      if (key.ctrl && key.name === "r") {
+        state.rerunSelectedHistoryRun();
+        return;
+      }
+    }
+
+    if (state.isHistoricPreview) {
+      if (key.ctrl && key.name === "r") {
+        return;
+      }
+
+      if (key.ctrl && key.name === "g") {
+        return;
+      }
+    }
+
     if (key.ctrl && key.name === "r") {
       void state.runCommand();
       return;

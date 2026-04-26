@@ -104,6 +104,7 @@ export const toolPanels: Array<{ id: ToolPanel; label: string }> = [
   { id: "form", label: "FORM" },
   { id: "command", label: "COMMAND" },
   { id: "output", label: "OUTPUT" },
+  { id: "history", label: "HISTORY" },
 ];
 
 export const helpContent: Record<

@@ -25,6 +25,12 @@ export function useNmapWorkspace() {
   );
   const lastExitCode = useToolWorkspaceStore((state) => state.lastExitCode);
   const outputLines = useToolWorkspaceStore((state) => state.outputLines);
+  const selectedHistoryRun = useToolWorkspaceStore(
+    (state) => state.selectedHistoryRun,
+  );
+  const isHistoricPreview = useToolWorkspaceStore(
+    (state) => state.isHistoricPreview,
+  );
   const setManualCommandInput = useToolWorkspaceStore(
     (state) => state.setManualCommandInput,
   );
@@ -54,6 +60,8 @@ export function useNmapWorkspace() {
     executionStatus,
     lastExitCode,
     outputLines,
+    selectedHistoryRun,
+    isHistoricPreview,
     setField,
     setManualCommandInput,
     runCommand,

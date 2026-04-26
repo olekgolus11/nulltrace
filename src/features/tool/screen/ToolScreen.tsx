@@ -9,6 +9,7 @@ import { useSessionContextStore } from "../../session/store/session-context.stor
 import { useToolLayout } from "../hooks/use-tool-layout";
 import { ActiveToolWorkspace } from "../shared/components/ActiveToolWorkspace";
 import { ToolHelpDialog } from "../shared/components/ToolHelpDialog";
+import { ToolRunHistoryPanel } from "../shared/components/ToolRunHistoryPanel";
 import { useToolKeyboardNavigation } from "../shared/hooks/use-tool-keyboard-navigation";
 import { toolPanels, toolRegistry } from "../shared/registry/tool-registry";
 import { useToolWorkspaceStore } from "../shared/store/tool-workspace.store";
@@ -40,6 +41,13 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
   const setChatInput = useToolWorkspaceStore((state) => state.setChatInput);
   const submitChat = useToolWorkspaceStore((state) => state.submitChat);
   const isHelpOpen = useToolWorkspaceStore((state) => state.isHelpOpen);
+  const historyRuns = useToolWorkspaceStore((state) => state.historyRuns);
+  const selectedHistoryRunId = useToolWorkspaceStore(
+    (state) => state.selectedHistoryRunId,
+  );
+  const isHistoricPreview = useToolWorkspaceStore(
+    (state) => state.isHistoricPreview,
+  );
   const initializeWorkspace = useToolWorkspaceStore(
     (state) => state.initializeWorkspace,
   );
@@ -100,9 +108,26 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
         <box
           width={layout.rightPanelWidth}
           height={layout.contentHeight}
-          flexDirection="column"
+          flexDirection="row"
         >
-          <ActiveToolWorkspace toolName={toolName} />
+          <box
+            width={layout.workspacePanelWidth}
+            height={layout.contentHeight}
+            flexDirection="column"
+          >
+            <ActiveToolWorkspace toolName={toolName} />
+          </box>
+          <box
+            width={layout.historyPanelWidth}
+            height={layout.contentHeight}
+            flexDirection="column"
+          >
+            <ToolRunHistoryPanel
+              runs={historyRuns}
+              selectedRunId={selectedHistoryRunId}
+              focused={activePanel === "history"}
+            />
+          </box>
         </box>
       </box>
 
@@ -113,7 +138,11 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
       <StatusBar
         activePanel={activePanel}
         panels={toolPanels}
-        hintText="Tab switch panel  Up/Down move field  Enter run/toggle  Ctrl+H help  Ctrl+R run  Ctrl+C cancel  Ctrl+G reset cmd  ESC back  Ctrl+Q quit"
+        hintText={
+          isHistoricPreview
+            ? "Tab switch panel  History: Enter preview  Ctrl+R rerun  ESC back  Ctrl+Q quit"
+            : "Tab switch panel  Up/Down move field  Enter run/toggle  Ctrl+H help  Ctrl+R run  Ctrl+C cancel  Ctrl+G reset cmd  ESC back  Ctrl+Q quit"
+        }
       />
     </box>
   );

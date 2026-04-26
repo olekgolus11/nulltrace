@@ -10,7 +10,7 @@ import {
 } from "../types/tool-screen.types";
 import { toolRegistry } from "../registry/tool-registry";
 
-const PANELS: ToolPanel[] = ["chat", "form", "command", "output"];
+const PANELS: ToolPanel[] = ["chat", "form", "command", "output", "history"];
 
 const initialChatMessages: ChatMessageData[] = [
   {
@@ -49,6 +49,10 @@ const initialWorkspaceState: ToolWorkspaceStoreState = {
   executionStatus: "idle",
   lastExitCode: null,
   currentToolRunId: null,
+  historyRuns: [],
+  selectedHistoryRunId: null,
+  selectedHistoryRun: null,
+  isHistoricPreview: false,
   toolData: null,
 };
 
@@ -87,6 +91,11 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
   cancelExecution: () => void;
   runCommand: () => Promise<void>;
   stopCommand: () => void;
+  loadHistoryRuns: () => void;
+  selectHistoryRun: (toolRunId: string) => void;
+  moveHistorySelection: (direction: number) => void;
+  exitHistoricPreview: () => void;
+  rerunSelectedHistoryRun: () => void;
   updateToolData: (updater: (current: unknown) => unknown) => void;
 }
 
@@ -113,8 +122,14 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       executionStatus: "idle",
       lastExitCode: null,
       currentToolRunId: null,
+      historyRuns: [],
+      selectedHistoryRunId: null,
+      selectedHistoryRun: null,
+      isHistoricPreview: false,
       toolData,
     });
+
+    get().loadHistoryRuns();
   },
 
   cyclePanel: () =>
@@ -167,6 +182,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
         value === state.generatedCommand
           ? ("generated" satisfies CommandSource)
           : ("manual" satisfies CommandSource),
+      isHistoricPreview: false,
     })),
 
   refreshGeneratedCommand: (value) =>
@@ -195,6 +211,10 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
   },
 
   resetCommandToGenerated: () => {
+    if (get().isHistoricPreview) {
+      return;
+    }
+
     set({
       commandInput: get().generatedCommand,
       commandSource: "generated",
@@ -203,6 +223,10 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
 
   startExecution: (command) =>
     set((state) => {
+      if (state.isHistoricPreview) {
+        return state;
+      }
+
       const toolRun =
         state.sessionId && state.toolName
           ? sessionRepository.recordToolRun(state.sessionId, {
@@ -212,12 +236,18 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
               status: "running",
             })
           : null;
+      const historyRuns =
+        state.sessionId && state.toolName
+          ? sessionRepository.listToolRuns(state.sessionId, state.toolName)
+          : state.historyRuns;
 
       return {
         outputLines: [`$ ${command}`, ""],
         executionStatus: "running" satisfies ExecutionStatus,
         lastExitCode: null,
         currentToolRunId: toolRun?.id ?? null,
+        isHistoricPreview: false,
+        historyRuns,
       };
     }),
 
@@ -248,10 +278,16 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
         exitCode,
       );
 
+      const historyRuns =
+        state.sessionId && state.toolName
+          ? sessionRepository.listToolRuns(state.sessionId, state.toolName)
+          : state.historyRuns;
+
       return {
         executionStatus: status,
         lastExitCode: exitCode,
         currentToolRunId: null,
+        historyRuns,
       };
     }),
 
@@ -271,18 +307,28 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
         sessionRepository.cancelToolRun(state.currentToolRunId);
       }
 
+      const historyRuns =
+        state.sessionId && state.toolName
+          ? sessionRepository.listToolRuns(state.sessionId, state.toolName)
+          : state.historyRuns;
+
       return {
         outputLines: [...state.outputLines, "", cancelMessage],
         executionStatus: "cancelled",
         lastExitCode: null,
         currentToolRunId: null,
+        historyRuns,
       };
     }),
 
   runCommand: async () => {
     const state = get();
     const command = state.commandInput.trim();
-    if (!command || state.executionStatus === "running") {
+    if (
+      !command ||
+      state.executionStatus === "running" ||
+      state.isHistoricPreview
+    ) {
       return;
     }
 
@@ -319,6 +365,88 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
 
   stopCommand: () => {
     commandRunnerService.stop();
+  },
+
+  loadHistoryRuns: () => {
+    const state = get();
+    const historyRuns =
+      state.sessionId && state.toolName
+        ? sessionRepository.listToolRuns(state.sessionId, state.toolName)
+        : [];
+
+    set((current) => ({
+      historyRuns,
+      selectedHistoryRunId: historyRuns.some(
+        (run) => run.id === current.selectedHistoryRunId,
+      )
+        ? current.selectedHistoryRunId
+        : (historyRuns[0]?.id ?? null),
+    }));
+  },
+
+  selectHistoryRun: (toolRunId) => {
+    const selectedHistoryRun = sessionRepository.getToolRunWithLogs(toolRunId);
+
+    if (!selectedHistoryRun) {
+      return;
+    }
+
+    set({
+      selectedHistoryRunId: toolRunId,
+      selectedHistoryRun,
+      isHistoricPreview: true,
+    });
+  },
+
+  moveHistorySelection: (direction) =>
+    set((state) => {
+      if (state.historyRuns.length === 0) {
+        return state;
+      }
+
+      const currentIndex = Math.max(
+        0,
+        state.historyRuns.findIndex(
+          (run) => run.id === state.selectedHistoryRunId,
+        ),
+      );
+      const nextIndex = Math.min(
+        state.historyRuns.length - 1,
+        Math.max(0, currentIndex + direction),
+      );
+      const selectedHistoryRunId = state.historyRuns[nextIndex]?.id ?? null;
+
+      return {
+        selectedHistoryRunId,
+      };
+    }),
+
+  exitHistoricPreview: () =>
+    set({
+      selectedHistoryRun: null,
+      isHistoricPreview: false,
+    }),
+
+  rerunSelectedHistoryRun: () => {
+    const state = get();
+    const selectedHistoryRun =
+      state.selectedHistoryRun ??
+      (state.selectedHistoryRunId
+        ? sessionRepository.getToolRunWithLogs(state.selectedHistoryRunId)
+        : null);
+
+    if (!selectedHistoryRun) {
+      return;
+    }
+
+    set({
+      commandInput: selectedHistoryRun.command,
+      commandSource: "manual",
+      activePanel: "command",
+      selectedHistoryRun,
+      selectedHistoryRunId: selectedHistoryRun.id,
+      isHistoricPreview: false,
+    });
   },
 
   updateToolData: (updater) =>

@@ -6,7 +6,10 @@ import {
   TargetRecord,
   TargetRow,
   ToolRunInput,
+  ToolRunDetail,
+  ToolRunLogLine,
   ToolRunRecord,
+  ToolRunSummary,
 } from "../model/session.repository.types";
 import {
   SessionDetail,
@@ -178,6 +181,66 @@ export const sessionRepository = {
       createdAt: session.createdAt,
       lastActivityAt: session.lastActivityAt,
     } satisfies SessionDetail;
+  },
+
+  listToolRuns(sessionId: string, toolName: string) {
+    return sessionDatabase
+      .query<ToolRunSummary, [string, string]>(
+        `SELECT
+          id,
+          tool_name AS toolName,
+          command,
+          command_source AS commandSource,
+          status,
+          started_at AS startedAt,
+          ended_at AS endedAt,
+          exit_code AS exitCode
+        FROM tool_runs
+        WHERE session_id = ?1
+          AND tool_name = ?2
+        ORDER BY started_at DESC`,
+      )
+      .all(sessionId, toolName);
+  },
+
+  getToolRunWithLogs(toolRunId: string) {
+    const toolRun = sessionDatabase
+      .query<ToolRunSummary, [string]>(
+        `SELECT
+          id,
+          tool_name AS toolName,
+          command,
+          command_source AS commandSource,
+          status,
+          started_at AS startedAt,
+          ended_at AS endedAt,
+          exit_code AS exitCode
+        FROM tool_runs
+        WHERE id = ?1`,
+      )
+      .get(toolRunId);
+
+    if (!toolRun) {
+      return null;
+    }
+
+    const logs = sessionDatabase
+      .query<ToolRunLogLine, [string]>(
+        `SELECT
+          seq,
+          stream,
+          line,
+          created_at AS createdAt
+        FROM tool_run_logs
+        WHERE tool_run_id = ?1
+        ORDER BY seq ASC`,
+      )
+      .all(toolRunId);
+
+    return {
+      ...toolRun,
+      logs,
+    } satisfies ToolRunDetail;
   },
 
   recordToolRun(sessionId: string, runInput: ToolRunInput) {

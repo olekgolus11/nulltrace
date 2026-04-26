@@ -1,7 +1,7 @@
 import { theme } from "../../../../app/theme/theme";
 import { ExecutionStatus } from "../types/tool-screen.types";
 
-function getStatusColor(status: ExecutionStatus) {
+function getStatusColor(status: ExecutionStatus | string) {
   switch (status) {
     case "running":
       return theme.accent.warning;
@@ -25,15 +25,17 @@ export function CommandEditor({
   lastExitCode,
   onCommandChange,
   onRun,
+  readOnly = false,
 }: {
   commandInput: string;
   generatedCommand: string;
   commandSource: "generated" | "manual";
   focused: boolean;
-  executionStatus: ExecutionStatus;
+  executionStatus: ExecutionStatus | string;
   lastExitCode: number | null;
   onCommandChange: (value: string) => void;
   onRun: () => void;
+  readOnly?: boolean;
 }) {
   const handleCommandChange = (value: string) => {
     if (!focused || value === commandInput) {
@@ -79,27 +81,32 @@ export function CommandEditor({
           <text fg={theme.accent.primary}>{">"}</text>
         </box>
         <box flexGrow={1} minWidth={0}>
-          <input
-            value={commandInput}
-            onInput={handleCommandChange}
-            onChange={handleCommandChange}
-            width="100%"
-            onSubmit={onRun}
-            placeholder="tool command"
-            focused={focused}
-            backgroundColor={theme.bg.input}
-            textColor={theme.text.primary}
-            cursorColor={theme.accent.primary}
-            focusedBackgroundColor={theme.bg.elevated}
-            placeholderColor={theme.text.dim}
-          />
+          {readOnly ? (
+            <text fg={theme.text.primary}>{commandInput || " "}</text>
+          ) : (
+            <input
+              value={commandInput}
+              onInput={handleCommandChange}
+              onChange={handleCommandChange}
+              width="100%"
+              onSubmit={onRun}
+              placeholder="tool command"
+              focused={focused}
+              backgroundColor={theme.bg.input}
+              textColor={theme.text.primary}
+              cursorColor={theme.accent.primary}
+              focusedBackgroundColor={theme.bg.elevated}
+              placeholderColor={theme.text.dim}
+            />
+          )}
         </box>
       </box>
 
       <box marginBottom={1}>
         <text fg={theme.text.dim}>
-          Enter submits. Ctrl+R runs. Ctrl+C cancels. Ctrl+G restores the
-          generated command.
+          {readOnly
+            ? "Historic preview is read-only. Use history Ctrl+R to rerun."
+            : "Enter submits. Ctrl+R runs. Ctrl+C cancels. Ctrl+G restores the generated command."}
         </text>
       </box>
 

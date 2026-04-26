@@ -1,10 +1,11 @@
+import { useTerminalDimensions } from "@opentui/react";
+import { theme } from "../../../../app/theme/theme";
 import { DashboardPanel } from "../../../dashboard/components/DashboardPanel";
 import { useToolLayout } from "../../hooks/use-tool-layout";
 import { CommandEditor } from "../../shared/components/CommandEditor";
 import { OutputLog } from "../../shared/components/OutputLog";
 import { useNmapWorkspace } from "../store/use-nmap-workspace";
 import { NmapForm } from "./NmapForm";
-import { useTerminalDimensions } from "@opentui/react";
 
 export function NmapWorkspace() {
   const { width, height } = useTerminalDimensions();
@@ -18,10 +19,22 @@ export function NmapWorkspace() {
     executionStatus,
     lastExitCode,
     outputLines,
+    selectedHistoryRun,
+    isHistoricPreview,
     setField,
     setManualCommandInput,
     runCommand,
   } = useNmapWorkspace();
+  const previewLines = selectedHistoryRun
+    ? [
+        `$ ${selectedHistoryRun.command}`,
+        "",
+        ...selectedHistoryRun.logs.map((log) => log.line),
+      ]
+    : outputLines;
+  const previewStatus = selectedHistoryRun?.status ?? executionStatus;
+  const previewExitCode = selectedHistoryRun?.exitCode ?? lastExitCode;
+  const previewCommand = selectedHistoryRun?.command ?? commandInput;
 
   return (
     <box flexDirection="column" flexGrow={1}>
@@ -39,29 +52,32 @@ export function NmapWorkspace() {
       </DashboardPanel>
 
       <DashboardPanel
-        title="Command"
+        title={"Command"}
+        isHistoricPreview={isHistoricPreview}
         height={layout.commandPanelHeight}
         focused={activePanel === "command"}
       >
         <CommandEditor
-          commandInput={commandInput}
+          commandInput={previewCommand}
           generatedCommand={generatedCommand}
           commandSource={commandSource}
           focused={activePanel === "command"}
-          executionStatus={executionStatus}
-          lastExitCode={lastExitCode}
+          executionStatus={previewStatus}
+          lastExitCode={previewExitCode}
           onCommandChange={setManualCommandInput}
           onRun={() => void runCommand()}
+          readOnly={isHistoricPreview}
         />
       </DashboardPanel>
 
       <DashboardPanel
-        title="Raw Output"
+        title={"Raw Output"}
+        isHistoricPreview={isHistoricPreview}
         flexGrow={1}
         focused={activePanel === "output"}
       >
         <OutputLog
-          lines={outputLines}
+          lines={previewLines}
           focused={activePanel === "output"}
           height={layout.outputScrollHeight}
         />

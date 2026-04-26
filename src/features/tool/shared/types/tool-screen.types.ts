@@ -1,9 +1,13 @@
 import { ComponentType } from "react";
 import { ChatMessageData } from "../../../chat/model/chat.types";
+import {
+  ToolRunDetail,
+  ToolRunSummary,
+} from "../../../session/model/session.repository.types";
 
 export type ToolName = "nmap" | "nuclei" | "ffuf" | "sqlmap" | "zap" | "nikto";
 
-export type ToolPanel = "chat" | "form" | "command" | "output";
+export type ToolPanel = "chat" | "form" | "command" | "output" | "history";
 
 export type ExecutionStatus =
   | "idle"
@@ -35,6 +39,8 @@ export interface UseToolLayoutResult {
   contentHeight: number;
   leftPanelWidth: number;
   rightPanelWidth: number;
+  workspacePanelWidth: number;
+  historyPanelWidth: number;
   formPanelHeight: number;
   commandPanelHeight: number;
   outputPanelHeight: number;
@@ -56,6 +62,10 @@ export interface ToolWorkspaceStoreState {
   executionStatus: ExecutionStatus;
   lastExitCode: number | null;
   currentToolRunId: string | null;
+  historyRuns: ToolRunSummary[];
+  selectedHistoryRunId: string | null;
+  selectedHistoryRun: ToolRunDetail | null;
+  isHistoricPreview: boolean;
   toolData: unknown;
 }
 

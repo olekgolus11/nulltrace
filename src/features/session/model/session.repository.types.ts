@@ -56,6 +56,28 @@ export interface ToolRunRecord {
   exitCode: number | null;
 }
 
+export interface ToolRunSummary {
+  id: string;
+  toolName: string;
+  command: string;
+  commandSource: string;
+  status: string;
+  startedAt: string;
+  endedAt: string | null;
+  exitCode: number | null;
+}
+
+export interface ToolRunLogLine {
+  seq: number;
+  stream: string;
+  line: string;
+  createdAt: string;
+}
+
+export interface ToolRunDetail extends ToolRunSummary {
+  logs: ToolRunLogLine[];
+}
+
 export interface FindingSnapshotInput {
   sourceTool: string;
   kind: string;

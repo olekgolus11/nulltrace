@@ -17,8 +17,17 @@ export function DashboardPanel({
   paddingRight = 1,
   paddingTop = 0,
   paddingBottom = 1,
+  isHistoricPreview = false,
 }: PanelProps) {
-  const finalBorderColor = focused ? theme.accent.primary : borderColor;
+  let finalBorderColor;
+  let finalTitle;
+  if (isHistoricPreview) {
+    finalBorderColor = focused ? theme.accent.warning : borderColor;
+    finalTitle = isHistoricPreview ? `${title} (Historic Preview)` : title;
+  } else {
+    finalBorderColor = focused ? theme.accent.primary : borderColor;
+    finalTitle = title;
+  }
 
   return (
     <box
@@ -28,7 +37,7 @@ export function DashboardPanel({
       flexDirection={flexDirection}
       border={border}
       borderColor={finalBorderColor}
-      title={title ? ` \u2726 ${title} ` : undefined}
+      title={finalTitle ? ` \u2726 ${finalTitle} ` : undefined}
       titleAlignment="left"
       marginBottom={marginBottom}
       padding={padding}
