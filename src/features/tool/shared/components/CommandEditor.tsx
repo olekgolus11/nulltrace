@@ -45,6 +45,40 @@ export function CommandEditor({
     onCommandChange(value);
   };
 
+  if (readOnly) {
+    return (
+      <box flexDirection="column" flexGrow={1}>
+        <box flexDirection="row" marginBottom={1}>
+          <box flexGrow={1}>
+            <text fg={theme.accent.warning}>Historic preview</text>
+          </box>
+          <text fg={getStatusColor(executionStatus)}>
+            {lastExitCode === null
+              ? executionStatus
+              : `${executionStatus} (${lastExitCode})`}
+          </text>
+        </box>
+
+        <scrollbox
+          height={2}
+          focused={focused}
+          scrollX={true}
+          stickyScroll={false}
+        >
+          <box flexDirection="column">
+            <text fg={theme.text.primary}>{`$ ${commandInput}`}</text>
+          </box>
+        </scrollbox>
+
+        <box marginTop={1}>
+          <text fg={theme.text.dim}>
+            Ctrl+C exits preview. Use history Ctrl+R to rerun.
+          </text>
+        </box>
+      </box>
+    );
+  }
+
   return (
     <box flexDirection="column" flexGrow={1}>
       <box flexDirection="row" marginBottom={1}>
@@ -81,42 +115,28 @@ export function CommandEditor({
           <text fg={theme.accent.primary}>{">"}</text>
         </box>
         <box flexGrow={1} minWidth={0}>
-          {readOnly ? (
-            <text fg={theme.text.primary}>{commandInput || " "}</text>
-          ) : (
-            <input
-              value={commandInput}
-              onInput={handleCommandChange}
-              onChange={handleCommandChange}
-              width="100%"
-              onSubmit={onRun}
-              placeholder="tool command"
-              focused={focused}
-              backgroundColor={theme.bg.input}
-              textColor={theme.text.primary}
-              cursorColor={theme.accent.primary}
-              focusedBackgroundColor={theme.bg.elevated}
-              placeholderColor={theme.text.dim}
-            />
-          )}
+          <input
+            value={commandInput}
+            onInput={handleCommandChange}
+            onChange={handleCommandChange}
+            width="100%"
+            onSubmit={onRun}
+            placeholder="tool command"
+            focused={focused}
+            backgroundColor={theme.bg.input}
+            textColor={theme.text.primary}
+            cursorColor={theme.accent.primary}
+            focusedBackgroundColor={theme.bg.elevated}
+            placeholderColor={theme.text.dim}
+          />
         </box>
       </box>
 
-      <box marginBottom={1}>
-        <text fg={theme.text.dim}>
-          {readOnly
-            ? "Historic preview is read-only. Use history Ctrl+R to rerun."
-            : "Enter submits. Ctrl+R runs. Ctrl+C cancels. Ctrl+G restores the generated command."}
-        </text>
-      </box>
-
-      {commandSource === "manual" && commandInput !== generatedCommand ? (
-        <text fg={theme.text.dim}>Generated: {generatedCommand}</text>
-      ) : (
-        <text fg={theme.text.dim}>
-          Generated command stays in sync with the form.
-        </text>
-      )}
+      <text fg={theme.text.dim}>
+        {commandSource === "manual" && commandInput !== generatedCommand
+          ? "Manual command. Ctrl+G resets."
+          : "Generated command synced."}
+      </text>
     </box>
   );
 }

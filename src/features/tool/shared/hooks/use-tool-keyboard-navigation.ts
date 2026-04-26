@@ -48,6 +48,11 @@ export function useToolKeyboardNavigation(onBack: () => void) {
     }
 
     if (state.isHistoricPreview) {
+      if (key.ctrl && key.name === "c") {
+        state.exitHistoricPreview();
+        return;
+      }
+
       if (key.ctrl && key.name === "r") {
         return;
       }

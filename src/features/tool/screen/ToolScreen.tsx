@@ -140,7 +140,7 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
         panels={toolPanels}
         hintText={
           isHistoricPreview
-            ? "Tab switch panel  History: Enter preview  Ctrl+R rerun  ESC back  Ctrl+Q quit"
+            ? "Tab switch panel  History: Enter preview  Ctrl+R rerun  Ctrl+C exit preview  ESC back  Ctrl+Q quit"
             : "Tab switch panel  Up/Down move field  Enter run/toggle  Ctrl+H help  Ctrl+R run  Ctrl+C cancel  Ctrl+G reset cmd  ESC back  Ctrl+Q quit"
         }
       />
