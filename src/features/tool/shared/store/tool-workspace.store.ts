@@ -161,10 +161,13 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
     }),
 
   setManualCommandInput: (value) =>
-    set({
+    set((state) => ({
       commandInput: value,
-      commandSource: "manual" satisfies CommandSource,
-    }),
+      commandSource:
+        value === state.generatedCommand
+          ? ("generated" satisfies CommandSource)
+          : ("manual" satisfies CommandSource),
+    })),
 
   refreshGeneratedCommand: (value) =>
     set((state) => {

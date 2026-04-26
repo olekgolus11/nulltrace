@@ -43,9 +43,6 @@ export function CommandEditor({
     onCommandChange(value);
   };
 
-  const inputKey =
-    commandSource === "generated" ? `generated:${commandInput}` : "manual";
-
   return (
     <box flexDirection="column" flexGrow={1}>
       <box flexDirection="row" marginBottom={1}>
@@ -83,7 +80,6 @@ export function CommandEditor({
         </box>
         <box flexGrow={1} minWidth={0}>
           <input
-            key={inputKey}
             value={commandInput}
             onInput={handleCommandChange}
             onChange={handleCommandChange}
