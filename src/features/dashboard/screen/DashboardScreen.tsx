@@ -8,6 +8,7 @@ import {
 import { useDashboardLayout } from "../hooks/use-dashboard-layout";
 import { useDashboardShortcuts } from "../hooks/use-dashboard-shortcuts";
 import { DashboardScreenProps } from "../model/dashboard.types";
+import { dashboardPanels } from "../model/dashboard.state";
 import { Header } from "../../../shared/ui/Header";
 import { StatusBar } from "../../../shared/ui/StatusBar";
 import { useSessionContextStore } from "../../session/store/session-context.store";
@@ -26,6 +27,7 @@ export function DashboardScreen({
     dashboardState,
     setChatInput,
     submitChat,
+    setActivePanel,
     sitemapScrollRef,
     vulnsScrollRef,
   } = useDashboardShortcuts({
@@ -47,16 +49,32 @@ export function DashboardScreen({
           dashboardState={dashboardState}
           sitemapScrollRef={sitemapScrollRef}
           vulnsScrollRef={vulnsScrollRef}
+          setActivePanel={setActivePanel}
         />
         <CenterDashboardPanel
           layout={layout}
           dashboardState={dashboardState}
           submitChat={submitChat}
           setChatInput={setChatInput}
+          setActivePanel={setActivePanel}
         />
-        <RightDashboardPanel layout={layout} dashboardState={dashboardState} />
+        <RightDashboardPanel
+          layout={layout}
+          dashboardState={dashboardState}
+          setActivePanel={setActivePanel}
+        />
       </box>
-      <StatusBar activePanel={dashboardState.activePanel} />
+      <StatusBar
+        activePanel={dashboardState.activePanel}
+        panels={dashboardPanels}
+        hints={[
+          { key: "Tab/Shift+Tab", label: "switch" },
+          { key: "Ctrl+1-4", label: "jump" },
+          { key: "Enter", label: "select" },
+          { key: "ESC", label: "back" },
+          { key: "Ctrl+Q", label: "quit" },
+        ]}
+      />
     </box>
   );
 }

@@ -21,7 +21,9 @@ export function NmapWorkspace() {
     outputLines,
     selectedHistoryRun,
     isHistoricPreview,
+    isHelpOpen,
     setField,
+    setActivePanel,
     setManualCommandInput,
     runCommand,
   } = useNmapWorkspace();
@@ -35,6 +37,13 @@ export function NmapWorkspace() {
   const previewStatus = selectedHistoryRun?.status ?? executionStatus;
   const previewExitCode = selectedHistoryRun?.exitCode ?? lastExitCode;
   const previewCommand = selectedHistoryRun?.command ?? commandInput;
+  const focusPanel = (panel: typeof activePanel) => {
+    if (isHelpOpen) {
+      return;
+    }
+
+    setActivePanel(panel);
+  };
 
   return (
     <box flexDirection="column" flexGrow={1}>
@@ -42,6 +51,7 @@ export function NmapWorkspace() {
         title="Nmap Controls"
         height={layout.formPanelHeight}
         focused={activePanel === "form"}
+        onMouseDown={() => focusPanel("form")}
       >
         <NmapForm
           form={toolData.form}
@@ -56,6 +66,7 @@ export function NmapWorkspace() {
         isHistoricPreview={isHistoricPreview}
         height={layout.commandPanelHeight}
         focused={activePanel === "command"}
+        onMouseDown={() => focusPanel("command")}
       >
         <CommandEditor
           commandInput={previewCommand}
@@ -75,6 +86,7 @@ export function NmapWorkspace() {
         isHistoricPreview={isHistoricPreview}
         flexGrow={1}
         focused={activePanel === "output"}
+        onMouseDown={() => focusPanel("output")}
       >
         <OutputLog
           lines={previewLines}

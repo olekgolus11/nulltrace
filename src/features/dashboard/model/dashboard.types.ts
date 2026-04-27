@@ -27,6 +27,7 @@ export interface PanelProps {
   paddingTop?: number;
   paddingBottom?: number;
   isHistoricPreview?: boolean;
+  onMouseDown?: () => void;
 }
 
 export interface UseDashboardLayoutProps {

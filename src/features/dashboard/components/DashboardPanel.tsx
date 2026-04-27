@@ -18,6 +18,7 @@ export function DashboardPanel({
   paddingTop = 0,
   paddingBottom = 1,
   isHistoricPreview = false,
+  onMouseDown,
 }: PanelProps) {
   let finalBorderColor;
   let finalTitle;
@@ -45,6 +46,7 @@ export function DashboardPanel({
       paddingRight={paddingRight}
       paddingTop={paddingTop}
       paddingBottom={paddingBottom}
+      onMouseDown={onMouseDown}
     >
       {children}
     </box>

@@ -1,27 +1,19 @@
 import { theme } from "../../app/theme/theme";
+import { PanelDefinition } from "../model/panel-navigation.types";
+import { ShortcutHint } from "./shortcut-hints.types";
+import { ShortcutHints } from "./ShortcutHints";
 
 interface StatusBarProps {
   activePanel: string;
-  showBack?: boolean;
-  hintText?: string;
-  panels?: Array<{ id: string; label: string }>;
+  hints: ShortcutHint[];
+  panels: Array<PanelDefinition<string>>;
 }
 
 export function StatusBar({
   activePanel,
-  showBack = true,
-  hintText,
-  panels = [
-    { id: "sitemap", label: "SITEMAP" },
-    { id: "vulns", label: "VULNS" },
-    { id: "chat", label: "CHAT" },
-    { id: "tools", label: "TOOLS" },
-  ],
+  hints,
+  panels,
 }: StatusBarProps) {
-  const defaultHintText = `Tab switch panel  Up/Down navigate  Enter select${
-    showBack ? "  ESC back" : ""
-  }  Ctrl+Q quit`;
-
   return (
     <box
       height={1}
@@ -32,19 +24,25 @@ export function StatusBar({
     >
       {/* Left side - Keyboard shortcuts */}
       <box flexGrow={1}>
-        <text fg={theme.text.dim}>{hintText ?? defaultHintText}</text>
+        <ShortcutHints hints={hints} />
       </box>
 
       {/* Right side - Panel indicators */}
       <box flexDirection="row" gap={1}>
-        {panels.map((panel) => {
+        {panels.map((panel, index) => {
           const isActive = panel.id === activePanel;
           return (
             <text
               key={panel.id}
               fg={isActive ? theme.accent.primary : theme.text.dim}
             >
-              {isActive ? <strong>[{panel.label}]</strong> : `[${panel.label}]`}
+              {isActive ? (
+                <strong>
+                  [{index + 1} {panel.label}]
+                </strong>
+              ) : (
+                `[${index + 1} ${panel.label}]`
+              )}
             </text>
           );
         })}

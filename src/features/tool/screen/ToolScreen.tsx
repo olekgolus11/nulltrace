@@ -41,6 +41,7 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
   const setChatInput = useToolWorkspaceStore((state) => state.setChatInput);
   const submitChat = useToolWorkspaceStore((state) => state.submitChat);
   const isHelpOpen = useToolWorkspaceStore((state) => state.isHelpOpen);
+  const setActivePanel = useToolWorkspaceStore((state) => state.setActivePanel);
   const historyRuns = useToolWorkspaceStore((state) => state.historyRuns);
   const selectedHistoryRunId = useToolWorkspaceStore(
     (state) => state.selectedHistoryRunId,
@@ -55,6 +56,13 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
   const toolData = useToolWorkspaceStore((state) =>
     getToolData(toolName, targetUrl, state.toolData),
   );
+  const focusPanel = (panel: typeof activePanel) => {
+    if (isHelpOpen) {
+      return;
+    }
+
+    setActivePanel(panel);
+  };
 
   useToolKeyboardNavigation(onBack);
 
@@ -93,6 +101,7 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
             title="Operator Chat"
             flexGrow={1}
             focused={activePanel === "chat"}
+            onMouseDown={() => focusPanel("chat")}
           >
             <ChatWindow
               messages={chatMessages}
@@ -126,6 +135,7 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
               runs={historyRuns}
               selectedRunId={selectedHistoryRunId}
               focused={activePanel === "history"}
+              onMouseDown={() => focusPanel("history")}
             />
           </box>
         </box>
@@ -138,10 +148,25 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
       <StatusBar
         activePanel={activePanel}
         panels={toolPanels}
-        hintText={
+        hints={
           isHistoricPreview
-            ? "Tab switch panel  History: Enter preview  Ctrl+R rerun  Ctrl+C exit preview  ESC back  Ctrl+Q quit"
-            : "Tab switch panel  Up/Down move field  Enter run/toggle  Ctrl+H help  Ctrl+R run  Ctrl+C cancel  Ctrl+G reset cmd  ESC back  Ctrl+Q quit"
+            ? [
+                { key: "Tab/Shift+Tab", label: "switch" },
+                { key: "Ctrl+1-5", label: "jump" },
+                { key: "Enter", label: "preview" },
+                { key: "Ctrl+C", label: "exit preview" },
+                { key: "ESC", label: "back" },
+                { key: "Ctrl+Q", label: "quit" },
+              ]
+            : [
+                { key: "Tab/Shift+Tab", label: "switch" },
+                { key: "Ctrl+1-5", label: "jump" },
+                { key: "Ctrl+R", label: "run" },
+                { key: "Ctrl+H", label: "help" },
+                { key: "Ctrl+C", label: "cancel" },
+                { key: "ESC", label: "back" },
+                { key: "Ctrl+Q", label: "quit" },
+              ]
         }
       />
     </box>

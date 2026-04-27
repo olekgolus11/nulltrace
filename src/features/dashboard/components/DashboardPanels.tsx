@@ -9,7 +9,10 @@ import {
   mockChatMessages,
 } from "../data/dashboard.mock";
 import { tools } from "../data/tool-catalog";
-import { DashboardState } from "../model/dashboard.state";
+import {
+  DashboardPanelId,
+  DashboardState,
+} from "../model/dashboard.state";
 import { UseDashboardLayoutResult } from "../model/dashboard.types";
 import { DashboardPanel } from "./DashboardPanel";
 import { ToolList } from "./ToolList";
@@ -19,11 +22,13 @@ export const LeftDashboardPanel = ({
   layout,
   sitemapScrollRef,
   vulnsScrollRef,
+  setActivePanel,
 }: {
   dashboardState: DashboardState;
   layout: UseDashboardLayoutResult;
   sitemapScrollRef: React.RefObject<ScrollBoxRenderable | null>;
   vulnsScrollRef: React.RefObject<ScrollBoxRenderable | null>;
+  setActivePanel: (panel: DashboardPanelId) => void;
 }) => {
   return (
     <box
@@ -36,6 +41,7 @@ export const LeftDashboardPanel = ({
         height={layout.leftPanelTopHeight}
         focused={dashboardState.activePanel === "sitemap"}
         paddingBottom={0}
+        onMouseDown={() => setActivePanel("sitemap")}
       >
         <scrollbox
           ref={sitemapScrollRef}
@@ -60,6 +66,7 @@ export const LeftDashboardPanel = ({
         height={layout.leftPanelBottomHeight}
         focused={dashboardState.activePanel === "vulns"}
         paddingBottom={0}
+        onMouseDown={() => setActivePanel("vulns")}
       >
         <scrollbox
           ref={vulnsScrollRef}
@@ -86,11 +93,13 @@ export const CenterDashboardPanel = ({
   layout,
   setChatInput,
   submitChat,
+  setActivePanel,
 }: {
   dashboardState: DashboardState;
   layout: UseDashboardLayoutResult;
   setChatInput: (value: string) => void;
   submitChat: () => void;
+  setActivePanel: (panel: DashboardPanelId) => void;
 }) => {
   return (
     <box
@@ -102,6 +111,7 @@ export const CenterDashboardPanel = ({
         title="AI Assistant"
         flexGrow={1}
         focused={dashboardState.activePanel === "chat"}
+        onMouseDown={() => setActivePanel("chat")}
       >
         <ChatWindow
           messages={mockChatMessages}
@@ -118,9 +128,11 @@ export const CenterDashboardPanel = ({
 export const RightDashboardPanel = ({
   dashboardState,
   layout,
+  setActivePanel,
 }: {
   dashboardState: DashboardState;
   layout: UseDashboardLayoutResult;
+  setActivePanel: (panel: DashboardPanelId) => void;
 }) => {
   return (
     <box
@@ -132,6 +144,7 @@ export const RightDashboardPanel = ({
         title="Tools"
         flexGrow={1}
         focused={dashboardState.activePanel === "tools"}
+        onMouseDown={() => setActivePanel("tools")}
       >
         <box marginBottom={2}>
           <ToolList
