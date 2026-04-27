@@ -8,27 +8,26 @@ import { useSessionContextStore } from "../../session/store/session-context.stor
 import {
   EntryPanel,
   EntryState,
+  entryPanels,
   initialEntryState,
 } from "../model/entry.state";
 import { UseEntryShortcutsProps } from "../model/entry.types";
+import {
+  cyclePanel,
+  getPanelByShortcut,
+} from "../../../shared/model/panel-navigation";
 
 type EntryAction =
-  | { type: "CYCLE_PANEL" }
+  | { type: "CYCLE_PANEL"; direction: -1 | 1 }
+  | { type: "SET_ACTIVE_PANEL"; panel: EntryPanel }
   | { type: "MOVE_SELECTION"; delta: -1 | 1; rowCount: number }
   | { type: "SET_URL_INPUT"; value: string }
   | { type: "TOGGLE_TARGET"; targetId: string }
   | { type: "INITIALIZE_TARGET"; targetId: string | null }
   | { type: "CLAMP_SELECTION"; rowCount: number };
 
-const PANELS: EntryPanel[] = ["input", "sessions"];
-
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
-}
-
-function getNextPanel(current: EntryPanel): EntryPanel {
-  const currentIndex = PANELS.indexOf(current);
-  return PANELS[(currentIndex + 1) % PANELS.length]!;
 }
 
 function createEntryReducer() {
@@ -40,7 +39,17 @@ function createEntryReducer() {
       case "CYCLE_PANEL":
         return {
           ...state,
-          activePanel: getNextPanel(state.activePanel),
+          activePanel: cyclePanel(
+            entryPanels,
+            state.activePanel,
+            action.direction,
+          ),
+        };
+
+      case "SET_ACTIVE_PANEL":
+        return {
+          ...state,
+          activePanel: action.panel,
         };
 
       case "MOVE_SELECTION":
@@ -163,7 +172,16 @@ export function useEntryShortcuts({
 
   useKeyboard((key) => {
     if (key.name === "tab") {
-      dispatch({ type: "CYCLE_PANEL" });
+      dispatch({
+        type: "CYCLE_PANEL",
+        direction: key.shift ? -1 : 1,
+      });
+      return;
+    }
+
+    const shortcutPanel = getPanelByShortcut(entryPanels, key.name, key.ctrl);
+    if (shortcutPanel) {
+      dispatch({ type: "SET_ACTIVE_PANEL", panel: shortcutPanel });
       return;
     }
 
@@ -190,5 +208,7 @@ export function useEntryShortcuts({
     rows,
     setUrlInput,
     submitUrlInput,
+    setActivePanel: (panel: EntryPanel) =>
+      dispatch({ type: "SET_ACTIVE_PANEL", panel }),
   };
 }
