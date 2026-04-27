@@ -3,6 +3,7 @@ import { PanelProps } from "../model/dashboard.types";
 
 export function DashboardPanel({
   title,
+  panelNumber,
   children,
   width,
   height,
@@ -29,6 +30,8 @@ export function DashboardPanel({
     finalBorderColor = focused ? theme.accent.primary : borderColor;
     finalTitle = title;
   }
+  const numberedTitle =
+    finalTitle && panelNumber ? `[${panelNumber}] ${finalTitle}` : finalTitle;
 
   return (
     <box
@@ -38,7 +41,7 @@ export function DashboardPanel({
       flexDirection={flexDirection}
       border={border}
       borderColor={finalBorderColor}
-      title={finalTitle ? ` \u2726 ${finalTitle} ` : undefined}
+      title={numberedTitle ? ` \u2726 ${numberedTitle} ` : undefined}
       titleAlignment="left"
       marginBottom={marginBottom}
       padding={padding}

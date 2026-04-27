@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { theme } from "../../../app/theme/theme";
 import { Header } from "../../../shared/ui/Header";
 import { StatusBar } from "../../../shared/ui/StatusBar";
+import { getPanelDisplayNumber } from "../../../shared/model/panel-navigation";
 import { ChatWindow } from "../../chat/components/ChatWindow";
 import { DashboardPanel } from "../../dashboard/components/DashboardPanel";
 import { useSessionContextStore } from "../../session/store/session-context.store";
@@ -99,6 +100,7 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
         >
           <DashboardPanel
             title="Operator Chat"
+            panelNumber={getPanelDisplayNumber(toolPanels, "chat")}
             flexGrow={1}
             focused={activePanel === "chat"}
             onMouseDown={() => focusPanel("chat")}

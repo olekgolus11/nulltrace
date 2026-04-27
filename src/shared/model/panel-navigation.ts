@@ -26,3 +26,11 @@ export function getPanelByShortcut<TPanel extends string>(
   const panelIndex = Number(keyName) - 1;
   return panels[panelIndex]?.id ?? null;
 }
+
+export function getPanelDisplayNumber<TPanel extends string>(
+  panels: Array<PanelDefinition<TPanel>>,
+  panelId: TPanel,
+): number | undefined {
+  const panelIndex = panels.findIndex((panel) => panel.id === panelId);
+  return panelIndex === -1 ? undefined : panelIndex + 1;
+}

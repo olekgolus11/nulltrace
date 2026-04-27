@@ -12,6 +12,7 @@ export interface UseDashboardShortcutsProps {
 
 export interface PanelProps {
   title?: string;
+  panelNumber?: number;
   children: React.ReactNode;
   width?: number;
   height?: number;

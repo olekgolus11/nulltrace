@@ -12,10 +12,12 @@ import { tools } from "../data/tool-catalog";
 import {
   DashboardPanelId,
   DashboardState,
+  dashboardPanels,
 } from "../model/dashboard.state";
 import { UseDashboardLayoutResult } from "../model/dashboard.types";
 import { DashboardPanel } from "./DashboardPanel";
 import { ToolList } from "./ToolList";
+import { getPanelDisplayNumber } from "../../../shared/model/panel-navigation";
 
 export const LeftDashboardPanel = ({
   dashboardState,
@@ -38,6 +40,7 @@ export const LeftDashboardPanel = ({
     >
       <DashboardPanel
         title="Sitemap"
+        panelNumber={getPanelDisplayNumber(dashboardPanels, "sitemap")}
         height={layout.leftPanelTopHeight}
         focused={dashboardState.activePanel === "sitemap"}
         paddingBottom={0}
@@ -63,6 +66,7 @@ export const LeftDashboardPanel = ({
 
       <DashboardPanel
         title="Vulnerabilities"
+        panelNumber={getPanelDisplayNumber(dashboardPanels, "vulns")}
         height={layout.leftPanelBottomHeight}
         focused={dashboardState.activePanel === "vulns"}
         paddingBottom={0}
@@ -109,6 +113,7 @@ export const CenterDashboardPanel = ({
     >
       <DashboardPanel
         title="AI Assistant"
+        panelNumber={getPanelDisplayNumber(dashboardPanels, "chat")}
         flexGrow={1}
         focused={dashboardState.activePanel === "chat"}
         onMouseDown={() => setActivePanel("chat")}
@@ -142,6 +147,7 @@ export const RightDashboardPanel = ({
     >
       <DashboardPanel
         title="Tools"
+        panelNumber={getPanelDisplayNumber(dashboardPanels, "tools")}
         flexGrow={1}
         focused={dashboardState.activePanel === "tools"}
         onMouseDown={() => setActivePanel("tools")}
