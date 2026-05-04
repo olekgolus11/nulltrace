@@ -8,28 +8,27 @@ import {
 import { tools } from "../data/tool-catalog";
 import { UseDashboardShortcutsProps } from "../model/dashboard.types";
 import {
-  DashboardPanel,
+  DashboardPanelId,
   DashboardState,
+  dashboardPanels,
   initialDashboardState,
 } from "../model/dashboard.state";
+import {
+  cyclePanel,
+  getPanelByShortcut,
+} from "../../../shared/model/panel-navigation";
 
 type DashboardAction =
-  | { type: "CYCLE_PANEL" }
+  | { type: "CYCLE_PANEL"; direction: -1 | 1 }
+  | { type: "SET_ACTIVE_PANEL"; panel: DashboardPanelId }
   | { type: "MOVE_TOOL_SELECTION"; delta: -1 | 1 }
   | { type: "MOVE_SITEMAP_SELECTION"; delta: -1 | 1 }
   | { type: "MOVE_VULN_SELECTION"; delta: -1 | 1 }
   | { type: "SET_CHAT_INPUT"; value: string }
   | { type: "SUBMIT_CHAT" };
 
-const PANELS: DashboardPanel[] = ["sitemap", "vulns", "chat", "tools"];
-
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
-}
-
-function getNextPanel(current: DashboardPanel): DashboardPanel {
-  const currentIndex = PANELS.indexOf(current);
-  return PANELS[(currentIndex + 1) % PANELS.length]!;
 }
 
 function createDashboardReducer(counts: {
@@ -45,7 +44,17 @@ function createDashboardReducer(counts: {
       case "CYCLE_PANEL":
         return {
           ...state,
-          activePanel: getNextPanel(state.activePanel),
+          activePanel: cyclePanel(
+            dashboardPanels,
+            state.activePanel,
+            action.direction,
+          ),
+        };
+
+      case "SET_ACTIVE_PANEL":
+        return {
+          ...state,
+          activePanel: action.panel,
         };
 
       case "MOVE_TOOL_SELECTION":
@@ -117,20 +126,21 @@ export function useDashboardShortcuts({
       return;
     }
 
-    // Tab to cycle through panels
     if (key.name === "tab") {
-      const panels: Array<DashboardPanel> = [
-        "sitemap",
-        "vulns",
-        "chat",
-        "tools",
-      ];
-      const currentIndex = panels.indexOf(state.activePanel);
-      const nextIndex = (currentIndex + 1) % panels.length;
-      const nextPanel = panels[nextIndex];
-      if (nextPanel) {
-        dispatch({ type: "CYCLE_PANEL" });
-      }
+      dispatch({
+        type: "CYCLE_PANEL",
+        direction: key.shift ? -1 : 1,
+      });
+      return;
+    }
+
+    const shortcutPanel = getPanelByShortcut(
+      dashboardPanels,
+      key.name,
+      key.ctrl,
+    );
+    if (shortcutPanel) {
+      dispatch({ type: "SET_ACTIVE_PANEL", panel: shortcutPanel });
       return;
     }
 
@@ -202,10 +212,15 @@ export function useDashboardShortcuts({
     dispatch({ type: "SUBMIT_CHAT" });
   };
 
+  const setActivePanel = (panel: DashboardPanelId) => {
+    dispatch({ type: "SET_ACTIVE_PANEL", panel });
+  };
+
   return {
     dashboardState: state,
     setChatInput,
     submitChat,
+    setActivePanel,
     sitemapScrollRef,
     vulnsScrollRef,
   };

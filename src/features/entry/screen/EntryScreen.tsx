@@ -6,6 +6,7 @@ import { SessionList } from "../../session/components/SessionList";
 import { titleArtBlood, titleArtRebel } from "../data/entry.constants";
 import { useEntryShortcuts } from "../hooks/use-entry-shortcuts";
 import { sessionRepository } from "../../session/services/session.repository";
+import { ShortcutHints } from "../../../shared/ui/ShortcutHints";
 
 export function EntryScreen({
   onStartPentest,
@@ -14,7 +15,13 @@ export function EntryScreen({
 }: EntryScreenProps) {
   const { width, height } = useTerminalDimensions();
   const [targets] = useState(() => sessionRepository.listTargetsWithSessions());
-  const { entryState, rows, setUrlInput, submitUrlInput } = useEntryShortcuts({
+  const {
+    entryState,
+    rows,
+    setUrlInput,
+    submitUrlInput,
+    setActivePanel,
+  } = useEntryShortcuts({
     targets,
     onStartPentest,
     onOpenSession,
@@ -39,6 +46,7 @@ export function EntryScreen({
         alignItems="center"
         paddingLeft={2}
         paddingRight={2}
+        onMouseDown={() => setActivePanel("input")}
       >
         <box flexDirection="column" alignItems="center" marginBottom={2}>
           {titleArtBlood.map((line, idx) => (
@@ -84,38 +92,30 @@ export function EntryScreen({
             <span fg={theme.accent.primary}>
               <strong>Enter</strong>
             </span>{" "}
-            to start pentest or{" "}
-            <span fg={theme.accent.primary}>
-              <strong>Tab</strong>
-            </span>{" "}
-            to browse sessions
+            to start pentest or click sessions to browse history
           </text>
+        </box>
+
+        <box marginTop={1}>
+          <ShortcutHints
+            hints={[
+              { key: "Tab/Shift+Tab", label: "switch" },
+              { key: "Ctrl+1-2", label: "jump" },
+            ]}
+          />
         </box>
 
         {/* Footer hints */}
         <box position="absolute" marginTop={height - 3} marginLeft={2}>
-          <text fg={theme.text.dim}>
-            <span fg={theme.text.secondary}>
-              <strong>Ctrl+Q</strong>
-            </span>{" "}
-            quit{" | "}
-            <span fg={theme.text.secondary}>
-              <strong>Tab</strong>
-            </span>{" "}
-            switch focus{" | "}
-            <span fg={theme.text.secondary}>
-              <strong>↑↓</strong>
-            </span>{" "}
-            navigate{" | "}
-            <span fg={theme.text.secondary}>
-              <strong>Enter</strong>
-            </span>{" "}
-            select{" | "}
-            <span fg={theme.text.secondary}>
-              <strong>Ctrl+N</strong>
-            </span>{" "}
-            new session
-          </text>
+          <ShortcutHints
+            hints={[
+              { key: "Ctrl+Q", label: "quit" },
+              { key: "Tab/Shift+Tab", label: "switch" },
+              { key: "Ctrl+1-2", label: "jump" },
+              { key: "Enter", label: "select" },
+              { key: "Ctrl+N", label: "new session" },
+            ]}
+          />
         </box>
       </box>
 
@@ -128,6 +128,7 @@ export function EntryScreen({
         paddingRight={2}
         paddingTop={1}
         paddingBottom={1}
+        onMouseDown={() => setActivePanel("sessions")}
       >
         <SessionList
           rows={rows}

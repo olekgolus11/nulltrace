@@ -2,8 +2,10 @@ import { useTerminalDimensions } from "@opentui/react";
 import { theme } from "../../../../app/theme/theme";
 import { DashboardPanel } from "../../../dashboard/components/DashboardPanel";
 import { useToolLayout } from "../../hooks/use-tool-layout";
+import { getPanelDisplayNumber } from "../../../../shared/model/panel-navigation";
 import { CommandEditor } from "../../shared/components/CommandEditor";
 import { OutputLog } from "../../shared/components/OutputLog";
+import { toolPanels } from "../../shared/registry/tool-registry";
 import { useNmapWorkspace } from "../store/use-nmap-workspace";
 import { NmapForm } from "./NmapForm";
 
@@ -21,7 +23,9 @@ export function NmapWorkspace() {
     outputLines,
     selectedHistoryRun,
     isHistoricPreview,
+    isHelpOpen,
     setField,
+    setActivePanel,
     setManualCommandInput,
     runCommand,
   } = useNmapWorkspace();
@@ -35,13 +39,22 @@ export function NmapWorkspace() {
   const previewStatus = selectedHistoryRun?.status ?? executionStatus;
   const previewExitCode = selectedHistoryRun?.exitCode ?? lastExitCode;
   const previewCommand = selectedHistoryRun?.command ?? commandInput;
+  const focusPanel = (panel: typeof activePanel) => {
+    if (isHelpOpen) {
+      return;
+    }
+
+    setActivePanel(panel);
+  };
 
   return (
     <box flexDirection="column" flexGrow={1}>
       <DashboardPanel
         title="Nmap Controls"
+        panelNumber={getPanelDisplayNumber(toolPanels, "form")}
         height={layout.formPanelHeight}
         focused={activePanel === "form"}
+        onMouseDown={() => focusPanel("form")}
       >
         <NmapForm
           form={toolData.form}
@@ -53,9 +66,11 @@ export function NmapWorkspace() {
 
       <DashboardPanel
         title={"Command"}
+        panelNumber={getPanelDisplayNumber(toolPanels, "command")}
         isHistoricPreview={isHistoricPreview}
         height={layout.commandPanelHeight}
         focused={activePanel === "command"}
+        onMouseDown={() => focusPanel("command")}
       >
         <CommandEditor
           commandInput={previewCommand}
@@ -72,9 +87,11 @@ export function NmapWorkspace() {
 
       <DashboardPanel
         title={"Raw Output"}
+        panelNumber={getPanelDisplayNumber(toolPanels, "output")}
         isHistoricPreview={isHistoricPreview}
         flexGrow={1}
         focused={activePanel === "output"}
+        onMouseDown={() => focusPanel("output")}
       >
         <OutputLog
           lines={previewLines}

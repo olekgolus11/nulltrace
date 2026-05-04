@@ -20,6 +20,7 @@ export function useNmapWorkspace() {
   );
   const commandSource = useToolWorkspaceStore((state) => state.commandSource);
   const isHelpOpen = useToolWorkspaceStore((state) => state.isHelpOpen);
+  const setActivePanel = useToolWorkspaceStore((state) => state.setActivePanel);
   const executionStatus = useToolWorkspaceStore(
     (state) => state.executionStatus,
   );
@@ -57,6 +58,7 @@ export function useNmapWorkspace() {
     generatedCommand,
     commandSource,
     isHelpOpen,
+    setActivePanel,
     executionStatus,
     lastExitCode,
     outputLines,

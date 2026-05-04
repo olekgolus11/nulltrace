@@ -1,6 +1,7 @@
 import { useKeyboard } from "@opentui/react";
 import { useToolWorkspaceStore } from "../store/tool-workspace.store";
-import { toolRegistry } from "../registry/tool-registry";
+import { toolPanels, toolRegistry } from "../registry/tool-registry";
+import { getPanelByShortcut } from "../../../../shared/model/panel-navigation";
 
 export function useToolKeyboardNavigation(onBack: () => void) {
   useKeyboard((key) => {
@@ -19,7 +20,13 @@ export function useToolKeyboardNavigation(onBack: () => void) {
     }
 
     if (key.name === "tab") {
-      state.cyclePanel();
+      state.cyclePanel(key.shift ? -1 : 1);
+      return;
+    }
+
+    const shortcutPanel = getPanelByShortcut(toolPanels, key.name, key.ctrl);
+    if (shortcutPanel) {
+      state.setActivePanel(shortcutPanel);
       return;
     }
 

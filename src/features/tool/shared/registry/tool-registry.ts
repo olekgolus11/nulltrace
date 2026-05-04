@@ -6,6 +6,7 @@ import {
 import { nmapHelpContent } from "../../nmap/data/nmap-help";
 import { nmapCommandService } from "../../nmap/services/nmap-command.service";
 import { NmapFieldId, NmapToolData } from "../../nmap/types/nmap.types";
+import { PanelDefinition } from "../../../../shared/model/panel-navigation.types";
 import {
   ToolHelpContent,
   ToolModule,
@@ -99,7 +100,7 @@ export const toolRegistry: Record<string, ToolModule> = {
   },
 };
 
-export const toolPanels: Array<{ id: ToolPanel; label: string }> = [
+export const toolPanels: Array<PanelDefinition<ToolPanel>> = [
   { id: "chat", label: "CHAT" },
   { id: "form", label: "FORM" },
   { id: "command", label: "COMMAND" },

@@ -8,9 +8,9 @@ import {
   ToolPanel,
   ToolWorkspaceStoreState,
 } from "../types/tool-screen.types";
-import { toolRegistry } from "../registry/tool-registry";
-
-const PANELS: ToolPanel[] = ["chat", "form", "command", "output", "history"];
+import { toolPanels, toolRegistry } from "../registry/tool-registry";
+import { cyclePanel as getCycledPanel } from "../../../../shared/model/panel-navigation";
+import { PanelDirection } from "../../../../shared/model/panel-navigation.types";
 
 const initialChatMessages: ChatMessageData[] = [
   {
@@ -63,18 +63,13 @@ function formatTime() {
   });
 }
 
-function getNextPanel(current: ToolPanel): ToolPanel {
-  const currentIndex = PANELS.indexOf(current);
-  return PANELS[(currentIndex + 1) % PANELS.length]!;
-}
-
 interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
   initializeWorkspace: (
     toolName: string,
     targetUrl: string,
     sessionId: string,
   ) => void;
-  cyclePanel: () => void;
+  cyclePanel: (direction: PanelDirection) => void;
   setActivePanel: (panel: ToolPanel) => void;
   openHelp: () => void;
   closeHelp: () => void;
@@ -132,9 +127,9 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
     get().loadHistoryRuns();
   },
 
-  cyclePanel: () =>
+  cyclePanel: (direction) =>
     set((state) => ({
-      activePanel: getNextPanel(state.activePanel),
+      activePanel: getCycledPanel(toolPanels, state.activePanel, direction),
     })),
 
   setActivePanel: (panel) => set({ activePanel: panel }),

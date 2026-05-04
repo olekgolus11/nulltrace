@@ -1,6 +1,8 @@
 import { theme } from "../../../../app/theme/theme";
 import { DashboardPanel } from "../../../dashboard/components/DashboardPanel";
 import { ToolRunSummary } from "../../../session/model/session.repository.types";
+import { getPanelDisplayNumber } from "../../../../shared/model/panel-navigation";
+import { toolPanels } from "../registry/tool-registry";
 
 function formatRunTime(value: string) {
   return new Date(value).toLocaleTimeString([], {
@@ -31,13 +33,21 @@ export function ToolRunHistoryPanel({
   runs,
   selectedRunId,
   focused,
+  onMouseDown,
 }: {
   runs: ToolRunSummary[];
   selectedRunId: string | null;
   focused: boolean;
+  onMouseDown?: () => void;
 }) {
   return (
-    <DashboardPanel title="Run History" flexGrow={1} focused={focused}>
+    <DashboardPanel
+      title="Run History"
+      panelNumber={getPanelDisplayNumber(toolPanels, "history")}
+      flexGrow={1}
+      focused={focused}
+      onMouseDown={onMouseDown}
+    >
       <box flexDirection="column" flexGrow={1}>
         {runs.length === 0 ? (
           <text fg={theme.text.dim}>
