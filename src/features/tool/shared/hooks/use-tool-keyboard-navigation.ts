@@ -80,7 +80,6 @@ export function useToolKeyboardNavigation(onBack: () => void) {
     }
 
     if (key.ctrl && key.name === "c" && state.executionStatus === "running") {
-      state.cancelExecution();
       state.stopCommand();
       return;
     }

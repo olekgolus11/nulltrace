@@ -359,6 +359,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
   },
 
   stopCommand: () => {
+    get().cancelExecution();
     commandRunnerService.stop();
   },
 
