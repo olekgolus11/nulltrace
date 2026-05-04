@@ -1,10 +1,12 @@
 import {
-  FindingSnapshotInput,
   SessionDetailRow,
+  SessionFindingInput,
   SessionRecord,
   SessionRow,
   TargetRecord,
   TargetRow,
+  ToolRunArtifactInput,
+  ToolRunArtifactRecord,
   ToolRunInput,
   ToolRunDetail,
   ToolRunLogLine,
@@ -24,6 +26,14 @@ function createTimestamp() {
 
 function createId() {
   return crypto.randomUUID();
+}
+
+function parseJsonPayload(value: string) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
 }
 
 function mapSessionRow(row: SessionRow): SessionSummary {
@@ -237,9 +247,46 @@ export const sessionRepository = {
       )
       .all(toolRunId);
 
+    const artifacts = sessionDatabase
+      .query<
+        {
+          id: string;
+          toolRunId: string;
+          artifactType: string;
+          label: string;
+          source: string;
+          payloadJson: string;
+          createdAt: string;
+        },
+        [string]
+      >(
+        `SELECT
+          id,
+          tool_run_id AS toolRunId,
+          artifact_type AS artifactType,
+          label,
+          source,
+          payload_json AS payloadJson,
+          created_at AS createdAt
+        FROM tool_run_artifacts
+        WHERE tool_run_id = ?1
+        ORDER BY created_at ASC`,
+      )
+      .all(toolRunId)
+      .map<ToolRunArtifactRecord>((artifact) => ({
+        id: artifact.id,
+        toolRunId: artifact.toolRunId,
+        artifactType: artifact.artifactType,
+        label: artifact.label,
+        source: artifact.source,
+        payload: parseJsonPayload(artifact.payloadJson),
+        createdAt: artifact.createdAt,
+      }));
+
     return {
       ...toolRun,
       logs,
+      artifacts,
     } satisfies ToolRunDetail;
   },
 
@@ -332,15 +379,96 @@ export const sessionRepository = {
     }
   },
 
-  saveFindingSnapshots(
+  saveToolRunArtifact(toolRunId: string, artifact: ToolRunArtifactInput) {
+    const record: ToolRunArtifactRecord = {
+      id: createId(),
+      toolRunId,
+      artifactType: artifact.artifactType,
+      label: artifact.label,
+      source: artifact.source,
+      payload: artifact.payload,
+      createdAt: createTimestamp(),
+    };
+
+    sessionDatabase
+      .query(
+        `INSERT INTO tool_run_artifacts (
+          id,
+          tool_run_id,
+          artifact_type,
+          label,
+          source,
+          payload_json,
+          created_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
+      )
+      .run(
+        record.id,
+        record.toolRunId,
+        record.artifactType,
+        record.label,
+        record.source,
+        JSON.stringify(record.payload),
+        record.createdAt,
+      );
+
+    const sessionId = sessionDatabase
+      .query<{ sessionId: string }, [string]>(
+        `SELECT session_id AS sessionId
+         FROM tool_runs
+         WHERE id = ?1`,
+      )
+      .get(toolRunId)?.sessionId;
+
+    if (sessionId) {
+      this.touchSessionActivity(sessionId);
+    }
+
+    return record;
+  },
+
+  saveOutputSummaryArtifact(toolRunId: string) {
+    const logs = sessionDatabase
+      .query<ToolRunLogLine, [string]>(
+        `SELECT
+          seq,
+          stream,
+          line,
+          created_at AS createdAt
+        FROM tool_run_logs
+        WHERE tool_run_id = ?1
+        ORDER BY seq ASC`,
+      )
+      .all(toolRunId);
+
+    const stdoutLineCount = logs.filter((line) => line.stream === "stdout")
+      .length;
+    const stderrLineCount = logs.filter((line) => line.stream === "stderr")
+      .length;
+
+    return this.saveToolRunArtifact(toolRunId, {
+      artifactType: "output_summary",
+      label: "Command output summary",
+      source: "logs",
+      payload: {
+        lineCount: logs.length,
+        stdoutLineCount,
+        stderrLineCount,
+        firstLine: logs[0]?.line ?? null,
+        lastLine: logs.at(-1)?.line ?? null,
+      },
+    });
+  },
+
+  saveSessionFindings(
     sessionId: string,
     toolRunId: string | null,
-    findings: FindingSnapshotInput[],
+    findings: SessionFindingInput[],
   ) {
     findings.forEach((finding) => {
       sessionDatabase
         .query(
-          `INSERT INTO finding_snapshots (
+          `INSERT INTO session_findings (
             id,
             session_id,
             tool_run_id,
@@ -413,6 +541,10 @@ export const sessionRepository = {
          WHERE id = ?1`,
       )
       .run(toolRunId, status, exitCode, createTimestamp());
+
+    if (status === "success" || status === "error") {
+      this.saveOutputSummaryArtifact(toolRunId);
+    }
 
     const sessionId = sessionDatabase
       .query<{ sessionId: string }, [string]>(
