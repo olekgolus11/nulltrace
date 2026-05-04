@@ -73,7 +73,18 @@ sessionDatabase.exec(`
     FOREIGN KEY (tool_run_id) REFERENCES tool_runs(id) ON DELETE CASCADE
   );
 
-  CREATE TABLE IF NOT EXISTS finding_snapshots (
+  CREATE TABLE IF NOT EXISTS tool_run_artifacts (
+    id TEXT PRIMARY KEY,
+    tool_run_id TEXT NOT NULL,
+    artifact_type TEXT NOT NULL,
+    label TEXT NOT NULL,
+    source TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (tool_run_id) REFERENCES tool_runs(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS session_findings (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
     tool_run_id TEXT,
@@ -97,6 +108,44 @@ sessionDatabase.exec(`
     ON tool_runs(session_id);
   CREATE INDEX IF NOT EXISTS idx_tool_run_logs_tool_run_id_seq
     ON tool_run_logs(tool_run_id, seq);
-  CREATE INDEX IF NOT EXISTS idx_finding_snapshots_session_id
-    ON finding_snapshots(session_id);
+  CREATE INDEX IF NOT EXISTS idx_tool_run_artifacts_tool_run_id
+    ON tool_run_artifacts(tool_run_id);
+  CREATE INDEX IF NOT EXISTS idx_session_findings_session_id
+    ON session_findings(session_id);
 `);
+
+const legacyFindingSnapshotsTable = sessionDatabase
+  .query<{ name: string }, []>(
+    `SELECT name
+     FROM sqlite_master
+     WHERE type = 'table'
+       AND name = 'finding_snapshots'`,
+  )
+  .get();
+
+if (legacyFindingSnapshotsTable) {
+  sessionDatabase.exec(`
+    INSERT OR IGNORE INTO session_findings (
+      id,
+      session_id,
+      tool_run_id,
+      source_tool,
+      kind,
+      severity,
+      title,
+      payload_json,
+      created_at
+    )
+    SELECT
+      id,
+      session_id,
+      tool_run_id,
+      source_tool,
+      kind,
+      severity,
+      title,
+      payload_json,
+      created_at
+    FROM finding_snapshots;
+  `);
+}

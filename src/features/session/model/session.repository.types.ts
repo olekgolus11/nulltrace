@@ -74,11 +74,25 @@ export interface ToolRunLogLine {
   createdAt: string;
 }
 
-export interface ToolRunDetail extends ToolRunSummary {
-  logs: ToolRunLogLine[];
+export interface ToolRunArtifactInput {
+  artifactType: string;
+  label: string;
+  source: string;
+  payload: unknown;
 }
 
-export interface FindingSnapshotInput {
+export interface ToolRunArtifactRecord extends ToolRunArtifactInput {
+  id: string;
+  toolRunId: string;
+  createdAt: string;
+}
+
+export interface ToolRunDetail extends ToolRunSummary {
+  logs: ToolRunLogLine[];
+  artifacts: ToolRunArtifactRecord[];
+}
+
+export interface SessionFindingInput {
   sourceTool: string;
   kind: string;
   severity: string;

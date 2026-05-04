@@ -344,8 +344,8 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
         return;
       }
 
-      get().finishExecution(exitCode === 0 ? "success" : "error", exitCode);
       get().appendOutput(["", `[process exited with code ${exitCode}]`]);
+      get().finishExecution(exitCode === 0 ? "success" : "error", exitCode);
     } catch (error) {
       if (get().executionStatus === "cancelled") {
         return;
