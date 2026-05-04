@@ -267,11 +267,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
         return state;
       }
 
-      sessionRepository.finishToolRun(
-        state.currentToolRunId,
-        status,
-        exitCode,
-      );
+      sessionRepository.finishToolRun(state.currentToolRunId, status, exitCode);
 
       const historyRuns =
         state.sessionId && state.toolName
@@ -295,10 +291,10 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       const cancelMessage = "[run cancelled by operator]";
 
       if (state.currentToolRunId) {
-        sessionRepository.appendToolRunLog(
-          state.currentToolRunId,
-          ["", cancelMessage],
-        );
+        sessionRepository.appendToolRunLog(state.currentToolRunId, [
+          "",
+          cancelMessage,
+        ]);
         sessionRepository.cancelToolRun(state.currentToolRunId);
       }
 

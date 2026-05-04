@@ -98,9 +98,6 @@ function createDashboardReducer(counts: {
           ...state,
           chatInput: "",
         };
-
-      default:
-        return state;
     }
   };
 }
