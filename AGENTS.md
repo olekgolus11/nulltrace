@@ -26,6 +26,21 @@ This file is for coding agents working in this repository.
 - `.github/copilot-instructions.md`: not present.
 - Because no Cursor/Copilot rule files exist, this document is the effective agent guidance for the repo.
 
+## Current Planning Source
+
+- Current product planning lives in GitHub Issues.
+- Active milestone: [Real Scan Findings Pipeline](https://github.com/olekgolus11/nulltrace/milestone/1).
+- The milestone description contains the PRD for the next major slice of work.
+- Relevant implementation issues:
+  - [#11 Add session finding upsert model](https://github.com/olekgolus11/nulltrace/issues/11)
+  - [#12 Map nmap artifacts into session findings](https://github.com/olekgolus11/nulltrace/issues/12)
+  - [#13 Add minimal Nuclei tool execution](https://github.com/olekgolus11/nulltrace/issues/13)
+  - [#14 Persist Nuclei JSONL artifacts](https://github.com/olekgolus11/nulltrace/issues/14)
+  - [#15 Map Nuclei artifacts into session findings](https://github.com/olekgolus11/nulltrace/issues/15)
+  - [#16 Render dashboard findings from session_findings](https://github.com/olekgolus11/nulltrace/issues/16)
+  - [#17 Add parser and mapper tests for the findings pipeline](https://github.com/olekgolus11/nulltrace/issues/17)
+- Write GitHub issues and pull requests in English.
+
 ## Build, Run, and Test Commands
 
 ```sh
@@ -187,15 +202,17 @@ config/
 - Do not add unit tests unless the user explicitly asks for them.
 - If a change needs verification, prefer `bunx tsc --noEmit` and manual app checks over test creation.
 - Existing `.test.ts` files may still be run if they help validate a change, but new routine coverage is not expected.
+- For the Real Scan Findings Pipeline milestone, focused Bun tests are expected for parser, mapper, fingerprint, severity normalization, and session finding upsert behavior.
+- TUI component unit tests are still optional unless a change extracts pure read-model logic that is useful to test.
 
 ## Agent Workflow Suggestions
 
 - Read nearby feature files before editing to match local patterns.
 - Check whether a feature already has a hook, store, service, config, or registry entry before adding a new one.
 - Prefer extending existing mock/config data and the current tool shell instead of inventing parallel structures.
-- Use the Linear MCP tools as the default task-tracking system for this repository when work should be recorded or planned.
-- AI agents should create or update Linear tasks instead of keeping separate ad hoc task lists when task tracking is needed.
-- If an AI agent finds a bug during implementation, review, or verification, it should add a Linear issue for it and apply the `Bug` label.
+- Use GitHub Issues as the default task-tracking system for this repository when work should be recorded or planned.
+- For work related to the current findings pipeline, attach or reference the active GitHub milestone.
+- If an AI agent finds a bug during implementation, review, or verification, it should create or update a GitHub issue and apply an appropriate bug label when available.
 - Verify impacted code with `bunx tsc --noEmit` and manual app checks when practical.
 - Run existing tests only when they already cover the changed path and are genuinely useful for validation.
 - If you cannot run verification, say so clearly in your handoff.
