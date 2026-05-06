@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { Database } from "bun:sqlite";
 
-function getAppDataDirectory() {
+export function getAppDataDirectory() {
   if (process.env.XDG_DATA_HOME) {
     return join(process.env.XDG_DATA_HOME, "nulltrace");
   }

@@ -12,6 +12,8 @@ import {
   ToolModule,
   ToolName,
   ToolPanel,
+  ToolPrepareCommand,
+  ToolRunCompleted,
 } from "../types/tool-screen.types";
 
 export const toolRegistry: Record<string, ToolModule> = {
@@ -24,6 +26,10 @@ export const toolRegistry: Record<string, ToolModule> = {
       nmapCommandService.createInitialToolData(targetUrl),
     buildGeneratedCommand: (toolData: unknown) =>
       nmapCommandService.buildCommand(toolData as NmapToolData),
+    prepareCommandForRun: (options: ToolPrepareCommand) =>
+      nmapCommandService.prepareCommandForRun(options),
+    handleRunCompleted: (options: ToolRunCompleted) =>
+      nmapCommandService.handleRunCompleted(options),
     handleFormKey: (key, state, api) => {
       if (state.activePanel !== "form") {
         return false;

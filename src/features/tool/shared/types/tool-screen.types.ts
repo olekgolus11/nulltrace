@@ -1,6 +1,7 @@
 import { ComponentType } from "react";
 import { ChatMessageData } from "../../../chat/model/chat.types";
 import {
+  ToolRunArtifactInput,
   ToolRunDetail,
   ToolRunSummary,
 } from "../../../session/model/session.repository.types";
@@ -92,6 +93,10 @@ export interface ToolModule {
     state: ToolWorkspaceStoreState,
     api: ToolKeyboardApi,
   ) => boolean;
+  prepareCommandForRun?: (options: ToolPrepareCommand) => string;
+  handleRunCompleted?: (
+    options: ToolRunCompleted,
+  ) => Promise<ToolRunArtifactInput[]>;
 }
 
 export interface ToolData {
@@ -104,4 +109,17 @@ export interface ToolHelpContent {
   summary: string;
   commandEffect: string;
   guidance: string;
+}
+
+export interface ToolPrepareCommand {
+  command: string;
+  sessionId: string | null;
+  toolRunId: string | null;
+}
+
+export interface ToolRunCompleted {
+  sessionId: string | null;
+  toolRunId: string | null;
+  status: ExecutionStatus;
+  exitCode: number | null;
 }

@@ -5,6 +5,7 @@ import { commandRunnerService } from "../services/command-runner.service";
 import {
   CommandSource,
   ExecutionStatus,
+  ToolModule,
   ToolPanel,
   ToolWorkspaceStoreState,
 } from "../types/tool-screen.types";
@@ -92,6 +93,13 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
   exitHistoricPreview: () => void;
   rerunSelectedHistoryRun: () => void;
   updateToolData: (updater: (current: unknown) => unknown) => void;
+  handleToolArtifacts: (toolRunContext: {
+    sessionId: string | null;
+    toolRunId: string | null;
+    toolModule: ToolModule | undefined;
+    status: "success" | "error";
+    exitCode: number | null;
+  }) => Promise<void>;
 }
 
 export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
@@ -325,9 +333,28 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
 
     get().startExecution(command);
 
+    const runContext = {
+      sessionId: get().sessionId,
+      toolRunId: get().currentToolRunId,
+    };
+    const toolModule = state.toolName
+      ? toolRegistry[state.toolName]
+      : undefined;
+
+    const preparedCommand =
+      toolModule?.prepareCommandForRun?.({
+        command,
+        sessionId: runContext.sessionId,
+        toolRunId: runContext.toolRunId,
+      }) ?? command;
+    let completedRun: {
+      status: "success" | "error";
+      exitCode: number | null;
+    } | null = null;
+
     try {
       const exitCode = await commandRunnerService.run(
-        command,
+        preparedCommand,
         (lines) => {
           get().appendOutput(lines, "stdout");
         },
@@ -341,7 +368,9 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       }
 
       get().appendOutput(["", `[process exited with code ${exitCode}]`]);
-      get().finishExecution(exitCode === 0 ? "success" : "error", exitCode);
+      const status = exitCode === 0 ? "success" : "error";
+      get().finishExecution(status, exitCode);
+      completedRun = { status, exitCode };
     } catch (error) {
       if (get().executionStatus === "cancelled") {
         return;
@@ -351,6 +380,48 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
         error instanceof Error ? error.message : "Unknown execution error";
       get().appendOutput(["", `[execution failed] ${message}`]);
       get().finishExecution("error", null);
+      completedRun = { status: "error", exitCode: null };
+    } finally {
+      if (completedRun) {
+        await get().handleToolArtifacts({
+          ...runContext,
+          toolModule,
+          ...completedRun,
+        });
+      }
+    }
+  },
+
+  handleToolArtifacts: async ({
+    sessionId,
+    toolRunId,
+    toolModule,
+    status,
+    exitCode,
+  }) => {
+    if (!toolModule?.handleRunCompleted || !toolRunId) {
+      return;
+    }
+
+    try {
+      const artifacts = await toolModule.handleRunCompleted({
+        sessionId,
+        toolRunId,
+        status,
+        exitCode,
+      });
+
+      artifacts.forEach((artifact) => {
+        sessionRepository.saveToolRunArtifact(toolRunId, artifact);
+      });
+    } catch (artifactError) {
+      const message =
+        artifactError instanceof Error
+          ? artifactError.message
+          : "Unknown artifact parsing error";
+      const artifactMessage = `[artifact parsing failed] ${message}`;
+      sessionRepository.appendToolRunLog(toolRunId, ["", artifactMessage]);
+      get().appendOutput(["", artifactMessage]);
     }
   },
 
