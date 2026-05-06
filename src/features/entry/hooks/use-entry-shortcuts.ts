@@ -90,9 +90,6 @@ function createEntryReducer() {
             Math.max(0, action.rowCount - 1),
           ),
         };
-
-      default:
-        return state;
     }
   };
 }
