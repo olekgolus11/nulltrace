@@ -28,8 +28,8 @@ export const toolRegistry: Record<string, ToolModule> = {
       nmapCommandService.buildCommand(toolData as NmapToolData),
     prepareCommandForRun: (options: ToolPrepareCommand) =>
       nmapCommandService.prepareCommandForRun(options),
-    handleRunCompleted: (options: ToolRunCompleted) =>
-      nmapCommandService.handleRunCompleted(options),
+    collectArtifacts: (options: ToolRunCompleted) =>
+      nmapCommandService.collectArtifacts(options),
     handleFormKey: (key, state, api) => {
       if (state.activePanel !== "form") {
         return false;

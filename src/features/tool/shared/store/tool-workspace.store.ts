@@ -2,10 +2,10 @@ import { create } from "zustand";
 import { ChatMessageData } from "../../../chat/model/chat.types";
 import { sessionRepository } from "../../../session/services/session.repository";
 import { commandRunnerService } from "../services/command-runner.service";
+import { toolArtifactPipelineService } from "../services/tool-artifact-pipeline.service";
 import {
   CommandSource,
   ExecutionStatus,
-  ToolModule,
   ToolPanel,
   ToolWorkspaceStoreState,
 } from "../types/tool-screen.types";
@@ -93,13 +93,6 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
   exitHistoricPreview: () => void;
   rerunSelectedHistoryRun: () => void;
   updateToolData: (updater: (current: unknown) => unknown) => void;
-  handleToolArtifacts: (toolRunContext: {
-    sessionId: string | null;
-    toolRunId: string | null;
-    toolModule: ToolModule | undefined;
-    status: "success" | "error";
-    exitCode: number | null;
-  }) => Promise<void>;
 }
 
 export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
@@ -383,45 +376,15 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       completedRun = { status: "error", exitCode: null };
     } finally {
       if (completedRun) {
-        await get().handleToolArtifacts({
+        await toolArtifactPipelineService.processCompletedRun({
           ...runContext,
           toolModule,
           ...completedRun,
+          onArtifactProcessingError: (artifactMessage) => {
+            get().appendOutput(["", artifactMessage]);
+          },
         });
       }
-    }
-  },
-
-  handleToolArtifacts: async ({
-    sessionId,
-    toolRunId,
-    toolModule,
-    status,
-    exitCode,
-  }) => {
-    if (!toolModule?.handleRunCompleted || !toolRunId) {
-      return;
-    }
-
-    try {
-      const artifacts = await toolModule.handleRunCompleted({
-        sessionId,
-        toolRunId,
-        status,
-        exitCode,
-      });
-
-      artifacts.forEach((artifact) => {
-        sessionRepository.saveToolRunArtifact(toolRunId, artifact);
-      });
-    } catch (artifactError) {
-      const message =
-        artifactError instanceof Error
-          ? artifactError.message
-          : "Unknown artifact parsing error";
-      const artifactMessage = `[artifact parsing failed] ${message}`;
-      sessionRepository.appendToolRunLog(toolRunId, ["", artifactMessage]);
-      get().appendOutput(["", artifactMessage]);
     }
   },
 

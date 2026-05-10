@@ -217,7 +217,7 @@ class NmapCommandService {
     return strippedCommand + xmlOutputFlag;
   }
 
-  async handleRunCompleted(
+  async collectArtifacts(
     options: ToolRunCompleted,
   ): Promise<ToolRunArtifactInput[]> {
     const { sessionId, toolRunId, status, exitCode } = options;

@@ -94,7 +94,7 @@ export interface ToolModule {
     api: ToolKeyboardApi,
   ) => boolean;
   prepareCommandForRun?: (options: ToolPrepareCommand) => string;
-  handleRunCompleted?: (
+  collectArtifacts?: (
     options: ToolRunCompleted,
   ) => Promise<ToolRunArtifactInput[]>;
 }
