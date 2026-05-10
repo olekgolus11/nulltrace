@@ -2,7 +2,7 @@ import {
   SessionFindingMapper,
   UpsertSessionFindingCandidateInput,
 } from "../model/session-finding.types";
-import { ToolRunArtifactRecord } from "../model/session.repository.types";
+import { ToolRunArtifactRecord } from "../../session/model/session.repository.types";
 import { sessionFindingRepository } from "./session-finding.repository";
 
 interface ProcessSessionFindingArtifactsInput {

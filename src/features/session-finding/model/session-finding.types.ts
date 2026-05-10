@@ -1,4 +1,4 @@
-import { ToolRunArtifactRecord } from "./session.repository.types";
+import { ToolRunArtifactRecord } from "../../session/model/session.repository.types";
 
 export interface SessionFindingCandidate {
   sourceTool: string;

@@ -1,6 +1,6 @@
 import { ToolModule, ToolRunCompleted } from "../types/tool-screen.types";
 import { sessionRepository } from "../../../session/services/session.repository";
-import { sessionFindingPipelineService } from "../../../session/services/session-finding-pipeline.service";
+import { sessionFindingPipelineService } from "../../../session-finding/services/session-finding-pipeline.service";
 
 export interface ProcessCompletedRunInput extends ToolRunCompleted {
   sessionId: string | null;
