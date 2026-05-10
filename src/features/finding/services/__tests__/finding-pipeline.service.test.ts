@@ -1,12 +1,12 @@
 import { describe, expect, it, mock } from "bun:test";
-import { SessionFindingPipelineService } from "../session-finding-pipeline.service";
+import { FindingPipelineService } from "../finding-pipeline.service";
 
-describe("SessionFindingPipelineService", () => {
+describe("FindingPipelineService", () => {
   it("returns without side effects when the mapper registry is empty", () => {
     const repository = {
       upsertCandidates: mock(() => []),
     };
-    const service = new SessionFindingPipelineService([], repository);
+    const service = new FindingPipelineService([], repository);
 
     service.processArtifacts({
       sessionId: "session-1",
@@ -30,7 +30,7 @@ describe("SessionFindingPipelineService", () => {
     const repository = {
       upsertCandidates: mock(() => []),
     };
-    const service = new SessionFindingPipelineService(
+    const service = new FindingPipelineService(
       [
         {
           artifactType: "nuclei_jsonl",

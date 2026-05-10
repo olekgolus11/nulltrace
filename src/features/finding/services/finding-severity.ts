@@ -6,19 +6,18 @@ const canonicalSeverities = [
   "critical",
 ] as const;
 
-export type CanonicalSessionFindingSeverity =
-  (typeof canonicalSeverities)[number];
+export type CanonicalFindingSeverity = (typeof canonicalSeverities)[number];
 
 const severityLookup = canonicalSeverities.reduce<
-  Record<string, CanonicalSessionFindingSeverity>
+  Record<string, CanonicalFindingSeverity>
 >((accumulator, severity) => {
   accumulator[severity] = severity;
   return accumulator;
 }, {});
 
-export function normalizeSessionFindingSeverity(
+export function normalizeFindingSeverity(
   severity: string | null | undefined,
-): CanonicalSessionFindingSeverity {
+): CanonicalFindingSeverity {
   if (!severity) {
     return "info";
   }

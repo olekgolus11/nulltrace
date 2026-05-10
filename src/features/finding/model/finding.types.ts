@@ -1,6 +1,6 @@
 import { ToolRunArtifactRecord } from "../../session/model/session.repository.types";
 
-export interface SessionFindingCandidate {
+export interface FindingCandidate {
   sourceTool: string;
   kind: string;
   severity: string;
@@ -11,13 +11,13 @@ export interface SessionFindingCandidate {
   payload: unknown;
 }
 
-export interface SessionFindingMapper {
+export interface FindingMapper {
   artifactType: string;
-  mapArtifact: (artifact: ToolRunArtifactRecord) => SessionFindingCandidate[];
+  mapArtifact: (artifact: ToolRunArtifactRecord) => FindingCandidate[];
 }
 
-export interface UpsertSessionFindingCandidateInput {
+export interface UpsertFindingCandidateInput {
   sessionId: string;
   toolRunArtifactId: string;
-  candidate: SessionFindingCandidate;
+  candidate: FindingCandidate;
 }

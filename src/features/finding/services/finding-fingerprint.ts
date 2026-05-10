@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-export function createSessionFindingFingerprint(
+export function createFindingFingerprint(
   sourceTool: string,
   kind: string,
   keyParts: string[],
