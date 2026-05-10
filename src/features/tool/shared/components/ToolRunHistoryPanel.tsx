@@ -1,3 +1,5 @@
+import { ScrollBoxRenderable } from "@opentui/core";
+import { RefObject } from "react";
 import { theme } from "../../../../app/theme/theme";
 import { DashboardPanel } from "../../../dashboard/components/DashboardPanel";
 import { ToolRunSummary } from "../../../session/model/session.repository.types";
@@ -33,11 +35,13 @@ export function ToolRunHistoryPanel({
   runs,
   selectedRunId,
   focused,
+  scrollRef,
   onMouseDown,
 }: {
   runs: ToolRunSummary[];
   selectedRunId: string | null;
   focused: boolean;
+  scrollRef: RefObject<ScrollBoxRenderable | null>;
   onMouseDown?: () => void;
 }) {
   return (
@@ -54,7 +58,7 @@ export function ToolRunHistoryPanel({
             No previous runs for this tool in this session.
           </text>
         ) : (
-          <scrollbox flexGrow={1} focused={focused} stickyScroll={false}>
+          <scrollbox ref={scrollRef} flexGrow={1} stickyScroll={false}>
             <box flexDirection="column">
               {runs.map((run) => {
                 const isSelected = run.id === selectedRunId;

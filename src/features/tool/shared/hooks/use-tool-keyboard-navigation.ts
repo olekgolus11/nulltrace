@@ -1,9 +1,14 @@
+import { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
+import { RefObject } from "react";
 import { useToolWorkspaceStore } from "../store/tool-workspace.store";
 import { toolPanels, toolRegistry } from "../registry/tool-registry";
 import { getPanelByShortcut } from "../../../../shared/model/panel-navigation";
 
-export function useToolKeyboardNavigation(onBack: () => void) {
+export function useToolKeyboardNavigation(
+  onBack: () => void,
+  historyScrollRef: RefObject<ScrollBoxRenderable | null>,
+) {
   useKeyboard((key) => {
     const state = useToolWorkspaceStore.getState();
 
@@ -32,11 +37,13 @@ export function useToolKeyboardNavigation(onBack: () => void) {
 
     if (state.activePanel === "history") {
       if (key.name === "up") {
+        historyScrollRef.current?.scrollBy(-4, "step");
         state.moveHistorySelection(-1);
         return;
       }
 
       if (key.name === "down") {
+        historyScrollRef.current?.scrollBy(4, "step");
         state.moveHistorySelection(1);
         return;
       }

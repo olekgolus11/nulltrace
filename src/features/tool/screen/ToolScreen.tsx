@@ -1,5 +1,6 @@
+import { ScrollBoxRenderable } from "@opentui/core";
 import { useTerminalDimensions } from "@opentui/react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { theme } from "../../../app/theme/theme";
 import { Header } from "../../../shared/ui/Header";
 import { StatusBar } from "../../../shared/ui/StatusBar";
@@ -33,6 +34,7 @@ function getToolData(
 
 export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
   const { width, height } = useTerminalDimensions();
+  const historyScrollRef = useRef<ScrollBoxRenderable | null>(null);
   const sessionId = useSessionContextStore((state) => state.sessionId);
   const targetUrl = useSessionContextStore((state) => state.targetUrl);
   const layout = useToolLayout({ width, height });
@@ -65,7 +67,7 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
     setActivePanel(panel);
   };
 
-  useToolKeyboardNavigation(onBack);
+  useToolKeyboardNavigation(onBack, historyScrollRef);
 
   useEffect(() => {
     if (!sessionId || !targetUrl) {
@@ -137,6 +139,7 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
               runs={historyRuns}
               selectedRunId={selectedHistoryRunId}
               focused={activePanel === "history"}
+              scrollRef={historyScrollRef}
               onMouseDown={() => focusPanel("history")}
             />
           </box>
