@@ -30,8 +30,5 @@ export function normalizeTargetUrl(value: string) {
   const pathname = url.pathname === "/" ? "" : url.pathname;
   const normalizedUrl = `${url.protocol}//${url.host}${pathname}${url.search}`;
 
-  return {
-    normalizedUrl,
-    displayUrl: normalizedUrl,
-  };
+  return normalizedUrl;
 }

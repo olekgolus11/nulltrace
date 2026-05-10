@@ -9,24 +9,19 @@ import { sessionRepository } from "../../session/services/session.repository";
 import { ShortcutHints } from "../../../shared/ui/ShortcutHints";
 
 export function EntryScreen({
-  onStartPentest,
+  onStartPentestForNewTarget,
   onOpenSession,
-  onCreateSessionFromTarget,
+  onStartPentestForExistingTarget,
 }: EntryScreenProps) {
   const { width, height } = useTerminalDimensions();
   const [targets] = useState(() => sessionRepository.listTargetsWithSessions());
-  const {
-    entryState,
-    rows,
-    setUrlInput,
-    submitUrlInput,
-    setActivePanel,
-  } = useEntryShortcuts({
-    targets,
-    onStartPentest,
-    onOpenSession,
-    onCreateSessionFromTarget,
-  });
+  const { entryState, rows, setUrlInput, submitUrlInput, setActivePanel } =
+    useEntryShortcuts({
+      targets,
+      onStartPentestForNewTarget,
+      onStartPentestForExistingTarget,
+      onOpenSession,
+    });
 
   const sidebarWidth = 38;
   const mainWidth = width - sidebarWidth;

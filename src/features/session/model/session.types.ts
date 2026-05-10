@@ -70,10 +70,10 @@ export interface SessionContextState {
   sessionId: string | null;
   targetId: string | null;
   targetUrl: string;
-  setCurrentSession: (context: {
-    sessionId: string;
-    targetId: string;
-    targetUrl: string;
+  createSessionForTarget: (target: {
+    id: string;
+    normalizedUrl: string;
   }) => void;
-  clearCurrentSession: () => void;
+  createSessionForNewTarget: (url: string) => void;
+  openExistingSession: (sessionId: string) => boolean;
 }

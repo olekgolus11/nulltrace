@@ -1,8 +1,6 @@
 import { useKeyboard, useRenderer } from "@opentui/react";
 import { useState } from "react";
 import { DashboardScreen } from "../features/dashboard/screen/DashboardScreen";
-import { sessionRepository } from "../features/session/services/session.repository";
-import { normalizeTargetUrl } from "../features/session/services/session-url";
 import { useSessionContextStore } from "../features/session/store/session-context.store";
 import { ToolName } from "../features/tool/shared/types/tool-screen.types";
 import { Screen } from "./routes";
@@ -12,8 +10,14 @@ import { ToolScreen } from "../features/tool/screen/ToolScreen";
 export function App() {
   const renderer = useRenderer();
   const [currentScreen, setCurrentScreen] = useState<Screen>({ type: "entry" });
-  const setCurrentSession = useSessionContextStore(
-    (state) => state.setCurrentSession,
+  const createSessionForTarget = useSessionContextStore(
+    (state) => state.createSessionForTarget,
+  );
+  const createSessionForNewTarget = useSessionContextStore(
+    (state) => state.createSessionForNewTarget,
+  );
+  const openExistingSession = useSessionContextStore(
+    (state) => state.openExistingSession,
   );
 
   useKeyboard((key) => {
@@ -22,46 +26,25 @@ export function App() {
     }
   });
 
-  const openNewSessionForTarget = (target: {
+  const handleStartPentestForExistingTarget = (target: {
     id: string;
-    displayUrl: string;
+    normalizedUrl: string;
   }) => {
-    const session = sessionRepository.createSession(target.id);
-
-    setCurrentSession({
-      sessionId: session.id,
-      targetId: target.id,
-      targetUrl: target.displayUrl,
-    });
-
+    createSessionForTarget(target);
     setCurrentScreen({
       type: "dashboard",
     });
   };
 
-  const handleStartPentest = (url: string) => {
-    const { normalizedUrl, displayUrl } = normalizeTargetUrl(url);
-    const target = sessionRepository.findOrCreateTarget(
-      normalizedUrl,
-      displayUrl,
-    );
-    openNewSessionForTarget(target);
+  const handleStartPentestForNewTarget = (url: string) => {
+    createSessionForNewTarget(url);
+    setCurrentScreen({
+      type: "dashboard",
+    });
   };
 
-  const handleOpenSession = (sessionId: string) => {
-    const session = sessionRepository.getSessionById(sessionId);
-    if (!session) {
-      return;
-    }
-
-    sessionRepository.touchSessionActivity(session.id);
-
-    setCurrentSession({
-      sessionId: session.id,
-      targetId: session.targetId,
-      targetUrl: session.displayUrl,
-    });
-
+  const openSession = (sessionId: string) => {
+    openExistingSession(sessionId);
     setCurrentScreen({
       type: "dashboard",
     });
@@ -86,9 +69,9 @@ export function App() {
     case "entry":
       return (
         <EntryScreen
-          onStartPentest={handleStartPentest}
-          onOpenSession={handleOpenSession}
-          onCreateSessionFromTarget={openNewSessionForTarget}
+          onStartPentestForNewTarget={handleStartPentestForNewTarget}
+          onStartPentestForExistingTarget={handleStartPentestForExistingTarget}
+          onOpenSession={openSession}
         />
       );
 

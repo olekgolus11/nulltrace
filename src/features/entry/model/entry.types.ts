@@ -1,14 +1,14 @@
 import { TargetSummary } from "../../session/model/session.types";
 
 export interface EntryScreenProps {
-  onStartPentest: (url: string) => void;
+  onStartPentestForNewTarget: (url: string) => void;
+  onStartPentestForExistingTarget: (target: TargetSummary) => void;
   onOpenSession: (sessionId: string) => void;
-  onCreateSessionFromTarget: (target: TargetSummary) => void;
 }
 
 export interface UseEntryShortcutsProps {
   targets: TargetSummary[];
-  onStartPentest: (targetUrl: string) => void;
+  onStartPentestForNewTarget: (targetUrl: string) => void;
   onOpenSession: (sessionId: string) => void;
-  onCreateSessionFromTarget: (target: TargetSummary) => void;
+  onStartPentestForExistingTarget: (target: TargetSummary) => void;
 }

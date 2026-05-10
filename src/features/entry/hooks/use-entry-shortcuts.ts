@@ -96,9 +96,9 @@ function createEntryReducer() {
 
 export function useEntryShortcuts({
   targets,
-  onStartPentest,
+  onStartPentestForNewTarget,
+  onStartPentestForExistingTarget,
   onOpenSession,
-  onCreateSessionFromTarget,
 }: UseEntryShortcutsProps) {
   const currentSessionId = useSessionContextStore((state) => state.sessionId);
   const initialExpandedTargetId = getInitialExpandedTargetId(targets);
@@ -123,7 +123,7 @@ export function useEntryShortcuts({
 
     const url = nextValue.trim();
     if (!url) return;
-    onStartPentest(url);
+    onStartPentestForNewTarget(url);
   };
 
   useEffect(() => {
@@ -164,7 +164,7 @@ export function useEntryShortcuts({
     if (!row) return;
 
     const target = row.target;
-    onCreateSessionFromTarget(target);
+    onStartPentestForExistingTarget(target);
   };
 
   useKeyboard((key) => {
