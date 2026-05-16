@@ -19,35 +19,6 @@ export type ExecutionStatus =
 
 export type CommandSource = "generated" | "manual";
 
-export interface ToolCatalogItem {
-  id: ToolName;
-  name: string;
-  description: string;
-  icon: string;
-}
-
-export interface ToolScreenProps {
-  toolName: ToolName;
-  onBack: () => void;
-}
-
-export interface UseToolLayoutProps {
-  width: number;
-  height: number;
-}
-
-export interface UseToolLayoutResult {
-  contentHeight: number;
-  leftPanelWidth: number;
-  rightPanelWidth: number;
-  workspacePanelWidth: number;
-  historyPanelWidth: number;
-  formPanelHeight: number;
-  commandPanelHeight: number;
-  outputPanelHeight: number;
-  outputScrollHeight: number;
-}
-
 export interface ToolWorkspaceStoreState {
   toolName: string | null;
   sessionId: string | null;

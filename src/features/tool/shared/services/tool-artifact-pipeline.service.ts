@@ -1,13 +1,6 @@
-import { ToolModule, ToolRunCompleted } from "../types/tool-screen.types";
+import { ToolModule } from "../types/tool-screen.types";
 import { sessionRepository } from "../../../session/services/session.repository";
 import { findingPipelineService } from "../../../finding/services/finding-pipeline.service";
-
-export interface ProcessCompletedRunInput extends ToolRunCompleted {
-  sessionId: string | null;
-  toolRunId: string | null;
-  toolModule: ToolModule | undefined;
-  onArtifactProcessingError?: (message: string) => void;
-}
 
 interface FindingPipelineAdapter {
   processArtifacts: (input: {
@@ -19,6 +12,15 @@ interface FindingPipelineAdapter {
 interface SessionRepositoryAdapter {
   saveToolRunArtifact: typeof sessionRepository.saveToolRunArtifact;
   appendToolRunLog: typeof sessionRepository.appendToolRunLog;
+}
+
+interface ProcessCompletedRunInput {
+  sessionId: string | null;
+  toolRunId: string | null;
+  toolModule: ToolModule | undefined;
+  status: import("../types/tool-screen.types").ExecutionStatus;
+  exitCode: number | null;
+  onArtifactProcessingError?: (message: string) => void;
 }
 
 export class ToolArtifactPipelineService {

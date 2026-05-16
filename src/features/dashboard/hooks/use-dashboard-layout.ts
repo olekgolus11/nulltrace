@@ -1,8 +1,9 @@
-import { useTerminalDimensions } from "@opentui/react";
-import {
-  UseDashboardLayoutProps,
-  UseDashboardLayoutResult,
-} from "../model/dashboard.types";
+import { UseDashboardLayoutResult } from "../model/dashboard.types";
+
+interface UseDashboardLayoutProps {
+  width: number;
+  height: number;
+}
 
 export const useDashboardLayout = ({
   width,

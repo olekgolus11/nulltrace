@@ -1,29 +1,7 @@
 import { sessionRepository } from "../../../session/services/session.repository";
-import {
-  CommandSource,
-  ExecutionStatus,
-  ToolModule,
-} from "../types/tool-screen.types";
+import { ToolModule } from "../types/tool-screen.types";
 import { commandRunnerService } from "./command-runner.service";
 import { toolArtifactPipelineService } from "./tool-artifact-pipeline.service";
-
-export interface RunToolCommandInput {
-  sessionId: string | null;
-  toolName: string | null;
-  command: string;
-  commandSource: CommandSource;
-  toolModule: ToolModule | undefined;
-  onRunStarted?: (toolRunId: string | null) => void;
-  onStdoutLines: (lines: string[]) => void;
-  onStderrLines: (lines: string[]) => void;
-  onSystemLines: (lines: string[]) => void;
-  onRunFinished?: (event: {
-    toolRunId: string | null;
-    status: Extract<ExecutionStatus, "success" | "error">;
-    exitCode: number | null;
-  }) => void;
-  onRunCancelled?: (event: { toolRunId: string | null }) => void;
-}
 
 interface CommandRunnerAdapter {
   run: typeof commandRunnerService.run;
@@ -48,6 +26,27 @@ interface ActiveToolRun {
   onSystemLines: (lines: string[]) => void;
   onRunCancelled?: (event: { toolRunId: string | null }) => void;
   cancelled: boolean;
+}
+
+interface RunToolCommandInput {
+  sessionId: string | null;
+  toolName: string | null;
+  command: string;
+  commandSource: import("../types/tool-screen.types").CommandSource;
+  toolModule: ToolModule | undefined;
+  onRunStarted?: (toolRunId: string | null) => void;
+  onStdoutLines: (lines: string[]) => void;
+  onStderrLines: (lines: string[]) => void;
+  onSystemLines: (lines: string[]) => void;
+  onRunFinished?: (event: {
+    toolRunId: string | null;
+    status: Extract<
+      import("../types/tool-screen.types").ExecutionStatus,
+      "success" | "error"
+    >;
+    exitCode: number | null;
+  }) => void;
+  onRunCancelled?: (event: { toolRunId: string | null }) => void;
 }
 
 export class ToolRunnerService {

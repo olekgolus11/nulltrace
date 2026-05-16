@@ -1,5 +1,10 @@
 import { theme } from "../../../app/theme/theme";
-import { ToolCardProps } from "../model/dashboard.types";
+import { Tool } from "../model/dashboard.types";
+
+interface ToolCardProps {
+  tool: Tool;
+  isSelected: boolean;
+}
 
 export function ToolCard({ tool, isSelected }: ToolCardProps) {
   return (

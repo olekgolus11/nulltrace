@@ -6,16 +6,15 @@ import {
 } from "../../session/model/session-list";
 import { useSessionContextStore } from "../../session/store/session-context.store";
 import {
-  EntryPanel,
-  EntryState,
   entryPanels,
   initialEntryState,
 } from "../model/entry.state";
-import { UseEntryShortcutsProps } from "../model/entry.types";
+import { EntryPanel, EntryState } from "../model/entry.types";
 import {
   cyclePanel,
   getPanelByShortcut,
 } from "../../../shared/model/panel-navigation";
+import { TargetSummary } from "../../session/model/session.types";
 
 type EntryAction =
   | { type: "CYCLE_PANEL"; direction: -1 | 1 }
@@ -25,6 +24,13 @@ type EntryAction =
   | { type: "TOGGLE_TARGET"; targetId: string }
   | { type: "INITIALIZE_TARGET"; targetId: string | null }
   | { type: "CLAMP_SELECTION"; rowCount: number };
+
+interface UseEntryShortcutsProps {
+  targets: TargetSummary[];
+  onStartPentestForNewTarget: (targetUrl: string) => void;
+  onOpenSession: (sessionId: string) => void;
+  onStartPentestForExistingTarget: (target: TargetSummary) => void;
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));

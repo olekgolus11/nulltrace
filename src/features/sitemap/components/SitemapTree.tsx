@@ -1,7 +1,13 @@
 import { theme } from "../../../app/theme/theme";
-import { SitemapTreeProps } from "../model/sitemap.types";
+import { SitemapNode } from "../model/sitemap.types";
 import { flattenTree } from "../model/sitemap.utils";
 import { SitemapTreeItem } from "./SitemapTreeItem";
+
+interface SitemapTreeProps {
+  nodes: SitemapNode[];
+  selectedIndex: number;
+  focused: boolean;
+}
 
 export function SitemapTree({
   nodes,

@@ -1,14 +1,10 @@
 import { TargetSummary } from "../../session/model/session.types";
 
-export interface EntryScreenProps {
-  onStartPentestForNewTarget: (url: string) => void;
-  onStartPentestForExistingTarget: (target: TargetSummary) => void;
-  onOpenSession: (sessionId: string) => void;
-}
+export type EntryPanel = "input" | "sessions";
 
-export interface UseEntryShortcutsProps {
-  targets: TargetSummary[];
-  onStartPentestForNewTarget: (targetUrl: string) => void;
-  onOpenSession: (sessionId: string) => void;
-  onStartPentestForExistingTarget: (target: TargetSummary) => void;
+export interface EntryState {
+  activePanel: EntryPanel;
+  selectedRow: number;
+  urlInput: string;
+  expandedTargetId: string | null;
 }

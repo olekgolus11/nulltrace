@@ -1,5 +1,11 @@
-import { ToolListProps } from "../model/dashboard.types";
+import { Tool } from "../model/dashboard.types";
 import { ToolCard } from "./ToolCard";
+
+interface ToolListProps {
+  tools: Tool[];
+  selectedIndex: number;
+  focused: boolean;
+}
 
 export function ToolList({ tools, selectedIndex, focused }: ToolListProps) {
   return (

@@ -1,5 +1,25 @@
 import { theme } from "../../../app/theme/theme";
-import { PanelProps } from "../model/dashboard.types";
+
+interface PanelProps {
+  title?: string;
+  panelNumber?: number;
+  children: React.ReactNode;
+  width?: number;
+  height?: number;
+  flexGrow?: number;
+  flexDirection?: "row" | "column";
+  border?: boolean;
+  borderColor?: string;
+  focused?: boolean;
+  marginBottom?: number;
+  padding?: number;
+  paddingLeft?: number;
+  paddingRight?: number;
+  paddingTop?: number;
+  paddingBottom?: number;
+  isHistoricPreview?: boolean;
+  onMouseDown?: () => void;
+}
 
 export function DashboardPanel({
   title,

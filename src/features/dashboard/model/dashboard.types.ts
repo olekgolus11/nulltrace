@@ -1,39 +1,13 @@
 import { ToolName } from "../../tool/shared/types/tool-screen.types";
 
-export interface DashboardScreenProps {
-  onSelectTool: (toolName: ToolName) => void;
-  onBack: () => void;
-}
+export type DashboardPanelId = "sitemap" | "vulns" | "chat" | "tools";
 
-export interface UseDashboardShortcutsProps {
-  onBack: () => void;
-  onSelectTool: (toolName: ToolName) => void;
-}
-
-export interface PanelProps {
-  title?: string;
-  panelNumber?: number;
-  children: React.ReactNode;
-  width?: number;
-  height?: number;
-  flexGrow?: number;
-  flexDirection?: "row" | "column";
-  border?: boolean;
-  borderColor?: string;
-  focused?: boolean;
-  marginBottom?: number;
-  padding?: number;
-  paddingLeft?: number;
-  paddingRight?: number;
-  paddingTop?: number;
-  paddingBottom?: number;
-  isHistoricPreview?: boolean;
-  onMouseDown?: () => void;
-}
-
-export interface UseDashboardLayoutProps {
-  width: number;
-  height: number;
+export interface DashboardState {
+  activePanel: DashboardPanelId;
+  selectedTool: number;
+  selectedSitemapItem: number;
+  selectedVulnItem: number;
+  chatInput: string;
 }
 
 export interface UseDashboardLayoutResult {
@@ -54,15 +28,4 @@ export interface Tool {
   name: string;
   description: string;
   icon: string;
-}
-
-export interface ToolCardProps {
-  tool: Tool;
-  isSelected: boolean;
-}
-
-export interface ToolListProps {
-  tools: Tool[];
-  selectedIndex: number;
-  focused: boolean;
 }

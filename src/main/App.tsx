@@ -44,10 +44,11 @@ export function App() {
   };
 
   const openSession = (sessionId: string) => {
-    openExistingSession(sessionId);
-    setCurrentScreen({
-      type: "dashboard",
-    });
+    if (openExistingSession(sessionId)) {
+      setCurrentScreen({
+        type: "dashboard",
+      });
+    }
   };
 
   const handleSelectTool = (toolName: ToolName) => {

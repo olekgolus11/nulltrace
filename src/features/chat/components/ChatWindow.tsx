@@ -1,6 +1,15 @@
 import { theme } from "../../../app/theme/theme";
-import { ChatWindowProps } from "../model/chat.types";
+import { ChatMessageData } from "../model/chat.types";
 import { ChatMessage } from "./ChatMessage";
+
+interface ChatWindowProps {
+  messages: ChatMessageData[];
+  inputValue: string;
+  onInputChange: (value: string) => void;
+  onSubmit: () => void;
+  placeholder?: string;
+  focused?: boolean;
+}
 
 export function ChatWindow({
   messages,

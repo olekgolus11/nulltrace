@@ -1,6 +1,14 @@
 import { treeChars, theme } from "../../../app/theme/theme";
-import { SitemapTreeItemProps } from "../model/sitemap.types";
+import { SitemapNode } from "../model/sitemap.types";
 import { methodColor, statusColor } from "../model/sitemap.utils";
+
+interface SitemapTreeItemProps {
+  node: SitemapNode;
+  isLast: boolean;
+  prefix: string;
+  selectedPath: string | null;
+  focused: boolean;
+}
 
 export function SitemapTreeItem({
   node,

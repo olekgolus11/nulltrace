@@ -5,7 +5,6 @@ interface HeaderProps {
   title?: string;
   subtitle?: string;
   targetUrl?: string;
-  showControls?: boolean;
 }
 
 export function Header({

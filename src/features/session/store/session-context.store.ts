@@ -1,7 +1,18 @@
 import { create } from "zustand";
-import { SessionContextState } from "../model/session.types";
 import { sessionRepository } from "../services/session.repository";
 import { normalizeTargetUrl } from "../services/session-url";
+
+interface SessionContextState {
+  sessionId: string | null;
+  targetId: string | null;
+  targetUrl: string;
+  createSessionForTarget: (target: {
+    id: string;
+    normalizedUrl: string;
+  }) => void;
+  createSessionForNewTarget: (url: string) => void;
+  openExistingSession: (sessionId: string) => boolean;
+}
 
 const initialSessionContextState = {
   sessionId: null,

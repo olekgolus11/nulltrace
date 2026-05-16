@@ -7,11 +7,16 @@ import {
 } from "../components/DashboardPanels";
 import { useDashboardLayout } from "../hooks/use-dashboard-layout";
 import { useDashboardShortcuts } from "../hooks/use-dashboard-shortcuts";
-import { DashboardScreenProps } from "../model/dashboard.types";
 import { dashboardPanels } from "../model/dashboard.state";
 import { Header } from "../../../shared/ui/Header";
 import { StatusBar } from "../../../shared/ui/StatusBar";
 import { useSessionContextStore } from "../../session/store/session-context.store";
+import { ToolName } from "../../tool/shared/types/tool-screen.types";
+
+interface DashboardScreenProps {
+  onSelectTool: (toolName: ToolName) => void;
+  onBack: () => void;
+}
 
 export function DashboardScreen({
   onSelectTool,
@@ -42,7 +47,7 @@ export function DashboardScreen({
       height={height}
       backgroundColor={theme.bg.primary}
     >
-      <Header targetUrl={targetUrl} showControls={false} />
+      <Header targetUrl={targetUrl} />
       <box flexDirection="row" height={layout.contentHeight}>
         <LeftDashboardPanel
           layout={layout}

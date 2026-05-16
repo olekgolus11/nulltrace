@@ -1,24 +1,93 @@
 import {
-  SessionDetailRow,
-  SessionFindingInput,
-  SessionRecord,
-  SessionRow,
-  TargetRecord,
-  TargetRow,
   ToolRunArtifactInput,
   ToolRunArtifactRecord,
-  ToolRunInput,
   ToolRunDetail,
-  ToolRunLogLine,
-  ToolRunRecord,
   ToolRunSummary,
 } from "../model/session.repository.types";
-import {
-  SessionDetail,
-  SessionSummary,
-  TargetSummary,
-} from "../model/session.types";
+import { SessionSummary, TargetSummary } from "../model/session.types";
 import { sessionDatabase } from "./session-database";
+
+interface SessionDetail {
+  id: string;
+  targetId: string;
+  normalizedUrl: string;
+  displayUrl: string;
+  createdAt: string;
+  lastActivityAt: string;
+}
+
+interface TargetRecord {
+  id: string;
+  normalizedUrl: string;
+  displayUrl: string;
+  createdAt: string;
+}
+
+interface SessionRecord {
+  id: string;
+  targetId: string;
+  createdAt: string;
+}
+
+interface TargetRow {
+  id: string;
+  normalizedUrl: string;
+  displayUrl: string;
+  createdAt: string;
+  lastActivityAt: string;
+  sessionCount: number;
+}
+
+interface SessionRow {
+  id: string;
+  targetId: string;
+  displayUrl: string;
+  createdAt: string;
+  lastActivityAt: string;
+}
+
+interface SessionDetailRow {
+  id: string;
+  targetId: string;
+  normalizedUrl: string;
+  displayUrl: string;
+  createdAt: string;
+  lastActivityAt: string;
+}
+
+interface ToolRunInput {
+  toolName: string;
+  command: string;
+  commandSource: string;
+  status: string;
+}
+
+interface ToolRunRecord {
+  id: string;
+  sessionId: string;
+  toolName: string;
+  command: string;
+  commandSource: string;
+  status: string;
+  startedAt: string;
+  endedAt: string | null;
+  exitCode: number | null;
+}
+
+interface ToolRunLogLine {
+  seq: number;
+  stream: string;
+  line: string;
+  createdAt: string;
+}
+
+interface SessionFindingInput {
+  sourceTool: string;
+  kind: string;
+  severity: string;
+  title: string;
+  payload: unknown;
+}
 
 function createTimestamp() {
   return new Date().toISOString();
