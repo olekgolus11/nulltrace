@@ -1,6 +1,5 @@
 import { PanelDefinition } from "../../../shared/model/panel-navigation.types";
-
-export type DashboardPanelId = "sitemap" | "vulns" | "chat" | "tools";
+import { DashboardPanelId, DashboardState } from "./dashboard.types";
 
 export const dashboardPanels: Array<PanelDefinition<DashboardPanelId>> = [
   { id: "sitemap", label: "SITEMAP" },
@@ -8,14 +7,6 @@ export const dashboardPanels: Array<PanelDefinition<DashboardPanelId>> = [
   { id: "chat", label: "CHAT" },
   { id: "tools", label: "TOOLS" },
 ];
-
-export interface DashboardState {
-  activePanel: DashboardPanelId;
-  selectedTool: number;
-  selectedSitemapItem: number;
-  selectedVulnItem: number;
-  chatInput: string;
-}
 
 export const initialDashboardState: DashboardState = {
   activePanel: "chat",

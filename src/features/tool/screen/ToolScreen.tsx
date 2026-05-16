@@ -15,11 +15,12 @@ import { ToolRunHistoryPanel } from "../shared/components/ToolRunHistoryPanel";
 import { useToolKeyboardNavigation } from "../shared/hooks/use-tool-keyboard-navigation";
 import { toolPanels, toolRegistry } from "../shared/registry/tool-registry";
 import { useToolWorkspaceStore } from "../shared/store/tool-workspace.store";
-import {
-  ToolData,
-  ToolName,
-  ToolScreenProps,
-} from "../shared/types/tool-screen.types";
+import { ToolData, ToolName } from "../shared/types/tool-screen.types";
+
+interface ToolScreenProps {
+  toolName: ToolName;
+  onBack: () => void;
+}
 
 function getToolData(
   toolName: ToolName,

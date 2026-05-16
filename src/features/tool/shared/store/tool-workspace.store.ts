@@ -1,11 +1,10 @@
 import { create } from "zustand";
 import { ChatMessageData } from "../../../chat/model/chat.types";
 import { sessionRepository } from "../../../session/services/session.repository";
-import { commandRunnerService } from "../services/command-runner.service";
+import { toolRunnerService } from "../services/tool-runner.service";
 import {
   CommandSource,
   ExecutionStatus,
-  ToolModule,
   ToolPanel,
   ToolWorkspaceStoreState,
 } from "../types/tool-screen.types";
@@ -81,10 +80,7 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
   refreshGeneratedCommand: (value: string) => void;
   syncGeneratedCommand: () => void;
   resetCommandToGenerated: () => void;
-  startExecution: (command: string) => void;
-  appendOutput: (lines: string[], stream?: "stdout" | "stderr") => void;
-  finishExecution: (status: ExecutionStatus, exitCode: number | null) => void;
-  cancelExecution: () => void;
+  appendOutput: (lines: string[]) => void;
   runCommand: () => Promise<void>;
   stopCommand: () => void;
   loadHistoryRuns: () => void;
@@ -93,13 +89,6 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
   exitHistoricPreview: () => void;
   rerunSelectedHistoryRun: () => void;
   updateToolData: (updater: (current: unknown) => unknown) => void;
-  handleToolArtifacts: (toolRunContext: {
-    sessionId: string | null;
-    toolRunId: string | null;
-    toolModule: ToolModule | undefined;
-    status: "success" | "error";
-    exitCode: number | null;
-  }) => Promise<void>;
 }
 
 export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
@@ -224,101 +213,10 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
     });
   },
 
-  startExecution: (command) =>
-    set((state) => {
-      if (state.isHistoricPreview) {
-        return state;
-      }
-
-      const toolRun =
-        state.sessionId && state.toolName
-          ? sessionRepository.recordToolRun(state.sessionId, {
-              toolName: state.toolName,
-              command,
-              commandSource: state.commandSource,
-              status: "running",
-            })
-          : null;
-      const historyRuns =
-        state.sessionId && state.toolName
-          ? sessionRepository.listToolRuns(state.sessionId, state.toolName)
-          : state.historyRuns;
-
-      return {
-        outputLines: [`$ ${command}`, ""],
-        executionStatus: "running" satisfies ExecutionStatus,
-        lastExitCode: null,
-        currentToolRunId: toolRun?.id ?? null,
-        isHistoricPreview: false,
-        historyRuns,
-      };
-    }),
-
-  appendOutput: (lines, stream = "stdout") =>
-    set((state) => {
-      if (state.currentToolRunId) {
-        sessionRepository.appendToolRunLog(
-          state.currentToolRunId,
-          lines,
-          stream,
-        );
-      }
-
-      return {
-        outputLines: [...state.outputLines, ...lines],
-      };
-    }),
-
-  finishExecution: (status, exitCode) =>
-    set((state) => {
-      if (!state.currentToolRunId) {
-        return state;
-      }
-
-      sessionRepository.finishToolRun(state.currentToolRunId, status, exitCode);
-
-      const historyRuns =
-        state.sessionId && state.toolName
-          ? sessionRepository.listToolRuns(state.sessionId, state.toolName)
-          : state.historyRuns;
-
-      return {
-        executionStatus: status,
-        lastExitCode: exitCode,
-        currentToolRunId: null,
-        historyRuns,
-      };
-    }),
-
-  cancelExecution: () =>
-    set((state) => {
-      if (state.executionStatus !== "running") {
-        return state;
-      }
-
-      const cancelMessage = "[run cancelled by operator]";
-
-      if (state.currentToolRunId) {
-        sessionRepository.appendToolRunLog(state.currentToolRunId, [
-          "",
-          cancelMessage,
-        ]);
-        sessionRepository.cancelToolRun(state.currentToolRunId);
-      }
-
-      const historyRuns =
-        state.sessionId && state.toolName
-          ? sessionRepository.listToolRuns(state.sessionId, state.toolName)
-          : state.historyRuns;
-
-      return {
-        outputLines: [...state.outputLines, "", cancelMessage],
-        executionStatus: "cancelled",
-        lastExitCode: null,
-        currentToolRunId: null,
-        historyRuns,
-      };
-    }),
+  appendOutput: (lines) =>
+    set((state) => ({
+      outputLines: [...state.outputLines, ...lines],
+    })),
 
   runCommand: async () => {
     const state = get();
@@ -331,103 +229,60 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       return;
     }
 
-    get().startExecution(command);
-
-    const runContext = {
-      sessionId: get().sessionId,
-      toolRunId: get().currentToolRunId,
-    };
     const toolModule = state.toolName
       ? toolRegistry[state.toolName]
       : undefined;
 
-    const preparedCommand =
-      toolModule?.prepareCommandForRun?.({
-        command,
-        sessionId: runContext.sessionId,
-        toolRunId: runContext.toolRunId,
-      }) ?? command;
-    let completedRun: {
-      status: "success" | "error";
-      exitCode: number | null;
-    } | null = null;
+    set({
+      outputLines: [`$ ${command}`, ""],
+      executionStatus: "running" satisfies ExecutionStatus,
+      lastExitCode: null,
+      currentToolRunId: null,
+      isHistoricPreview: false,
+    });
 
-    try {
-      const exitCode = await commandRunnerService.run(
-        preparedCommand,
-        (lines) => {
-          get().appendOutput(lines, "stdout");
-        },
-        (lines) => {
-          get().appendOutput(lines, "stderr");
-        },
-      );
-
-      if (get().executionStatus === "cancelled") {
-        return;
-      }
-
-      get().appendOutput(["", `[process exited with code ${exitCode}]`]);
-      const status = exitCode === 0 ? "success" : "error";
-      get().finishExecution(status, exitCode);
-      completedRun = { status, exitCode };
-    } catch (error) {
-      if (get().executionStatus === "cancelled") {
-        return;
-      }
-
-      const message =
-        error instanceof Error ? error.message : "Unknown execution error";
-      get().appendOutput(["", `[execution failed] ${message}`]);
-      get().finishExecution("error", null);
-      completedRun = { status: "error", exitCode: null };
-    } finally {
-      if (completedRun) {
-        await get().handleToolArtifacts({
-          ...runContext,
-          toolModule,
-          ...completedRun,
+    await toolRunnerService.run({
+      sessionId: state.sessionId,
+      toolName: state.toolName,
+      command,
+      commandSource: state.commandSource,
+      toolModule,
+      onRunStarted: (toolRunId) => {
+        set({
+          currentToolRunId: toolRunId,
         });
-      }
-    }
-  },
-
-  handleToolArtifacts: async ({
-    sessionId,
-    toolRunId,
-    toolModule,
-    status,
-    exitCode,
-  }) => {
-    if (!toolModule?.handleRunCompleted || !toolRunId) {
-      return;
-    }
-
-    try {
-      const artifacts = await toolModule.handleRunCompleted({
-        sessionId,
-        toolRunId,
-        status,
-        exitCode,
-      });
-
-      artifacts.forEach((artifact) => {
-        sessionRepository.saveToolRunArtifact(toolRunId, artifact);
-      });
-    } catch (artifactError) {
-      const message =
-        artifactError instanceof Error
-          ? artifactError.message
-          : "Unknown artifact parsing error";
-      const artifactMessage = `[artifact parsing failed] ${message}`;
-      sessionRepository.appendToolRunLog(toolRunId, ["", artifactMessage]);
-      get().appendOutput(["", artifactMessage]);
-    }
+        get().loadHistoryRuns();
+      },
+      onStdoutLines: (lines) => {
+        get().appendOutput(lines);
+      },
+      onStderrLines: (lines) => {
+        get().appendOutput(lines);
+      },
+      onSystemLines: (lines) => {
+        get().appendOutput(lines);
+      },
+      onRunFinished: ({ status, exitCode }) => {
+        set({
+          executionStatus: status,
+          lastExitCode: exitCode,
+          currentToolRunId: null,
+        });
+        get().loadHistoryRuns();
+      },
+      onRunCancelled: () => {
+        set({
+          executionStatus: "cancelled",
+          lastExitCode: null,
+          currentToolRunId: null,
+        });
+        get().loadHistoryRuns();
+      },
+    });
   },
 
   stopCommand: () => {
-    get().cancelExecution();
-    commandRunnerService.stop();
+    toolRunnerService.stop();
   },
 
   loadHistoryRuns: () => {

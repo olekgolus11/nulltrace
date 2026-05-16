@@ -1,7 +1,14 @@
 import { theme } from "../../../app/theme/theme";
-import { SessionListProps, SessionSidebarRow } from "../model/session.types";
+import { SessionSidebarRow } from "../model/session.types";
 import { SessionItem } from "./SessionItem";
 import { SessionTargetItem } from "./SessionTargetItem";
+
+interface SessionListProps {
+  rows: SessionSidebarRow[];
+  selectedIndex: number;
+  title?: string;
+  focused: boolean;
+}
 
 function getSummaryCounts(rows: SessionSidebarRow[]) {
   return rows.reduce(

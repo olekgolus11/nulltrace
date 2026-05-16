@@ -1,5 +1,11 @@
 import { theme } from "../../../app/theme/theme";
-import { SessionTargetItemProps } from "../model/session.types";
+import { TargetSummary } from "../model/session.types";
+
+interface SessionTargetItemProps {
+  target: TargetSummary;
+  isExpanded: boolean;
+  isSelected: boolean;
+}
 
 function formatRelativeCount(count: number) {
   return `${count} ${count === 1 ? "session" : "sessions"}`;

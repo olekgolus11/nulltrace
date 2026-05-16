@@ -1,5 +1,12 @@
 import { theme } from "../../../app/theme/theme";
-import { SessionItemProps } from "../model/session.types";
+import { SessionSummary } from "../model/session.types";
+
+interface SessionItemProps {
+  session: SessionSummary;
+  isSelected: boolean;
+  isCurrent?: boolean;
+  isLatest?: boolean;
+}
 
 function formatTimestamp(value: string) {
   return new Date(value).toLocaleString([], {

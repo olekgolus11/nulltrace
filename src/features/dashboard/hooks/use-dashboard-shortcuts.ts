@@ -6,17 +6,16 @@ import {
   mockVulnerabilities,
 } from "../data/dashboard.mock";
 import { tools } from "../data/tool-catalog";
-import { UseDashboardShortcutsProps } from "../model/dashboard.types";
 import {
-  DashboardPanelId,
-  DashboardState,
   dashboardPanels,
   initialDashboardState,
 } from "../model/dashboard.state";
+import { DashboardPanelId, DashboardState } from "../model/dashboard.types";
 import {
   cyclePanel,
   getPanelByShortcut,
 } from "../../../shared/model/panel-navigation";
+import { ToolName } from "../../tool/shared/types/tool-screen.types";
 
 type DashboardAction =
   | { type: "CYCLE_PANEL"; direction: -1 | 1 }
@@ -26,6 +25,11 @@ type DashboardAction =
   | { type: "MOVE_VULN_SELECTION"; delta: -1 | 1 }
   | { type: "SET_CHAT_INPUT"; value: string }
   | { type: "SUBMIT_CHAT" };
+
+interface UseDashboardShortcutsProps {
+  onBack: () => void;
+  onSelectTool: (toolName: ToolName) => void;
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));

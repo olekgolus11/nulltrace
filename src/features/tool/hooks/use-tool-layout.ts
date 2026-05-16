@@ -1,7 +1,19 @@
-import {
-  UseToolLayoutProps,
-  UseToolLayoutResult,
-} from "../shared/types/tool-screen.types";
+interface UseToolLayoutProps {
+  width: number;
+  height: number;
+}
+
+interface UseToolLayoutResult {
+  contentHeight: number;
+  leftPanelWidth: number;
+  rightPanelWidth: number;
+  workspacePanelWidth: number;
+  historyPanelWidth: number;
+  formPanelHeight: number;
+  commandPanelHeight: number;
+  outputPanelHeight: number;
+  outputScrollHeight: number;
+}
 
 export function useToolLayout({
   width,

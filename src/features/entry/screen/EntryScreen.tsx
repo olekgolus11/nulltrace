@@ -1,32 +1,33 @@
 import { useTerminalDimensions } from "@opentui/react";
 import { theme } from "../../../app/theme/theme";
 import { useState } from "react";
-import { EntryScreenProps } from "../model/entry.types";
+import { TargetSummary } from "../../session/model/session.types";
 import { SessionList } from "../../session/components/SessionList";
 import { titleArtBlood, titleArtRebel } from "../data/entry.constants";
 import { useEntryShortcuts } from "../hooks/use-entry-shortcuts";
 import { sessionRepository } from "../../session/services/session.repository";
 import { ShortcutHints } from "../../../shared/ui/ShortcutHints";
 
+interface EntryScreenProps {
+  onStartPentestForNewTarget: (url: string) => void;
+  onStartPentestForExistingTarget: (target: TargetSummary) => void;
+  onOpenSession: (sessionId: string) => void;
+}
+
 export function EntryScreen({
-  onStartPentest,
+  onStartPentestForNewTarget,
   onOpenSession,
-  onCreateSessionFromTarget,
+  onStartPentestForExistingTarget,
 }: EntryScreenProps) {
   const { width, height } = useTerminalDimensions();
   const [targets] = useState(() => sessionRepository.listTargetsWithSessions());
-  const {
-    entryState,
-    rows,
-    setUrlInput,
-    submitUrlInput,
-    setActivePanel,
-  } = useEntryShortcuts({
-    targets,
-    onStartPentest,
-    onOpenSession,
-    onCreateSessionFromTarget,
-  });
+  const { entryState, rows, setUrlInput, submitUrlInput, setActivePanel } =
+    useEntryShortcuts({
+      targets,
+      onStartPentestForNewTarget,
+      onStartPentestForExistingTarget,
+      onOpenSession,
+    });
 
   const sidebarWidth = 38;
   const mainWidth = width - sidebarWidth;

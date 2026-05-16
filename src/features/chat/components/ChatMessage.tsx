@@ -1,5 +1,9 @@
 import { theme } from "../../../app/theme/theme";
-import { ChatMessageProps } from "../model/chat.types";
+interface ChatMessageProps {
+  sender: "ai" | "user" | "system";
+  content: string;
+  timestamp?: string;
+}
 
 export function ChatMessage({ sender, content, timestamp }: ChatMessageProps) {
   const isAI = sender === "ai";

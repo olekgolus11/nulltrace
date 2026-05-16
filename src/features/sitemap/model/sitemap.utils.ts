@@ -1,5 +1,11 @@
 import { theme } from "../../../app/theme/theme";
-import { FlatSitemapItem, SitemapNode } from "./sitemap.types";
+import { SitemapNode } from "./sitemap.types";
+
+interface FlatSitemapItem {
+  path: string;
+  status: number;
+  method?: string;
+}
 
 export function buildTree(items: FlatSitemapItem[]): SitemapNode[] {
   // Root node acts as an invisible container

@@ -1,5 +1,9 @@
 import { theme } from "../../app/theme/theme";
-import { ShortcutHintsProps } from "./shortcut-hints.types";
+import { ShortcutHint } from "./shortcut-hints.types";
+
+interface ShortcutHintsProps {
+  hints: ShortcutHint[];
+}
 
 export function ShortcutHints({ hints }: ShortcutHintsProps) {
   return (

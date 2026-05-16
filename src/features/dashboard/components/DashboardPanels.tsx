@@ -10,10 +10,9 @@ import {
 } from "../data/dashboard.mock";
 import { tools } from "../data/tool-catalog";
 import {
-  DashboardPanelId,
-  DashboardState,
   dashboardPanels,
 } from "../model/dashboard.state";
+import { DashboardPanelId, DashboardState } from "../model/dashboard.types";
 import { UseDashboardLayoutResult } from "../model/dashboard.types";
 import { DashboardPanel } from "./DashboardPanel";
 import { ToolList } from "./ToolList";
