@@ -6,6 +6,11 @@ import {
 import { nmapHelpContent } from "../../nmap/data/nmap-help";
 import { nmapCommandService } from "../../nmap/services/nmap-command.service";
 import { NmapFieldId, NmapToolData } from "../../nmap/types/nmap.types";
+import { NucleiWorkspace } from "../../nuclei/components/NucleiWorkspace";
+import { nucleiFieldOrder } from "../../nuclei/config/nuclei.config";
+import { nucleiHelpContent } from "../../nuclei/data/nuclei-help";
+import { nucleiCommandService } from "../../nuclei/services/nuclei-command.service";
+import { NucleiToolData } from "../../nuclei/types/nuclei.types";
 import { PanelDefinition } from "../../../../shared/model/panel-navigation.types";
 import {
   ToolHelpContent,
@@ -104,6 +109,78 @@ export const toolRegistry: Record<string, ToolModule> = {
       return false;
     },
   },
+  nuclei: {
+    id: "nuclei",
+    name: "Nuclei",
+    description: "Template-based vulnerability scanner with editable runs.",
+    Workspace: NucleiWorkspace,
+    createInitialToolData: (targetUrl: string) =>
+      nucleiCommandService.createInitialToolData(targetUrl),
+    buildGeneratedCommand: (toolData: unknown) =>
+      nucleiCommandService.buildCommand(toolData as NucleiToolData),
+    handleFormKey: (key, state, api) => {
+      if (state.activePanel !== "form") {
+        return false;
+      }
+
+      const toolData = state.toolData as NucleiToolData;
+      if (!toolData) {
+        return false;
+      }
+
+      if (key.ctrl && key.name === "h") {
+        api.toggleHelp();
+        return true;
+      }
+
+      if (key.name === "up") {
+        api.updateToolData((current) =>
+          nucleiCommandService.moveSelection(
+            current as NucleiToolData,
+            -1,
+            nucleiFieldOrder.length - 1,
+          ),
+        );
+        return true;
+      }
+
+      if (key.name === "down") {
+        api.updateToolData((current) =>
+          nucleiCommandService.moveSelection(
+            current as NucleiToolData,
+            1,
+            nucleiFieldOrder.length - 1,
+          ),
+        );
+        return true;
+      }
+
+      const selectedField = nucleiFieldOrder[toolData.selectedField];
+      if (
+        nucleiCommandService.isSeverityFieldSelected(selectedField) &&
+        key.name === "left"
+      ) {
+        api.updateToolData((current) =>
+          nucleiCommandService.cycleSeverity(current as NucleiToolData, -1),
+        );
+        api.syncGeneratedCommand();
+        return true;
+      }
+
+      if (
+        nucleiCommandService.isSeverityFieldSelected(selectedField) &&
+        key.name === "right"
+      ) {
+        api.updateToolData((current) =>
+          nucleiCommandService.cycleSeverity(current as NucleiToolData, 1),
+        );
+        api.syncGeneratedCommand();
+        return true;
+      }
+
+      return false;
+    },
+  },
 };
 
 export const toolPanels: Array<PanelDefinition<ToolPanel>> = [
@@ -119,7 +196,7 @@ export const helpContent: Record<
   Record<string, ToolHelpContent> | null
 > = {
   nmap: nmapHelpContent,
-  nuclei: null,
+  nuclei: nucleiHelpContent,
   ffuf: null,
   sqlmap: null,
   zap: null,
