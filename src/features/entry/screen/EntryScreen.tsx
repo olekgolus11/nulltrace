@@ -97,15 +97,6 @@ export function EntryScreen({
           </text>
         </box>
 
-        <box marginTop={1}>
-          <ShortcutHints
-            hints={[
-              { key: "Tab/Shift+Tab", label: "switch" },
-              { key: "Ctrl+1-2", label: "jump" },
-            ]}
-          />
-        </box>
-
         {/* Footer hints */}
         <box position="absolute" marginTop={height - 3} marginLeft={2}>
           <ShortcutHints
