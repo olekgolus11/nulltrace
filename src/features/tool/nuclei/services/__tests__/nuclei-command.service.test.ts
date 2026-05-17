@@ -8,7 +8,7 @@ describe("nucleiCommandService", () => {
     );
 
     expect(nucleiCommandService.buildCommand(toolData)).toBe(
-      "nuclei -u example.com",
+      "nuclei -u https://example.com",
     );
   });
 
@@ -57,7 +57,7 @@ describe("nucleiCommandService", () => {
     );
 
     expect(nucleiCommandService.buildCommand(withExtraArgs)).toBe(
-      "nuclei -u example.com -tags cve,rce -t /tmp/templates -rate-limit 5",
+      "nuclei -u https://example.com -tags cve,rce -t /tmp/templates -rate-limit 5",
     );
   });
 });

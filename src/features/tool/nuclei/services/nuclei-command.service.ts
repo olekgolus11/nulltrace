@@ -11,22 +11,15 @@ import {
 } from "../types/nuclei.types";
 
 class NucleiCommandService {
-  private extractHostname(targetUrl: string) {
-    try {
-      return new URL(targetUrl).hostname;
-    } catch {
-      return targetUrl
-        .replace(/^https?:\/\//, "")
-        .replace(/\/.*$/, "")
-        .trim();
-    }
+  private extractTarget(targetUrl: string) {
+    return targetUrl.trim();
   }
 
   createInitialToolData(targetUrl: string): NucleiToolData {
     return {
       selectedField: 0,
       form: {
-        target: this.extractHostname(targetUrl),
+        target: this.extractTarget(targetUrl),
         severityPreset: "all",
         tags: "",
         templatesPath: "",
