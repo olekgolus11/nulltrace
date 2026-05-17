@@ -84,6 +84,24 @@ describe("nucleiCommandService", () => {
     );
   });
 
+  test("strips quoted output flag paths without leaving dangling arguments", () => {
+    const preparedCommand = nucleiCommandService.prepareCommandForRun({
+      command:
+        "nuclei -u https://example.com -jsonl-export '/tmp/my output.jsonl' -o \"/tmp/text output.txt\"",
+      sessionId: "session-1",
+      toolRunId: "run-quoted",
+    });
+
+    expect(preparedCommand).toContain("nuclei -u https://example.com");
+    expect(preparedCommand).not.toContain("my output.jsonl");
+    expect(preparedCommand).not.toContain("output.txt");
+    expect(preparedCommand).not.toContain("output.jsonl'");
+    expect(preparedCommand).toContain("-jsonl-export ");
+    expect(preparedCommand).toContain(
+      "artifacts/sessions/session-1/tool-runs/run-quoted/nuclei.jsonl",
+    );
+  });
+
   test("parses valid JSONL findings with normalized convenience fields and raw preservation", () => {
     const content = [
       JSON.stringify({

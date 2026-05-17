@@ -40,8 +40,11 @@ export interface ParsedNucleiJsonl {
   parseErrorCount: number;
 }
 
-const nucleiOutputFlagPattern =
-  /\s+(?:(?:-jsonl|-json|-j|-sresp|-store-resp)(?=\s|$)|(?:-o|-output|-jle|-jsonl-export|-je|-json-export|-me|-markdown-export|-se|-sarif-export|-rdb|-report-db|-srd|-store-resp-dir)(?:\s+\S+))/g;
+const shellTokenPattern = String.raw`(?:'[^']*'|"(?:\\.|[^"])*"|\S+)`;
+const nucleiOutputFlagPattern = new RegExp(
+  String.raw`\s+(?:(?:-jsonl|-json|-j|-sresp|-store-resp)(?=\s|$)|(?:-o|-output|-jle|-jsonl-export|-je|-json-export|-me|-markdown-export|-se|-sarif-export|-rdb|-report-db|-srd|-store-resp-dir)(?:\s+${shellTokenPattern}))`,
+  "g",
+);
 
 function getString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
