@@ -1,4 +1,5 @@
 import { ToolRunArtifactRecord } from "../../session/model/session.repository.types";
+import { CanonicalFindingSeverity } from "../services/finding-severity";
 
 export interface FindingCandidate {
   sourceTool: string;
@@ -20,4 +21,21 @@ export interface UpsertFindingCandidateInput {
   sessionId: string;
   toolRunArtifactId: string;
   candidate: FindingCandidate;
+}
+
+export interface SessionFindingRecord {
+  id: string;
+  sessionId: string;
+  toolRunArtifactId: string;
+  sourceTool: string;
+  kind: string;
+  severity: CanonicalFindingSeverity;
+  title: string;
+  summary: string;
+  target: string;
+  fingerprint: string;
+  payload: unknown;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  createdAt: string;
 }

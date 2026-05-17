@@ -10,14 +10,14 @@ interface ProcessFindingArtifactsInput {
   artifacts: ToolRunArtifactRecord[];
 }
 
-interface FindingRepositoryAdapter {
+interface FindingRepositoryContract {
   upsertCandidates: (inputs: UpsertFindingCandidateInput[]) => unknown[];
 }
 
 export class FindingPipelineService {
   constructor(
     private readonly mappers: FindingMapper[] = [],
-    private readonly repository: FindingRepositoryAdapter = findingRepository,
+    private readonly repository: FindingRepositoryContract = findingRepository,
   ) {}
 
   processArtifacts({ sessionId, artifacts }: ProcessFindingArtifactsInput) {

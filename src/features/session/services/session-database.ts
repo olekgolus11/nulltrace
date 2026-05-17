@@ -34,6 +34,34 @@ export const sessionDatabase = new Database(databasePath, {
 sessionDatabase.exec("PRAGMA journal_mode = WAL;");
 sessionDatabase.exec("PRAGMA foreign_keys = ON;");
 
+function createSessionFindingsTable() {
+  sessionDatabase.exec(`
+    CREATE TABLE IF NOT EXISTS session_findings (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      tool_run_artifact_id TEXT NOT NULL,
+      source_tool TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      target TEXT NOT NULL,
+      fingerprint TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      first_seen_at TEXT NOT NULL,
+      last_seen_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+      FOREIGN KEY (tool_run_artifact_id) REFERENCES tool_run_artifacts(id) ON DELETE CASCADE
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_session_findings_session_fingerprint
+      ON session_findings(session_id, fingerprint);
+    CREATE INDEX IF NOT EXISTS idx_session_findings_session_last_seen
+      ON session_findings(session_id, last_seen_at DESC);
+  `);
+}
+
 sessionDatabase.exec(`
   CREATE TABLE IF NOT EXISTS targets (
     id TEXT PRIMARY KEY,
@@ -84,20 +112,6 @@ sessionDatabase.exec(`
     FOREIGN KEY (tool_run_id) REFERENCES tool_runs(id) ON DELETE CASCADE
   );
 
-  CREATE TABLE IF NOT EXISTS session_findings (
-    id TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL,
-    tool_run_id TEXT,
-    source_tool TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    severity TEXT NOT NULL,
-    title TEXT NOT NULL,
-    payload_json TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
-    FOREIGN KEY (tool_run_id) REFERENCES tool_runs(id) ON DELETE SET NULL
-  );
-
   CREATE INDEX IF NOT EXISTS idx_targets_normalized_url
     ON targets(normalized_url);
   CREATE INDEX IF NOT EXISTS idx_sessions_target_id
@@ -110,42 +124,35 @@ sessionDatabase.exec(`
     ON tool_run_logs(tool_run_id, seq);
   CREATE INDEX IF NOT EXISTS idx_tool_run_artifacts_tool_run_id
     ON tool_run_artifacts(tool_run_id);
-  CREATE INDEX IF NOT EXISTS idx_session_findings_session_id
-    ON session_findings(session_id);
 `);
 
-const legacyFindingSnapshotsTable = sessionDatabase
+const sessionFindingsTable = sessionDatabase
   .query<{ name: string }, []>(
     `SELECT name
      FROM sqlite_master
      WHERE type = 'table'
-       AND name = 'finding_snapshots'`,
+       AND name = 'session_findings'`,
   )
   .get();
 
-if (legacyFindingSnapshotsTable) {
-  sessionDatabase.exec(`
-    INSERT OR IGNORE INTO session_findings (
-      id,
-      session_id,
-      tool_run_id,
-      source_tool,
-      kind,
-      severity,
-      title,
-      payload_json,
-      created_at
-    )
-    SELECT
-      id,
-      session_id,
-      tool_run_id,
-      source_tool,
-      kind,
-      severity,
-      title,
-      payload_json,
-      created_at
-    FROM finding_snapshots;
-  `);
+if (sessionFindingsTable) {
+  const sessionFindingColumns = sessionDatabase
+    .query<{ name: string }, []>("PRAGMA table_info(session_findings)")
+    .all()
+    .map((column) => column.name);
+
+  const hasCurrentSessionFindingsSchema = [
+    "tool_run_artifact_id",
+    "summary",
+    "target",
+    "fingerprint",
+    "first_seen_at",
+    "last_seen_at",
+  ].every((columnName) => sessionFindingColumns.includes(columnName));
+
+  if (!hasCurrentSessionFindingsSchema) {
+    sessionDatabase.exec("DROP TABLE session_findings;");
+  }
 }
+
+createSessionFindingsTable();
