@@ -81,14 +81,6 @@ interface ToolRunLogLine {
   createdAt: string;
 }
 
-interface SessionFindingInput {
-  sourceTool: string;
-  kind: string;
-  severity: string;
-  title: string;
-  payload: unknown;
-}
-
 function createTimestamp() {
   return new Date().toISOString();
 }
@@ -527,44 +519,6 @@ export const sessionRepository = {
         lastLine: logs.at(-1)?.line ?? null,
       },
     });
-  },
-
-  saveSessionFindings(
-    sessionId: string,
-    toolRunId: string | null,
-    findings: SessionFindingInput[],
-  ) {
-    findings.forEach((finding) => {
-      sessionDatabase
-        .query(
-          `INSERT INTO session_findings (
-            id,
-            session_id,
-            tool_run_id,
-            source_tool,
-            kind,
-            severity,
-            title,
-            payload_json,
-            created_at
-          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
-        )
-        .run(
-          createId(),
-          sessionId,
-          toolRunId,
-          finding.sourceTool,
-          finding.kind,
-          finding.severity,
-          finding.title,
-          JSON.stringify(finding.payload),
-          createTimestamp(),
-        );
-    });
-
-    if (findings.length > 0) {
-      this.touchSessionActivity(sessionId);
-    }
   },
 
   touchSessionActivity(sessionId: string) {

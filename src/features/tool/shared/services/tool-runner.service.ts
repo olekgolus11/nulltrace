@@ -3,16 +3,16 @@ import { ToolModule } from "../types/tool-screen.types";
 import { commandRunnerService } from "./command-runner.service";
 import { toolArtifactPipelineService } from "./tool-artifact-pipeline.service";
 
-interface CommandRunnerAdapter {
+interface CommandRunnerContract {
   run: typeof commandRunnerService.run;
   stop: typeof commandRunnerService.stop;
 }
 
-interface ToolArtifactPipelineAdapter {
+interface ToolArtifactPipelineContract {
   processCompletedRun: typeof toolArtifactPipelineService.processCompletedRun;
 }
 
-interface SessionRepositoryAdapter {
+interface SessionRepositoryContract {
   recordToolRun: typeof sessionRepository.recordToolRun;
   appendToolRunLog: typeof sessionRepository.appendToolRunLog;
   finishToolRun: typeof sessionRepository.finishToolRun;
@@ -53,9 +53,9 @@ export class ToolRunnerService {
   private activeRun: ActiveToolRun | null = null;
 
   constructor(
-    private readonly commandRunner: CommandRunnerAdapter = commandRunnerService,
-    private readonly artifactPipeline: ToolArtifactPipelineAdapter = toolArtifactPipelineService,
-    private readonly repository: SessionRepositoryAdapter = sessionRepository,
+    private readonly commandRunner: CommandRunnerContract = commandRunnerService,
+    private readonly artifactPipeline: ToolArtifactPipelineContract = toolArtifactPipelineService,
+    private readonly repository: SessionRepositoryContract = sessionRepository,
   ) {}
 
   async run({
