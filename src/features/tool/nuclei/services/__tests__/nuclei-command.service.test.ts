@@ -3,11 +3,12 @@ import { nucleiCommandService } from "../nuclei-command.service";
 
 describe("nucleiCommandService", () => {
   test("builds a target-centric command with no severity filter by default", () => {
-    const toolData =
-      nucleiCommandService.createInitialToolData("https://example.com");
+    const toolData = nucleiCommandService.createInitialToolData(
+      "https://example.com",
+    );
 
     expect(nucleiCommandService.buildCommand(toolData)).toBe(
-      "nuclei -u https://example.com",
+      "nuclei -u example.com",
     );
   });
 
@@ -40,13 +41,10 @@ describe("nucleiCommandService", () => {
   });
 
   test("appends tags, templates path, and extra args when provided", () => {
-    const initial =
-      nucleiCommandService.createInitialToolData("https://example.com");
-    const withTags = nucleiCommandService.setField(
-      initial,
-      "tags",
-      "cve,rce",
+    const initial = nucleiCommandService.createInitialToolData(
+      "https://example.com",
     );
+    const withTags = nucleiCommandService.setField(initial, "tags", "cve,rce");
     const withTemplates = nucleiCommandService.setField(
       withTags,
       "templatesPath",
@@ -59,7 +57,7 @@ describe("nucleiCommandService", () => {
     );
 
     expect(nucleiCommandService.buildCommand(withExtraArgs)).toBe(
-      "nuclei -u https://example.com -tags cve,rce -t /tmp/templates -rate-limit 5",
+      "nuclei -u example.com -tags cve,rce -t /tmp/templates -rate-limit 5",
     );
   });
 });
