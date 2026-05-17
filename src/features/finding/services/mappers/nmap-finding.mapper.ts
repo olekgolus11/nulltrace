@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { FindingCandidate, FindingMapper } from "../model/finding.types";
-import { ToolRunArtifactRecord } from "../../session/model/session.repository.types";
+import { FindingCandidate, FindingMapper } from "../../model/finding.types";
+import { ToolRunArtifactRecord } from "../../../session/model/session.repository.types";
 
 interface NmapScanPayload {
   hosts?: NmapHostPayload[];
@@ -147,10 +147,10 @@ function getServiceLabel(service: NmapServicePayload) {
 function hasRichServiceMetadata(service: NmapServicePayload) {
   return Boolean(
     normalizeText(service.product) ||
-      normalizeText(service.version) ||
-      normalizeText(service.extraInfo) ||
-      normalizeText(service.osType) ||
-      asArray(service.cpes).some((cpe) => Boolean(normalizeText(cpe))),
+    normalizeText(service.version) ||
+    normalizeText(service.extraInfo) ||
+    normalizeText(service.osType) ||
+    asArray(service.cpes).some((cpe) => Boolean(normalizeText(cpe))),
   );
 }
 
@@ -231,7 +231,9 @@ function createServiceFinding(
   const serviceLabel = getServiceLabel(service) || serviceName;
   const target = getPortTarget(hostLabel, port);
   const artifactItemPath = `$.hosts[${hostIndex}].ports[${portIndex}].service`;
-  const cpes = asArray(service.cpes).filter((cpe) => Boolean(normalizeText(cpe)));
+  const cpes = asArray(service.cpes).filter((cpe) =>
+    Boolean(normalizeText(cpe)),
+  );
 
   return {
     sourceTool: "nmap",
@@ -283,13 +285,11 @@ function createScriptFinding(
   const output = normalizeText(script.output) ?? "";
   const outputHash = createStableHash(output);
   const protocol = port ? normalizeProtocol(port.protocol) : null;
-  const portNumber = port ? normalizeText(port.port) ?? "unknown" : null;
+  const portNumber = port ? (normalizeText(port.port) ?? "unknown") : null;
   const target =
     port && portNumber ? getPortTarget(hostLabel, port) : hostLabel;
   const location =
-    port && portNumber
-      ? `${hostLabel}:${portNumber}`
-      : hostLabel;
+    port && portNumber ? `${hostLabel}:${portNumber}` : hostLabel;
   const artifactItemPath =
     portIndex === undefined
       ? `$.hosts[${hostIndex}].scripts[${scriptIndex}]`

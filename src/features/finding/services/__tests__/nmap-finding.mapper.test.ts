@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { ToolRunArtifactRecord } from "../../../session/model/session.repository.types";
-import { nmapFindingMapper } from "../nmap-finding.mapper";
+import { nmapFindingMapper } from "../mappers/nmap-finding.mapper";
 
 function createArtifact(payload: unknown): ToolRunArtifactRecord {
   return {
@@ -99,8 +99,7 @@ describe("nmapFindingMapper", () => {
       kind: "nmap.service_detected",
       severity: "info",
       title: "OpenSSH 8.9p1 Ubuntu detected on 45.33.32.156:22",
-      summary:
-        "Nmap detected OpenSSH 8.9p1 Ubuntu on tcp/22 at 45.33.32.156.",
+      summary: "Nmap detected OpenSSH 8.9p1 Ubuntu on tcp/22 at 45.33.32.156.",
       target: "45.33.32.156:22",
       dedupeKeyParts: [
         "45.33.32.156",
@@ -224,9 +223,9 @@ describe("nmapFindingMapper", () => {
         scriptId: "ssl-cert",
       },
     });
-    expect((findings[2].payload as { outputHash: string }).outputHash).toHaveLength(
-      64,
-    );
+    expect(
+      (findings[2].payload as { outputHash: string }).outputHash,
+    ).toHaveLength(64);
     expect(findings[3]).toMatchObject({
       title:
         "Nmap script closed-port-script reported output on example.com:444",
@@ -263,7 +262,8 @@ describe("nmapFindingMapper", () => {
       dedupeKeyParts: ["unknown-host", "tcp", "unknown"],
     });
     expect(first[1]).toMatchObject({
-      title: "Nmap script unknown-script reported output on unknown-host:unknown",
+      title:
+        "Nmap script unknown-script reported output on unknown-host:unknown",
       summary:
         "Nmap script unknown-script reported output on unknown-host:unknown.",
     });
