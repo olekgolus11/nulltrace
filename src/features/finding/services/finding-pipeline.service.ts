@@ -4,6 +4,7 @@ import {
 } from "../model/finding.types";
 import { ToolRunArtifactRecord } from "../../session/model/session.repository.types";
 import { findingRepository } from "./finding.repository";
+import { nmapFindingMapper } from "./nmap-finding.mapper";
 
 interface ProcessFindingArtifactsInput {
   sessionId: string;
@@ -47,4 +48,6 @@ export class FindingPipelineService {
   }
 }
 
-export const findingPipelineService = new FindingPipelineService();
+export const findingPipelineService = new FindingPipelineService([
+  nmapFindingMapper,
+]);
