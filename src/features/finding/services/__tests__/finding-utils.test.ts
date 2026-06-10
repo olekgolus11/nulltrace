@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { normalizeFindingSeverity } from "../finding-severity";
+import {
+  maxFindingSeverity,
+  normalizeFindingSeverity,
+} from "../finding-severity";
 import { createFindingFingerprint } from "../finding-fingerprint";
 
 describe("createFindingFingerprint", () => {
@@ -14,6 +17,7 @@ describe("createFindingFingerprint", () => {
     ]);
 
     expect(first).toBe(second);
+    expect(first).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it("returns a different hash when source tool, kind, or key parts change", () => {
@@ -51,5 +55,13 @@ describe("normalizeFindingSeverity", () => {
     expect(normalizeFindingSeverity(undefined)).toBe("info");
     expect(normalizeFindingSeverity(null)).toBe("info");
     expect(normalizeFindingSeverity("unexpected")).toBe("info");
+  });
+});
+
+describe("maxFindingSeverity", () => {
+  it("preserves the more severe value regardless of input order", () => {
+    expect(maxFindingSeverity("high", "low")).toBe("high");
+    expect(maxFindingSeverity("medium", "critical")).toBe("critical");
+    expect(maxFindingSeverity("info", "info")).toBe("info");
   });
 });
