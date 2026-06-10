@@ -78,10 +78,21 @@ describe("nucleiCommandService", () => {
     expect(preparedCommand).not.toContain("-json ");
     expect(preparedCommand).not.toContain("/tmp/manual.json");
     expect(preparedCommand).not.toContain("/tmp/manual.jsonl");
+    expect(preparedCommand).toContain(" -nc ");
     expect(preparedCommand).toContain("-jsonl-export ");
     expect(preparedCommand).toContain(
       "artifacts/sessions/session-1/tool-runs/run-1/nuclei.jsonl",
     );
+  });
+
+  test("keeps an existing no-color flag when preparing a run", () => {
+    const preparedCommand = nucleiCommandService.prepareCommandForRun({
+      command: "nuclei -u https://example.com -nc",
+      sessionId: "session-1",
+      toolRunId: "run-no-color",
+    });
+
+    expect(preparedCommand.match(/ -nc/g)).toHaveLength(1);
   });
 
   test("strips quoted output flag paths without leaving dangling arguments", () => {

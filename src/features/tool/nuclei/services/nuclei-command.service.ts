@@ -45,6 +45,7 @@ const nucleiOutputFlagPattern = new RegExp(
   String.raw`\s+(?:(?:-jsonl|-json|-j|-sresp|-store-resp)(?=\s|$)|(?:-o|-output|-jle|-jsonl-export|-je|-json-export|-me|-markdown-export|-se|-sarif-export|-rdb|-report-db|-srd|-store-resp-dir)(?:\s+${shellTokenPattern}))`,
   "g",
 );
+const nucleiNoColorFlagPattern = /(?:^|\s)-(?:nc|no-color)(?=\s|$)/;
 
 function getString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
@@ -263,8 +264,11 @@ class NucleiCommandService {
     mkdirSync(outputDirectory, { recursive: true });
 
     const strippedCommand = command.replace(nucleiOutputFlagPattern, " ");
+    const colorSafeCommand = nucleiNoColorFlagPattern.test(strippedCommand)
+      ? strippedCommand
+      : strippedCommand + " -nc";
     const jsonlOutputFlags = ` -jsonl-export ${this.shellQuotePath(jsonlOutputPath)}`;
-    return strippedCommand + jsonlOutputFlags;
+    return colorSafeCommand + jsonlOutputFlags;
   }
 
   async collectArtifacts(

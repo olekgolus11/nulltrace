@@ -93,7 +93,7 @@ describe("FindingRepository", () => {
         toolRunArtifactId: "artifact-1",
         candidate: {
           sourceTool: "nuclei",
-          kind: "cve",
+          kind: "nuclei.cve",
           severity: "high",
           title: "Initial template title",
           summary: "Initial summary.",
@@ -112,7 +112,7 @@ describe("FindingRepository", () => {
         toolRunArtifactId: "artifact-2",
         candidate: {
           sourceTool: "nuclei",
-          kind: "cve",
+          kind: "nuclei.cve",
           severity: "low",
           title: "Latest template title",
           summary: "Latest summary.",
