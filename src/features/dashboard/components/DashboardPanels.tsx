@@ -1,11 +1,11 @@
 import { ScrollBoxRenderable } from "@opentui/core";
 import { theme } from "../../../app/theme/theme";
 import { ChatWindow } from "../../chat/components/ChatWindow";
+import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { SitemapTree } from "../../sitemap/components/SitemapTree";
 import { VulnerabilityList } from "../../vulnerability/components/VulnerabilityList";
 import {
   mockSitemapTree,
-  mockVulnerabilities,
   mockChatMessages,
 } from "../data/dashboard.mock";
 import { tools } from "../data/tool-catalog";
@@ -20,12 +20,14 @@ import { getPanelDisplayNumber } from "../../../shared/model/panel-navigation";
 
 export const LeftDashboardPanel = ({
   dashboardState,
+  findings,
   layout,
   sitemapScrollRef,
   vulnsScrollRef,
   setActivePanel,
 }: {
   dashboardState: DashboardState;
+  findings: SessionFindingRecord[];
   layout: UseDashboardLayoutResult;
   sitemapScrollRef: React.RefObject<ScrollBoxRenderable | null>;
   vulnsScrollRef: React.RefObject<ScrollBoxRenderable | null>;
@@ -81,7 +83,7 @@ export const LeftDashboardPanel = ({
           }}
         >
           <VulnerabilityList
-            vulnerabilities={mockVulnerabilities}
+            findings={findings}
             selectedIndex={dashboardState.selectedVulnItem}
             focused={dashboardState.activePanel === "vulns"}
           />

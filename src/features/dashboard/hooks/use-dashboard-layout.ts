@@ -22,10 +22,10 @@ export const useDashboardLayout = ({
   const leftPanelTopHeight = Math.ceil(contentHeight / 2);
   const leftPanelBottomHeight = contentHeight - leftPanelTopHeight;
 
-  // Both left panels use the same border + padding chrome, so the viewport
-  // needs to exclude the full inner frame area.
-  const sitemapScrollHeight = Math.max(1, leftPanelTopHeight - 2);
-  const vulnsScrollHeight = Math.max(1, leftPanelBottomHeight - 2);
+  // Both left panels use horizontal scrollbars, so keep one extra row clear
+  // below the scrollbox to prevent the scrollbar from touching the border.
+  const sitemapScrollHeight = Math.max(1, leftPanelTopHeight - 3);
+  const vulnsScrollHeight = Math.max(1, leftPanelBottomHeight - 3);
   const innerPanelWidth = Math.max(1, leftPanelWidth - 4);
 
   return {

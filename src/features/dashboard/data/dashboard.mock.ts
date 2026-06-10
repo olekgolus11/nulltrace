@@ -29,51 +29,6 @@ const mockSitemapFlat = [
 export const mockSitemapTree = buildTree(mockSitemapFlat);
 export const mockSitemapFlatNodes = flattenTree(mockSitemapTree);
 
-export const mockVulnerabilities = [
-  {
-    id: "1",
-    severity: "critical" as const,
-    title: "Reflected XSS",
-    path: "/admin/search?q=",
-  },
-  {
-    id: "2",
-    severity: "critical" as const,
-    title: "SQL Injection",
-    path: "/api/v1/users?id=",
-  },
-  {
-    id: "3",
-    severity: "high" as const,
-    title: "CSRF Missing Token",
-    path: "/shop/checkout",
-  },
-  {
-    id: "4",
-    severity: "medium" as const,
-    title: "Directory Listing",
-    path: "/uploads/",
-  },
-  {
-    id: "5",
-    severity: "medium" as const,
-    title: "Sensitive Data Exposure",
-    path: "/.git/config",
-  },
-  {
-    id: "6",
-    severity: "low" as const,
-    title: "Missing Security Headers",
-    path: "/",
-  },
-  {
-    id: "7",
-    severity: "info" as const,
-    title: "Outdated jQuery",
-    path: "/js/jquery-1.12.4.min.js",
-  },
-];
-
 export const mockChatMessages = [
   {
     id: "1",

@@ -186,4 +186,95 @@ describe("FindingRepository", () => {
 
     expect(rowCount?.count).toBe(2);
   });
+
+  it("lists session findings by severity and last seen recency", () => {
+    const database = createTestDatabase();
+    const repository = new FindingRepository(database);
+
+    repository.upsertCandidates([
+      {
+        sessionId: "session-1",
+        toolRunArtifactId: "artifact-1",
+        candidate: {
+          sourceTool: "nmap",
+          kind: "nmap.open_port",
+          severity: "info",
+          title: "Open TCP port 443",
+          summary: "scanme.nmap.org exposes 443/tcp.",
+          target: "scanme.nmap.org:443",
+          dedupeKeyParts: ["scanme.nmap.org", "443/tcp"],
+          payload: {},
+        },
+      },
+      {
+        sessionId: "session-1",
+        toolRunArtifactId: "artifact-2",
+        candidate: {
+          sourceTool: "nuclei",
+          kind: "nuclei.http",
+          severity: "high",
+          title: "Older high finding",
+          summary: "High severity finding.",
+          target: "https://example.com/old",
+          dedupeKeyParts: ["older-high"],
+          payload: {},
+        },
+      },
+      {
+        sessionId: "session-1",
+        toolRunArtifactId: "artifact-3",
+        candidate: {
+          sourceTool: "nuclei",
+          kind: "nuclei.cve",
+          severity: "critical",
+          title: "Critical finding",
+          summary: "Critical severity finding.",
+          target: "https://example.com/critical",
+          dedupeKeyParts: ["critical"],
+          payload: {},
+        },
+      },
+    ]);
+
+    repository.upsertCandidates([
+      {
+        sessionId: "session-1",
+        toolRunArtifactId: "artifact-4",
+        candidate: {
+          sourceTool: "nuclei",
+          kind: "nuclei.http",
+          severity: "high",
+          title: "Newest high finding",
+          summary: "Newer high severity finding.",
+          target: "https://example.com/new",
+          dedupeKeyParts: ["newest-high"],
+          payload: {},
+        },
+      },
+    ]);
+
+    database
+      .query(
+        `UPDATE session_findings
+         SET last_seen_at = ?2
+         WHERE title = ?1`,
+      )
+      .run("Older high finding", "2026-05-10T10:00:00.000Z");
+    database
+      .query(
+        `UPDATE session_findings
+         SET last_seen_at = ?2
+         WHERE title = ?1`,
+      )
+      .run("Newest high finding", "2026-05-10T10:01:00.000Z");
+
+    const findings = repository.listBySessionId("session-1");
+
+    expect(findings.map((finding) => finding.title)).toEqual([
+      "Critical finding",
+      "Newest high finding",
+      "Older high finding",
+      "Open TCP port 443",
+    ]);
+  });
 });
