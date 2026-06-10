@@ -10,6 +10,7 @@ import { useDashboardShortcuts } from "../hooks/use-dashboard-shortcuts";
 import { dashboardPanels } from "../model/dashboard.state";
 import { Header } from "../../../shared/ui/Header";
 import { StatusBar } from "../../../shared/ui/StatusBar";
+import { useSessionFindings } from "../../finding/hooks/use-session-findings";
 import { useSessionContextStore } from "../../session/store/session-context.store";
 import { ToolName } from "../../tool/shared/types/tool-screen.types";
 
@@ -23,7 +24,9 @@ export function DashboardScreen({
   onBack,
 }: DashboardScreenProps) {
   const { width, height } = useTerminalDimensions();
+  const sessionId = useSessionContextStore((state) => state.sessionId);
   const targetUrl = useSessionContextStore((state) => state.targetUrl);
+  const sessionFindings = useSessionFindings(sessionId);
   const layout = useDashboardLayout({
     width,
     height,
@@ -38,6 +41,7 @@ export function DashboardScreen({
   } = useDashboardShortcuts({
     onBack,
     onSelectTool,
+    vulnerabilityCount: sessionFindings.findings.length,
   });
 
   return (
@@ -47,11 +51,12 @@ export function DashboardScreen({
       height={height}
       backgroundColor={theme.bg.primary}
     >
-      <Header targetUrl={targetUrl} />
+      <Header targetUrl={targetUrl} counts={sessionFindings.counts} />
       <box flexDirection="row" height={layout.contentHeight}>
         <LeftDashboardPanel
           layout={layout}
           dashboardState={dashboardState}
+          findings={sessionFindings.findings}
           sitemapScrollRef={sitemapScrollRef}
           vulnsScrollRef={vulnsScrollRef}
           setActivePanel={setActivePanel}

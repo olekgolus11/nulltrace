@@ -1,10 +1,7 @@
 import { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import { useRef, useReducer } from "react";
-import {
-  mockSitemapFlatNodes,
-  mockVulnerabilities,
-} from "../data/dashboard.mock";
+import { mockSitemapFlatNodes } from "../data/dashboard.mock";
 import { tools } from "../data/tool-catalog";
 import {
   dashboardPanels,
@@ -29,6 +26,7 @@ type DashboardAction =
 interface UseDashboardShortcutsProps {
   onBack: () => void;
   onSelectTool: (toolName: ToolName) => void;
+  vulnerabilityCount: number;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -109,13 +107,14 @@ function createDashboardReducer(counts: {
 export function useDashboardShortcuts({
   onBack,
   onSelectTool,
+  vulnerabilityCount,
 }: UseDashboardShortcutsProps) {
   const sitemapScrollRef = useRef<ScrollBoxRenderable | null>(null);
   const vulnsScrollRef = useRef<ScrollBoxRenderable | null>(null);
   const reducer = createDashboardReducer({
     toolCount: tools.length,
     sitemapCount: mockSitemapFlatNodes.length,
-    vulnerabilityCount: mockVulnerabilities.length,
+    vulnerabilityCount,
   });
 
   const [state, dispatch] = useReducer(reducer, initialDashboardState);

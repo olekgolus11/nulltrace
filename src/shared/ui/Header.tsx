@@ -1,16 +1,28 @@
 import { theme } from "../../app/theme/theme.js";
 import { VulnerabilityCounts } from "../../features/vulnerability/components/VulnerabilityCounts.js";
+import { VulnerabilitySummaryProps } from "../../features/vulnerability/model/vulnerability.types.js";
 
 interface HeaderProps {
   title?: string;
   subtitle?: string;
   targetUrl?: string;
+  counts?: VulnerabilitySummaryProps;
 }
+
+const emptyCounts: VulnerabilitySummaryProps = {
+  critical: 0,
+  high: 0,
+  medium: 0,
+  low: 0,
+  info: 0,
+  total: 0,
+};
 
 export function Header({
   title = "Nulltrace",
   subtitle,
   targetUrl,
+  counts = emptyCounts,
 }: HeaderProps) {
   return (
     <box
@@ -43,14 +55,7 @@ export function Header({
       </box>
 
       <box marginBottom={1}>
-        <VulnerabilityCounts
-          critical={2}
-          high={5}
-          medium={8}
-          low={12}
-          info={15}
-          total={30}
-        />
+        <VulnerabilityCounts {...counts} />
       </box>
     </box>
   );

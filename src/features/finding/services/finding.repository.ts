@@ -77,6 +77,40 @@ export class FindingRepository {
     return records;
   }
 
+  listBySessionId(sessionId: string) {
+    return this.database
+      .query<SessionFindingRow, [string]>(
+        `SELECT
+          id,
+          session_id AS sessionId,
+          tool_run_artifact_id AS toolRunArtifactId,
+          source_tool AS sourceTool,
+          kind,
+          severity,
+          title,
+          summary,
+          target,
+          fingerprint,
+          payload_json AS payloadJson,
+          first_seen_at AS firstSeenAt,
+          last_seen_at AS lastSeenAt,
+          created_at AS createdAt
+        FROM session_findings
+        WHERE session_id = ?1
+        ORDER BY
+          CASE severity
+            WHEN 'critical' THEN 5
+            WHEN 'high' THEN 4
+            WHEN 'medium' THEN 3
+            WHEN 'low' THEN 2
+            ELSE 1
+          END DESC,
+          last_seen_at DESC`,
+      )
+      .all(sessionId)
+      .map(mapFindingRow);
+  }
+
   private upsertCandidate({
     sessionId,
     toolRunArtifactId,

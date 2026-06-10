@@ -7,6 +7,7 @@ import { StatusBar } from "../../../shared/ui/StatusBar";
 import { getPanelDisplayNumber } from "../../../shared/model/panel-navigation";
 import { ChatWindow } from "../../chat/components/ChatWindow";
 import { DashboardPanel } from "../../dashboard/components/DashboardPanel";
+import { useSessionFindings } from "../../finding/hooks/use-session-findings";
 import { useSessionContextStore } from "../../session/store/session-context.store";
 import { useToolLayout } from "../hooks/use-tool-layout";
 import { ActiveToolWorkspace } from "../shared/components/ActiveToolWorkspace";
@@ -47,6 +48,10 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
   const isHelpOpen = useToolWorkspaceStore((state) => state.isHelpOpen);
   const setActivePanel = useToolWorkspaceStore((state) => state.setActivePanel);
   const historyRuns = useToolWorkspaceStore((state) => state.historyRuns);
+  const findingsRefreshKey = historyRuns
+    .map((run) => `${run.id}:${run.status}:${run.endedAt ?? ""}`)
+    .join("|");
+  const sessionFindings = useSessionFindings(sessionId, findingsRefreshKey);
   const selectedHistoryRunId = useToolWorkspaceStore(
     (state) => state.selectedHistoryRunId,
   );
@@ -93,6 +98,7 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
         title={`${toolName} Workspace`}
         subtitle="guided controls + raw command"
         targetUrl={targetUrl}
+        counts={sessionFindings.counts}
       />
 
       <box flexDirection="row" height={layout.contentHeight}>
