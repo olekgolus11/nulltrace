@@ -11,6 +11,7 @@ describe("consumeTerminalText", () => {
       lines: ["[INF] Current nuclei templates version: v10.4.4 (latest)"],
       buffer: "",
       controlSequence: null,
+      pendingCarriageReturn: false,
     });
   });
 
@@ -23,6 +24,7 @@ describe("consumeTerminalText", () => {
       lines: ["[INF] Current nuclei version: v3.8.0 (outdated)"],
       buffer: "",
       controlSequence: null,
+      pendingCarriageReturn: false,
     });
   });
 
@@ -35,6 +37,7 @@ describe("consumeTerminalText", () => {
       lines: ["CVE-2017-18638 [http]"],
       buffer: "",
       controlSequence: null,
+      pendingCarriageReturn: false,
     });
   });
 
@@ -45,6 +48,7 @@ describe("consumeTerminalText", () => {
       lines: ["version"],
       buffer: "",
       controlSequence: null,
+      pendingCarriageReturn: false,
     });
   });
 
@@ -55,6 +59,23 @@ describe("consumeTerminalText", () => {
       lines: ["first line", "second line"],
       buffer: "",
       controlSequence: null,
+      pendingCarriageReturn: false,
+    });
+  });
+
+  it("preserves CRLF line endings split across chunks", () => {
+    const first = consumeTerminalText("first line\r");
+    const second = consumeTerminalText("\nsecond line\r", first);
+    const third = consumeTerminalText("\n", second);
+
+    expect([...first.lines, ...second.lines, ...third.lines]).toEqual([
+      "first line",
+      "second line",
+    ]);
+    expect(third).toMatchObject({
+      buffer: "",
+      controlSequence: null,
+      pendingCarriageReturn: false,
     });
   });
 
@@ -66,6 +87,7 @@ describe("consumeTerminalText", () => {
       lines: ["[INF] Loading templates"],
       buffer: "",
       controlSequence: null,
+      pendingCarriageReturn: false,
     });
   });
 });

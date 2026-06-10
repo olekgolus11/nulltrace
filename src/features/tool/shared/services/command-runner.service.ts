@@ -7,6 +7,7 @@ function emitLines(lines: string[], onLines: (lines: string[]) => void) {
 interface TerminalTextState {
   buffer: string;
   controlSequence: string | null;
+  pendingCarriageReturn: boolean;
 }
 
 function isCsiFinalCharacter(character: string) {
@@ -56,15 +57,35 @@ function isCompleteControlSequence(sequence: string) {
 export function consumeTerminalText(
   input: string,
   initialState: string | TerminalTextState = "",
-): { lines: string[]; buffer: string; controlSequence: string | null } {
+): {
+  lines: string[];
+  buffer: string;
+  controlSequence: string | null;
+  pendingCarriageReturn: boolean;
+} {
   const lines: string[] = [];
   let buffer =
     typeof initialState === "string" ? initialState : initialState.buffer;
   let controlSequence =
     typeof initialState === "string" ? null : initialState.controlSequence;
-  const normalizedInput = input.replace(/\r\n/g, "\n");
+  let pendingCarriageReturn =
+    typeof initialState === "string"
+      ? false
+      : initialState.pendingCarriageReturn;
 
-  for (const character of normalizedInput) {
+  for (const character of input) {
+    if (pendingCarriageReturn) {
+      pendingCarriageReturn = false;
+
+      if (character === "\n") {
+        lines.push(buffer);
+        buffer = "";
+        continue;
+      }
+
+      buffer = "";
+    }
+
     if (controlSequence) {
       controlSequence += character;
       if (isCompleteControlSequence(controlSequence)) {
@@ -85,7 +106,7 @@ export function consumeTerminalText(
     }
 
     if (character === "\r") {
-      buffer = "";
+      pendingCarriageReturn = true;
       continue;
     }
 
@@ -101,7 +122,7 @@ export function consumeTerminalText(
     buffer += character;
   }
 
-  return { lines, buffer, controlSequence };
+  return { lines, buffer, controlSequence, pendingCarriageReturn };
 }
 
 async function readStream(
@@ -117,6 +138,7 @@ async function readStream(
   let state: TerminalTextState = {
     buffer: "",
     controlSequence: null,
+    pendingCarriageReturn: false,
   };
 
   while (true) {
@@ -132,12 +154,15 @@ async function readStream(
     state = {
       buffer: result.buffer,
       controlSequence: result.controlSequence,
+      pendingCarriageReturn: result.pendingCarriageReturn,
     };
     emitLines(result.lines, onLines);
   }
 
   const result = consumeTerminalText(decoder.decode(), state);
-  const trailing = result.buffer.trimEnd();
+  const trailing = (
+    result.pendingCarriageReturn ? "" : result.buffer
+  ).trimEnd();
   emitLines(result.lines, onLines);
 
   if (trailing) {
