@@ -118,6 +118,10 @@ export const toolRegistry: Record<string, ToolModule> = {
       nucleiCommandService.createInitialToolData(targetUrl),
     buildGeneratedCommand: (toolData: unknown) =>
       nucleiCommandService.buildCommand(toolData as NucleiToolData),
+    prepareCommandForRun: (options: ToolPrepareCommand) =>
+      nucleiCommandService.prepareCommandForRun(options),
+    collectArtifacts: (options: ToolRunCompleted) =>
+      nucleiCommandService.collectArtifacts(options),
     handleFormKey: (key, state, api) => {
       if (state.activePanel !== "form") {
         return false;
