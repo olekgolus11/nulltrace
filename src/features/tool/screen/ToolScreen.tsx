@@ -23,14 +23,24 @@ interface ToolScreenProps {
   onBack: () => void;
 }
 
+const emptyToolData: ToolData = {
+  form: {},
+  selectedField: 0,
+};
+
 function getToolData(
   toolName: ToolName,
   targetUrl: string,
   toolData: unknown,
 ): ToolData {
+  const toolModule = toolRegistry[toolName];
+  if (!toolModule) {
+    return emptyToolData;
+  }
+
   return (
     (toolData as ToolData | null) ??
-    toolRegistry[toolName].createInitialToolData(targetUrl)
+    toolModule.createInitialToolData(targetUrl)
   );
 }
 
