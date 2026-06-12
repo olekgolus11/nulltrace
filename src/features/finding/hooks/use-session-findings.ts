@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { SessionFindingRecord } from "../model/finding.types";
 import { findingRepository } from "../services/finding.repository";
-import { VulnerabilitySummaryProps } from "../../vulnerability/model/vulnerability.types";
+import { FindingSummaryProps } from "../model/finding-summary.types";
 
-function createEmptyCounts(): VulnerabilitySummaryProps {
+function createEmptyCounts(): FindingSummaryProps {
   return {
     critical: 0,
     high: 0,
@@ -16,8 +16,8 @@ function createEmptyCounts(): VulnerabilitySummaryProps {
 
 function countFindings(
   findings: SessionFindingRecord[],
-): VulnerabilitySummaryProps {
-  return findings.reduce<VulnerabilitySummaryProps>((counts, finding) => {
+): FindingSummaryProps {
+  return findings.reduce<FindingSummaryProps>((counts, finding) => {
     counts[finding.severity] += 1;
     counts.total += 1;
     return counts;

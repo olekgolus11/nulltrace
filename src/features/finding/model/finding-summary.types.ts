@@ -1,6 +1,6 @@
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
 
-export interface VulnerabilitySummaryProps {
+export interface FindingSummaryProps {
   critical: number;
   high: number;
   medium: number;

@@ -1,17 +1,17 @@
-import { severityConfig } from "../model/vulnerability.contants";
-import { Severity } from "../model/vulnerability.types";
+import { severityConfig } from "../model/finding-summary.constants";
+import { Severity } from "../model/finding-summary.types";
 
-interface VulnerabilityBadgeProps {
+interface FindingBadgeProps {
   severity: Severity;
   count: number;
   width?: number;
 }
 
-export function VulnerabilityBadge({
+export function FindingBadge({
   severity,
   count,
   width,
-}: VulnerabilityBadgeProps) {
+}: FindingBadgeProps) {
   const config = severityConfig[severity];
 
   return (

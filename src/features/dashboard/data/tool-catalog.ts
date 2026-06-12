@@ -9,7 +9,7 @@ interface ToolCatalogItem {
 
 export const tools: ToolCatalogItem[] = [
   { id: "nmap", name: "Nmap", description: "Port scan", icon: "🔍" },
-  { id: "nuclei", name: "Nuclei", description: "Vuln scan", icon: "🎯" },
+  { id: "nuclei", name: "Nuclei", description: "Template scan", icon: "🎯" },
   { id: "ffuf", name: "FFUF", description: "Fuzzing", icon: "🌪️" },
   { id: "sqlmap", name: "SQLMap", description: "SQL Inject", icon: "💉" },
   { id: "zap", name: "ZAP", description: "Web scan", icon: "⚡" },

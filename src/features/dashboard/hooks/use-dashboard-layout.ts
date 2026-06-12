@@ -25,7 +25,7 @@ export const useDashboardLayout = ({
   // Both left panels use horizontal scrollbars, so keep one extra row clear
   // below the scrollbox to prevent the scrollbar from touching the border.
   const sitemapScrollHeight = Math.max(1, leftPanelTopHeight - 3);
-  const vulnsScrollHeight = Math.max(1, leftPanelBottomHeight - 3);
+  const findingsScrollHeight = Math.max(1, leftPanelBottomHeight - 3);
   const innerPanelWidth = Math.max(1, leftPanelWidth - 4);
 
   return {
@@ -37,7 +37,7 @@ export const useDashboardLayout = ({
     leftPanelBottomHeight,
     sitemapScrollHeight,
     sitemapScrollWidth: innerPanelWidth,
-    vulnsScrollHeight,
-    vulnsScrollWidth: innerPanelWidth,
+    findingsScrollHeight,
+    findingsScrollWidth: innerPanelWidth,
   };
 };

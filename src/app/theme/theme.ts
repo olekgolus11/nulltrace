@@ -39,7 +39,7 @@ export const theme = {
     muted: "#334155", // Muted border
   },
 
-  // Severity colors for vulnerabilities
+  // Severity colors for findings
   severity: {
     critical: "#ef4444",
     high: "#f97316",

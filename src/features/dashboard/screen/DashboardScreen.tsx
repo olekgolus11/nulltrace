@@ -37,11 +37,11 @@ export function DashboardScreen({
     submitChat,
     setActivePanel,
     sitemapScrollRef,
-    vulnsScrollRef,
+    findingsScrollRef,
   } = useDashboardShortcuts({
     onBack,
     onSelectTool,
-    vulnerabilityCount: sessionFindings.findings.length,
+    findingCount: sessionFindings.findings.length,
   });
 
   return (
@@ -58,7 +58,7 @@ export function DashboardScreen({
           dashboardState={dashboardState}
           findings={sessionFindings.findings}
           sitemapScrollRef={sitemapScrollRef}
-          vulnsScrollRef={vulnsScrollRef}
+          findingsScrollRef={findingsScrollRef}
           setActivePanel={setActivePanel}
         />
         <CenterDashboardPanel

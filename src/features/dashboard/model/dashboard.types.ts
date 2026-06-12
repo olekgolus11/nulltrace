@@ -1,12 +1,12 @@
 import { ToolName } from "../../tool/shared/types/tool-screen.types";
 
-export type DashboardPanelId = "sitemap" | "vulns" | "chat" | "tools";
+export type DashboardPanelId = "sitemap" | "findings" | "chat" | "tools";
 
 export interface DashboardState {
   activePanel: DashboardPanelId;
   selectedTool: number;
   selectedSitemapItem: number;
-  selectedVulnItem: number;
+  selectedFindingItem: number;
   chatInput: string;
 }
 
@@ -19,8 +19,8 @@ export interface UseDashboardLayoutResult {
   leftPanelBottomHeight: number;
   sitemapScrollHeight: number;
   sitemapScrollWidth: number;
-  vulnsScrollHeight: number;
-  vulnsScrollWidth: number;
+  findingsScrollHeight: number;
+  findingsScrollWidth: number;
 }
 
 export interface Tool {

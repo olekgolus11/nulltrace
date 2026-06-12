@@ -3,7 +3,7 @@ import { theme } from "../../../app/theme/theme";
 import { ChatWindow } from "../../chat/components/ChatWindow";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { SitemapTree } from "../../sitemap/components/SitemapTree";
-import { VulnerabilityList } from "../../vulnerability/components/VulnerabilityList";
+import { FindingList } from "../../finding/components/FindingList";
 import {
   mockSitemapTree,
   mockChatMessages,
@@ -23,14 +23,14 @@ export const LeftDashboardPanel = ({
   findings,
   layout,
   sitemapScrollRef,
-  vulnsScrollRef,
+  findingsScrollRef,
   setActivePanel,
 }: {
   dashboardState: DashboardState;
   findings: SessionFindingRecord[];
   layout: UseDashboardLayoutResult;
   sitemapScrollRef: React.RefObject<ScrollBoxRenderable | null>;
-  vulnsScrollRef: React.RefObject<ScrollBoxRenderable | null>;
+  findingsScrollRef: React.RefObject<ScrollBoxRenderable | null>;
   setActivePanel: (panel: DashboardPanelId) => void;
 }) => {
   return (
@@ -66,26 +66,26 @@ export const LeftDashboardPanel = ({
       </DashboardPanel>
 
       <DashboardPanel
-        title="Vulnerabilities"
-        panelNumber={getPanelDisplayNumber(dashboardPanels, "vulns")}
+        title="Findings"
+        panelNumber={getPanelDisplayNumber(dashboardPanels, "findings")}
         height={layout.leftPanelBottomHeight}
-        focused={dashboardState.activePanel === "vulns"}
+        focused={dashboardState.activePanel === "findings"}
         paddingBottom={0}
-        onMouseDown={() => setActivePanel("vulns")}
+        onMouseDown={() => setActivePanel("findings")}
       >
         <scrollbox
-          ref={vulnsScrollRef}
-          height={layout.vulnsScrollHeight}
-          width={layout.vulnsScrollWidth}
+          ref={findingsScrollRef}
+          height={layout.findingsScrollHeight}
+          width={layout.findingsScrollWidth}
           scrollX={true}
           verticalScrollbarOptions={{
             width: 2,
           }}
         >
-          <VulnerabilityList
+          <FindingList
             findings={findings}
-            selectedIndex={dashboardState.selectedVulnItem}
-            focused={dashboardState.activePanel === "vulns"}
+            selectedIndex={dashboardState.selectedFindingItem}
+            focused={dashboardState.activePanel === "findings"}
           />
         </scrollbox>
       </DashboardPanel>

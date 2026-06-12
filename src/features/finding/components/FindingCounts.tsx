@@ -1,13 +1,13 @@
 import { theme } from "../../../app/theme/theme";
-import { VulnerabilitySummaryProps } from "../model/vulnerability.types";
+import { FindingSummaryProps } from "../model/finding-summary.types";
 
-export function VulnerabilityCounts({
+export function FindingCounts({
   critical,
   high,
   medium,
   low,
   info,
-}: VulnerabilitySummaryProps) {
+}: FindingSummaryProps) {
   return (
     <box flexDirection="row" gap={2}>
       <text fg={theme.severity.critical}>

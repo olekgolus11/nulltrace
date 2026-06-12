@@ -1,15 +1,15 @@
 import { theme } from "../../app/theme/theme.js";
-import { VulnerabilityCounts } from "../../features/vulnerability/components/VulnerabilityCounts.js";
-import { VulnerabilitySummaryProps } from "../../features/vulnerability/model/vulnerability.types.js";
+import { FindingCounts } from "../../features/finding/components/FindingCounts.js";
+import { FindingSummaryProps } from "../../features/finding/model/finding-summary.types.js";
 
 interface HeaderProps {
   title?: string;
   subtitle?: string;
   targetUrl?: string;
-  counts?: VulnerabilitySummaryProps;
+  counts?: FindingSummaryProps;
 }
 
-const emptyCounts: VulnerabilitySummaryProps = {
+const emptyCounts: FindingSummaryProps = {
   critical: 0,
   high: 0,
   medium: 0,
@@ -55,7 +55,7 @@ export function Header({
       </box>
 
       <box marginBottom={1}>
-        <VulnerabilityCounts {...counts} />
+        <FindingCounts {...counts} />
       </box>
     </box>
   );

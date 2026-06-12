@@ -1,5 +1,5 @@
 import { theme } from "../../../app/theme/theme";
-import { Severity } from "./vulnerability.types";
+import { Severity } from "./finding-summary.types";
 
 export const severityConfig: Record<
   Severity,

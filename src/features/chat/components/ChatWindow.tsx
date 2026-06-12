@@ -16,7 +16,7 @@ export function ChatWindow({
   inputValue,
   onInputChange,
   onSubmit,
-  placeholder = "Ask about vulnerabilities, request scans...",
+  placeholder = "Ask about findings, request scans...",
   focused = false,
 }: ChatWindowProps) {
   return (

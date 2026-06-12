@@ -1,21 +1,21 @@
 import { theme } from "../../../app/theme/theme";
-import { SessionFindingRecord } from "../../finding/model/finding.types";
+import { SessionFindingRecord } from "../model/finding.types";
 import {
   severityConfig,
   severityLabels,
-} from "../model/vulnerability.contants";
+} from "../model/finding-summary.constants";
 
-interface VulnerabilityListProps {
+interface FindingListProps {
   findings: SessionFindingRecord[];
   selectedIndex: number;
   focused: boolean;
 }
 
-export function VulnerabilityList({
+export function FindingList({
   findings,
   selectedIndex,
   focused,
-}: VulnerabilityListProps) {
+}: FindingListProps) {
   function toSingleLine(value: string) {
     return value.replace(/\s+/g, " ").trim();
   }
