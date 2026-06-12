@@ -19,14 +19,14 @@ type DashboardAction =
   | { type: "SET_ACTIVE_PANEL"; panel: DashboardPanelId }
   | { type: "MOVE_TOOL_SELECTION"; delta: -1 | 1 }
   | { type: "MOVE_SITEMAP_SELECTION"; delta: -1 | 1 }
-  | { type: "MOVE_VULN_SELECTION"; delta: -1 | 1 }
+  | { type: "MOVE_FINDING_SELECTION"; delta: -1 | 1 }
   | { type: "SET_CHAT_INPUT"; value: string }
   | { type: "SUBMIT_CHAT" };
 
 interface UseDashboardShortcutsProps {
   onBack: () => void;
   onSelectTool: (toolName: ToolName) => void;
-  vulnerabilityCount: number;
+  findingCount: number;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -36,7 +36,7 @@ function clamp(value: number, min: number, max: number) {
 function createDashboardReducer(counts: {
   toolCount: number;
   sitemapCount: number;
-  vulnerabilityCount: number;
+  findingCount: number;
 }) {
   return function dashboardReducer(
     state: DashboardState,
@@ -79,13 +79,13 @@ function createDashboardReducer(counts: {
           ),
         };
 
-      case "MOVE_VULN_SELECTION":
+      case "MOVE_FINDING_SELECTION":
         return {
           ...state,
-          selectedVulnItem: clamp(
-            state.selectedVulnItem + action.delta,
+          selectedFindingItem: clamp(
+            state.selectedFindingItem + action.delta,
             0,
-            Math.max(0, counts.vulnerabilityCount - 1),
+            Math.max(0, counts.findingCount - 1),
           ),
         };
 
@@ -107,14 +107,14 @@ function createDashboardReducer(counts: {
 export function useDashboardShortcuts({
   onBack,
   onSelectTool,
-  vulnerabilityCount,
+  findingCount,
 }: UseDashboardShortcutsProps) {
   const sitemapScrollRef = useRef<ScrollBoxRenderable | null>(null);
-  const vulnsScrollRef = useRef<ScrollBoxRenderable | null>(null);
+  const findingsScrollRef = useRef<ScrollBoxRenderable | null>(null);
   const reducer = createDashboardReducer({
     toolCount: tools.length,
     sitemapCount: mockSitemapFlatNodes.length,
-    vulnerabilityCount,
+    findingCount,
   });
 
   const [state, dispatch] = useReducer(reducer, initialDashboardState);
@@ -184,18 +184,18 @@ export function useDashboardShortcuts({
         }
         break;
 
-      case "vulns":
+      case "findings":
         if (key.name === "up") {
-          vulnsScrollRef.current?.scrollBy(-1, "step");
+          findingsScrollRef.current?.scrollBy(-1, "step");
           dispatch({
-            type: "MOVE_VULN_SELECTION",
+            type: "MOVE_FINDING_SELECTION",
             delta: -1,
           });
         }
         if (key.name === "down") {
-          vulnsScrollRef.current?.scrollBy(1, "step");
+          findingsScrollRef.current?.scrollBy(1, "step");
           dispatch({
-            type: "MOVE_VULN_SELECTION",
+            type: "MOVE_FINDING_SELECTION",
             delta: 1,
           });
         }
@@ -222,6 +222,6 @@ export function useDashboardShortcuts({
     submitChat,
     setActivePanel,
     sitemapScrollRef,
-    vulnsScrollRef,
+    findingsScrollRef,
   };
 }

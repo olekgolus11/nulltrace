@@ -16,7 +16,7 @@ Today the app includes:
 
 - a landing screen for starting an assessment against a target URL
 - persisted target and session records backed by local SQLite storage
-- a dashboard layout with sitemap, chat, vulnerability summary, and tool catalog panels
+- a dashboard layout with sitemap, chat, findings summary, and tool catalog panels
 - a reusable tool system with workspace state, command editing, persisted output logs, and keyboard navigation
 - an implemented `nmap` workflow with guided scan options and generated commands
 - catalog-only placeholders for future tools such as `nuclei`, `ffuf`, `sqlmap`, `zap`, and `nikto`
@@ -29,7 +29,7 @@ This repository is shared primarily for research visibility and project document
 
 - target URL entry flow with lightweight session-oriented navigation
 - saved target/session browsing, reopening, and `Ctrl+N` session creation from the selected sidebar target
-- a dashboard that combines chat, sitemap, vulnerability summary, and tool discovery panels
+- a dashboard that combines chat, sitemap, findings summary, and tool discovery panels
 - a shared tool workspace shell with command editing, persisted run records, and output logging
 - keyboard-driven navigation patterns across the TUI
 - an `nmap` tool flow that generates and runs commands from guided form inputs

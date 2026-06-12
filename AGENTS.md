@@ -88,7 +88,7 @@ src/
     session/           # Session list UI
     sitemap/           # Sitemap tree rendering and utilities
     tool/              # Tool workspace, nmap support, shared tool state
-    vulnerability/     # Vulnerability badges, lists, summary
+    finding/           # Finding model, services, badges, lists, summary
   shared/ui/           # Shared top-level TUI components
 ```
 
