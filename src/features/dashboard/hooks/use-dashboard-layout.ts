@@ -22,11 +22,8 @@ export const useDashboardLayout = ({
   const leftPanelTopHeight = Math.ceil(contentHeight / 2);
   const leftPanelBottomHeight = contentHeight - leftPanelTopHeight;
 
-  // Sitemap can fill the full inner panel height. The bottom findings panel
-  // keeps one row clear so its horizontal scrollbar does not draw into the
-  // global status bar while still meeting the vertical scrollbar.
   const sitemapScrollHeight = Math.max(1, leftPanelTopHeight - 2);
-  const findingsScrollHeight = Math.max(1, leftPanelBottomHeight - 3);
+  const findingsScrollHeight = Math.max(1, leftPanelBottomHeight - 2);
   const innerPanelWidth = Math.max(1, leftPanelWidth - 4);
 
   return {

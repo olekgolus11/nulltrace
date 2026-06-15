@@ -18,6 +18,11 @@ import { DashboardPanel } from "./DashboardPanel";
 import { ToolList } from "./ToolList";
 import { getPanelDisplayNumber } from "../../../shared/model/panel-navigation";
 
+const dashboardScrollbarTrackOptions = {
+  backgroundColor: theme.border.muted,
+  foregroundColor: theme.text.secondary,
+} as const;
+
 export const LeftDashboardPanel = ({
   dashboardState,
   findings,
@@ -51,10 +56,19 @@ export const LeftDashboardPanel = ({
           ref={sitemapScrollRef}
           height={layout.sitemapScrollHeight}
           width={layout.sitemapScrollWidth}
+          viewportOptions={{
+            height: Math.max(1, layout.sitemapScrollHeight - 1),
+          }}
           scrollX={true}
           stickyScroll={false}
           verticalScrollbarOptions={{
-            width: 2,
+            width: 1,
+            visible: true,
+            trackOptions: dashboardScrollbarTrackOptions,
+          }}
+          horizontalScrollbarOptions={{
+            visible: true,
+            trackOptions: dashboardScrollbarTrackOptions,
           }}
         >
           <SitemapTree
@@ -77,9 +91,19 @@ export const LeftDashboardPanel = ({
           ref={findingsScrollRef}
           height={layout.findingsScrollHeight}
           width={layout.findingsScrollWidth}
+          viewportOptions={{
+            height: Math.max(1, layout.findingsScrollHeight - 1),
+          }}
           scrollX={true}
+          stickyScroll={false}
           verticalScrollbarOptions={{
-            width: 2,
+            width: 1,
+            visible: true,
+            trackOptions: dashboardScrollbarTrackOptions,
+          }}
+          horizontalScrollbarOptions={{
+            visible: true,
+            trackOptions: dashboardScrollbarTrackOptions,
           }}
         >
           <FindingList
