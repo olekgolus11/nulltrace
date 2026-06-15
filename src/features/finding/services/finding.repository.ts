@@ -1,5 +1,7 @@
 import { Database } from "bun:sqlite";
 import {
+  FindingReviewStatus,
+  SetFindingReviewStatusInput,
   SessionFindingRecord,
   UpsertFindingCandidateInput,
 } from "../model/finding.types";
@@ -23,10 +25,18 @@ interface SessionFindingRow {
   target: string;
   fingerprint: string;
   payloadJson: string;
+  reviewStatus: string | null;
+  reviewUpdatedAt: string | null;
   firstSeenAt: string;
   lastSeenAt: string;
   createdAt: string;
 }
+
+const findingReviewStatuses: FindingReviewStatus[] = [
+  "needs_review",
+  "confirmed",
+  "dismissed",
+];
 
 function createTimestamp() {
   return new Date().toISOString();
@@ -44,6 +54,14 @@ function parseJsonPayload(value: string) {
   }
 }
 
+function normalizeFindingReviewStatus(value: string | null): FindingReviewStatus {
+  if (value && findingReviewStatuses.includes(value as FindingReviewStatus)) {
+    return value as FindingReviewStatus;
+  }
+
+  return "needs_review";
+}
+
 function mapFindingRow(row: SessionFindingRow): SessionFindingRecord {
   return {
     id: row.id,
@@ -57,6 +75,8 @@ function mapFindingRow(row: SessionFindingRow): SessionFindingRecord {
     target: row.target,
     fingerprint: row.fingerprint,
     payload: parseJsonPayload(row.payloadJson),
+    reviewStatus: normalizeFindingReviewStatus(row.reviewStatus),
+    reviewUpdatedAt: row.reviewUpdatedAt,
     firstSeenAt: row.firstSeenAt,
     lastSeenAt: row.lastSeenAt,
     createdAt: row.createdAt,
@@ -92,10 +112,14 @@ export class FindingRepository {
           target,
           fingerprint,
           payload_json AS payloadJson,
+          finding_reviews.review_status AS reviewStatus,
+          finding_reviews.updated_at AS reviewUpdatedAt,
           first_seen_at AS firstSeenAt,
           last_seen_at AS lastSeenAt,
           created_at AS createdAt
         FROM session_findings
+        LEFT JOIN finding_reviews
+          ON finding_reviews.finding_id = session_findings.id
         WHERE session_id = ?1
         ORDER BY
           CASE severity
@@ -109,6 +133,25 @@ export class FindingRepository {
       )
       .all(sessionId)
       .map(mapFindingRow);
+  }
+
+  setReviewStatus({ findingId, reviewStatus }: SetFindingReviewStatusInput) {
+    const timestamp = createTimestamp();
+
+    this.database
+      .query(
+        `INSERT INTO finding_reviews (
+          finding_id,
+          review_status,
+          updated_at
+        ) VALUES (?1, ?2, ?3)
+        ON CONFLICT(finding_id) DO UPDATE SET
+          review_status = excluded.review_status,
+          updated_at = excluded.updated_at`,
+      )
+      .run(findingId, reviewStatus, timestamp);
+
+    return this.findById(findingId);
   }
 
   private upsertCandidate({
@@ -138,6 +181,8 @@ export class FindingRepository {
         target: candidate.target,
         fingerprint,
         payload: candidate.payload,
+        reviewStatus: "needs_review",
+        reviewUpdatedAt: null,
         firstSeenAt: timestamp,
         lastSeenAt: timestamp,
         createdAt: timestamp,
@@ -237,14 +282,48 @@ export class FindingRepository {
           target,
           fingerprint,
           payload_json AS payloadJson,
+          finding_reviews.review_status AS reviewStatus,
+          finding_reviews.updated_at AS reviewUpdatedAt,
           first_seen_at AS firstSeenAt,
           last_seen_at AS lastSeenAt,
           created_at AS createdAt
         FROM session_findings
+        LEFT JOIN finding_reviews
+          ON finding_reviews.finding_id = session_findings.id
         WHERE session_id = ?1
           AND fingerprint = ?2`,
       )
       .get(sessionId, fingerprint);
+
+    return row ? mapFindingRow(row) : null;
+  }
+
+  private findById(findingId: string) {
+    const row = this.database
+      .query<SessionFindingRow, [string]>(
+        `SELECT
+          session_findings.id AS id,
+          session_id AS sessionId,
+          tool_run_artifact_id AS toolRunArtifactId,
+          source_tool AS sourceTool,
+          kind,
+          severity,
+          title,
+          summary,
+          target,
+          fingerprint,
+          payload_json AS payloadJson,
+          finding_reviews.review_status AS reviewStatus,
+          finding_reviews.updated_at AS reviewUpdatedAt,
+          first_seen_at AS firstSeenAt,
+          last_seen_at AS lastSeenAt,
+          created_at AS createdAt
+        FROM session_findings
+        LEFT JOIN finding_reviews
+          ON finding_reviews.finding_id = session_findings.id
+        WHERE session_findings.id = ?1`,
+      )
+      .get(findingId);
 
     return row ? mapFindingRow(row) : null;
   }

@@ -23,6 +23,13 @@ export interface UpsertFindingCandidateInput {
   candidate: FindingCandidate;
 }
 
+export type FindingReviewStatus = "needs_review" | "confirmed" | "dismissed";
+
+export interface SetFindingReviewStatusInput {
+  findingId: string;
+  reviewStatus: FindingReviewStatus;
+}
+
 export interface SessionFindingRecord {
   id: string;
   sessionId: string;
@@ -35,6 +42,8 @@ export interface SessionFindingRecord {
   target: string;
   fingerprint: string;
   payload: unknown;
+  reviewStatus: FindingReviewStatus;
+  reviewUpdatedAt: string | null;
   firstSeenAt: string;
   lastSeenAt: string;
   createdAt: string;
