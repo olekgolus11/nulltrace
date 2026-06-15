@@ -73,10 +73,11 @@ export function FindingList({
           <box
             key={finding.id}
             flexDirection="column"
+            height={2}
             width={listWidth}
             backgroundColor={isSelected ? theme.bg.elevated : undefined}
           >
-            <box flexDirection="row" width={listWidth}>
+            <box flexDirection="row" height={1} width={listWidth}>
               <text fg={severityConfig[finding.severity].color}>
                 <strong>{severityLabel}</strong>
               </text>
@@ -89,7 +90,7 @@ export function FindingList({
                 {isSelected ? <strong>{title}</strong> : title}
               </text>
             </box>
-            <box width={listWidth}>
+            <box height={1} width={listWidth}>
               <text fg={theme.text.secondary}>{summary}</text>
             </box>
           </box>
