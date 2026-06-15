@@ -11,6 +11,15 @@ interface FindingListProps {
   focused: boolean;
 }
 
+const reviewStatusConfig: Record<
+  SessionFindingRecord["reviewStatus"],
+  { color: string; label: string }
+> = {
+  needs_review: { color: theme.accent.warning, label: "[NR]" },
+  confirmed: { color: theme.accent.primary, label: "[OK]" },
+  dismissed: { color: theme.text.muted, label: "[NO]" },
+};
+
 export function FindingList({
   findings,
   selectedIndex,
@@ -32,15 +41,18 @@ export function FindingList({
 
   const rows = findings.map((finding) => {
     const severityLabel = severityLabels[finding.severity];
+    const reviewStatusLabel = reviewStatusConfig[finding.reviewStatus].label;
     const title = toSingleLine(finding.title);
     const summary = toSingleLine(finding.summary);
 
     return {
       finding,
       severityLabel,
+      reviewStatusLabel,
       title,
       summary,
-      titleLineWidth: severityLabel.length + 1 + title.length,
+      titleLineWidth:
+        severityLabel.length + 1 + reviewStatusLabel.length + 1 + title.length,
       summaryLineWidth: summary.length,
     };
   });
@@ -51,8 +63,11 @@ export function FindingList({
 
   return (
     <box flexDirection="column" width={listWidth}>
-      {rows.map(({ finding, severityLabel, title, summary }, idx) => {
+      {rows.map((row, idx) => {
+        const { finding, severityLabel, reviewStatusLabel, title, summary } =
+          row;
         const isSelected = focused && idx === selectedIndex;
+        const reviewStatus = reviewStatusConfig[finding.reviewStatus];
 
         return (
           <box
@@ -64,6 +79,10 @@ export function FindingList({
             <box flexDirection="row" width={listWidth}>
               <text fg={severityConfig[finding.severity].color}>
                 <strong>{severityLabel}</strong>
+              </text>
+              <text fg={theme.text.dim}> </text>
+              <text fg={reviewStatus.color}>
+                <strong>{reviewStatusLabel}</strong>
               </text>
               <text fg={theme.text.dim}> </text>
               <text fg={isSelected ? theme.accent.primary : theme.text.primary}>

@@ -29,16 +29,15 @@ This file is for coding agents working in this repository.
 ## Current Planning Source
 
 - Current product planning lives in GitHub Issues.
-- Active milestone: [Real Scan Findings Pipeline](https://github.com/olekgolus11/nulltrace/milestone/1).
-- The milestone description contains the PRD for the next major slice of work.
+- Active milestone: [Finding Review Workflow](https://github.com/olekgolus11/nulltrace/milestone/2).
+- The milestone description contains the PRD for the current operator review slice.
+- Previous milestone: [Real Scan Findings Pipeline](https://github.com/olekgolus11/nulltrace/milestone/1).
 - Relevant implementation issues:
-  - [#11 Add session finding upsert model](https://github.com/olekgolus11/nulltrace/issues/11)
-  - [#12 Map nmap artifacts into session findings](https://github.com/olekgolus11/nulltrace/issues/12)
-  - [#13 Add minimal Nuclei tool execution](https://github.com/olekgolus11/nulltrace/issues/13)
-  - [#14 Persist Nuclei JSONL artifacts](https://github.com/olekgolus11/nulltrace/issues/14)
-  - [#15 Map Nuclei artifacts into session findings](https://github.com/olekgolus11/nulltrace/issues/15)
-  - [#16 Render dashboard findings from session_findings](https://github.com/olekgolus11/nulltrace/issues/16)
-  - [#17 Add parser and mapper tests for the findings pipeline](https://github.com/olekgolus11/nulltrace/issues/17)
+  - [#25 Rename vulnerability surfaces to findings](https://github.com/olekgolus11/nulltrace/issues/25)
+  - [#26 Add finding review persistence model](https://github.com/olekgolus11/nulltrace/issues/26)
+  - [#27 Render review status markers in findings list](https://github.com/olekgolus11/nulltrace/issues/27)
+  - [#28 Add finding detail modal with source context](https://github.com/olekgolus11/nulltrace/issues/28)
+  - [#29 Add review status keyboard actions in finding detail modal](https://github.com/olekgolus11/nulltrace/issues/29)
 - Write GitHub issues and pull requests in English.
 
 ## Build, Run, and Test Commands
@@ -87,7 +86,7 @@ src/
     entry/             # Landing / target input flow
     session/           # Session list UI
     sitemap/           # Sitemap tree rendering and utilities
-    tool/              # Tool workspace, nmap support, shared tool state
+    tool/              # Tool workspace, nmap/nuclei support, shared tool state
     finding/           # Finding model, services, badges, lists, summary
   shared/ui/           # Shared top-level TUI components
 ```
@@ -112,16 +111,29 @@ config/
 - Screen routing is simple state switching in `src/main/App.tsx`.
 - Dashboard and entry flows use `useReducer`-based local state hooks.
 - Tool workspaces use Zustand stores under `src/features/tool/shared/store/`.
-- Current behavior is mock-data-heavy; avoid introducing backend assumptions unless the task requires it.
+- Findings are scanner-derived session observations persisted in SQLite.
+- Finding reviews are operator-derived judgment stored separately from session findings.
+- Current behavior still includes mock-heavy UI areas; avoid introducing backend assumptions unless the task requires it.
 
 ## Tool System Layout
 
 - `src/features/tool/shared/` holds the reusable tool shell: workspace store, keyboard navigation, registry, shared components, and command execution.
-- `src/features/tool/nmap/` is the only fully implemented tool today.
+- `src/features/tool/nmap/` and `src/features/tool/nuclei/` are the implemented scanner tools today.
 - Each tool folder follows the same shape when it exists: `components/`, `config/`, `data/`, `services/`, `store/`, `types/`.
 - `tool-registry.ts` is the switchboard for tool metadata, workspace creation, command generation, and tool-specific key handling.
 - `command-runner.service.ts` is the execution boundary. Keep shell behavior changes here deliberate because it affects every tool workspace.
 - Prefer extending the existing tool shell and registry before adding new one-off tool logic elsewhere.
+
+## Finding Review Workflow Notes
+
+- Use Finding as the operator-facing term; do not reintroduce Vulnerability or Vuln labels unless historical data requires it.
+- Keep `session_findings` as the scanner-derived observation layer.
+- Keep finding review state separate from scanner upserts so operator judgment is not overwritten.
+- Review statuses are `needs_review`, `confirmed`, and `dismissed`.
+- A finding without an explicit review record is effectively `needs_review`.
+- Dismissed findings remain visible in normal findings lists.
+- Severity counts stay based on all session findings and must not be adjusted by review status.
+- Review status filters, notes, accepted-risk, resolved/fixed lifecycle states, reporting, and AI enrichment are out of scope for the current milestone.
 
 ## Code Style
 
@@ -203,6 +215,7 @@ config/
 - If a change needs verification, prefer `bunx tsc --noEmit` and manual app checks over test creation.
 - Existing `.test.ts` files may still be run if they help validate a change, but new routine coverage is not expected.
 - For the Real Scan Findings Pipeline milestone, focused Bun tests are expected for parser, mapper, fingerprint, severity normalization, and session finding upsert behavior.
+- For the Finding Review Workflow milestone, focused Bun tests are expected for finding review persistence, effective review status behavior, and extracted pure read-model helpers.
 - TUI component unit tests are still optional unless a change extracts pure read-model logic that is useful to test.
 
 ## Agent Workflow Suggestions
@@ -211,7 +224,7 @@ config/
 - Check whether a feature already has a hook, store, service, config, or registry entry before adding a new one.
 - Prefer extending existing mock/config data and the current tool shell instead of inventing parallel structures.
 - Use GitHub Issues as the default task-tracking system for this repository when work should be recorded or planned.
-- For work related to the current findings pipeline, attach or reference the active GitHub milestone.
+- For work related to the current finding review workflow, attach or reference the active GitHub milestone.
 - If an AI agent finds a bug during implementation, review, or verification, it should create or update a GitHub issue and apply an appropriate bug label when available.
 - Verify impacted code with `bunx tsc --noEmit` and manual app checks when practical.
 - Run existing tests only when they already cover the changed path and are genuinely useful for validation.
