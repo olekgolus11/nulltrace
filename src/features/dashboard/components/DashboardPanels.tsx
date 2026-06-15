@@ -25,6 +25,7 @@ export const LeftDashboardPanel = ({
   sitemapScrollRef,
   findingsScrollRef,
   setActivePanel,
+  selectFinding,
 }: {
   dashboardState: DashboardState;
   findings: SessionFindingRecord[];
@@ -32,6 +33,7 @@ export const LeftDashboardPanel = ({
   sitemapScrollRef: React.RefObject<ScrollBoxRenderable | null>;
   findingsScrollRef: React.RefObject<ScrollBoxRenderable | null>;
   setActivePanel: (panel: DashboardPanelId) => void;
+  selectFinding: (index: number) => void;
 }) => {
   return (
     <box
@@ -105,6 +107,7 @@ export const LeftDashboardPanel = ({
             findings={findings}
             selectedIndex={dashboardState.selectedFindingItem}
             focused={dashboardState.activePanel === "findings"}
+            onSelectFinding={selectFinding}
           />
         </scrollbox>
       </DashboardPanel>

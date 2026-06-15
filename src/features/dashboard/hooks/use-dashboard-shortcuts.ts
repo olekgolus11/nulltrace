@@ -21,6 +21,7 @@ type DashboardAction =
   | { type: "MOVE_TOOL_SELECTION"; delta: -1 | 1 }
   | { type: "MOVE_SITEMAP_SELECTION"; delta: -1 | 1 }
   | { type: "MOVE_FINDING_SELECTION"; delta: -1 | 1 }
+  | { type: "SELECT_FINDING"; index: number }
   | { type: "OPEN_FINDING_DETAIL"; findingId: string }
   | { type: "CLOSE_FINDING_DETAIL" }
   | { type: "SET_CHAT_INPUT"; value: string }
@@ -87,6 +88,17 @@ function createDashboardReducer(counts: {
           ...state,
           selectedFindingItem: clamp(
             state.selectedFindingItem + action.delta,
+            0,
+            Math.max(0, counts.findingCount - 1),
+          ),
+        };
+
+      case "SELECT_FINDING":
+        return {
+          ...state,
+          activePanel: "findings",
+          selectedFindingItem: clamp(
+            action.index,
             0,
             Math.max(0, counts.findingCount - 1),
           ),
@@ -268,11 +280,32 @@ export function useDashboardShortcuts({
     dispatch({ type: "SET_ACTIVE_PANEL", panel });
   };
 
+  const selectFinding = (index: number) => {
+    const finding = findings[index];
+    if (!finding) {
+      return;
+    }
+
+    if (
+      state.activePanel === "findings" &&
+      state.selectedFindingItem === index
+    ) {
+      dispatch({
+        type: "OPEN_FINDING_DETAIL",
+        findingId: finding.id,
+      });
+      return;
+    }
+
+    dispatch({ type: "SELECT_FINDING", index });
+  };
+
   return {
     dashboardState: state,
     setChatInput,
     submitChat,
     setActivePanel,
+    selectFinding,
     sitemapScrollRef,
     findingsScrollRef,
     findingDetailScrollRef,

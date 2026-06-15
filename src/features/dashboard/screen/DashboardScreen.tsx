@@ -37,6 +37,7 @@ export function DashboardScreen({
     setChatInput,
     submitChat,
     setActivePanel,
+    selectFinding,
     sitemapScrollRef,
     findingsScrollRef,
     findingDetailScrollRef,
@@ -69,6 +70,7 @@ export function DashboardScreen({
           sitemapScrollRef={sitemapScrollRef}
           findingsScrollRef={findingsScrollRef}
           setActivePanel={setActivePanel}
+          selectFinding={selectFinding}
         />
         <CenterDashboardPanel
           layout={layout}
