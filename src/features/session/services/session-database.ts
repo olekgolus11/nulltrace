@@ -62,6 +62,17 @@ function createSessionFindingsTable() {
   `);
 }
 
+function createFindingReviewsTable() {
+  sessionDatabase.exec(`
+    CREATE TABLE IF NOT EXISTS finding_reviews (
+      finding_id TEXT PRIMARY KEY,
+      review_status TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (finding_id) REFERENCES session_findings(id) ON DELETE CASCADE
+    );
+  `);
+}
+
 sessionDatabase.exec(`
   CREATE TABLE IF NOT EXISTS targets (
     id TEXT PRIMARY KEY,
@@ -156,3 +167,4 @@ if (sessionFindingsTable) {
 }
 
 createSessionFindingsTable();
+createFindingReviewsTable();

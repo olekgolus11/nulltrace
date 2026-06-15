@@ -33,6 +33,12 @@ function createTestDatabase() {
 
     CREATE UNIQUE INDEX idx_session_findings_session_fingerprint
       ON session_findings(session_id, fingerprint);
+
+    CREATE TABLE finding_reviews (
+      finding_id TEXT PRIMARY KEY,
+      review_status TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 
   database
@@ -78,6 +84,8 @@ describe("FindingRepository", () => {
       payload: {
         artifactItemPath: "$.hosts[0].ports[0]",
       },
+      reviewStatus: "needs_review",
+      reviewUpdatedAt: null,
     });
     expect(records[0].fingerprint).toHaveLength(64);
     expect(records[0].fingerprint).not.toContain("scanme.nmap.org");
@@ -276,5 +284,168 @@ describe("FindingRepository", () => {
       "Older high finding",
       "Open TCP port 443",
     ]);
+  });
+
+  it("uses needs_review when no explicit finding review exists", () => {
+    const repository = new FindingRepository(createTestDatabase());
+
+    repository.upsertCandidates([
+      {
+        sessionId: "session-1",
+        toolRunArtifactId: "artifact-1",
+        candidate: {
+          sourceTool: "nmap",
+          kind: "nmap.open_port",
+          severity: "info",
+          title: "Open TCP port 443",
+          summary: "scanme.nmap.org exposes 443/tcp.",
+          target: "scanme.nmap.org:443",
+          dedupeKeyParts: ["scanme.nmap.org", "443/tcp"],
+          payload: {},
+        },
+      },
+    ]);
+
+    const [finding] = repository.listBySessionId("session-1");
+
+    expect(finding).toMatchObject({
+      reviewStatus: "needs_review",
+      reviewUpdatedAt: null,
+    });
+  });
+
+  it("creates and updates finding review status", () => {
+    const repository = new FindingRepository(createTestDatabase());
+    const [finding] = repository.upsertCandidates([
+      {
+        sessionId: "session-1",
+        toolRunArtifactId: "artifact-1",
+        candidate: {
+          sourceTool: "nuclei",
+          kind: "nuclei.http",
+          severity: "high",
+          title: "Exposed admin panel",
+          summary: "Nuclei reported an exposed admin panel.",
+          target: "https://example.com/admin",
+          dedupeKeyParts: ["exposed-admin", "https://example.com/admin"],
+          payload: {},
+        },
+      },
+    ]);
+
+    const confirmed = repository.setReviewStatus({
+      findingId: finding.id,
+      reviewStatus: "confirmed",
+    });
+    const dismissed = repository.setReviewStatus({
+      findingId: finding.id,
+      reviewStatus: "dismissed",
+    });
+
+    expect(confirmed).toMatchObject({
+      id: finding.id,
+      reviewStatus: "confirmed",
+    });
+    expect(confirmed?.reviewUpdatedAt).toBeString();
+    expect(dismissed).toMatchObject({
+      id: finding.id,
+      reviewStatus: "dismissed",
+    });
+    expect(dismissed?.reviewUpdatedAt).toBeString();
+  });
+
+  it("persists explicit needs_review after interaction", () => {
+    const database = createTestDatabase();
+    const repository = new FindingRepository(database);
+    const [finding] = repository.upsertCandidates([
+      {
+        sessionId: "session-1",
+        toolRunArtifactId: "artifact-1",
+        candidate: {
+          sourceTool: "nmap",
+          kind: "nmap.script_signal",
+          severity: "info",
+          title: "Nmap script reported output",
+          summary: "Nmap script reported output on scanme.nmap.org.",
+          target: "scanme.nmap.org",
+          dedupeKeyParts: ["scanme.nmap.org", "http-title"],
+          payload: {},
+        },
+      },
+    ]);
+
+    const reviewed = repository.setReviewStatus({
+      findingId: finding.id,
+      reviewStatus: "needs_review",
+    });
+    const rowCount = database
+      .query<{ count: number }, []>(
+        "SELECT COUNT(*) AS count FROM finding_reviews",
+      )
+      .get();
+
+    expect(rowCount?.count).toBe(1);
+    expect(reviewed).toMatchObject({
+      reviewStatus: "needs_review",
+    });
+    expect(reviewed?.reviewUpdatedAt).toBeString();
+  });
+
+  it("preserves finding review status when scanner upserts the finding", () => {
+    const repository = new FindingRepository(createTestDatabase());
+    const [first] = repository.upsertCandidates([
+      {
+        sessionId: "session-1",
+        toolRunArtifactId: "artifact-1",
+        candidate: {
+          sourceTool: "nuclei",
+          kind: "nuclei.cve",
+          severity: "medium",
+          title: "Initial title",
+          summary: "Initial summary.",
+          target: "https://example.com/login",
+          dedupeKeyParts: ["template-id", "https://example.com/login"],
+          payload: {
+            artifactFindingIndex: 0,
+          },
+        },
+      },
+    ]);
+
+    repository.setReviewStatus({
+      findingId: first.id,
+      reviewStatus: "confirmed",
+    });
+
+    const [second] = repository.upsertCandidates([
+      {
+        sessionId: "session-1",
+        toolRunArtifactId: "artifact-2",
+        candidate: {
+          sourceTool: "nuclei",
+          kind: "nuclei.cve",
+          severity: "critical",
+          title: "Updated title",
+          summary: "Updated summary.",
+          target: "https://example.com/login",
+          dedupeKeyParts: ["template-id", "https://example.com/login"],
+          payload: {
+            artifactFindingIndex: 1,
+          },
+        },
+      },
+    ]);
+    const [listed] = repository.listBySessionId("session-1");
+
+    expect(second).toMatchObject({
+      id: first.id,
+      severity: "critical",
+      title: "Updated title",
+      reviewStatus: "confirmed",
+    });
+    expect(listed).toMatchObject({
+      id: first.id,
+      reviewStatus: "confirmed",
+    });
   });
 });
