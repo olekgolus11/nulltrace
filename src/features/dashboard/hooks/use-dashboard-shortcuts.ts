@@ -1,6 +1,6 @@
 import { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
-import { useRef, useReducer } from "react";
+import { useEffect, useRef, useReducer } from "react";
 import { mockSitemapFlatNodes } from "../data/dashboard.mock";
 import { tools } from "../data/tool-catalog";
 import {
@@ -12,6 +12,7 @@ import {
   cyclePanel,
   getPanelByShortcut,
 } from "../../../shared/model/panel-navigation";
+import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { ToolName } from "../../tool/shared/types/tool-screen.types";
 
 type DashboardAction =
@@ -20,13 +21,15 @@ type DashboardAction =
   | { type: "MOVE_TOOL_SELECTION"; delta: -1 | 1 }
   | { type: "MOVE_SITEMAP_SELECTION"; delta: -1 | 1 }
   | { type: "MOVE_FINDING_SELECTION"; delta: -1 | 1 }
+  | { type: "OPEN_FINDING_DETAIL"; findingId: string }
+  | { type: "CLOSE_FINDING_DETAIL" }
   | { type: "SET_CHAT_INPUT"; value: string }
   | { type: "SUBMIT_CHAT" };
 
 interface UseDashboardShortcutsProps {
   onBack: () => void;
   onSelectTool: (toolName: ToolName) => void;
-  findingCount: number;
+  findings: SessionFindingRecord[];
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -89,6 +92,18 @@ function createDashboardReducer(counts: {
           ),
         };
 
+      case "OPEN_FINDING_DETAIL":
+        return {
+          ...state,
+          selectedFindingDetailId: action.findingId,
+        };
+
+      case "CLOSE_FINDING_DETAIL":
+        return {
+          ...state,
+          selectedFindingDetailId: null,
+        };
+
       case "SET_CHAT_INPUT":
         return {
           ...state,
@@ -107,19 +122,47 @@ function createDashboardReducer(counts: {
 export function useDashboardShortcuts({
   onBack,
   onSelectTool,
-  findingCount,
+  findings,
 }: UseDashboardShortcutsProps) {
   const sitemapScrollRef = useRef<ScrollBoxRenderable | null>(null);
   const findingsScrollRef = useRef<ScrollBoxRenderable | null>(null);
+  const findingDetailScrollRef = useRef<ScrollBoxRenderable | null>(null);
   const reducer = createDashboardReducer({
     toolCount: tools.length,
     sitemapCount: mockSitemapFlatNodes.length,
-    findingCount,
+    findingCount: findings.length,
   });
 
   const [state, dispatch] = useReducer(reducer, initialDashboardState);
 
+  useEffect(() => {
+    if (!state.selectedFindingDetailId) {
+      return;
+    }
+
+    if (
+      findings.some((finding) => finding.id === state.selectedFindingDetailId)
+    ) {
+      return;
+    }
+
+    dispatch({ type: "CLOSE_FINDING_DETAIL" });
+  }, [findings, state.selectedFindingDetailId]);
+
   useKeyboard((key) => {
+    if (state.selectedFindingDetailId) {
+      if (key.name === "escape") {
+        dispatch({ type: "CLOSE_FINDING_DETAIL" });
+      }
+      if (key.name === "up") {
+        findingDetailScrollRef.current?.scrollBy(-1, "step");
+      }
+      if (key.name === "down") {
+        findingDetailScrollRef.current?.scrollBy(1, "step");
+      }
+      return;
+    }
+
     // Back to entry screen
     if (key.name === "escape") {
       onBack();
@@ -199,6 +242,15 @@ export function useDashboardShortcuts({
             delta: 1,
           });
         }
+        if (key.name === "return") {
+          const finding = findings[state.selectedFindingItem];
+          if (finding) {
+            dispatch({
+              type: "OPEN_FINDING_DETAIL",
+              findingId: finding.id,
+            });
+          }
+        }
         break;
     }
   });
@@ -223,5 +275,6 @@ export function useDashboardShortcuts({
     setActivePanel,
     sitemapScrollRef,
     findingsScrollRef,
+    findingDetailScrollRef,
   };
 }
