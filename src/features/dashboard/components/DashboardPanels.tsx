@@ -4,14 +4,9 @@ import { ChatWindow } from "../../chat/components/ChatWindow";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { SitemapTree } from "../../sitemap/components/SitemapTree";
 import { FindingList } from "../../finding/components/FindingList";
-import {
-  mockSitemapTree,
-  mockChatMessages,
-} from "../data/dashboard.mock";
+import { mockSitemapTree, mockChatMessages } from "../data/dashboard.mock";
 import { tools } from "../data/tool-catalog";
-import {
-  dashboardPanels,
-} from "../model/dashboard.state";
+import { dashboardPanels } from "../model/dashboard.state";
 import { DashboardPanelId, DashboardState } from "../model/dashboard.types";
 import { UseDashboardLayoutResult } from "../model/dashboard.types";
 import { DashboardPanel } from "./DashboardPanel";
@@ -62,7 +57,7 @@ export const LeftDashboardPanel = ({
           scrollX={true}
           stickyScroll={false}
           verticalScrollbarOptions={{
-            width: 1,
+            width: 2,
             visible: true,
             trackOptions: dashboardScrollbarTrackOptions,
           }}
@@ -97,7 +92,7 @@ export const LeftDashboardPanel = ({
           scrollX={true}
           stickyScroll={false}
           verticalScrollbarOptions={{
-            width: 1,
+            width: 2,
             visible: true,
             trackOptions: dashboardScrollbarTrackOptions,
           }}
