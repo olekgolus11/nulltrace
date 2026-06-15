@@ -7,6 +7,7 @@ export interface DashboardState {
   selectedTool: number;
   selectedSitemapItem: number;
   selectedFindingItem: number;
+  selectedFindingDetailId: string | null;
   chatInput: string;
 }
 

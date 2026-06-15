@@ -22,10 +22,8 @@ export const useDashboardLayout = ({
   const leftPanelTopHeight = Math.ceil(contentHeight / 2);
   const leftPanelBottomHeight = contentHeight - leftPanelTopHeight;
 
-  // Both left panels use horizontal scrollbars, so keep one extra row clear
-  // below the scrollbox to prevent the scrollbar from touching the border.
-  const sitemapScrollHeight = Math.max(1, leftPanelTopHeight - 3);
-  const findingsScrollHeight = Math.max(1, leftPanelBottomHeight - 3);
+  const sitemapScrollHeight = Math.max(1, leftPanelTopHeight - 2);
+  const findingsScrollHeight = Math.max(1, leftPanelBottomHeight - 2);
   const innerPanelWidth = Math.max(1, leftPanelWidth - 4);
 
   return {

@@ -13,5 +13,6 @@ export const initialDashboardState: DashboardState = {
   selectedTool: 0,
   selectedSitemapItem: 0,
   selectedFindingItem: 0,
+  selectedFindingDetailId: null,
   chatInput: "",
 };

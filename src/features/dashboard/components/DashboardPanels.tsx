@@ -4,19 +4,19 @@ import { ChatWindow } from "../../chat/components/ChatWindow";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { SitemapTree } from "../../sitemap/components/SitemapTree";
 import { FindingList } from "../../finding/components/FindingList";
-import {
-  mockSitemapTree,
-  mockChatMessages,
-} from "../data/dashboard.mock";
+import { mockSitemapTree, mockChatMessages } from "../data/dashboard.mock";
 import { tools } from "../data/tool-catalog";
-import {
-  dashboardPanels,
-} from "../model/dashboard.state";
+import { dashboardPanels } from "../model/dashboard.state";
 import { DashboardPanelId, DashboardState } from "../model/dashboard.types";
 import { UseDashboardLayoutResult } from "../model/dashboard.types";
 import { DashboardPanel } from "./DashboardPanel";
 import { ToolList } from "./ToolList";
 import { getPanelDisplayNumber } from "../../../shared/model/panel-navigation";
+
+const dashboardScrollbarTrackOptions = {
+  backgroundColor: theme.border.muted,
+  foregroundColor: theme.text.secondary,
+} as const;
 
 export const LeftDashboardPanel = ({
   dashboardState,
@@ -25,6 +25,7 @@ export const LeftDashboardPanel = ({
   sitemapScrollRef,
   findingsScrollRef,
   setActivePanel,
+  selectFinding,
 }: {
   dashboardState: DashboardState;
   findings: SessionFindingRecord[];
@@ -32,6 +33,7 @@ export const LeftDashboardPanel = ({
   sitemapScrollRef: React.RefObject<ScrollBoxRenderable | null>;
   findingsScrollRef: React.RefObject<ScrollBoxRenderable | null>;
   setActivePanel: (panel: DashboardPanelId) => void;
+  selectFinding: (index: number) => void;
 }) => {
   return (
     <box
@@ -51,10 +53,19 @@ export const LeftDashboardPanel = ({
           ref={sitemapScrollRef}
           height={layout.sitemapScrollHeight}
           width={layout.sitemapScrollWidth}
+          viewportOptions={{
+            height: Math.max(1, layout.sitemapScrollHeight - 1),
+          }}
           scrollX={true}
           stickyScroll={false}
           verticalScrollbarOptions={{
             width: 2,
+            visible: true,
+            trackOptions: dashboardScrollbarTrackOptions,
+          }}
+          horizontalScrollbarOptions={{
+            visible: true,
+            trackOptions: dashboardScrollbarTrackOptions,
           }}
         >
           <SitemapTree
@@ -77,15 +88,26 @@ export const LeftDashboardPanel = ({
           ref={findingsScrollRef}
           height={layout.findingsScrollHeight}
           width={layout.findingsScrollWidth}
+          viewportOptions={{
+            height: Math.max(1, layout.findingsScrollHeight - 1),
+          }}
           scrollX={true}
+          stickyScroll={false}
           verticalScrollbarOptions={{
             width: 2,
+            visible: true,
+            trackOptions: dashboardScrollbarTrackOptions,
+          }}
+          horizontalScrollbarOptions={{
+            visible: true,
+            trackOptions: dashboardScrollbarTrackOptions,
           }}
         >
           <FindingList
             findings={findings}
             selectedIndex={dashboardState.selectedFindingItem}
             focused={dashboardState.activePanel === "findings"}
+            onSelectFinding={selectFinding}
           />
         </scrollbox>
       </DashboardPanel>

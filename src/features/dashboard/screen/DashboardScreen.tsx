@@ -10,6 +10,7 @@ import { useDashboardShortcuts } from "../hooks/use-dashboard-shortcuts";
 import { dashboardPanels } from "../model/dashboard.state";
 import { Header } from "../../../shared/ui/Header";
 import { StatusBar } from "../../../shared/ui/StatusBar";
+import { FindingDetailModal } from "../../finding/components/FindingDetailModal";
 import { useSessionFindings } from "../../finding/hooks/use-session-findings";
 import { useSessionContextStore } from "../../session/store/session-context.store";
 import { ToolName } from "../../tool/shared/types/tool-screen.types";
@@ -36,13 +37,22 @@ export function DashboardScreen({
     setChatInput,
     submitChat,
     setActivePanel,
+    selectFinding,
     sitemapScrollRef,
     findingsScrollRef,
+    findingDetailScrollRef,
   } = useDashboardShortcuts({
     onBack,
     onSelectTool,
-    findingCount: sessionFindings.findings.length,
+    findings: sessionFindings.findings,
   });
+  const selectedFindingDetail = dashboardState.selectedFindingDetailId
+    ? sessionFindings.findings.find(
+        (finding) => finding.id === dashboardState.selectedFindingDetailId,
+      )
+    : null;
+  const modalWidth = Math.max(1, Math.min(96, width - 8));
+  const modalHeight = Math.max(1, Math.min(30, height - 6));
 
   return (
     <box
@@ -60,6 +70,7 @@ export function DashboardScreen({
           sitemapScrollRef={sitemapScrollRef}
           findingsScrollRef={findingsScrollRef}
           setActivePanel={setActivePanel}
+          selectFinding={selectFinding}
         />
         <CenterDashboardPanel
           layout={layout}
@@ -78,13 +89,28 @@ export function DashboardScreen({
         activePanel={dashboardState.activePanel}
         panels={dashboardPanels}
         hints={[
-          { key: "Tab/Shift+Tab", label: "switch" },
-          { key: "Ctrl+1-4", label: "jump" },
-          { key: "Enter", label: "select" },
-          { key: "ESC", label: "back" },
-          { key: "Ctrl+Q", label: "quit" },
+          ...(selectedFindingDetail
+            ? [
+                { key: "Up/Down", label: "scroll" },
+                { key: "ESC", label: "close" },
+              ]
+            : [
+                { key: "Tab/Shift+Tab", label: "switch" },
+                { key: "Ctrl+1-4", label: "jump" },
+                { key: "Enter", label: "select" },
+                { key: "ESC", label: "back" },
+                { key: "Ctrl+Q", label: "quit" },
+              ]),
         ]}
       />
+      {selectedFindingDetail ? (
+        <FindingDetailModal
+          finding={selectedFindingDetail}
+          width={modalWidth}
+          height={modalHeight}
+          scrollRef={findingDetailScrollRef}
+        />
+      ) : null}
     </box>
   );
 }

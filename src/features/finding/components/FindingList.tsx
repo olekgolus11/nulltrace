@@ -9,6 +9,7 @@ interface FindingListProps {
   findings: SessionFindingRecord[];
   selectedIndex: number;
   focused: boolean;
+  onSelectFinding: (index: number) => void;
 }
 
 const reviewStatusConfig: Record<
@@ -24,6 +25,7 @@ export function FindingList({
   findings,
   selectedIndex,
   focused,
+  onSelectFinding,
 }: FindingListProps) {
   function toSingleLine(value: string) {
     return value.replace(/\s+/g, " ").trim();
@@ -73,10 +75,19 @@ export function FindingList({
           <box
             key={finding.id}
             flexDirection="column"
+            height={2}
             width={listWidth}
             backgroundColor={isSelected ? theme.bg.elevated : undefined}
+            onMouseDown={(event) => {
+              if (event.button !== 0) {
+                return;
+              }
+
+              event.stopPropagation();
+              onSelectFinding(idx);
+            }}
           >
-            <box flexDirection="row" width={listWidth}>
+            <box flexDirection="row" height={1} width={listWidth}>
               <text fg={severityConfig[finding.severity].color}>
                 <strong>{severityLabel}</strong>
               </text>
@@ -89,7 +100,7 @@ export function FindingList({
                 {isSelected ? <strong>{title}</strong> : title}
               </text>
             </box>
-            <box width={listWidth}>
+            <box height={1} width={listWidth}>
               <text fg={theme.text.secondary}>{summary}</text>
             </box>
           </box>
