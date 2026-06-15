@@ -12,7 +12,10 @@ import {
   cyclePanel,
   getPanelByShortcut,
 } from "../../../shared/model/panel-navigation";
-import { SessionFindingRecord } from "../../finding/model/finding.types";
+import {
+  FindingReviewStatus,
+  SessionFindingRecord,
+} from "../../finding/model/finding.types";
 import { ToolName } from "../../tool/shared/types/tool-screen.types";
 
 type DashboardAction =
@@ -31,11 +34,21 @@ interface UseDashboardShortcutsProps {
   onBack: () => void;
   onSelectTool: (toolName: ToolName) => void;
   findings: SessionFindingRecord[];
+  onSetFindingReviewStatus: (
+    findingId: string,
+    reviewStatus: FindingReviewStatus,
+  ) => void;
 }
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
+
+const reviewStatusByShortcut: Record<string, FindingReviewStatus> = {
+  "1": "needs_review",
+  "2": "confirmed",
+  "3": "dismissed",
+};
 
 function createDashboardReducer(counts: {
   toolCount: number;
@@ -135,6 +148,7 @@ export function useDashboardShortcuts({
   onBack,
   onSelectTool,
   findings,
+  onSetFindingReviewStatus,
 }: UseDashboardShortcutsProps) {
   const sitemapScrollRef = useRef<ScrollBoxRenderable | null>(null);
   const findingsScrollRef = useRef<ScrollBoxRenderable | null>(null);
@@ -163,6 +177,12 @@ export function useDashboardShortcuts({
 
   useKeyboard((key) => {
     if (state.selectedFindingDetailId) {
+      const reviewStatus = reviewStatusByShortcut[key.name];
+
+      if (reviewStatus) {
+        onSetFindingReviewStatus(state.selectedFindingDetailId, reviewStatus);
+        return;
+      }
       if (key.name === "escape") {
         dispatch({ type: "CLOSE_FINDING_DETAIL" });
       }
