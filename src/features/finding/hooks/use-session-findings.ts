@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { SessionFindingRecord } from "../model/finding.types";
+import {
+  FindingReviewStatus,
+  SessionFindingRecord,
+} from "../model/finding.types";
 import { findingRepository } from "../services/finding.repository";
 import { FindingSummaryProps } from "../model/finding-summary.types";
 
@@ -39,8 +42,29 @@ export function useSessionFindings(
     setFindings(findingRepository.listBySessionId(sessionId));
   }, [refreshKey, sessionId]);
 
+  const setReviewStatus = (
+    findingId: string,
+    reviewStatus: FindingReviewStatus,
+  ) => {
+    const updatedFinding = findingRepository.setReviewStatus({
+      findingId,
+      reviewStatus,
+    });
+
+    if (!updatedFinding) {
+      return;
+    }
+
+    setFindings((currentFindings) =>
+      currentFindings.map((finding) =>
+        finding.id === findingId ? updatedFinding : finding,
+      ),
+    );
+  };
+
   return {
     findings,
     counts: countFindings(findings),
+    setReviewStatus,
   };
 }

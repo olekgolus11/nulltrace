@@ -1,6 +1,9 @@
 import { ScrollBoxRenderable } from "@opentui/core";
 import { theme } from "../../../app/theme/theme";
-import { SessionFindingRecord } from "../model/finding.types";
+import {
+  FindingReviewStatus,
+  SessionFindingRecord,
+} from "../model/finding.types";
 import {
   severityConfig,
   severityLabels,
@@ -38,6 +41,33 @@ const reviewStatusConfig: Record<
   },
 };
 
+const reviewActionHints: Array<{
+  key: string;
+  label: string;
+  reviewStatus: FindingReviewStatus;
+}> = [
+  {
+    key: "1",
+    label: "Needs review",
+    reviewStatus: "needs_review",
+  },
+  {
+    key: "2",
+    label: "Confirm",
+    reviewStatus: "confirmed",
+  },
+  {
+    key: "3",
+    label: "Dismiss",
+    reviewStatus: "dismissed",
+  },
+];
+
+const modalScrollbarTrackOptions = {
+  backgroundColor: theme.border.muted,
+  foregroundColor: theme.text.secondary,
+} as const;
+
 function formatTimestamp(value: string) {
   const date = new Date(value);
 
@@ -71,6 +101,53 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
     <box marginTop={1}>
       <text fg={theme.accent.primary}>
         <strong>{children}</strong>
+      </text>
+    </box>
+  );
+}
+
+function ReviewActionBar({
+  reviewStatus,
+}: {
+  reviewStatus: FindingReviewStatus;
+}) {
+  const currentStatus = reviewStatusConfig[reviewStatus];
+
+  return (
+    <box
+      flexDirection="row"
+      height={3}
+      border
+      borderColor={theme.border.muted}
+      alignItems="center"
+      paddingLeft={1}
+      paddingRight={1}
+      marginBottom={1}
+    >
+      <box flexGrow={1}>
+        <text fg={currentStatus.color}>
+          <strong>
+            {currentStatus.marker} {currentStatus.label}
+          </strong>
+        </text>
+      </box>
+      <text fg={theme.text.dim}>
+        {reviewActionHints.map((hint, index) => {
+          const isActive = hint.reviewStatus === reviewStatus;
+          const hintStatus = reviewStatusConfig[hint.reviewStatus];
+
+          return (
+            <span key={hint.key}>
+              {index > 0 ? "  " : ""}
+              <span fg={isActive ? hintStatus.color : theme.text.secondary}>
+                <strong>{hint.key}</strong>
+              </span>{" "}
+              <span fg={isActive ? hintStatus.color : theme.text.dim}>
+                {isActive ? <strong>{hint.label}</strong> : hint.label}
+              </span>
+            </span>
+          );
+        })}
       </text>
     </box>
   );
@@ -118,7 +195,7 @@ export function FindingDetailModal({
       value: formatTimestamp(finding.lastSeenAt),
     },
   ];
-  const contentHeight = Math.max(1, height - 6);
+  const contentHeight = Math.max(1, height - 8);
   const contentWidth = Math.max(1, width - 4);
 
   return (
@@ -153,6 +230,8 @@ export function FindingDetailModal({
           <text fg={theme.text.dim}>Esc close</text>
         </box>
 
+        <ReviewActionBar reviewStatus={finding.reviewStatus} />
+
         <scrollbox
           ref={scrollRef}
           height={contentHeight}
@@ -161,6 +240,8 @@ export function FindingDetailModal({
           stickyScroll={false}
           verticalScrollbarOptions={{
             width: 2,
+            visible: true,
+            trackOptions: modalScrollbarTrackOptions,
           }}
         >
           <box flexDirection="column" width={Math.max(1, contentWidth - 2)}>

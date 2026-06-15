@@ -45,6 +45,7 @@ export function DashboardScreen({
     onBack,
     onSelectTool,
     findings: sessionFindings.findings,
+    onSetFindingReviewStatus: sessionFindings.setReviewStatus,
   });
   const selectedFindingDetail = dashboardState.selectedFindingDetailId
     ? sessionFindings.findings.find(
