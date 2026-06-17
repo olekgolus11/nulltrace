@@ -19,3 +19,27 @@ _Avoid_: Finding status, resolved status
 **Source Context**:
 The scanner-derived details shown to help an operator understand why a finding exists. Source context is displayed from the finding's lightweight payload and may reference the original artifact, but it is not a separate record or source of truth.
 _Avoid_: Evidence, proof, raw artifact
+
+**Conversation**:
+A single AI chat thread attached to a testing session. A testing session may have multiple conversations; the chat runtime owns each conversation's message history and title, while NullTrace stores the runtime conversation identifier needed to list, reopen, or remove the attachment.
+_Avoid_: Chat log, local message store
+
+**Conversation Attachment**:
+The association between a NullTrace testing session and a runtime-owned conversation. Conversation attachments let NullTrace show or archive the conversations available inside a session without owning their message history or deleting the runtime-owned conversation.
+_Avoid_: Conversation record, message record
+
+**Archived Conversation Attachment**:
+A conversation attachment hidden from the active session conversation list without deleting the runtime-owned conversation. Archiving is a NullTrace-only action and can be used to keep the operator's active conversation list focused; archived attachments are not restored in the initial chat foundation workflow.
+_Avoid_: Deleted conversation, removed OpenCode session
+
+**Default Conversation**:
+The first conversation automatically attached to a testing session so the operator can start chatting without manually creating a thread. Additional conversations are operator-created.
+_Avoid_: Primary chat, singleton chat
+
+**Chat Context**:
+Session data deliberately made available to a conversation, such as selected findings, source context, tool run artifacts, and the known tool catalog.
+_Avoid_: Prompt dump, global session memory
+
+**Chat Context Tool**:
+A read-only capability exposed to the chat runtime so AI can inspect NullTrace session data. Chat context tools may read findings, artifacts, and tool metadata, but they do not run scanner tools or mutate review state.
+_Avoid_: Scanner tool, execution tool

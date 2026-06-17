@@ -16,6 +16,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@opencode-ai/sdk": "^1.17.7",
     "@opentui/core": "^0.1.75",
     "@opentui/react": "^0.1.75",
     "fast-xml-parser": "^5.7.3",
