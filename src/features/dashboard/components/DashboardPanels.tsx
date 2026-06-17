@@ -4,7 +4,7 @@ import { ChatWindow } from "../../chat/components/ChatWindow";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { SitemapTree } from "../../sitemap/components/SitemapTree";
 import { FindingList } from "../../finding/components/FindingList";
-import { mockSitemapTree, mockChatMessages } from "../data/dashboard.mock";
+import { mockSitemapTree } from "../data/dashboard.mock";
 import { tools } from "../data/tool-catalog";
 import { dashboardPanels } from "../model/dashboard.state";
 import { DashboardPanelId, DashboardState } from "../model/dashboard.types";
@@ -121,13 +121,25 @@ export const CenterDashboardPanel = ({
   setChatInput,
   submitChat,
   setActivePanel,
+  activeConversationId,
+  activeConversationTitle,
+  conversationError,
 }: {
   dashboardState: DashboardState;
   layout: UseDashboardLayoutResult;
   setChatInput: (value: string) => void;
   submitChat: () => void;
   setActivePanel: (panel: DashboardPanelId) => void;
+  activeConversationId: string | null;
+  activeConversationTitle: string;
+  conversationError: string | null;
 }) => {
+  const statusMessage = conversationError
+    ? `OpenCode runtime error: ${conversationError}`
+    : activeConversationId
+      ? `OpenCode conversation: ${activeConversationTitle || activeConversationId}`
+      : "Preparing OpenCode conversation...";
+
   return (
     <box
       width={layout.centerPanelWidth}
@@ -141,8 +153,15 @@ export const CenterDashboardPanel = ({
         focused={dashboardState.activePanel === "chat"}
         onMouseDown={() => setActivePanel("chat")}
       >
+        <box marginBottom={1}>
+          <text
+            fg={conversationError ? theme.severity.high : theme.text.secondary}
+          >
+            {statusMessage}
+          </text>
+        </box>
         <ChatWindow
-          messages={mockChatMessages}
+          messages={[]}
           inputValue={dashboardState.chatInput}
           onInputChange={setChatInput}
           onSubmit={submitChat}
