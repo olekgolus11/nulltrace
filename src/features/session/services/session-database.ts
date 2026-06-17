@@ -73,6 +73,24 @@ function createFindingReviewsTable() {
   `);
 }
 
+function createConversationAttachmentsTable() {
+  sessionDatabase.exec(`
+    CREATE TABLE IF NOT EXISTS conversation_attachments (
+      session_id TEXT NOT NULL,
+      opencode_conversation_id TEXT PRIMARY KEY,
+      is_default INTEGER NOT NULL CHECK (is_default IN (0, 1)),
+      archived_at TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_conversation_attachments_session_active
+      ON conversation_attachments(session_id, archived_at, created_at);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_conversation_attachments_active_default
+      ON conversation_attachments(session_id)
+      WHERE is_default = 1 AND archived_at IS NULL;
+  `);
+}
+
 sessionDatabase.exec(`
   CREATE TABLE IF NOT EXISTS targets (
     id TEXT PRIMARY KEY,
@@ -168,3 +186,4 @@ if (sessionFindingsTable) {
 
 createSessionFindingsTable();
 createFindingReviewsTable();
+createConversationAttachmentsTable();
