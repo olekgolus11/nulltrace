@@ -26,25 +26,25 @@ export function App() {
     }
   });
 
-  const handleStartPentestForExistingTarget = (target: {
+  const handleStartPentestForExistingTarget = async (target: {
     id: string;
     normalizedUrl: string;
   }) => {
-    createSessionForTarget(target);
+    await createSessionForTarget(target);
     setCurrentScreen({
       type: "dashboard",
     });
   };
 
-  const handleStartPentestForNewTarget = (url: string) => {
-    createSessionForNewTarget(url);
+  const handleStartPentestForNewTarget = async (url: string) => {
+    await createSessionForNewTarget(url);
     setCurrentScreen({
       type: "dashboard",
     });
   };
 
-  const openSession = (sessionId: string) => {
-    if (openExistingSession(sessionId)) {
+  const openSession = async (sessionId: string) => {
+    if (await openExistingSession(sessionId)) {
       setCurrentScreen({
         type: "dashboard",
       });

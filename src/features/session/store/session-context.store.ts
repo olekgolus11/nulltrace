@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { sessionConversationService } from "../../chat/services/session-conversation.service";
 import { sessionRepository } from "../services/session.repository";
 import { normalizeTargetUrl } from "../services/session-url";
 
@@ -6,44 +7,104 @@ interface SessionContextState {
   sessionId: string | null;
   targetId: string | null;
   targetUrl: string;
+  activeConversationId: string | null;
+  activeConversationTitle: string;
+  conversationError: string | null;
   createSessionForTarget: (target: {
     id: string;
     normalizedUrl: string;
-  }) => void;
-  createSessionForNewTarget: (url: string) => void;
-  openExistingSession: (sessionId: string) => boolean;
+  }) => Promise<void>;
+  createSessionForNewTarget: (url: string) => Promise<void>;
+  openExistingSession: (sessionId: string) => Promise<boolean>;
 }
 
 const initialSessionContextState = {
   sessionId: null,
   targetId: null,
   targetUrl: "",
+  activeConversationId: null,
+  activeConversationTitle: "",
+  conversationError: null,
 };
+
+function getReadableError(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+let sessionOpenRequestToken = 0;
 
 export const useSessionContextStore = create<SessionContextState>((set) => ({
   ...initialSessionContextState,
 
-  createSessionForTarget: (target: { id: string; normalizedUrl: string }) => {
+  createSessionForTarget: async (target: {
+    id: string;
+    normalizedUrl: string;
+  }) => {
     const session = sessionRepository.createSession(target.id);
-    set({
-      sessionId: session.id,
-      targetId: target.id,
-      targetUrl: target.normalizedUrl,
-    });
+
+    try {
+      const conversation =
+        await sessionConversationService.ensureActiveConversation(session.id);
+
+      set({
+        sessionId: session.id,
+        targetId: target.id,
+        targetUrl: target.normalizedUrl,
+        activeConversationId: conversation.attachment.opencodeConversationId,
+        activeConversationTitle: conversation.title,
+        conversationError: null,
+      });
+    } catch (error) {
+      set({
+        sessionId: session.id,
+        targetId: target.id,
+        targetUrl: target.normalizedUrl,
+        activeConversationId: null,
+        activeConversationTitle: "",
+        conversationError: getReadableError(error),
+      });
+    }
   },
 
-  createSessionForNewTarget: (url: string) => {
+  createSessionForNewTarget: async (url: string) => {
     const normalizedUrl = normalizeTargetUrl(url);
     const target = sessionRepository.findOrCreateTarget(normalizedUrl, url);
     const session = sessionRepository.createSession(target.id);
-    set({
-      sessionId: session.id,
-      targetId: target.id,
-      targetUrl: normalizedUrl,
-    });
+    const requestToken = ++sessionOpenRequestToken;
+
+    try {
+      const conversation =
+        await sessionConversationService.ensureActiveConversation(session.id);
+
+      if (requestToken !== sessionOpenRequestToken) {
+        return;
+      }
+
+      set({
+        sessionId: session.id,
+        targetId: target.id,
+        targetUrl: normalizedUrl,
+        activeConversationId: conversation.attachment.opencodeConversationId,
+        activeConversationTitle: conversation.title,
+        conversationError: null,
+      });
+    } catch (error) {
+      if (requestToken !== sessionOpenRequestToken) {
+        return;
+      }
+
+      set({
+        sessionId: session.id,
+        targetId: target.id,
+        targetUrl: normalizedUrl,
+        activeConversationId: null,
+        activeConversationTitle: "",
+        conversationError: getReadableError(error),
+      });
+    }
   },
 
-  openExistingSession: (sessionId: string) => {
+  openExistingSession: async (sessionId: string) => {
     const session = sessionRepository.getSessionById(sessionId);
     if (!session) {
       return false;
@@ -51,11 +112,29 @@ export const useSessionContextStore = create<SessionContextState>((set) => ({
 
     sessionRepository.touchSessionActivity(session.id);
 
-    set({
-      sessionId: session.id,
-      targetId: session.targetId,
-      targetUrl: session.normalizedUrl,
-    });
-    return true;
+    try {
+      const conversation =
+        await sessionConversationService.ensureActiveConversation(session.id);
+
+      set({
+        sessionId: session.id,
+        targetId: session.targetId,
+        targetUrl: session.normalizedUrl,
+        activeConversationId: conversation.attachment.opencodeConversationId,
+        activeConversationTitle: conversation.title,
+        conversationError: null,
+      });
+      return true;
+    } catch (error) {
+      set({
+        sessionId: session.id,
+        targetId: session.targetId,
+        targetUrl: session.normalizedUrl,
+        activeConversationId: null,
+        activeConversationTitle: "",
+        conversationError: getReadableError(error),
+      });
+      return true;
+    }
   },
 }));

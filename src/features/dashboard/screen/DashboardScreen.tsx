@@ -27,6 +27,15 @@ export function DashboardScreen({
   const { width, height } = useTerminalDimensions();
   const sessionId = useSessionContextStore((state) => state.sessionId);
   const targetUrl = useSessionContextStore((state) => state.targetUrl);
+  const activeConversationId = useSessionContextStore(
+    (state) => state.activeConversationId,
+  );
+  const activeConversationTitle = useSessionContextStore(
+    (state) => state.activeConversationTitle,
+  );
+  const conversationError = useSessionContextStore(
+    (state) => state.conversationError,
+  );
   const sessionFindings = useSessionFindings(sessionId);
   const layout = useDashboardLayout({
     width,
@@ -79,6 +88,9 @@ export function DashboardScreen({
           submitChat={submitChat}
           setChatInput={setChatInput}
           setActivePanel={setActivePanel}
+          activeConversationId={activeConversationId}
+          activeConversationTitle={activeConversationTitle}
+          conversationError={conversationError}
         />
         <RightDashboardPanel
           layout={layout}
