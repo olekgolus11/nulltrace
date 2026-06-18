@@ -31,6 +31,8 @@ function getReadableError(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+let sessionOpenRequestToken = 0;
+
 export const useSessionContextStore = create<SessionContextState>((set) => ({
   ...initialSessionContextState,
 
@@ -48,8 +50,7 @@ export const useSessionContextStore = create<SessionContextState>((set) => ({
         sessionId: session.id,
         targetId: target.id,
         targetUrl: target.normalizedUrl,
-        activeConversationId:
-          conversation.attachment.opencodeConversationId,
+        activeConversationId: conversation.attachment.opencodeConversationId,
         activeConversationTitle: conversation.title,
         conversationError: null,
       });
@@ -69,21 +70,29 @@ export const useSessionContextStore = create<SessionContextState>((set) => ({
     const normalizedUrl = normalizeTargetUrl(url);
     const target = sessionRepository.findOrCreateTarget(normalizedUrl, url);
     const session = sessionRepository.createSession(target.id);
+    const requestToken = ++sessionOpenRequestToken;
 
     try {
       const conversation =
         await sessionConversationService.ensureActiveConversation(session.id);
 
+      if (requestToken !== sessionOpenRequestToken) {
+        return;
+      }
+
       set({
         sessionId: session.id,
         targetId: target.id,
         targetUrl: normalizedUrl,
-        activeConversationId:
-          conversation.attachment.opencodeConversationId,
+        activeConversationId: conversation.attachment.opencodeConversationId,
         activeConversationTitle: conversation.title,
         conversationError: null,
       });
     } catch (error) {
+      if (requestToken !== sessionOpenRequestToken) {
+        return;
+      }
+
       set({
         sessionId: session.id,
         targetId: target.id,
@@ -111,8 +120,7 @@ export const useSessionContextStore = create<SessionContextState>((set) => ({
         sessionId: session.id,
         targetId: session.targetId,
         targetUrl: session.normalizedUrl,
-        activeConversationId:
-          conversation.attachment.opencodeConversationId,
+        activeConversationId: conversation.attachment.opencodeConversationId,
         activeConversationTitle: conversation.title,
         conversationError: null,
       });
