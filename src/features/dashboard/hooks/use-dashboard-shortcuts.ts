@@ -26,9 +26,7 @@ type DashboardAction =
   | { type: "MOVE_FINDING_SELECTION"; delta: -1 | 1 }
   | { type: "SELECT_FINDING"; index: number }
   | { type: "OPEN_FINDING_DETAIL"; findingId: string }
-  | { type: "CLOSE_FINDING_DETAIL" }
-  | { type: "SET_CHAT_INPUT"; value: string }
-  | { type: "SUBMIT_CHAT" };
+  | { type: "CLOSE_FINDING_DETAIL" };
 
 interface UseDashboardShortcutsProps {
   onBack: () => void;
@@ -127,18 +125,6 @@ function createDashboardReducer(counts: {
         return {
           ...state,
           selectedFindingDetailId: null,
-        };
-
-      case "SET_CHAT_INPUT":
-        return {
-          ...state,
-          chatInput: action.value,
-        };
-
-      case "SUBMIT_CHAT":
-        return {
-          ...state,
-          chatInput: "",
         };
     }
   };
@@ -287,15 +273,6 @@ export function useDashboardShortcuts({
     }
   });
 
-  const setChatInput = (value: string) => {
-    dispatch({ type: "SET_CHAT_INPUT", value });
-  };
-
-  const submitChat = () => {
-    if (!state.chatInput.trim()) return;
-    dispatch({ type: "SUBMIT_CHAT" });
-  };
-
   const setActivePanel = (panel: DashboardPanelId) => {
     dispatch({ type: "SET_ACTIVE_PANEL", panel });
   };
@@ -322,8 +299,6 @@ export function useDashboardShortcuts({
 
   return {
     dashboardState: state,
-    setChatInput,
-    submitChat,
     setActivePanel,
     selectFinding,
     sitemapScrollRef,

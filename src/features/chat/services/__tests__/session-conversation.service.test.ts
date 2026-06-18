@@ -52,6 +52,14 @@ class FakeChatRuntime implements ChatRuntime {
       title: "Existing conversation",
     };
   }
+
+  async listMessages() {
+    return [];
+  }
+
+  async sendPrompt() {
+    return [];
+  }
 }
 
 describe("SessionConversationService", () => {

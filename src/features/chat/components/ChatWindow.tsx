@@ -1,3 +1,5 @@
+import { InputRenderable } from "@opentui/core";
+import { useRef } from "react";
 import { theme } from "../../../app/theme/theme";
 import { ChatMessageData } from "../model/chat.types";
 import { ChatMessage } from "./ChatMessage";
@@ -6,7 +8,7 @@ interface ChatWindowProps {
   messages: ChatMessageData[];
   inputValue: string;
   onInputChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: (value: string) => void;
   placeholder?: string;
   focused?: boolean;
 }
@@ -19,6 +21,26 @@ export function ChatWindow({
   placeholder = "Ask about findings, request scans...",
   focused = false,
 }: ChatWindowProps) {
+  const inputRef = useRef<InputRenderable | null>(null);
+
+  const submitInput = (value: unknown) => {
+    const inputSubmitValue = typeof value === "string" ? value : "";
+    const submittedValue = inputSubmitValue.trim()
+      ? inputSubmitValue
+      : inputValue;
+    const prompt = submittedValue.trim();
+
+    if (!prompt) {
+      return;
+    }
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+    onInputChange("");
+    onSubmit(prompt);
+  };
+
   return (
     <box flexDirection="column" flexGrow={1}>
       <box flexDirection="column" flexGrow={1} paddingBottom={1}>
@@ -51,8 +73,10 @@ export function ChatWindow({
         </box>
         <box flexGrow={1} minWidth={0}>
           <input
+            ref={inputRef}
             value={inputValue}
             onChange={onInputChange}
+            onSubmit={submitInput}
             width="100%"
             placeholder={placeholder}
             focused={focused}

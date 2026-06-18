@@ -1,0 +1,140 @@
+import { useCallback, useEffect, useState } from "react";
+import { ChatMessageData } from "../model/chat.types";
+import { ChatRuntime } from "../model/chat-runtime.types";
+import { openCodeChatRuntimeService } from "../services/opencode-chat-runtime.service";
+
+interface UseSessionChatResult {
+  inputValue: string;
+  messages: ChatMessageData[];
+  isLoading: boolean;
+  isGenerating: boolean;
+  error: string | null;
+  setInputValue: (value: string) => void;
+  submitPrompt: (prompt: string) => Promise<void>;
+  submitInput: (value: string) => void;
+}
+
+function getReadableError(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function createLocalUserMessage(prompt: string): ChatMessageData {
+  return {
+    id: `local-user-${Date.now()}`,
+    sender: "user",
+    content: prompt,
+    timestamp: new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+  };
+}
+
+export function useSessionChat(
+  conversationId: string | null,
+  runtime: ChatRuntime = openCodeChatRuntimeService,
+): UseSessionChatResult {
+  const [inputValue, setInputValue] = useState("");
+  const [messages, setMessages] = useState<ChatMessageData[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isCurrentRequest = true;
+
+    async function loadMessages() {
+      if (!conversationId) {
+        setMessages([]);
+        setError(null);
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const loadedMessages = await runtime.listMessages(conversationId);
+        if (isCurrentRequest) {
+          setMessages(loadedMessages);
+        }
+      } catch (loadError) {
+        if (isCurrentRequest) {
+          setError(getReadableError(loadError));
+        }
+      } finally {
+        if (isCurrentRequest) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadMessages();
+
+    return () => {
+      isCurrentRequest = false;
+    };
+  }, [conversationId, runtime]);
+
+  const submitPrompt = useCallback(
+    async (prompt: string) => {
+      if (!conversationId) {
+        setError("No active OpenCode conversation is ready yet.");
+        return;
+      }
+
+      setIsGenerating(true);
+      setError(null);
+      setMessages((currentMessages) => [
+        ...currentMessages,
+        createLocalUserMessage(prompt),
+      ]);
+
+      try {
+        const assistantMessages = await runtime.sendPrompt(
+          conversationId,
+          prompt,
+        );
+        const loadedMessages = await runtime.listMessages(conversationId);
+
+        if (loadedMessages.length > 0) {
+          setMessages(loadedMessages);
+        } else {
+          setMessages((currentMessages) => [
+            ...currentMessages,
+            ...assistantMessages,
+          ]);
+        }
+      } catch (submitError) {
+        setError(getReadableError(submitError));
+      } finally {
+        setIsGenerating(false);
+      }
+    },
+    [conversationId, runtime],
+  );
+
+  const submitInput = useCallback(
+    (value: string) => {
+      const prompt = value.trim();
+      if (!prompt) {
+        return;
+      }
+
+      setInputValue("");
+      void submitPrompt(prompt);
+    },
+    [submitPrompt],
+  );
+
+  return {
+    inputValue,
+    messages,
+    isLoading,
+    isGenerating,
+    error,
+    setInputValue,
+    submitPrompt,
+    submitInput,
+  };
+}

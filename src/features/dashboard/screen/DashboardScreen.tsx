@@ -10,6 +10,7 @@ import { useDashboardShortcuts } from "../hooks/use-dashboard-shortcuts";
 import { dashboardPanels } from "../model/dashboard.state";
 import { Header } from "../../../shared/ui/Header";
 import { StatusBar } from "../../../shared/ui/StatusBar";
+import { useSessionChat } from "../../chat/hooks/use-session-chat";
 import { FindingDetailModal } from "../../finding/components/FindingDetailModal";
 import { useSessionFindings } from "../../finding/hooks/use-session-findings";
 import { useSessionContextStore } from "../../session/store/session-context.store";
@@ -36,6 +37,7 @@ export function DashboardScreen({
   const conversationError = useSessionContextStore(
     (state) => state.conversationError,
   );
+  const sessionChat = useSessionChat(activeConversationId);
   const sessionFindings = useSessionFindings(sessionId);
   const layout = useDashboardLayout({
     width,
@@ -43,8 +45,6 @@ export function DashboardScreen({
   });
   const {
     dashboardState,
-    setChatInput,
-    submitChat,
     setActivePanel,
     selectFinding,
     sitemapScrollRef,
@@ -85,12 +85,17 @@ export function DashboardScreen({
         <CenterDashboardPanel
           layout={layout}
           dashboardState={dashboardState}
-          submitChat={submitChat}
-          setChatInput={setChatInput}
+          submitChat={sessionChat.submitInput}
+          setChatInput={sessionChat.setInputValue}
+          chatInput={sessionChat.inputValue}
           setActivePanel={setActivePanel}
           activeConversationId={activeConversationId}
           activeConversationTitle={activeConversationTitle}
           conversationError={conversationError}
+          chatMessages={sessionChat.messages}
+          isLoadingMessages={sessionChat.isLoading}
+          isGenerating={sessionChat.isGenerating}
+          chatError={sessionChat.error}
         />
         <RightDashboardPanel
           layout={layout}

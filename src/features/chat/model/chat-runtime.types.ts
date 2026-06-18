@@ -1,3 +1,5 @@
+import { ChatMessageData } from "./chat.types";
+
 export interface ChatRuntimeConversation {
   id: string;
   title: string;
@@ -8,6 +10,11 @@ export interface ChatRuntime {
   getConversation: (
     conversationId: string,
   ) => Promise<ChatRuntimeConversation>;
+  listMessages: (conversationId: string) => Promise<ChatMessageData[]>;
+  sendPrompt: (
+    conversationId: string,
+    prompt: string,
+  ) => Promise<ChatMessageData[]>;
 }
 
 export class ChatRuntimeError extends Error {
