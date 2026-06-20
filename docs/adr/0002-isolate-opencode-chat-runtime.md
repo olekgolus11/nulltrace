@@ -1,0 +1,3 @@
+# Isolate the OpenCode chat runtime
+
+NullTrace runs and owns a dedicated OpenCode process instead of connecting to a user's existing OpenCode server. Each testing session has a persistent, isolated chat workspace, while NullTrace also owns the runtime's configuration, storage, and provider credentials; global OpenCode instructions and plugins are not inherited, local filesystem and shell capabilities are disabled, and web access remains available. This keeps chat context scoped to the testing session and allows a user's regular OpenCode installation to run concurrently without sharing conversations or runtime state.
