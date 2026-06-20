@@ -19,6 +19,7 @@ export interface ChatRuntime {
     sessionId: string,
     conversationId: string,
     prompt: string,
+    onProgress?: (message: ChatMessageData) => void,
   ) => Promise<ChatMessageData[]>;
 }
 

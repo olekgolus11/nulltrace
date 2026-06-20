@@ -1,3 +1,9 @@
+import {
+  EventMessagePartUpdated,
+  EventMessageUpdated,
+  Event as OpenCodeEvent,
+  OpencodeClient,
+} from "@opencode-ai/sdk";
 import { ChatMessageData } from "../model/chat.types";
 import {
   ChatRuntime,
@@ -26,6 +32,19 @@ interface PromptModel {
   providerID: string;
   modelID: string;
 }
+
+interface OpenCodeMessagePartDeltaEvent {
+  type: "message.part.delta";
+  properties: {
+    sessionID: string;
+    messageID: string;
+    partID: string;
+    field: string;
+    delta: string;
+  };
+}
+
+type OpenCodeStreamEvent = OpenCodeEvent | OpenCodeMessagePartDeltaEvent;
 
 function toRuntimeError(error: unknown, action: string) {
   if (error instanceof ChatRuntimeError) {
@@ -144,6 +163,219 @@ function createPromptBody(text: string) {
   };
 }
 
+function describeStreamError(error: unknown) {
+  if (!error) {
+    return "OpenCode stopped generating the response.";
+  }
+
+  if (typeof error === "object" && "data" in error) {
+    const data = error.data;
+    if (
+      data &&
+      typeof data === "object" &&
+      "message" in data &&
+      typeof data.message === "string"
+    ) {
+      return data.message;
+    }
+  }
+
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function streamPrompt(
+  client: OpencodeClient,
+  conversationId: string,
+  prompt: string,
+  onProgress?: (message: ChatMessageData) => void,
+) {
+  const abortController = new AbortController();
+  const assistantMessageIds = new Set<string>();
+  const partTypeById = new Map<string, string>();
+  const textByMessageId = new Map<string, Map<string, string>>();
+  let activeMessageId: string | null = null;
+  let createdAt = Date.now();
+  let isReady = false;
+  let isComplete = false;
+  let resolveReady: () => void;
+  let rejectReady: (error: unknown) => void;
+  let resolveComplete: () => void;
+  let rejectComplete: (error: unknown) => void;
+  const ready = new Promise<void>((resolve, reject) => {
+    resolveReady = resolve;
+    rejectReady = reject;
+  });
+  const complete = new Promise<void>((resolve, reject) => {
+    resolveComplete = resolve;
+    rejectComplete = reject;
+  });
+  const failStream = (error: unknown) => {
+    if (abortController.signal.aborted || isComplete) {
+      return;
+    }
+
+    isComplete = true;
+    if (isReady) {
+      rejectComplete(error);
+    } else {
+      rejectReady(error);
+    }
+  };
+  const subscription = await client.event.subscribe({
+    signal: abortController.signal,
+    sseMaxRetryAttempts: 1,
+    onSseError: failStream,
+  });
+  const emitProgress = (messageId: string) => {
+    const messageParts = textByMessageId.get(messageId);
+    const content = messageParts
+      ? [...messageParts.values()].join("\n\n").trim()
+      : "";
+    if (!content) {
+      return;
+    }
+
+    onProgress?.({
+      id: messageId,
+      sender: "ai",
+      content,
+      timestamp: formatTimestamp(createdAt),
+    });
+  };
+
+  const onMessagePartUpdated = (
+    part: EventMessagePartUpdated["properties"]["part"],
+  ) => {
+    if (
+      part.sessionID !== conversationId ||
+      !assistantMessageIds.has(part.messageID)
+    ) {
+      return;
+    }
+
+    partTypeById.set(part.id, part.type);
+    if (part.type !== "text") {
+      return;
+    }
+
+    activeMessageId = part.messageID;
+    const messageParts =
+      textByMessageId.get(part.messageID) ?? new Map<string, string>();
+    messageParts.set(part.id, part.text);
+    textByMessageId.set(part.messageID, messageParts);
+    emitProgress(part.messageID);
+  };
+
+  const onMessageUpdated = (
+    info: EventMessageUpdated["properties"]["info"],
+  ) => {
+    if (info.role !== "assistant") {
+      return;
+    }
+
+    assistantMessageIds.add(info.id);
+    activeMessageId = info.id;
+    createdAt = info.time.created;
+  };
+
+  const onMessagePartDelta = (
+    properties: OpenCodeMessagePartDeltaEvent["properties"],
+  ) => {
+    if (
+      properties.sessionID !== conversationId ||
+      properties.field !== "text" ||
+      partTypeById.get(properties.partID) !== "text" ||
+      !assistantMessageIds.has(properties.messageID)
+    ) {
+      return;
+    }
+
+    activeMessageId = properties.messageID;
+    const messageParts =
+      textByMessageId.get(properties.messageID) ?? new Map<string, string>();
+    const currentText = messageParts.get(properties.partID) ?? "";
+    messageParts.set(properties.partID, currentText + properties.delta);
+    textByMessageId.set(properties.messageID, messageParts);
+    emitProgress(properties.messageID);
+    return;
+  };
+
+  const consumeEvents = async () => {
+    try {
+      for await (const event of subscription.stream) {
+        isReady = true;
+        resolveReady();
+        const openCodeEvent = event as OpenCodeStreamEvent;
+
+        if (openCodeEvent.type === "message.updated") {
+          const { info } = openCodeEvent.properties;
+          onMessageUpdated(info);
+          continue;
+        }
+
+        if (openCodeEvent.type === "message.part.updated") {
+          const { part } = openCodeEvent.properties;
+          onMessagePartUpdated(part);
+          continue;
+        }
+
+        if (openCodeEvent.type === "message.part.delta") {
+          const { properties } = openCodeEvent;
+          onMessagePartDelta(properties);
+          continue;
+        }
+
+        if (
+          openCodeEvent.type === "session.error" &&
+          openCodeEvent.properties.sessionID === conversationId
+        ) {
+          isComplete = true;
+          rejectComplete(
+            new Error(describeStreamError(openCodeEvent.properties.error)),
+          );
+          break;
+        }
+
+        if (
+          (openCodeEvent.type === "session.idle" &&
+            openCodeEvent.properties.sessionID === conversationId) ||
+          (openCodeEvent.type === "session.status" &&
+            openCodeEvent.properties.sessionID === conversationId &&
+            openCodeEvent.properties.status.type === "idle" &&
+            activeMessageId)
+        ) {
+          isComplete = true;
+          resolveComplete();
+          break;
+        }
+      }
+
+      if (!isComplete && !abortController.signal.aborted) {
+        failStream(new Error("OpenCode event stream closed unexpectedly."));
+      }
+    } catch (error) {
+      failStream(error);
+    }
+  };
+
+  const eventConsumer = consumeEvents();
+
+  try {
+    await ready;
+    await client.session.promptAsync({
+      path: {
+        id: conversationId,
+      },
+      body: createPromptBody(prompt),
+    });
+    await complete;
+    return [];
+  } finally {
+    abortController.abort();
+    await eventConsumer;
+  }
+}
+
 export class OpenCodeChatRuntimeService implements ChatRuntime {
   async createConversation(sessionId: string) {
     try {
@@ -164,11 +396,12 @@ export class OpenCodeChatRuntimeService implements ChatRuntime {
       const response = await openCodeServerService.run(
         sessionId,
         "once-after-crash",
-        (client) => client.session.get({
-          path: {
-            id: conversationId,
-          },
-        }),
+        (client) =>
+          client.session.get({
+            path: {
+              id: conversationId,
+            },
+          }),
       );
 
       return requireConversationData(response.data, "reopen");
@@ -188,11 +421,12 @@ export class OpenCodeChatRuntimeService implements ChatRuntime {
       const response = await openCodeServerService.run(
         sessionId,
         "once-after-crash",
-        (client) => client.session.messages({
-          path: {
-            id: conversationId,
-          },
-        }),
+        (client) =>
+          client.session.messages({
+            path: {
+              id: conversationId,
+            },
+          }),
       );
 
       return toChatMessages(requireData(response.data, "load messages from"));
@@ -205,20 +439,16 @@ export class OpenCodeChatRuntimeService implements ChatRuntime {
     sessionId: string,
     conversationId: string,
     prompt: string,
+    onProgress?: (message: ChatMessageData) => void,
   ) {
     try {
       const response = await openCodeServerService.run(
         sessionId,
         "once-after-crash",
-        (client) => client.session.prompt({
-          path: {
-            id: conversationId,
-          },
-          body: createPromptBody(prompt),
-        }),
+        (client) => streamPrompt(client, conversationId, prompt, onProgress),
       );
 
-      return toChatMessages([requireData(response.data, "send a prompt to")]);
+      return response;
     } catch (error) {
       throw toRuntimeError(error, "send a prompt to");
     }

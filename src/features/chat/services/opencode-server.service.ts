@@ -60,6 +60,26 @@ function reserveSystemPort() {
   });
 }
 
+function stopProcess(child: ChildProcessWithoutNullStreams) {
+  if (child.exitCode !== null) {
+    return Promise.resolve();
+  }
+
+  return new Promise<void>((resolve) => {
+    const forceKillTimeout = setTimeout(() => {
+      if (child.exitCode === null) {
+        child.kill("SIGKILL");
+      }
+    }, 2_000);
+
+    child.once("exit", () => {
+      clearTimeout(forceKillTimeout);
+      resolve();
+    });
+    child.kill("SIGTERM");
+  });
+}
+
 export class OpenCodeServerService {
   private server: RunningOpenCodeServer | null = null;
   private startingServer: Promise<RunningOpenCodeServer> | null = null;
@@ -97,18 +117,14 @@ export class OpenCodeServerService {
     this.startingProcess = null;
 
     if (startingProcess && startingProcess.exitCode === null) {
-      startingProcess.kill("SIGTERM");
+      await stopProcess(startingProcess);
     }
 
     if (!server || server.process.exitCode !== null) {
       return;
     }
 
-    const exited = new Promise<void>((resolve) => {
-      server.process.once("exit", () => resolve());
-    });
-    server.process.kill("SIGTERM");
-    await exited;
+    await stopProcess(server.process);
   }
 
   private createClient(url: string, sessionId: string) {
@@ -227,11 +243,7 @@ export class OpenCodeServerService {
 
     this.server = null;
     if (failedServer.process.exitCode === null) {
-      const exited = new Promise<void>((resolve) => {
-        failedServer.process.once("exit", () => resolve());
-      });
-      failedServer.process.kill("SIGTERM");
-      await exited;
+      await stopProcess(failedServer.process);
     }
   }
 }

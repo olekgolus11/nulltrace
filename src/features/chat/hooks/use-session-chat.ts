@@ -30,6 +30,22 @@ function createLocalUserMessage(prompt: string): ChatMessageData {
   };
 }
 
+function upsertMessage(
+  messages: ChatMessageData[],
+  nextMessage: ChatMessageData,
+) {
+  const existingIndex = messages.findIndex(
+    (message) => message.id === nextMessage.id,
+  );
+  if (existingIndex === -1) {
+    return [...messages, nextMessage];
+  }
+
+  return messages.map((message, index) =>
+    index === existingIndex ? nextMessage : message,
+  );
+}
+
 export function useSessionChat(
   sessionId: string | null,
   conversationId: string | null,
@@ -99,6 +115,11 @@ export function useSessionChat(
           sessionId,
           conversationId,
           prompt,
+          (message) => {
+            setMessages((currentMessages) =>
+              upsertMessage(currentMessages, message),
+            );
+          },
         );
         const loadedMessages = await runtime.listMessages(
           sessionId,
