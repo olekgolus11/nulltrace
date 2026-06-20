@@ -11,7 +11,7 @@ export function ChatMessage({ sender, content, timestamp }: ChatMessageProps) {
   const isSystem = sender === "system";
 
   return (
-    <box flexDirection="column" marginBottom={1}>
+    <box flexDirection="column" flexShrink={0} marginBottom={1}>
       <box flexDirection="row" gap={1}>
         <text
           fg={

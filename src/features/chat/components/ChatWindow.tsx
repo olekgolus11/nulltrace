@@ -43,7 +43,26 @@ export function ChatWindow({
 
   return (
     <box flexDirection="column" flexGrow={1}>
-      <box flexDirection="column" flexGrow={1} paddingBottom={1}>
+      <scrollbox
+        flexGrow={1}
+        minHeight={0}
+        width="100%"
+        scrollX={false}
+        stickyScroll={true}
+        stickyStart="bottom"
+        contentOptions={{
+          flexDirection: "column",
+          paddingBottom: 1,
+        }}
+        verticalScrollbarOptions={{
+          width: 1,
+          visible: true,
+          trackOptions: {
+            backgroundColor: theme.border.muted,
+            foregroundColor: theme.text.secondary,
+          },
+        }}
+      >
         {messages.length === 0 ? (
           <box
             flexDirection="column"
@@ -65,7 +84,7 @@ export function ChatWindow({
             />
           ))
         )}
-      </box>
+      </scrollbox>
 
       <box flexDirection="row" gap={1} alignItems="center" width="100%">
         <box width={2} flexShrink={0}>
