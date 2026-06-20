@@ -31,6 +31,7 @@ function createLocalUserMessage(prompt: string): ChatMessageData {
 }
 
 export function useSessionChat(
+  sessionId: string | null,
   conversationId: string | null,
   runtime: ChatRuntime = openCodeChatRuntimeService,
 ): UseSessionChatResult {
@@ -44,7 +45,7 @@ export function useSessionChat(
     let isCurrentRequest = true;
 
     async function loadMessages() {
-      if (!conversationId) {
+      if (!sessionId || !conversationId) {
         setMessages([]);
         setError(null);
         return;
@@ -54,7 +55,10 @@ export function useSessionChat(
       setError(null);
 
       try {
-        const loadedMessages = await runtime.listMessages(conversationId);
+        const loadedMessages = await runtime.listMessages(
+          sessionId,
+          conversationId,
+        );
         if (isCurrentRequest) {
           setMessages(loadedMessages);
         }
@@ -74,11 +78,11 @@ export function useSessionChat(
     return () => {
       isCurrentRequest = false;
     };
-  }, [conversationId, runtime]);
+  }, [conversationId, runtime, sessionId]);
 
   const submitPrompt = useCallback(
     async (prompt: string) => {
-      if (!conversationId) {
+      if (!sessionId || !conversationId) {
         setError("No active OpenCode conversation is ready yet.");
         return;
       }
@@ -92,10 +96,14 @@ export function useSessionChat(
 
       try {
         const assistantMessages = await runtime.sendPrompt(
+          sessionId,
           conversationId,
           prompt,
         );
-        const loadedMessages = await runtime.listMessages(conversationId);
+        const loadedMessages = await runtime.listMessages(
+          sessionId,
+          conversationId,
+        );
 
         if (loadedMessages.length > 0) {
           setMessages(loadedMessages);
@@ -111,7 +119,7 @@ export function useSessionChat(
         setIsGenerating(false);
       }
     },
-    [conversationId, runtime],
+    [conversationId, runtime, sessionId],
   );
 
   const submitInput = useCallback(

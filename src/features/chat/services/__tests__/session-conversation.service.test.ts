@@ -28,6 +28,19 @@ class FakeConversationAttachmentService {
     this.attachments.push(attachment);
     return attachment;
   }
+
+  archiveAttachment(opencodeConversationId: string) {
+    const attachment = this.attachments.find(
+      (candidate) =>
+        candidate.opencodeConversationId === opencodeConversationId,
+    );
+    if (!attachment) {
+      return null;
+    }
+
+    attachment.archivedAt = new Date().toISOString();
+    return attachment;
+  }
 }
 
 class FakeChatRuntime implements ChatRuntime {
@@ -44,7 +57,7 @@ class FakeChatRuntime implements ChatRuntime {
     };
   }
 
-  async getConversation(conversationId: string) {
+  async getConversation(_sessionId: string, conversationId: string) {
     this.reopenedConversationIds.push(conversationId);
 
     return {

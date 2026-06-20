@@ -37,7 +37,7 @@ export function DashboardScreen({
   const conversationError = useSessionContextStore(
     (state) => state.conversationError,
   );
-  const sessionChat = useSessionChat(activeConversationId);
+  const sessionChat = useSessionChat(sessionId, activeConversationId);
   const sessionFindings = useSessionFindings(sessionId);
   const layout = useDashboardLayout({
     width,

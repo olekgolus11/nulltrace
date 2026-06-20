@@ -1,13 +1,13 @@
-import { createOpencode } from "@opencode-ai/sdk";
 import { ChatMessageData } from "../model/chat.types";
 import {
   ChatRuntime,
   ChatRuntimeConversation,
+  ChatRuntimeConversationNotFoundError,
   ChatRuntimeError,
 } from "../model/chat-runtime.types";
+import { getSelectedOpenCodeModel } from "./opencode-runtime.config";
+import { openCodeServerService } from "./opencode-server.service";
 
-type OpenCodeRuntime = Awaited<ReturnType<typeof createOpencode>>;
-type OpenCodeClient = OpenCodeRuntime["client"];
 type OpenCodeMessageItem = {
   info: {
     id: string;
@@ -27,16 +27,6 @@ interface PromptModel {
   modelID: string;
 }
 
-function readNumberEnv(name: string, fallback: number) {
-  const rawValue = process.env[name];
-  if (!rawValue) {
-    return fallback;
-  }
-
-  const parsedValue = Number(rawValue);
-  return Number.isFinite(parsedValue) ? parsedValue : fallback;
-}
-
 function toRuntimeError(error: unknown, action: string) {
   if (error instanceof ChatRuntimeError) {
     return error;
@@ -49,18 +39,34 @@ function toRuntimeError(error: unknown, action: string) {
   );
 }
 
+function getErrorStatus(error: unknown): number | null {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+
+  if ("status" in error && typeof error.status === "number") {
+    return error.status;
+  }
+
+  if ("cause" in error) {
+    return getErrorStatus(error.cause);
+  }
+
+  return null;
+}
+
 function readPromptModel(): PromptModel | undefined {
   const providerID = process.env.OPENCODE_PROVIDER_ID;
   const modelID = process.env.OPENCODE_MODEL_ID;
 
-  if (!providerID || !modelID) {
-    return undefined;
+  if (providerID && modelID) {
+    return {
+      providerID,
+      modelID,
+    };
   }
 
-  return {
-    providerID,
-    modelID,
-  };
+  return getSelectedOpenCodeModel();
 }
 
 function requireConversationData(
@@ -138,27 +144,13 @@ function createPromptBody(text: string) {
   };
 }
 
-async function withOpenCodeClient<T>(
-  operation: (client: OpenCodeClient) => Promise<T>,
-) {
-  const runtime = await createOpencode({
-    hostname: process.env.OPENCODE_HOSTNAME ?? "127.0.0.1",
-    port: readNumberEnv("OPENCODE_PORT", 4096),
-    timeout: readNumberEnv("OPENCODE_TIMEOUT_MS", 10000),
-  });
-
-  try {
-    return await operation(runtime.client);
-  } finally {
-    runtime.server.close();
-  }
-}
-
 export class OpenCodeChatRuntimeService implements ChatRuntime {
-  async createConversation() {
+  async createConversation(sessionId: string) {
     try {
-      const response = await withOpenCodeClient((client) =>
-        client.session.create(),
+      const response = await openCodeServerService.run(
+        sessionId,
+        "never",
+        (client) => client.session.create(),
       );
 
       return requireConversationData(response.data, "create");
@@ -167,10 +159,12 @@ export class OpenCodeChatRuntimeService implements ChatRuntime {
     }
   }
 
-  async getConversation(conversationId: string) {
+  async getConversation(sessionId: string, conversationId: string) {
     try {
-      const response = await withOpenCodeClient((client) =>
-        client.session.get({
+      const response = await openCodeServerService.run(
+        sessionId,
+        "once-after-crash",
+        (client) => client.session.get({
           path: {
             id: conversationId,
           },
@@ -179,14 +173,22 @@ export class OpenCodeChatRuntimeService implements ChatRuntime {
 
       return requireConversationData(response.data, "reopen");
     } catch (error) {
+      if (getErrorStatus(error) === 404) {
+        throw new ChatRuntimeConversationNotFoundError(
+          `Could not reopen the OpenCode conversation: conversation ${conversationId} was not found in this session workspace.`,
+          error,
+        );
+      }
       throw toRuntimeError(error, "reopen");
     }
   }
 
-  async listMessages(conversationId: string) {
+  async listMessages(sessionId: string, conversationId: string) {
     try {
-      const response = await withOpenCodeClient((client) =>
-        client.session.messages({
+      const response = await openCodeServerService.run(
+        sessionId,
+        "once-after-crash",
+        (client) => client.session.messages({
           path: {
             id: conversationId,
           },
@@ -199,10 +201,16 @@ export class OpenCodeChatRuntimeService implements ChatRuntime {
     }
   }
 
-  async sendPrompt(conversationId: string, prompt: string) {
+  async sendPrompt(
+    sessionId: string,
+    conversationId: string,
+    prompt: string,
+  ) {
     try {
-      const response = await withOpenCodeClient((client) =>
-        client.session.prompt({
+      const response = await openCodeServerService.run(
+        sessionId,
+        "once-after-crash",
+        (client) => client.session.prompt({
           path: {
             id: conversationId,
           },
