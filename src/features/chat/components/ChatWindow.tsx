@@ -1,14 +1,26 @@
+import { InputRenderable } from "@opentui/core";
+import { useRef } from "react";
 import { theme } from "../../../app/theme/theme";
 import { ChatMessageData } from "../model/chat.types";
 import { ChatMessage } from "./ChatMessage";
+import "opentui-spinner/react";
 
 interface ChatWindowProps {
   messages: ChatMessageData[];
   inputValue: string;
   onInputChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: (value: string) => void;
   placeholder?: string;
   focused?: boolean;
+  isGenerating?: boolean;
+}
+
+function SpinnerAiMessage() {
+  return (
+    <ChatMessage sender="ai" content="">
+      <spinner name="dots" color="white" />
+    </ChatMessage>
+  );
 }
 
 export function ChatWindow({
@@ -18,10 +30,52 @@ export function ChatWindow({
   onSubmit,
   placeholder = "Ask about findings, request scans...",
   focused = false,
+  isGenerating = false,
 }: ChatWindowProps) {
+  const inputRef = useRef<InputRenderable | null>(null);
+
+  const submitInput = (value: unknown) => {
+    const inputSubmitValue = typeof value === "string" ? value : "";
+    const submittedValue = inputSubmitValue.trim()
+      ? inputSubmitValue
+      : inputValue;
+    const prompt = submittedValue.trim();
+
+    if (!prompt) {
+      return;
+    }
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+    onInputChange("");
+    onSubmit(prompt);
+  };
+
+  const shouldShowSpinner =
+    isGenerating && messages[messages.length - 1].sender === "user";
+
   return (
     <box flexDirection="column" flexGrow={1}>
-      <box flexDirection="column" flexGrow={1} paddingBottom={1}>
+      <scrollbox
+        flexGrow={1}
+        minHeight={0}
+        width="100%"
+        scrollX={false}
+        stickyScroll={true}
+        stickyStart="bottom"
+        contentOptions={{
+          flexDirection: "column",
+          paddingBottom: 1,
+        }}
+        verticalScrollbarOptions={{
+          width: 1,
+          trackOptions: {
+            backgroundColor: theme.border.muted,
+            foregroundColor: theme.text.secondary,
+          },
+        }}
+      >
         {messages.length === 0 ? (
           <box
             flexDirection="column"
@@ -43,7 +97,8 @@ export function ChatWindow({
             />
           ))
         )}
-      </box>
+        {shouldShowSpinner && <SpinnerAiMessage />}
+      </scrollbox>
 
       <box flexDirection="row" gap={1} alignItems="center" width="100%">
         <box width={2} flexShrink={0}>
@@ -51,8 +106,10 @@ export function ChatWindow({
         </box>
         <box flexGrow={1} minWidth={0}>
           <input
+            ref={inputRef}
             value={inputValue}
             onChange={onInputChange}
+            onSubmit={submitInput}
             width="100%"
             placeholder={placeholder}
             focused={focused}

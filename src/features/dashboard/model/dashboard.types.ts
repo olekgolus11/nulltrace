@@ -8,7 +8,6 @@ export interface DashboardState {
   selectedSitemapItem: number;
   selectedFindingItem: number;
   selectedFindingDetailId: string | null;
-  chatInput: string;
 }
 
 export interface UseDashboardLayoutResult {

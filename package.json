@@ -4,6 +4,9 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "chat:auth": "bun run scripts/chat-auth.ts",
+    "chat:model": "bun run scripts/chat-model.ts",
+    "chat:smoke": "bun run scripts/smoke-chat-runtime.ts",
     "start": "bun run src/main/index.tsx",
     "dev": "bun --watch run src/main/index.tsx"
   },
@@ -20,6 +23,7 @@
     "@opentui/core": "^0.1.75",
     "@opentui/react": "^0.1.75",
     "fast-xml-parser": "^5.7.3",
+    "opentui-spinner": "^0.0.7",
     "react": "^19.2.3",
     "zustand": "^5.0.11"
   }

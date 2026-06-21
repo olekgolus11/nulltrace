@@ -75,7 +75,7 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
   closeHelp: () => void;
   toggleHelp: () => void;
   setChatInput: (value: string) => void;
-  submitChat: () => void;
+  submitChat: (value?: string) => void;
   setManualCommandInput: (value: string) => void;
   refreshGeneratedCommand: (value: string) => void;
   syncGeneratedCommand: () => void;
@@ -139,9 +139,10 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
 
   setChatInput: (value) => set({ chatInput: value }),
 
-  submitChat: () =>
+  submitChat: (value) =>
     set((state) => {
-      const content = state.chatInput.trim();
+      const submittedValue = value?.trim() ? value : state.chatInput;
+      const content = submittedValue.trim();
       if (!content) {
         return state;
       }

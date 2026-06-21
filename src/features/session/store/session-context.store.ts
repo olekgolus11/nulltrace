@@ -33,57 +33,20 @@ function getReadableError(error: unknown) {
 
 let sessionOpenRequestToken = 0;
 
-export const useSessionContextStore = create<SessionContextState>((set) => ({
-  ...initialSessionContextState,
-
-  createSessionForTarget: async (target: {
-    id: string;
-    normalizedUrl: string;
-  }) => {
-    const session = sessionRepository.createSession(target.id);
-
+export const useSessionContextStore = create<SessionContextState>((set) => {
+  const prepareActiveConversation = async (
+    requestToken: number,
+    sessionId: string,
+  ) => {
     try {
       const conversation =
-        await sessionConversationService.ensureActiveConversation(session.id);
-
-      set({
-        sessionId: session.id,
-        targetId: target.id,
-        targetUrl: target.normalizedUrl,
-        activeConversationId: conversation.attachment.opencodeConversationId,
-        activeConversationTitle: conversation.title,
-        conversationError: null,
-      });
-    } catch (error) {
-      set({
-        sessionId: session.id,
-        targetId: target.id,
-        targetUrl: target.normalizedUrl,
-        activeConversationId: null,
-        activeConversationTitle: "",
-        conversationError: getReadableError(error),
-      });
-    }
-  },
-
-  createSessionForNewTarget: async (url: string) => {
-    const normalizedUrl = normalizeTargetUrl(url);
-    const target = sessionRepository.findOrCreateTarget(normalizedUrl, url);
-    const session = sessionRepository.createSession(target.id);
-    const requestToken = ++sessionOpenRequestToken;
-
-    try {
-      const conversation =
-        await sessionConversationService.ensureActiveConversation(session.id);
+        await sessionConversationService.ensureActiveConversation(sessionId);
 
       if (requestToken !== sessionOpenRequestToken) {
         return;
       }
 
       set({
-        sessionId: session.id,
-        targetId: target.id,
-        targetUrl: normalizedUrl,
         activeConversationId: conversation.attachment.opencodeConversationId,
         activeConversationTitle: conversation.title,
         conversationError: null,
@@ -94,47 +57,68 @@ export const useSessionContextStore = create<SessionContextState>((set) => ({
       }
 
       set({
+        activeConversationId: null,
+        activeConversationTitle: "",
+        conversationError: getReadableError(error),
+      });
+    }
+  };
+
+  return {
+    ...initialSessionContextState,
+
+    createSessionForTarget: async (target: {
+      id: string;
+      normalizedUrl: string;
+    }) => {
+      const session = sessionRepository.createSession(target.id);
+      const requestToken = ++sessionOpenRequestToken;
+      set({
+        sessionId: session.id,
+        targetId: target.id,
+        targetUrl: target.normalizedUrl,
+        activeConversationId: null,
+        activeConversationTitle: "",
+        conversationError: null,
+      });
+      void prepareActiveConversation(requestToken, session.id);
+    },
+
+    createSessionForNewTarget: async (url: string) => {
+      const normalizedUrl = normalizeTargetUrl(url);
+      const target = sessionRepository.findOrCreateTarget(normalizedUrl, url);
+      const session = sessionRepository.createSession(target.id);
+      const requestToken = ++sessionOpenRequestToken;
+      set({
         sessionId: session.id,
         targetId: target.id,
         targetUrl: normalizedUrl,
         activeConversationId: null,
         activeConversationTitle: "",
-        conversationError: getReadableError(error),
-      });
-    }
-  },
-
-  openExistingSession: async (sessionId: string) => {
-    const session = sessionRepository.getSessionById(sessionId);
-    if (!session) {
-      return false;
-    }
-
-    sessionRepository.touchSessionActivity(session.id);
-
-    try {
-      const conversation =
-        await sessionConversationService.ensureActiveConversation(session.id);
-
-      set({
-        sessionId: session.id,
-        targetId: session.targetId,
-        targetUrl: session.normalizedUrl,
-        activeConversationId: conversation.attachment.opencodeConversationId,
-        activeConversationTitle: conversation.title,
         conversationError: null,
       });
-      return true;
-    } catch (error) {
+      void prepareActiveConversation(requestToken, session.id);
+    },
+
+    openExistingSession: async (sessionId: string) => {
+      const session = sessionRepository.getSessionById(sessionId);
+      if (!session) {
+        return false;
+      }
+
+      sessionRepository.touchSessionActivity(session.id);
+
+      const requestToken = ++sessionOpenRequestToken;
       set({
         sessionId: session.id,
         targetId: session.targetId,
         targetUrl: session.normalizedUrl,
         activeConversationId: null,
         activeConversationTitle: "",
-        conversationError: getReadableError(error),
+        conversationError: null,
       });
+      void prepareActiveConversation(requestToken, session.id);
       return true;
-    }
-  },
-}));
+    },
+  };
+});

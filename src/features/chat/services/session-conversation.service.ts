@@ -1,4 +1,8 @@
-import { ChatRuntime, ChatRuntimeError } from "../model/chat-runtime.types";
+import {
+  ChatRuntime,
+  ChatRuntimeConversationNotFoundError,
+  ChatRuntimeError,
+} from "../model/chat-runtime.types";
 import { ConversationAttachmentRecord } from "../model/conversation-attachment.types";
 import {
   ConversationAttachmentService,
@@ -17,6 +21,9 @@ interface ConversationAttachmentBoundary {
     sessionId: string;
     opencodeConversationId: string;
   }) => ConversationAttachmentRecord;
+  archiveAttachment: (
+    opencodeConversationId: string,
+  ) => ConversationAttachmentRecord | null;
 }
 
 function toSessionConversationError(error: unknown) {
@@ -46,17 +53,28 @@ export class SessionConversationService {
         this.attachments.listActiveAttachments(sessionId);
 
       if (activeAttachment) {
-        const conversation = await this.runtime.getConversation(
-          activeAttachment.opencodeConversationId,
-        );
+        try {
+          const conversation = await this.runtime.getConversation(
+            sessionId,
+            activeAttachment.opencodeConversationId,
+          );
 
-        return {
-          attachment: activeAttachment,
-          title: conversation.title,
-        };
+          return {
+            attachment: activeAttachment,
+            title: conversation.title,
+          };
+        } catch (error) {
+          if (!(error instanceof ChatRuntimeConversationNotFoundError)) {
+            throw error;
+          }
+
+          this.attachments.archiveAttachment(
+            activeAttachment.opencodeConversationId,
+          );
+        }
       }
 
-      const conversation = await this.runtime.createConversation();
+      const conversation = await this.runtime.createConversation(sessionId);
       const attachment = this.attachments.createDefaultAttachment({
         sessionId,
         opencodeConversationId: conversation.id,

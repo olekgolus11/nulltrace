@@ -1,6 +1,7 @@
 import { ScrollBoxRenderable } from "@opentui/core";
 import { theme } from "../../../app/theme/theme";
 import { ChatWindow } from "../../chat/components/ChatWindow";
+import { ChatMessageData } from "../../chat/model/chat.types";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { SitemapTree } from "../../sitemap/components/SitemapTree";
 import { FindingList } from "../../finding/components/FindingList";
@@ -120,25 +121,36 @@ export const CenterDashboardPanel = ({
   layout,
   setChatInput,
   submitChat,
+  chatInput,
   setActivePanel,
   activeConversationId,
   activeConversationTitle,
   conversationError,
+  chatMessages,
+  isLoadingMessages,
+  isGenerating,
+  chatError,
 }: {
   dashboardState: DashboardState;
   layout: UseDashboardLayoutResult;
   setChatInput: (value: string) => void;
-  submitChat: () => void;
+  submitChat: (value: string) => void;
+  chatInput: string;
   setActivePanel: (panel: DashboardPanelId) => void;
   activeConversationId: string | null;
   activeConversationTitle: string;
   conversationError: string | null;
+  chatMessages: ChatMessageData[];
+  isLoadingMessages: boolean;
+  isGenerating: boolean;
+  chatError: string | null;
 }) => {
-  const statusMessage = conversationError
+  const runtimeStatusMessage = conversationError
     ? `OpenCode runtime error: ${conversationError}`
     : activeConversationId
       ? `OpenCode conversation: ${activeConversationTitle || activeConversationId}`
       : "Preparing OpenCode conversation...";
+  const chatStatusMessage = chatError ? `Chat error: ${chatError}` : null;
 
   return (
     <box
@@ -157,15 +169,23 @@ export const CenterDashboardPanel = ({
           <text
             fg={conversationError ? theme.severity.high : theme.text.secondary}
           >
-            {statusMessage}
+            {runtimeStatusMessage}
           </text>
         </box>
+        {chatStatusMessage ? (
+          <box marginBottom={1}>
+            <text fg={chatError ? theme.severity.high : theme.text.secondary}>
+              {chatStatusMessage}
+            </text>
+          </box>
+        ) : null}
         <ChatWindow
-          messages={[]}
-          inputValue={dashboardState.chatInput}
+          messages={chatMessages}
+          inputValue={chatInput}
           onInputChange={setChatInput}
           onSubmit={submitChat}
           focused={dashboardState.activePanel === "chat"}
+          isGenerating={isGenerating}
         />
       </DashboardPanel>
     </box>
