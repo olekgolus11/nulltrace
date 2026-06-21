@@ -150,13 +150,7 @@ export const CenterDashboardPanel = ({
     : activeConversationId
       ? `OpenCode conversation: ${activeConversationTitle || activeConversationId}`
       : "Preparing OpenCode conversation...";
-  const chatStatusMessage = chatError
-    ? `Chat error: ${chatError}`
-    : isGenerating
-      ? "Generating assistant response..."
-      : isLoadingMessages
-        ? "Loading conversation messages..."
-        : null;
+  const chatStatusMessage = chatError ? `Chat error: ${chatError}` : null;
 
   return (
     <box
@@ -191,6 +185,7 @@ export const CenterDashboardPanel = ({
           onInputChange={setChatInput}
           onSubmit={submitChat}
           focused={dashboardState.activePanel === "chat"}
+          isGenerating={isGenerating}
         />
       </DashboardPanel>
     </box>

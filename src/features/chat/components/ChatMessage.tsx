@@ -3,9 +3,15 @@ interface ChatMessageProps {
   sender: "ai" | "user" | "system";
   content: string;
   timestamp?: string;
+  children?: React.ReactNode;
 }
 
-export function ChatMessage({ sender, content, timestamp }: ChatMessageProps) {
+export function ChatMessage({
+  sender,
+  content,
+  timestamp,
+  children,
+}: ChatMessageProps) {
   const isAI = sender === "ai";
   const isUser = sender === "user";
   const isSystem = sender === "system";
@@ -23,7 +29,8 @@ export function ChatMessage({ sender, content, timestamp }: ChatMessageProps) {
         {timestamp && <text fg={theme.text.dim}>{timestamp}</text>}
       </box>
       <box paddingLeft={2}>
-        <text fg={theme.text.primary}>{content}</text>
+        {content && <text fg={theme.text.primary}>{content}</text>}
+        {children}
       </box>
     </box>
   );

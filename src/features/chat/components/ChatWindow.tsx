@@ -3,6 +3,7 @@ import { useRef } from "react";
 import { theme } from "../../../app/theme/theme";
 import { ChatMessageData } from "../model/chat.types";
 import { ChatMessage } from "./ChatMessage";
+import "opentui-spinner/react";
 
 interface ChatWindowProps {
   messages: ChatMessageData[];
@@ -11,6 +12,15 @@ interface ChatWindowProps {
   onSubmit: (value: string) => void;
   placeholder?: string;
   focused?: boolean;
+  isGenerating?: boolean;
+}
+
+function SpinnerAiMessage() {
+  return (
+    <ChatMessage sender="ai" content="">
+      <spinner name="dots" color="white" />
+    </ChatMessage>
+  );
 }
 
 export function ChatWindow({
@@ -20,6 +30,7 @@ export function ChatWindow({
   onSubmit,
   placeholder = "Ask about findings, request scans...",
   focused = false,
+  isGenerating = false,
 }: ChatWindowProps) {
   const inputRef = useRef<InputRenderable | null>(null);
 
@@ -40,6 +51,9 @@ export function ChatWindow({
     onInputChange("");
     onSubmit(prompt);
   };
+
+  const shouldShowSpinner =
+    isGenerating && messages[messages.length - 1].sender === "user";
 
   return (
     <box flexDirection="column" flexGrow={1}>
@@ -83,6 +97,7 @@ export function ChatWindow({
             />
           ))
         )}
+        {shouldShowSpinner && <SpinnerAiMessage />}
       </scrollbox>
 
       <box flexDirection="row" gap={1} alignItems="center" width="100%">
