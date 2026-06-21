@@ -1,5 +1,8 @@
 import { create } from "zustand";
-import { sessionConversationService } from "../../chat/services/session-conversation.service";
+import {
+  ActiveSessionConversation,
+  sessionConversationService,
+} from "../../chat/services/session-conversation.service";
 import { sessionRepository } from "../services/session.repository";
 import { normalizeTargetUrl } from "../services/session-url";
 
@@ -9,7 +12,13 @@ interface SessionContextState {
   targetUrl: string;
   activeConversationId: string | null;
   activeConversationTitle: string;
+  conversations: ActiveSessionConversation[];
+  isLoadingConversations: boolean;
+  isCreatingConversation: boolean;
   conversationError: string | null;
+  selectConversation: (conversationId: string) => void;
+  createConversation: () => Promise<void>;
+  refreshConversationTitles: () => Promise<void>;
   createSessionForTarget: (target: {
     id: string;
     normalizedUrl: string;
@@ -24,6 +33,9 @@ const initialSessionContextState = {
   targetUrl: "",
   activeConversationId: null,
   activeConversationTitle: "",
+  conversations: [],
+  isLoadingConversations: false,
+  isCreatingConversation: false,
   conversationError: null,
 };
 
@@ -33,22 +45,26 @@ function getReadableError(error: unknown) {
 
 let sessionOpenRequestToken = 0;
 
-export const useSessionContextStore = create<SessionContextState>((set) => {
+export const useSessionContextStore = create<SessionContextState>((set, get) => {
   const prepareActiveConversation = async (
     requestToken: number,
     sessionId: string,
   ) => {
     try {
-      const conversation =
-        await sessionConversationService.ensureActiveConversation(sessionId);
+      const conversations =
+        await sessionConversationService.prepareSessionConversations(sessionId);
 
       if (requestToken !== sessionOpenRequestToken) {
         return;
       }
 
+      const [conversation] = conversations;
       set({
-        activeConversationId: conversation.attachment.opencodeConversationId,
-        activeConversationTitle: conversation.title,
+        activeConversationId:
+          conversation?.attachment.opencodeConversationId ?? null,
+        activeConversationTitle: conversation?.title ?? "",
+        conversations,
+        isLoadingConversations: false,
         conversationError: null,
       });
     } catch (error) {
@@ -59,6 +75,8 @@ export const useSessionContextStore = create<SessionContextState>((set) => {
       set({
         activeConversationId: null,
         activeConversationTitle: "",
+        conversations: [],
+        isLoadingConversations: false,
         conversationError: getReadableError(error),
       });
     }
@@ -66,6 +84,92 @@ export const useSessionContextStore = create<SessionContextState>((set) => {
 
   return {
     ...initialSessionContextState,
+
+    selectConversation: (conversationId: string) => {
+      const conversation = get().conversations.find(
+        (candidate) =>
+          candidate.attachment.opencodeConversationId === conversationId,
+      );
+      if (!conversation) {
+        return;
+      }
+
+      set({
+        activeConversationId: conversationId,
+        activeConversationTitle: conversation.title,
+      });
+    },
+
+    createConversation: async () => {
+      const { sessionId } = get();
+      if (!sessionId || get().isCreatingConversation) {
+        return;
+      }
+
+      const requestToken = sessionOpenRequestToken;
+      set({ isCreatingConversation: true, conversationError: null });
+      try {
+        const conversation =
+          await sessionConversationService.createConversation(sessionId);
+        if (requestToken !== sessionOpenRequestToken) {
+          return;
+        }
+
+        set((state) => ({
+          conversations: [...state.conversations, conversation],
+          activeConversationId:
+            conversation.attachment.opencodeConversationId,
+          activeConversationTitle: conversation.title,
+        }));
+      } catch (error) {
+        if (requestToken === sessionOpenRequestToken) {
+          set({ conversationError: getReadableError(error) });
+        }
+      } finally {
+        if (requestToken === sessionOpenRequestToken) {
+          set({ isCreatingConversation: false });
+        }
+      }
+    },
+
+    refreshConversationTitles: async () => {
+      const { sessionId, activeConversationId } = get();
+      if (!sessionId || get().isLoadingConversations) {
+        return;
+      }
+
+      const requestToken = sessionOpenRequestToken;
+      set({ isLoadingConversations: true });
+      try {
+        const conversations =
+          await sessionConversationService.prepareSessionConversations(sessionId);
+        if (requestToken !== sessionOpenRequestToken) {
+          return;
+        }
+
+        const activeConversation = conversations.find(
+          (conversation) =>
+            conversation.attachment.opencodeConversationId ===
+            activeConversationId,
+        );
+        const fallbackConversation = activeConversation ?? conversations[0];
+        set({
+          conversations,
+          activeConversationId:
+            fallbackConversation?.attachment.opencodeConversationId ?? null,
+          activeConversationTitle: fallbackConversation?.title ?? "",
+          isLoadingConversations: false,
+          conversationError: null,
+        });
+      } catch (error) {
+        if (requestToken === sessionOpenRequestToken) {
+          set({
+            isLoadingConversations: false,
+            conversationError: getReadableError(error),
+          });
+        }
+      }
+    },
 
     createSessionForTarget: async (target: {
       id: string;
@@ -79,6 +183,9 @@ export const useSessionContextStore = create<SessionContextState>((set) => {
         targetUrl: target.normalizedUrl,
         activeConversationId: null,
         activeConversationTitle: "",
+        conversations: [],
+        isLoadingConversations: true,
+        isCreatingConversation: false,
         conversationError: null,
       });
       void prepareActiveConversation(requestToken, session.id);
@@ -95,6 +202,9 @@ export const useSessionContextStore = create<SessionContextState>((set) => {
         targetUrl: normalizedUrl,
         activeConversationId: null,
         activeConversationTitle: "",
+        conversations: [],
+        isLoadingConversations: true,
+        isCreatingConversation: false,
         conversationError: null,
       });
       void prepareActiveConversation(requestToken, session.id);
@@ -115,6 +225,9 @@ export const useSessionContextStore = create<SessionContextState>((set) => {
         targetUrl: session.normalizedUrl,
         activeConversationId: null,
         activeConversationTitle: "",
+        conversations: [],
+        isLoadingConversations: true,
+        isCreatingConversation: false,
         conversationError: null,
       });
       void prepareActiveConversation(requestToken, session.id);

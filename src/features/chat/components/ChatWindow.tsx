@@ -13,6 +13,7 @@ interface ChatWindowProps {
   placeholder?: string;
   focused?: boolean;
   isGenerating?: boolean;
+  isDisabled?: boolean;
 }
 
 function SpinnerAiMessage() {
@@ -31,6 +32,7 @@ export function ChatWindow({
   placeholder = "Ask about findings, request scans...",
   focused = false,
   isGenerating = false,
+  isDisabled = false,
 }: ChatWindowProps) {
   const inputRef = useRef<InputRenderable | null>(null);
 
@@ -41,7 +43,7 @@ export function ChatWindow({
       : inputValue;
     const prompt = submittedValue.trim();
 
-    if (!prompt) {
+    if (!prompt || isDisabled) {
       return;
     }
 
@@ -53,7 +55,7 @@ export function ChatWindow({
   };
 
   const shouldShowSpinner =
-    isGenerating && messages[messages.length - 1].sender === "user";
+    isGenerating && messages[messages.length - 1]?.sender === "user";
 
   return (
     <box flexDirection="column" flexGrow={1}>
@@ -112,7 +114,7 @@ export function ChatWindow({
             onSubmit={submitInput}
             width="100%"
             placeholder={placeholder}
-            focused={focused}
+            focused={focused && !isDisabled}
             backgroundColor={theme.bg.input}
             textColor={theme.text.primary}
             cursorColor={theme.accent.primary}

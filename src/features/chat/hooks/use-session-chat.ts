@@ -14,6 +14,10 @@ interface UseSessionChatResult {
   submitInput: (value: string) => void;
 }
 
+interface UseSessionChatOptions {
+  onPromptComplete?: () => void;
+}
+
 function getReadableError(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -49,6 +53,7 @@ function upsertMessage(
 export function useSessionChat(
   sessionId: string | null,
   conversationId: string | null,
+  options: UseSessionChatOptions = {},
   runtime: ChatRuntime = openCodeChatRuntimeService,
 ): UseSessionChatResult {
   const [inputValue, setInputValue] = useState("");
@@ -68,6 +73,8 @@ export function useSessionChat(
       }
 
       setIsLoading(true);
+      setMessages([]);
+      setInputValue("");
       setError(null);
 
       try {
@@ -134,13 +141,14 @@ export function useSessionChat(
             ...assistantMessages,
           ]);
         }
+        options.onPromptComplete?.();
       } catch (submitError) {
         setError(getReadableError(submitError));
       } finally {
         setIsGenerating(false);
       }
     },
-    [conversationId, runtime, sessionId],
+    [conversationId, options, runtime, sessionId],
   );
 
   const submitInput = useCallback(

@@ -29,6 +29,22 @@ class FakeConversationAttachmentService {
     return attachment;
   }
 
+  createAttachment(input: {
+    sessionId: string;
+    opencodeConversationId: string;
+  }) {
+    const attachment: ConversationAttachmentRecord = {
+      sessionId: input.sessionId,
+      opencodeConversationId: input.opencodeConversationId,
+      isDefault: false,
+      archivedAt: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    this.attachments.push(attachment);
+    return attachment;
+  }
+
   archiveAttachment(opencodeConversationId: string) {
     const attachment = this.attachments.find(
       (candidate) =>
