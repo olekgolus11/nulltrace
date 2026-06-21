@@ -37,7 +37,27 @@ export function DashboardScreen({
   const conversationError = useSessionContextStore(
     (state) => state.conversationError,
   );
-  const sessionChat = useSessionChat(sessionId, activeConversationId);
+  const conversations = useSessionContextStore((state) => state.conversations);
+  const isLoadingConversations = useSessionContextStore(
+    (state) => state.isLoadingConversations,
+  );
+  const isCreatingConversation = useSessionContextStore(
+    (state) => state.isCreatingConversation,
+  );
+  const selectConversation = useSessionContextStore(
+    (state) => state.selectConversation,
+  );
+  const createConversation = useSessionContextStore(
+    (state) => state.createConversation,
+  );
+  const refreshConversationTitles = useSessionContextStore(
+    (state) => state.refreshConversationTitles,
+  );
+  const sessionChat = useSessionChat(sessionId, activeConversationId, {
+    onPromptComplete: () => {
+      void refreshConversationTitles();
+    },
+  });
   const sessionFindings = useSessionFindings(sessionId);
   const layout = useDashboardLayout({
     width,
@@ -55,6 +75,16 @@ export function DashboardScreen({
     onSelectTool,
     findings: sessionFindings.findings,
     onSetFindingReviewStatus: sessionFindings.setReviewStatus,
+    conversations,
+    activeConversationId,
+    isConversationNavigationDisabled:
+      sessionChat.isGenerating ||
+      isLoadingConversations ||
+      isCreatingConversation,
+    onSelectConversation: selectConversation,
+    onCreateConversation: () => {
+      void createConversation();
+    },
   });
   const selectedFindingDetail = dashboardState.selectedFindingDetailId
     ? sessionFindings.findings.find(
@@ -92,6 +122,13 @@ export function DashboardScreen({
           activeConversationId={activeConversationId}
           activeConversationTitle={activeConversationTitle}
           conversationError={conversationError}
+          conversations={conversations}
+          isLoadingConversations={isLoadingConversations}
+          isCreatingConversation={isCreatingConversation}
+          selectConversation={selectConversation}
+          createConversation={() => {
+            void createConversation();
+          }}
           chatMessages={sessionChat.messages}
           isLoadingMessages={sessionChat.isLoading}
           isGenerating={sessionChat.isGenerating}
@@ -115,7 +152,12 @@ export function DashboardScreen({
             : [
                 { key: "Tab/Shift+Tab", label: "switch" },
                 { key: "Ctrl+1-4", label: "jump" },
-                { key: "Enter", label: "select" },
+                ...(dashboardState.activePanel === "chat"
+                  ? [
+                      { key: "Ctrl+←/→", label: "conversation" },
+                      { key: "Ctrl+N", label: "new" },
+                    ]
+                  : [{ key: "Enter", label: "select" }]),
                 { key: "ESC", label: "back" },
                 { key: "Ctrl+Q", label: "quit" },
               ]),

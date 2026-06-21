@@ -1,7 +1,9 @@
 import { ScrollBoxRenderable } from "@opentui/core";
 import { theme } from "../../../app/theme/theme";
 import { ChatWindow } from "../../chat/components/ChatWindow";
+import { ConversationSwitcher } from "../../chat/components/ConversationSwitcher";
 import { ChatMessageData } from "../../chat/model/chat.types";
+import { ActiveSessionConversation } from "../../chat/services/session-conversation.service";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { SitemapTree } from "../../sitemap/components/SitemapTree";
 import { FindingList } from "../../finding/components/FindingList";
@@ -126,6 +128,11 @@ export const CenterDashboardPanel = ({
   activeConversationId,
   activeConversationTitle,
   conversationError,
+  conversations,
+  isLoadingConversations,
+  isCreatingConversation,
+  selectConversation,
+  createConversation,
   chatMessages,
   isLoadingMessages,
   isGenerating,
@@ -140,6 +147,11 @@ export const CenterDashboardPanel = ({
   activeConversationId: string | null;
   activeConversationTitle: string;
   conversationError: string | null;
+  conversations: ActiveSessionConversation[];
+  isLoadingConversations: boolean;
+  isCreatingConversation: boolean;
+  selectConversation: (conversationId: string) => void;
+  createConversation: () => void;
   chatMessages: ChatMessageData[];
   isLoadingMessages: boolean;
   isGenerating: boolean;
@@ -148,9 +160,11 @@ export const CenterDashboardPanel = ({
   const runtimeStatusMessage = conversationError
     ? `OpenCode runtime error: ${conversationError}`
     : activeConversationId
-      ? `OpenCode conversation: ${activeConversationTitle || activeConversationId}`
+      ? null
       : "Preparing OpenCode conversation...";
   const chatStatusMessage = chatError ? `Chat error: ${chatError}` : null;
+  const isConversationBusy =
+    isLoadingConversations || isCreatingConversation || isGenerating;
 
   return (
     <box
@@ -165,12 +179,24 @@ export const CenterDashboardPanel = ({
         focused={dashboardState.activePanel === "chat"}
         onMouseDown={() => setActivePanel("chat")}
       >
+        <ConversationSwitcher
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          availableWidth={Math.max(1, layout.centerPanelWidth - 4)}
+          isDisabled={isConversationBusy}
+          onSelectConversation={selectConversation}
+          onCreateConversation={createConversation}
+        />
         <box marginBottom={1}>
-          <text
-            fg={conversationError ? theme.severity.high : theme.text.secondary}
-          >
-            {runtimeStatusMessage}
-          </text>
+          {runtimeStatusMessage && (
+            <text
+              fg={
+                conversationError ? theme.severity.high : theme.text.secondary
+              }
+            >
+              {runtimeStatusMessage}
+            </text>
+          )}
         </box>
         {chatStatusMessage ? (
           <box marginBottom={1}>
@@ -179,14 +205,26 @@ export const CenterDashboardPanel = ({
             </text>
           </box>
         ) : null}
-        <ChatWindow
-          messages={chatMessages}
-          inputValue={chatInput}
-          onInputChange={setChatInput}
-          onSubmit={submitChat}
-          focused={dashboardState.activePanel === "chat"}
-          isGenerating={isGenerating}
-        />
+        {isLoadingMessages ? (
+          <box flexGrow={1} alignItems="center" justifyContent="center">
+            <text fg={theme.text.dim}>Loading conversation…</text>
+          </box>
+        ) : (
+          <ChatWindow
+            messages={chatMessages}
+            inputValue={chatInput}
+            onInputChange={setChatInput}
+            onSubmit={submitChat}
+            focused={dashboardState.activePanel === "chat"}
+            isGenerating={isGenerating}
+            isDisabled={
+              isLoadingConversations ||
+              isCreatingConversation ||
+              isGenerating ||
+              !activeConversationId
+            }
+          />
+        )}
       </DashboardPanel>
     </box>
   );

@@ -17,6 +17,7 @@ import {
   SessionFindingRecord,
 } from "../../finding/model/finding.types";
 import { ToolName } from "../../tool/shared/types/tool-screen.types";
+import { ActiveSessionConversation } from "../../chat/services/session-conversation.service";
 
 type DashboardAction =
   | { type: "CYCLE_PANEL"; direction: -1 | 1 }
@@ -36,6 +37,11 @@ interface UseDashboardShortcutsProps {
     findingId: string,
     reviewStatus: FindingReviewStatus,
   ) => void;
+  conversations: ActiveSessionConversation[];
+  activeConversationId: string | null;
+  isConversationNavigationDisabled: boolean;
+  onSelectConversation: (conversationId: string) => void;
+  onCreateConversation: () => void;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -135,6 +141,11 @@ export function useDashboardShortcuts({
   onSelectTool,
   findings,
   onSetFindingReviewStatus,
+  conversations,
+  activeConversationId,
+  isConversationNavigationDisabled,
+  onSelectConversation,
+  onCreateConversation,
 }: UseDashboardShortcutsProps) {
   const sitemapScrollRef = useRef<ScrollBoxRenderable | null>(null);
   const findingsScrollRef = useRef<ScrollBoxRenderable | null>(null);
@@ -203,6 +214,37 @@ export function useDashboardShortcuts({
     if (shortcutPanel) {
       dispatch({ type: "SET_ACTIVE_PANEL", panel: shortcutPanel });
       return;
+    }
+
+    if (
+      state.activePanel === "chat" &&
+      key.ctrl &&
+      !isConversationNavigationDisabled
+    ) {
+      if (key.name === "n") {
+        onCreateConversation();
+        return;
+      }
+
+      if (key.name === "left" || key.name === "right") {
+        const activeIndex = conversations.findIndex(
+          (conversation) =>
+            conversation.attachment.opencodeConversationId ===
+            activeConversationId,
+        );
+        const nextIndex = clamp(
+          activeIndex + (key.name === "left" ? -1 : 1),
+          0,
+          Math.max(0, conversations.length - 1),
+        );
+        const nextConversation = conversations[nextIndex];
+        if (nextConversation && nextIndex !== activeIndex) {
+          onSelectConversation(
+            nextConversation.attachment.opencodeConversationId,
+          );
+        }
+        return;
+      }
     }
 
     // Handle navigation based on active panel
