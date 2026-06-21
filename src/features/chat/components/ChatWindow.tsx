@@ -56,7 +56,6 @@ export function ChatWindow({
         }}
         verticalScrollbarOptions={{
           width: 1,
-          visible: true,
           trackOptions: {
             backgroundColor: theme.border.muted,
             foregroundColor: theme.text.secondary,
