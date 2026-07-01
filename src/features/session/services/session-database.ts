@@ -4,6 +4,10 @@ import { join } from "node:path";
 import { Database } from "bun:sqlite";
 
 export function getAppDataDirectory() {
+  if (process.env.NULLTRACE_APP_DATA_DIR) {
+    return process.env.NULLTRACE_APP_DATA_DIR;
+  }
+
   if (process.env.XDG_DATA_HOME) {
     return join(process.env.XDG_DATA_HOME, "nulltrace");
   }
