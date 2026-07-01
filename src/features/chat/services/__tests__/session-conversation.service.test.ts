@@ -151,4 +151,71 @@ describe("SessionConversationService", () => {
     expect(activeConversation.attachment.isDefault).toBe(true);
     expect(runtime.createdConversationIds).toEqual(["opencode-1"]);
   });
+
+  it("archives an active conversation and returns the remaining active conversations", async () => {
+    const attachments = new FakeConversationAttachmentService();
+    attachments.createDefaultAttachment({
+      sessionId: "session-1",
+      opencodeConversationId: "opencode-existing",
+    });
+    attachments.createAttachment({
+      sessionId: "session-1",
+      opencodeConversationId: "opencode-2",
+    });
+    const runtime = new FakeChatRuntime();
+    const service = new SessionConversationService(attachments, runtime);
+
+    const conversations = await service.archiveConversation(
+      "session-1",
+      "opencode-existing",
+    );
+
+    expect(
+      attachments.attachments.find(
+        (attachment) =>
+          attachment.opencodeConversationId === "opencode-existing",
+      )?.archivedAt,
+    ).toBeString();
+    expect(
+      conversations.map(
+        (conversation) =>
+          conversation.attachment.opencodeConversationId,
+      ),
+    ).toEqual(["opencode-2"]);
+    expect(runtime.createdConversationIds).toEqual([]);
+  });
+
+  it("creates a new default conversation after archiving the last active conversation", async () => {
+    const attachments = new FakeConversationAttachmentService();
+    attachments.createDefaultAttachment({
+      sessionId: "session-1",
+      opencodeConversationId: "opencode-existing",
+    });
+    const runtime = new FakeChatRuntime();
+    const service = new SessionConversationService(attachments, runtime);
+
+    const conversations = await service.archiveConversation(
+      "session-1",
+      "opencode-existing",
+    );
+
+    expect(
+      attachments.attachments.find(
+        (attachment) =>
+          attachment.opencodeConversationId === "opencode-existing",
+      )?.archivedAt,
+    ).toBeString();
+    expect(
+      conversations.map(
+        (conversation) =>
+          conversation.attachment.opencodeConversationId,
+      ),
+    ).toEqual(["opencode-1"]);
+    expect(conversations[0]?.attachment).toMatchObject({
+      sessionId: "session-1",
+      isDefault: true,
+      archivedAt: null,
+    });
+    expect(runtime.createdConversationIds).toEqual(["opencode-1"]);
+  });
 });

@@ -121,6 +121,30 @@ export class SessionConversationService {
     }
   }
 
+  async archiveConversation(
+    sessionId: string,
+    opencodeConversationId: string,
+  ): Promise<ActiveSessionConversation[]> {
+    try {
+      const activeAttachments =
+        this.attachments.listActiveAttachments(sessionId);
+      if (
+        !activeAttachments.some(
+          (attachment) =>
+            attachment.opencodeConversationId === opencodeConversationId,
+        )
+      ) {
+        return this.listActiveConversations(sessionId);
+      }
+
+      this.attachments.archiveAttachment(opencodeConversationId);
+
+      return this.prepareSessionConversations(sessionId);
+    } catch (error) {
+      throw toSessionConversationError(error);
+    }
+  }
+
   async ensureActiveConversation(
     sessionId: string,
   ): Promise<ActiveSessionConversation> {

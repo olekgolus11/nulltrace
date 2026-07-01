@@ -131,8 +131,10 @@ export const CenterDashboardPanel = ({
   conversations,
   isLoadingConversations,
   isCreatingConversation,
+  isArchivingConversation,
   selectConversation,
   createConversation,
+  archiveActiveConversation,
   chatMessages,
   isLoadingMessages,
   isGenerating,
@@ -150,8 +152,10 @@ export const CenterDashboardPanel = ({
   conversations: ActiveSessionConversation[];
   isLoadingConversations: boolean;
   isCreatingConversation: boolean;
+  isArchivingConversation: boolean;
   selectConversation: (conversationId: string) => void;
   createConversation: () => void;
+  archiveActiveConversation: () => void;
   chatMessages: ChatMessageData[];
   isLoadingMessages: boolean;
   isGenerating: boolean;
@@ -164,7 +168,10 @@ export const CenterDashboardPanel = ({
       : "Preparing OpenCode conversation...";
   const chatStatusMessage = chatError ? `Chat error: ${chatError}` : null;
   const isConversationBusy =
-    isLoadingConversations || isCreatingConversation || isGenerating;
+    isLoadingConversations ||
+    isCreatingConversation ||
+    isArchivingConversation ||
+    isGenerating;
 
   return (
     <box
@@ -186,6 +193,7 @@ export const CenterDashboardPanel = ({
           isDisabled={isConversationBusy}
           onSelectConversation={selectConversation}
           onCreateConversation={createConversation}
+          onArchiveConversation={archiveActiveConversation}
         />
         <box marginBottom={1}>
           {runtimeStatusMessage && (
@@ -220,6 +228,7 @@ export const CenterDashboardPanel = ({
             isDisabled={
               isLoadingConversations ||
               isCreatingConversation ||
+              isArchivingConversation ||
               isGenerating ||
               !activeConversationId
             }

@@ -15,9 +15,11 @@ interface SessionContextState {
   conversations: ActiveSessionConversation[];
   isLoadingConversations: boolean;
   isCreatingConversation: boolean;
+  isArchivingConversation: boolean;
   conversationError: string | null;
   selectConversation: (conversationId: string) => void;
   createConversation: () => Promise<void>;
+  archiveActiveConversation: () => Promise<void>;
   refreshConversationTitles: () => Promise<void>;
   createSessionForTarget: (target: {
     id: string;
@@ -36,6 +38,7 @@ const initialSessionContextState = {
   conversations: [],
   isLoadingConversations: false,
   isCreatingConversation: false,
+  isArchivingConversation: false,
   conversationError: null,
 };
 
@@ -132,6 +135,59 @@ export const useSessionContextStore = create<SessionContextState>((set, get) => 
       }
     },
 
+    archiveActiveConversation: async () => {
+      const {
+        conversations: currentConversations,
+        sessionId,
+        activeConversationId,
+      } = get();
+      if (
+        !sessionId ||
+        !activeConversationId ||
+        get().isArchivingConversation
+      ) {
+        return;
+      }
+
+      const archivedIndex = currentConversations.findIndex(
+        (conversation) =>
+          conversation.attachment.opencodeConversationId ===
+          activeConversationId,
+      );
+      const requestToken = sessionOpenRequestToken;
+      set({ isArchivingConversation: true, conversationError: null });
+      try {
+        const conversations =
+          await sessionConversationService.archiveConversation(
+            sessionId,
+            activeConversationId,
+          );
+        if (requestToken !== sessionOpenRequestToken) {
+          return;
+        }
+
+        const fallbackIndex =
+          archivedIndex === -1
+            ? 0
+            : Math.min(archivedIndex, Math.max(0, conversations.length - 1));
+        const fallbackConversation = conversations[fallbackIndex];
+        set({
+          conversations,
+          activeConversationId:
+            fallbackConversation?.attachment.opencodeConversationId ?? null,
+          activeConversationTitle: fallbackConversation?.title ?? "",
+        });
+      } catch (error) {
+        if (requestToken === sessionOpenRequestToken) {
+          set({ conversationError: getReadableError(error) });
+        }
+      } finally {
+        if (requestToken === sessionOpenRequestToken) {
+          set({ isArchivingConversation: false });
+        }
+      }
+    },
+
     refreshConversationTitles: async () => {
       const { sessionId, activeConversationId } = get();
       if (!sessionId || get().isLoadingConversations) {
@@ -186,6 +242,7 @@ export const useSessionContextStore = create<SessionContextState>((set, get) => 
         conversations: [],
         isLoadingConversations: true,
         isCreatingConversation: false,
+        isArchivingConversation: false,
         conversationError: null,
       });
       void prepareActiveConversation(requestToken, session.id);
@@ -205,6 +262,7 @@ export const useSessionContextStore = create<SessionContextState>((set, get) => 
         conversations: [],
         isLoadingConversations: true,
         isCreatingConversation: false,
+        isArchivingConversation: false,
         conversationError: null,
       });
       void prepareActiveConversation(requestToken, session.id);
@@ -228,6 +286,7 @@ export const useSessionContextStore = create<SessionContextState>((set, get) => 
         conversations: [],
         isLoadingConversations: true,
         isCreatingConversation: false,
+        isArchivingConversation: false,
         conversationError: null,
       });
       void prepareActiveConversation(requestToken, session.id);

@@ -42,6 +42,7 @@ interface UseDashboardShortcutsProps {
   isConversationNavigationDisabled: boolean;
   onSelectConversation: (conversationId: string) => void;
   onCreateConversation: () => void;
+  onArchiveActiveConversation: () => void;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -146,6 +147,7 @@ export function useDashboardShortcuts({
   isConversationNavigationDisabled,
   onSelectConversation,
   onCreateConversation,
+  onArchiveActiveConversation,
 }: UseDashboardShortcutsProps) {
   const sitemapScrollRef = useRef<ScrollBoxRenderable | null>(null);
   const findingsScrollRef = useRef<ScrollBoxRenderable | null>(null);
@@ -223,6 +225,11 @@ export function useDashboardShortcuts({
     ) {
       if (key.name === "n") {
         onCreateConversation();
+        return;
+      }
+
+      if (key.name === "d" && activeConversationId) {
+        onArchiveActiveConversation();
         return;
       }
 
