@@ -126,6 +126,36 @@ describe("ConversationAttachmentRepository", () => {
     ).toEqual([second.opencodeConversationId]);
   });
 
+  it("finds only active attachments by OpenCode conversation id", () => {
+    const repository = new ConversationAttachmentRepository(
+      createTestDatabase(),
+    );
+    const first = repository.createDefaultAttachment({
+      sessionId: "session-1",
+      opencodeConversationId: "opencode-1",
+    });
+    const second = repository.createAttachment({
+      sessionId: "session-1",
+      opencodeConversationId: "opencode-2",
+    });
+
+    repository.archiveAttachment(second.opencodeConversationId);
+
+    expect(
+      repository.findActiveByOpenCodeConversationId(
+        first.opencodeConversationId,
+      ),
+    ).toMatchObject({
+      sessionId: "session-1",
+      opencodeConversationId: "opencode-1",
+    });
+    expect(
+      repository.findActiveByOpenCodeConversationId(
+        second.opencodeConversationId,
+      ),
+    ).toBeNull();
+  });
+
   it("archives only NullTrace metadata and keeps the OpenCode conversation id", () => {
     const repository = new ConversationAttachmentRepository(
       createTestDatabase(),

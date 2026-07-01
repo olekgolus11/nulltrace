@@ -29,6 +29,12 @@ export class ConversationAttachmentService {
     return this.repository.archiveAttachment(opencodeConversationId);
   }
 
+  findActiveAttachmentByOpenCodeConversationId(opencodeConversationId: string) {
+    return this.repository.findActiveByOpenCodeConversationId(
+      opencodeConversationId,
+    );
+  }
+
   hasActiveAttachment(sessionId: string) {
     return this.repository.hasActiveAttachment(sessionId);
   }

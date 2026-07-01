@@ -71,6 +71,24 @@ export class ConversationAttachmentRepository {
     return (row?.count ?? 0) > 0;
   }
 
+  findActiveByOpenCodeConversationId(opencodeConversationId: string) {
+    const row = this.database
+      .query<ConversationAttachmentRow, [string]>(
+        `SELECT
+          session_id AS sessionId,
+          opencode_conversation_id AS opencodeConversationId,
+          is_default AS isDefault,
+          archived_at AS archivedAt,
+          created_at AS createdAt
+        FROM conversation_attachments
+        WHERE opencode_conversation_id = ?1
+          AND archived_at IS NULL`,
+      )
+      .get(opencodeConversationId);
+
+    return row ? mapConversationAttachmentRow(row) : null;
+  }
+
   archiveAttachment(opencodeConversationId: string) {
     const timestamp = createTimestamp();
 

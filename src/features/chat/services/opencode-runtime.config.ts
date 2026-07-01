@@ -1,7 +1,18 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { getAppDataDirectory } from "../../session/services/session-database";
+import {
+  chatContextToolRegistry,
+  createOpenCodeToolSource,
+} from "./chat-context-tools.service";
 
 const runtimeRoot = join(getAppDataDirectory(), "chat-runtime");
 const runtimeHome = join(runtimeRoot, "home");
@@ -25,6 +36,8 @@ const openCodeConfig = {
   mcp: {},
   permission: {
     "*": "deny",
+    get_finding: "allow",
+    list_findings: "allow",
     webfetch: "allow",
     websearch: "allow",
   },
@@ -45,6 +58,34 @@ const openCodeConfig = {
     write: false,
   },
 } as const;
+
+const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url));
+const chatContextToolsImportPath = join(
+  repoRoot,
+  "src/features/chat/services/chat-context-tools.service.ts",
+);
+const openCodePluginImportPath = join(
+  repoRoot,
+  "node_modules/@opencode-ai/plugin/dist/index.js",
+);
+
+function ensureSessionChatContextTools(workspace: string) {
+  const toolsDirectory = join(workspace, ".opencode", "tools");
+  mkdirSync(toolsDirectory, { recursive: true });
+
+  for (const definition of chatContextToolRegistry.listDefinitions()) {
+    const toolPath = join(toolsDirectory, `${definition.name}.ts`);
+    const source = createOpenCodeToolSource(
+      definition.name,
+      chatContextToolsImportPath,
+      openCodePluginImportPath,
+    );
+
+    if (!existsSync(toolPath) || readFileSync(toolPath, "utf8") !== source) {
+      writeFileSync(toolPath, source, "utf8");
+    }
+  }
+}
 
 export function ensureOpenCodeRuntimeDirectories() {
   for (const directory of [
@@ -76,6 +117,7 @@ export function getOpenCodeRuntimeEnvironment() {
   return {
     ...inheritedEnvironment,
     HOME: runtimeHome,
+    NULLTRACE_APP_DATA_DIR: getAppDataDirectory(),
     OPENCODE_CONFIG_CONTENT: JSON.stringify(openCodeConfig),
     OPENCODE_CONFIG_DIR: join(runtimeConfig, "opencode"),
     XDG_CACHE_HOME: runtimeCache,
@@ -90,6 +132,7 @@ export function getSessionChatWorkspace(sessionId: string) {
   const workspaceId = createHash("sha256").update(sessionId).digest("hex");
   const workspace = join(workspacesRoot, workspaceId);
   mkdirSync(workspace, { recursive: true });
+  ensureSessionChatContextTools(workspace);
   return workspace;
 }
 

@@ -19,6 +19,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@opencode-ai/plugin": "1.17.7",
     "@opencode-ai/sdk": "^1.17.7",
     "@opentui/core": "^0.1.75",
     "@opentui/react": "^0.1.75",
