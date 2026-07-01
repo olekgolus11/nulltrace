@@ -9,10 +9,12 @@ interface ConversationSwitcherProps {
   isDisabled: boolean;
   onSelectConversation: (conversationId: string) => void;
   onCreateConversation: () => void;
+  onArchiveConversation: () => void;
 }
 
 const tabWidth = 20;
 const newConversationWidth = 9;
+const archiveConversationWidth = 9;
 const navigationTileWidth = 3;
 
 function clamp(value: number, min: number, max: number) {
@@ -34,13 +36,18 @@ export function ConversationSwitcher({
   isDisabled,
   onSelectConversation,
   onCreateConversation,
+  onArchiveConversation,
 }: ConversationSwitcherProps) {
   const [windowStartIndex, setWindowStartIndex] = useState(0);
   const activeIndex = conversations.findIndex(
     (conversation) =>
       conversation.attachment.opencodeConversationId === activeConversationId,
   );
-  const reservedWidth = navigationTileWidth * 2 + newConversationWidth + 3;
+  const reservedWidth =
+    navigationTileWidth * 2 +
+    newConversationWidth +
+    archiveConversationWidth +
+    4;
   const visibleCount = Math.max(
     1,
     Math.floor((availableWidth - reservedWidth) / (tabWidth + 1)),
@@ -165,6 +172,28 @@ export function ConversationSwitcher({
       >
         <text fg={isDisabled ? theme.text.dim : theme.accent.secondary}>
           + New
+        </text>
+      </box>
+      <box
+        width={archiveConversationWidth}
+        height={1}
+        alignItems="center"
+        justifyContent="center"
+        backgroundColor={theme.border.default}
+        onMouseDown={() => {
+          if (!isDisabled && activeConversationId) {
+            onArchiveConversation();
+          }
+        }}
+      >
+        <text
+          fg={
+            isDisabled || !activeConversationId
+              ? theme.text.dim
+              : theme.accent.warning
+          }
+        >
+          Archive
         </text>
       </box>
     </box>

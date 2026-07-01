@@ -44,11 +44,17 @@ export function DashboardScreen({
   const isCreatingConversation = useSessionContextStore(
     (state) => state.isCreatingConversation,
   );
+  const isArchivingConversation = useSessionContextStore(
+    (state) => state.isArchivingConversation,
+  );
   const selectConversation = useSessionContextStore(
     (state) => state.selectConversation,
   );
   const createConversation = useSessionContextStore(
     (state) => state.createConversation,
+  );
+  const archiveActiveConversation = useSessionContextStore(
+    (state) => state.archiveActiveConversation,
   );
   const refreshConversationTitles = useSessionContextStore(
     (state) => state.refreshConversationTitles,
@@ -80,10 +86,14 @@ export function DashboardScreen({
     isConversationNavigationDisabled:
       sessionChat.isGenerating ||
       isLoadingConversations ||
-      isCreatingConversation,
+      isCreatingConversation ||
+      isArchivingConversation,
     onSelectConversation: selectConversation,
     onCreateConversation: () => {
       void createConversation();
+    },
+    onArchiveActiveConversation: () => {
+      void archiveActiveConversation();
     },
   });
   const selectedFindingDetail = dashboardState.selectedFindingDetailId
@@ -125,9 +135,13 @@ export function DashboardScreen({
           conversations={conversations}
           isLoadingConversations={isLoadingConversations}
           isCreatingConversation={isCreatingConversation}
+          isArchivingConversation={isArchivingConversation}
           selectConversation={selectConversation}
           createConversation={() => {
             void createConversation();
+          }}
+          archiveActiveConversation={() => {
+            void archiveActiveConversation();
           }}
           chatMessages={sessionChat.messages}
           isLoadingMessages={sessionChat.isLoading}
@@ -156,6 +170,7 @@ export function DashboardScreen({
                   ? [
                       { key: "Ctrl+←/→", label: "conversation" },
                       { key: "Ctrl+N", label: "new" },
+                      { key: "Ctrl+D", label: "archive" },
                     ]
                   : [{ key: "Enter", label: "select" }]),
                 { key: "ESC", label: "back" },
