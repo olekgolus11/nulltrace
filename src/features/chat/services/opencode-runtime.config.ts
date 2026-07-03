@@ -38,6 +38,8 @@ const openCodeConfig = {
     "*": "deny",
     get_finding: "allow",
     list_findings: "allow",
+    list_tool_runs: "allow",
+    get_artifact: "allow",
     webfetch: "allow",
     websearch: "allow",
   },
