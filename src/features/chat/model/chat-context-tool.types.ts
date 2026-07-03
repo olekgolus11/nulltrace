@@ -2,14 +2,17 @@ export type ChatContextToolSchema =
   | {
       type: "string";
       description: string;
+      isOptional?: boolean;
     }
   | {
       type: "number";
       description: string;
+      isOptional?: boolean;
     }
   | {
       type: "boolean";
       description: string;
+      isOptional?: boolean;
     };
 
 export type ChatContextToolArgs = Record<string, unknown>;

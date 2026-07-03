@@ -424,6 +424,7 @@ describe("ToolRunArtifactChatContextToolsService", () => {
         type: "number",
         description:
           "Optional maximum preview characters. The preview is always bounded.",
+        isOptional: true,
       },
     });
     expect(result).toMatchObject({
@@ -445,6 +446,9 @@ describe("ToolRunArtifactChatContextToolsService", () => {
     expect(source).toContain("\"get_artifact\"");
     expect(source).toContain("\"artifactId\"");
     expect(source).toContain("\"maxCharacters\"");
+    expect(source).toContain(
+      "\"maxCharacters\": tool.schema.number().describe(\"Optional maximum preview characters. The preview is always bounded.\").optional()",
+    );
     expect(source).not.toContain("sessionId");
   });
 });

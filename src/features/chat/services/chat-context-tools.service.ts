@@ -393,6 +393,7 @@ export class ToolRunArtifactChatContextToolsService {
             type: "number",
             description:
               "Optional maximum preview characters. The preview is always bounded.",
+            isOptional: true,
           },
         },
         execute: ({ opencodeConversationId, args }) =>
@@ -412,16 +413,17 @@ export const chatContextToolRegistry = new ChatContextToolRegistry([
 
 function toOpenCodeSchemaSource(schema: ChatContextToolSchema) {
   const description = JSON.stringify(schema.description);
+  const suffix = schema.isOptional ? ".optional()" : "";
 
   if (schema.type === "string") {
-    return `tool.schema.string().describe(${description})`;
+    return `tool.schema.string().describe(${description})${suffix}`;
   }
 
   if (schema.type === "number") {
-    return `tool.schema.number().describe(${description})`;
+    return `tool.schema.number().describe(${description})${suffix}`;
   }
 
-  return `tool.schema.boolean().describe(${description})`;
+  return `tool.schema.boolean().describe(${description})${suffix}`;
 }
 
 function createToolArgsSource(args: Record<string, ChatContextToolSchema>) {
