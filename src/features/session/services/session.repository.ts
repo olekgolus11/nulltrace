@@ -274,6 +274,25 @@ export const sessionRepository = {
       .all(sessionId, toolName);
   },
 
+  listToolRunsBySessionId(sessionId: string) {
+    return sessionDatabase
+      .query<ToolRunSummary, [string]>(
+        `SELECT
+          id,
+          tool_name AS toolName,
+          command,
+          command_source AS commandSource,
+          status,
+          started_at AS startedAt,
+          ended_at AS endedAt,
+          exit_code AS exitCode
+        FROM tool_runs
+        WHERE session_id = ?1
+        ORDER BY started_at DESC`,
+      )
+      .all(sessionId);
+  },
+
   getToolRunWithLogs(toolRunId: string) {
     const toolRun = sessionDatabase
       .query<ToolRunSummary, [string]>(
@@ -349,6 +368,51 @@ export const sessionRepository = {
       logs,
       artifacts,
     } satisfies ToolRunDetail;
+  },
+
+  findToolRunArtifactByIdForSession(sessionId: string, artifactId: string) {
+    const artifact = sessionDatabase
+      .query<
+        {
+          id: string;
+          toolRunId: string;
+          artifactType: string;
+          label: string;
+          source: string;
+          payloadJson: string;
+          createdAt: string;
+        },
+        [string, string]
+      >(
+        `SELECT
+          tool_run_artifacts.id,
+          tool_run_artifacts.tool_run_id AS toolRunId,
+          tool_run_artifacts.artifact_type AS artifactType,
+          tool_run_artifacts.label,
+          tool_run_artifacts.source,
+          tool_run_artifacts.payload_json AS payloadJson,
+          tool_run_artifacts.created_at AS createdAt
+        FROM tool_run_artifacts
+        INNER JOIN tool_runs
+          ON tool_runs.id = tool_run_artifacts.tool_run_id
+        WHERE tool_run_artifacts.id = ?2
+          AND tool_runs.session_id = ?1`,
+      )
+      .get(sessionId, artifactId);
+
+    if (!artifact) {
+      return null;
+    }
+
+    return {
+      id: artifact.id,
+      toolRunId: artifact.toolRunId,
+      artifactType: artifact.artifactType,
+      label: artifact.label,
+      source: artifact.source,
+      payload: parseJsonPayload(artifact.payloadJson),
+      createdAt: artifact.createdAt,
+    } satisfies ToolRunArtifactRecord;
   },
 
   recordToolRun(sessionId: string, runInput: ToolRunInput) {
