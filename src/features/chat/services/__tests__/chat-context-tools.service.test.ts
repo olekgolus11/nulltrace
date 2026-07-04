@@ -115,6 +115,7 @@ function createFinding(
   id: string,
   sessionId: string,
   title: string,
+  overrides: Partial<SessionFindingRecord> = {},
 ): SessionFindingRecord {
   return {
     id,
@@ -146,6 +147,7 @@ function createFinding(
     firstSeenAt: "2026-05-10T10:00:00.000Z",
     lastSeenAt: "2026-05-10T10:02:00.000Z",
     createdAt: "2026-05-10T10:00:00.000Z",
+    ...overrides,
   };
 }
 
@@ -162,6 +164,23 @@ function createFindingService() {
     ]),
     new FakeFindingRepository([
       createFinding("finding-1", "session-1", "Session one finding"),
+      createFinding("finding-3", "session-1", "Medium Nmap finding", {
+        sourceTool: "nmap",
+        severity: "medium",
+        target: "https://example.com/login",
+        summary: "Login page allows weak transport settings.",
+        reviewStatus: "needs_review",
+        reviewUpdatedAt: null,
+        lastSeenAt: "2026-05-10T10:03:00.000Z",
+      }),
+      createFinding("finding-4", "session-1", "Dismissed info finding", {
+        sourceTool: "nuclei",
+        severity: "info",
+        target: "https://example.com/status",
+        summary: "Status endpoint discloses a harmless banner.",
+        reviewStatus: "dismissed",
+        lastSeenAt: "2026-05-10T10:04:00.000Z",
+      }),
       createFinding("finding-2", "session-2", "Session two finding"),
       createFinding(
         "finding-archived",
@@ -223,7 +242,106 @@ describe("FindingChatContextToolsService", () => {
         title: "Session one finding",
         summary: "Session one finding summary.",
       },
+      {
+        id: "finding-3",
+        severity: "medium",
+        reviewStatus: "needs_review",
+        sourceTool: "nmap",
+        target: "https://example.com/login",
+        title: "Medium Nmap finding",
+        summary: "Login page allows weak transport settings.",
+      },
+      {
+        id: "finding-4",
+        severity: "info",
+        reviewStatus: "dismissed",
+        sourceTool: "nuclei",
+        target: "https://example.com/status",
+        title: "Dismissed info finding",
+        summary: "Status endpoint discloses a harmless banner.",
+      },
     ]);
+    expect(result.pagination).toEqual({
+      limit: 25,
+      offset: 0,
+      nextOffset: null,
+      total: 3,
+      hasMore: false,
+    });
+  });
+
+  it("paginates findings with stable ordering and bounded limits", () => {
+    const service = createFindingService();
+
+    const firstPage = service.listFindings("opencode-1", {
+      limit: 2,
+      offset: 0,
+    });
+    const secondPage = service.listFindings("opencode-1", {
+      limit: 2,
+      offset: firstPage.pagination.nextOffset ?? 0,
+    });
+    const cappedPage = service.listFindings("opencode-1", {
+      limit: 500,
+      offset: 0,
+    });
+
+    expect(firstPage.findings.map((finding) => finding.id)).toEqual([
+      "finding-1",
+      "finding-3",
+    ]);
+    expect(firstPage.pagination).toEqual({
+      limit: 2,
+      offset: 0,
+      nextOffset: 2,
+      total: 3,
+      hasMore: true,
+    });
+    expect(secondPage.findings.map((finding) => finding.id)).toEqual([
+      "finding-4",
+    ]);
+    expect(secondPage.pagination).toEqual({
+      limit: 2,
+      offset: 2,
+      nextOffset: null,
+      total: 3,
+      hasMore: false,
+    });
+    expect(cappedPage.pagination.limit).toBe(100);
+  });
+
+  it("narrows finding discovery by query and operator fields", () => {
+    const service = createFindingService();
+
+    const queryResult = service.listFindings("opencode-1", {
+      limit: 25,
+      offset: 0,
+      query: "weak transport",
+    });
+    const sourceToolResult = service.listFindings("opencode-1", {
+      limit: 25,
+      offset: 0,
+      sourceTool: "NMAP",
+    });
+    const reviewResult = service.listFindings("opencode-1", {
+      limit: 25,
+      offset: 0,
+      severity: "info",
+      reviewStatus: "dismissed",
+    });
+
+    expect(queryResult.findings.map((finding) => finding.id)).toEqual([
+      "finding-3",
+    ]);
+    expect(sourceToolResult.findings.map((finding) => finding.id)).toEqual([
+      "finding-3",
+    ]);
+    expect(reviewResult.findings.map((finding) => finding.id)).toEqual([
+      "finding-4",
+    ]);
+    expect(JSON.stringify(queryResult)).not.toContain(
+      "not exposed by chat context tools",
+    );
   });
 
   it("gets finding detail only inside the attached session", () => {
@@ -279,7 +397,12 @@ describe("FindingChatContextToolsService", () => {
       (definition) => definition.name === "get_finding",
     );
 
-    const result = await registry.execute("get_finding", "opencode-1", {
+    const listResult = await registry.execute("list_findings", "opencode-1", {
+      sessionId: "session-2",
+      query: "Session two",
+      limit: 10,
+    });
+    const getResult = await registry.execute("get_finding", "opencode-1", {
       findingId: "finding-1",
       sessionId: "session-2",
     });
@@ -291,7 +414,17 @@ describe("FindingChatContextToolsService", () => {
           "Finding ID from list_findings. Do not provide a NullTrace session ID.",
       },
     });
-    expect(result).toMatchObject({
+    expect(listResult).toMatchObject({
+      findings: [],
+      pagination: {
+        limit: 10,
+        offset: 0,
+        nextOffset: null,
+        total: 0,
+        hasMore: false,
+      },
+    });
+    expect(getResult).toMatchObject({
       finding: {
         id: "finding-1",
         title: "Session one finding",
@@ -309,6 +442,24 @@ describe("FindingChatContextToolsService", () => {
     expect(source).toContain("context.sessionID");
     expect(source).toContain("\"get_finding\"");
     expect(source).toContain("\"findingId\"");
+    expect(source).not.toContain("sessionId");
+  });
+
+  it("generates bounded list_findings wrappers without session ids", () => {
+    const source = createOpenCodeToolSource(
+      "list_findings",
+      "/tmp/nulltrace/chat-context-tools.service.ts",
+      "/tmp/nulltrace/node_modules/@opencode-ai/plugin/dist/index.js",
+    );
+
+    expect(source).toContain("context.sessionID");
+    expect(source).toContain("\"list_findings\"");
+    expect(source).toContain("\"limit\"");
+    expect(source).toContain("\"offset\"");
+    expect(source).toContain("\"query\"");
+    expect(source).toContain("\"severity\"");
+    expect(source).toContain("\"reviewStatus\"");
+    expect(source).toContain("\"sourceTool\"");
     expect(source).not.toContain("sessionId");
   });
 });
