@@ -1,7 +1,6 @@
 import { ScrollBoxRenderable } from "@opentui/core";
 import { theme } from "../../../app/theme/theme";
-import { ChatWindow } from "../../chat/components/ChatWindow";
-import { ConversationSwitcher } from "../../chat/components/ConversationSwitcher";
+import { SessionChatPanel } from "../../chat/components/SessionChatPanel";
 import { ChatMessageData } from "../../chat/model/chat.types";
 import { ActiveSessionConversation } from "../../chat/services/session-conversation.service";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
@@ -126,7 +125,6 @@ export const CenterDashboardPanel = ({
   chatInput,
   setActivePanel,
   activeConversationId,
-  activeConversationTitle,
   conversationError,
   conversations,
   isLoadingConversations,
@@ -147,7 +145,6 @@ export const CenterDashboardPanel = ({
   chatInput: string;
   setActivePanel: (panel: DashboardPanelId) => void;
   activeConversationId: string | null;
-  activeConversationTitle: string;
   conversationError: string | null;
   conversations: ActiveSessionConversation[];
   isLoadingConversations: boolean;
@@ -161,18 +158,6 @@ export const CenterDashboardPanel = ({
   isGenerating: boolean;
   chatError: string | null;
 }) => {
-  const runtimeStatusMessage = conversationError
-    ? `OpenCode runtime error: ${conversationError}`
-    : activeConversationId
-      ? null
-      : "Preparing OpenCode conversation...";
-  const chatStatusMessage = chatError ? `Chat error: ${chatError}` : null;
-  const isConversationBusy =
-    isLoadingConversations ||
-    isCreatingConversation ||
-    isArchivingConversation ||
-    isGenerating;
-
   return (
     <box
       width={layout.centerPanelWidth}
@@ -186,54 +171,26 @@ export const CenterDashboardPanel = ({
         focused={dashboardState.activePanel === "chat"}
         onMouseDown={() => setActivePanel("chat")}
       >
-        <ConversationSwitcher
-          conversations={conversations}
-          activeConversationId={activeConversationId}
+        <SessionChatPanel
+          messages={chatMessages}
+          inputValue={chatInput}
           availableWidth={Math.max(1, layout.centerPanelWidth - 4)}
-          isDisabled={isConversationBusy}
+          activeConversationId={activeConversationId}
+          conversations={conversations}
+          conversationError={conversationError}
+          chatError={chatError}
+          isLoadingConversations={isLoadingConversations}
+          isCreatingConversation={isCreatingConversation}
+          isArchivingConversation={isArchivingConversation}
+          isLoadingMessages={isLoadingMessages}
+          isGenerating={isGenerating}
+          focused={dashboardState.activePanel === "chat"}
+          onInputChange={setChatInput}
+          onSubmit={submitChat}
           onSelectConversation={selectConversation}
           onCreateConversation={createConversation}
           onArchiveConversation={archiveActiveConversation}
         />
-        <box marginBottom={1}>
-          {runtimeStatusMessage && (
-            <text
-              fg={
-                conversationError ? theme.severity.high : theme.text.secondary
-              }
-            >
-              {runtimeStatusMessage}
-            </text>
-          )}
-        </box>
-        {chatStatusMessage ? (
-          <box marginBottom={1}>
-            <text fg={chatError ? theme.severity.high : theme.text.secondary}>
-              {chatStatusMessage}
-            </text>
-          </box>
-        ) : null}
-        {isLoadingMessages ? (
-          <box flexGrow={1} alignItems="center" justifyContent="center">
-            <text fg={theme.text.dim}>Loading conversation…</text>
-          </box>
-        ) : (
-          <ChatWindow
-            messages={chatMessages}
-            inputValue={chatInput}
-            onInputChange={setChatInput}
-            onSubmit={submitChat}
-            focused={dashboardState.activePanel === "chat"}
-            isGenerating={isGenerating}
-            isDisabled={
-              isLoadingConversations ||
-              isCreatingConversation ||
-              isArchivingConversation ||
-              isGenerating ||
-              !activeConversationId
-            }
-          />
-        )}
       </DashboardPanel>
     </box>
   );

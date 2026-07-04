@@ -4,11 +4,33 @@ import { RefObject } from "react";
 import { useToolWorkspaceStore } from "../store/tool-workspace.store";
 import { toolPanels, toolRegistry } from "../registry/tool-registry";
 import { getPanelByShortcut } from "../../../../shared/model/panel-navigation";
+import { ActiveSessionConversation } from "../../../chat/services/session-conversation.service";
 
-export function useToolKeyboardNavigation(
-  onBack: () => void,
-  historyScrollRef: RefObject<ScrollBoxRenderable | null>,
-) {
+interface UseToolKeyboardNavigationProps {
+  onBack: () => void;
+  historyScrollRef: RefObject<ScrollBoxRenderable | null>;
+  conversations: ActiveSessionConversation[];
+  activeConversationId: string | null;
+  isConversationNavigationDisabled: boolean;
+  onSelectConversation: (conversationId: string) => void;
+  onCreateConversation: () => void;
+  onArchiveActiveConversation: () => void;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+export function useToolKeyboardNavigation({
+  onBack,
+  historyScrollRef,
+  conversations,
+  activeConversationId,
+  isConversationNavigationDisabled,
+  onSelectConversation,
+  onCreateConversation,
+  onArchiveActiveConversation,
+}: UseToolKeyboardNavigationProps) {
   useKeyboard((key) => {
     const state = useToolWorkspaceStore.getState();
 
@@ -33,6 +55,42 @@ export function useToolKeyboardNavigation(
     if (shortcutPanel) {
       state.setActivePanel(shortcutPanel);
       return;
+    }
+
+    if (
+      state.activePanel === "chat" &&
+      key.ctrl &&
+      !isConversationNavigationDisabled
+    ) {
+      if (key.name === "n") {
+        onCreateConversation();
+        return;
+      }
+
+      if (key.name === "d" && activeConversationId) {
+        onArchiveActiveConversation();
+        return;
+      }
+
+      if (key.name === "left" || key.name === "right") {
+        const activeIndex = conversations.findIndex(
+          (conversation) =>
+            conversation.attachment.opencodeConversationId ===
+            activeConversationId,
+        );
+        const nextIndex = clamp(
+          activeIndex + (key.name === "left" ? -1 : 1),
+          0,
+          Math.max(0, conversations.length - 1),
+        );
+        const nextConversation = conversations[nextIndex];
+        if (nextConversation && nextIndex !== activeIndex) {
+          onSelectConversation(
+            nextConversation.attachment.opencodeConversationId,
+          );
+        }
+        return;
+      }
     }
 
     if (state.activePanel === "history") {

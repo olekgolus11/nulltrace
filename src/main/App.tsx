@@ -1,11 +1,12 @@
 import { useKeyboard, useRenderer } from "@opentui/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardScreen } from "../features/dashboard/screen/DashboardScreen";
 import { useSessionContextStore } from "../features/session/store/session-context.store";
 import { ToolName } from "../features/tool/shared/types/tool-screen.types";
 import { Screen } from "./routes";
 import { EntryScreen } from "../features/entry/screen/EntryScreen";
 import { ToolScreen } from "../features/tool/screen/ToolScreen";
+import { toolWorkspaceContextService } from "../features/tool/shared/services/tool-workspace-context.service";
 
 export function App() {
   const renderer = useRenderer();
@@ -19,6 +20,10 @@ export function App() {
   const openExistingSession = useSessionContextStore(
     (state) => state.openExistingSession,
   );
+
+  useEffect(() => {
+    toolWorkspaceContextService.clearAllActiveWorkspaces();
+  }, []);
 
   useKeyboard((key) => {
     if (key.ctrl && key.name === "q") {

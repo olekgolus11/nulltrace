@@ -22,12 +22,17 @@ import {
   ToolRunSummary,
 } from "../../session/model/session.repository.types";
 import { sessionRepository } from "../../session/services/session.repository";
+import {
+  ToolWorkspaceContextSnapshot,
+  toolWorkspaceContextService,
+} from "../../tool/shared/services/tool-workspace-context.service";
 import { ChatContextToolRegistry } from "./chat-context-tool-registry";
 import { conversationAttachmentService } from "./conversation-attachment.service";
 
 const DEFAULT_ARTIFACT_PREVIEW_MAX_CHARACTERS = 4000;
 const DEFAULT_FINDING_LIST_LIMIT = 25;
 const MAX_FINDING_LIST_LIMIT = 100;
+const DEFAULT_ACTIVE_TOOL_HISTORY_LIMIT = 5;
 
 const findingSeverityRanks: Record<SessionFindingRecord["severity"], number> = {
   critical: 5,
@@ -125,6 +130,31 @@ export interface ListToolRunsResult {
   toolRuns: ChatToolRunListItem[];
 }
 
+export interface ChatActiveToolWorkspaceCommandContext {
+  currentCommand: string;
+  generatedCommand: string;
+  commandSource: ToolWorkspaceContextSnapshot["commandSource"];
+  executionStatus: ToolWorkspaceContextSnapshot["executionStatus"];
+  currentToolRunId: string | null;
+  isHistoricPreview: boolean;
+}
+
+export interface ChatActiveToolWorkspaceContext {
+  sessionId: string;
+  activeTool: string;
+  activePanel: string;
+  updatedAt: string;
+  command: ChatActiveToolWorkspaceCommandContext;
+  form: Record<string, unknown>;
+  selectedField: number;
+  selectedHistoricalRun: ChatToolRunListItem | null;
+  recentToolRuns: ChatToolRunListItem[];
+}
+
+export interface GetActiveToolWorkspaceResult {
+  workspace: ChatActiveToolWorkspaceContext | null;
+}
+
 export interface GetArtifactResult {
   artifact: ChatToolRunArtifactDetail | null;
 }
@@ -162,6 +192,10 @@ interface ToolReadRepository {
     sessionId: string,
     artifactId: string,
   ) => ToolRunArtifactRecord | null;
+}
+
+interface ToolWorkspaceContextReadRepository {
+  getActiveWorkspace: (sessionId: string) => ToolWorkspaceContextSnapshot | null;
 }
 
 function assertGetFindingArgs(args: ChatContextToolArgs): GetFindingArgs {
@@ -464,6 +498,42 @@ function toArtifactDetail(
   };
 }
 
+function toActiveToolWorkspaceContext(
+  snapshot: ToolWorkspaceContextSnapshot,
+  toolRuns: ToolRunSummary[],
+): ChatActiveToolWorkspaceContext {
+  const relevantToolRuns = toolRuns.filter(
+    (run) => run.toolName === snapshot.toolName,
+  );
+  const selectedHistoricalRun =
+    relevantToolRuns.find(
+      (run) => run.id === snapshot.selectedHistoryRunId,
+    ) ?? null;
+
+  return {
+    sessionId: snapshot.sessionId,
+    activeTool: snapshot.toolName,
+    activePanel: snapshot.activePanel,
+    updatedAt: snapshot.updatedAt,
+    command: {
+      currentCommand: snapshot.commandInput,
+      generatedCommand: snapshot.generatedCommand,
+      commandSource: snapshot.commandSource,
+      executionStatus: snapshot.executionStatus,
+      currentToolRunId: snapshot.currentToolRunId,
+      isHistoricPreview: snapshot.isHistoricPreview,
+    },
+    form: snapshot.toolData.form,
+    selectedField: snapshot.toolData.selectedField,
+    selectedHistoricalRun: selectedHistoricalRun
+      ? toToolRunListItem(selectedHistoricalRun)
+      : null,
+    recentToolRuns: relevantToolRuns
+      .slice(0, DEFAULT_ACTIVE_TOOL_HISTORY_LIMIT)
+      .map(toToolRunListItem),
+  };
+}
+
 export class FindingChatContextToolsService {
   constructor(
     private readonly attachments: ConversationAttachmentScope = conversationAttachmentService,
@@ -677,6 +747,61 @@ export class ToolRunArtifactChatContextToolsService {
 export const toolRunArtifactChatContextToolsService =
   new ToolRunArtifactChatContextToolsService();
 
+export class ActiveToolWorkspaceChatContextToolsService {
+  constructor(
+    private readonly attachments: ConversationAttachmentScope = conversationAttachmentService,
+    private readonly workspaceContext: ToolWorkspaceContextReadRepository = toolWorkspaceContextService,
+    private readonly tools: Pick<
+      ToolReadRepository,
+      "listToolRunsBySessionId"
+    > = sessionRepository,
+  ) {}
+
+  getActiveToolWorkspace(
+    opencodeConversationId: string,
+  ): GetActiveToolWorkspaceResult {
+    const attachment = requireActiveAttachment(
+      this.attachments,
+      opencodeConversationId,
+    );
+    const workspace = this.workspaceContext.getActiveWorkspace(
+      attachment.sessionId,
+    );
+
+    if (!workspace) {
+      return {
+        workspace: null,
+      };
+    }
+
+    return {
+      workspace: toActiveToolWorkspaceContext(
+        workspace,
+        this.tools.listToolRunsBySessionId(attachment.sessionId),
+      ),
+    };
+  }
+
+  createToolDefinitions(): ChatContextToolDefinition<
+    ChatContextToolArgs,
+    unknown
+  >[] {
+    return [
+      {
+        name: "get_active_tool_workspace",
+        description:
+          "Get the active scanner workspace context for the current NullTrace session, including active tool, command state, form state, selected historical run, and recent run history. Returns null when no scanner workspace is currently active.",
+        args: {},
+        execute: ({ opencodeConversationId }) =>
+          this.getActiveToolWorkspace(opencodeConversationId),
+      },
+    ];
+  }
+}
+
+export const activeToolWorkspaceChatContextToolsService =
+  new ActiveToolWorkspaceChatContextToolsService();
+
 export class ScannerCatalogChatContextToolsService {
   constructor(
     private readonly catalog: Record<ScannerToolId, ScannerCatalogTool> =
@@ -709,6 +834,7 @@ export const scannerCatalogChatContextToolsService =
 export const chatContextToolRegistry = new ChatContextToolRegistry([
   ...findingChatContextToolsService.createToolDefinitions(),
   ...toolRunArtifactChatContextToolsService.createToolDefinitions(),
+  ...activeToolWorkspaceChatContextToolsService.createToolDefinitions(),
   ...scannerCatalogChatContextToolsService.createToolDefinitions(),
 ]);
 
