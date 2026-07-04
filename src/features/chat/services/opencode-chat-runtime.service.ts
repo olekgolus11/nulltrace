@@ -11,6 +11,7 @@ import {
   ChatRuntimeConversationNotFoundError,
   ChatRuntimeError,
 } from "../model/chat-runtime.types";
+import { chatContextToolRegistry } from "./chat-context-tools.service";
 import { getSelectedOpenCodeModel } from "./opencode-runtime.config";
 import { openCodeServerService } from "./opencode-server.service";
 
@@ -45,6 +46,40 @@ interface OpenCodeMessagePartDeltaEvent {
 }
 
 type OpenCodeStreamEvent = OpenCodeEvent | OpenCodeMessagePartDeltaEvent;
+
+const disabledOpenCodeTools = {
+  bash: false,
+  edit: false,
+  glob: false,
+  grep: false,
+  list: false,
+  patch: false,
+  read: false,
+  skill: false,
+  task: false,
+  webfetch: false,
+  websearch: false,
+  write: false,
+} as const;
+
+const chatContextSystemPrompt = [
+  "You are the NullTrace dashboard assistant for the active testing session.",
+  "Ground answers about session findings, finding details, tool run history, artifact previews, and scanner catalog availability in the provided NullTrace read-only context tools.",
+  "Use list_findings/get_finding for findings, list_tool_runs/get_artifact for tool history and artifacts, and list_available_scanner_tools for scanner catalog questions.",
+  "Do not execute scanner tools, generate live scanner commands as if they were run, mutate review status, or mutate session state from this chat path.",
+  "If the requested session data is unavailable from the tools, say that it is unavailable instead of inventing it.",
+].join("\n");
+
+function createChatContextToolSelection() {
+  return {
+    ...disabledOpenCodeTools,
+    ...Object.fromEntries(
+      chatContextToolRegistry
+        .listDefinitions()
+        .map((definition) => [definition.name, true]),
+    ),
+  };
+}
 
 function toRuntimeError(error: unknown, action: string) {
   if (error instanceof ChatRuntimeError) {
@@ -154,6 +189,8 @@ function createPromptBody(text: string) {
 
   return {
     ...(model ? { model } : {}),
+    system: chatContextSystemPrompt,
+    tools: createChatContextToolSelection(),
     parts: [
       {
         type: "text" as const,
