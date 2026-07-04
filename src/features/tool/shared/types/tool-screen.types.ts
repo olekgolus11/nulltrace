@@ -1,5 +1,4 @@
 import { ComponentType } from "react";
-import { ChatMessageData } from "../../../chat/model/chat.types";
 import {
   ToolRunArtifactInput,
   ToolRunDetail,
@@ -25,8 +24,6 @@ export interface ToolWorkspaceStoreState {
   targetUrl: string;
   activePanel: ToolPanel;
   isHelpOpen: boolean;
-  chatInput: string;
-  chatMessages: ChatMessageData[];
   commandInput: string;
   generatedCommand: string;
   commandSource: CommandSource;

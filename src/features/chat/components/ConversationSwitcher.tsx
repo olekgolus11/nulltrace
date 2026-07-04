@@ -12,10 +12,16 @@ interface ConversationSwitcherProps {
   onArchiveConversation: () => void;
 }
 
-const tabWidth = 20;
-const newConversationWidth = 9;
-const archiveConversationWidth = 9;
+const defaultTabWidth = 20;
+const compactTabWidth = 16;
+const defaultNewConversationWidth = 9;
+const compactNewConversationWidth = 3;
+const defaultArchiveConversationWidth = 9;
+const compactArchiveConversationWidth = 3;
 const navigationTileWidth = 3;
+const compactWidthBreakpoint = 42;
+const minimumTabWidth = 8;
+const rowGap = 1;
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -39,6 +45,15 @@ export function ConversationSwitcher({
   onArchiveConversation,
 }: ConversationSwitcherProps) {
   const [windowStartIndex, setWindowStartIndex] = useState(0);
+  const isCompact = availableWidth < compactWidthBreakpoint;
+  const preferredTabWidth = isCompact ? compactTabWidth : defaultTabWidth;
+  const newConversationWidth = isCompact
+    ? compactNewConversationWidth
+    : defaultNewConversationWidth;
+  const archiveConversationWidth = isCompact
+    ? compactArchiveConversationWidth
+    : defaultArchiveConversationWidth;
+  const fixedTileCount = 4;
   const activeIndex = conversations.findIndex(
     (conversation) =>
       conversation.attachment.opencodeConversationId === activeConversationId,
@@ -47,10 +62,14 @@ export function ConversationSwitcher({
     navigationTileWidth * 2 +
     newConversationWidth +
     archiveConversationWidth +
-    4;
+    rowGap * fixedTileCount;
+  const tabWidth = Math.max(
+    minimumTabWidth,
+    Math.min(preferredTabWidth, availableWidth - reservedWidth),
+  );
   const visibleCount = Math.max(
     1,
-    Math.floor((availableWidth - reservedWidth) / (tabWidth + 1)),
+    Math.floor((availableWidth - reservedWidth) / (tabWidth + rowGap)),
   );
   const maxStartIndex = Math.max(0, conversations.length - visibleCount);
 
@@ -114,7 +133,7 @@ export function ConversationSwitcher({
       {visibleConversations.map((conversation) => {
         const conversationId = conversation.attachment.opencodeConversationId;
         const isActive = conversationId === activeConversationId;
-        const label = truncateTitle(conversation.title, 16);
+        const label = truncateTitle(conversation.title, tabWidth - 4);
 
         return (
           <box
@@ -171,7 +190,7 @@ export function ConversationSwitcher({
         }}
       >
         <text fg={isDisabled ? theme.text.dim : theme.accent.secondary}>
-          + New
+          {isCompact ? "+" : "+ New"}
         </text>
       </box>
       <box
@@ -193,7 +212,7 @@ export function ConversationSwitcher({
               : theme.accent.warning
           }
         >
-          Archive
+          {isCompact ? "×" : "Archive"}
         </text>
       </box>
     </box>

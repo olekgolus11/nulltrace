@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { ChatMessageData } from "../../../chat/model/chat.types";
 import { sessionRepository } from "../../../session/services/session.repository";
 import { toolRunnerService } from "../services/tool-runner.service";
 import {
@@ -12,23 +11,6 @@ import { toolPanels, toolRegistry } from "../registry/tool-registry";
 import { cyclePanel as getCycledPanel } from "../../../../shared/model/panel-navigation";
 import { PanelDirection } from "../../../../shared/model/panel-navigation.types";
 
-const initialChatMessages: ChatMessageData[] = [
-  {
-    id: "tool-system-1",
-    sender: "system",
-    content:
-      "Tool workspace ready. Configure a scan profile or edit the full command directly.",
-    timestamp: "14:40",
-  },
-  {
-    id: "tool-ai-1",
-    sender: "ai",
-    content:
-      "Start with a conservative scan, then escalate with scripts or aggressive mode if you need more coverage.",
-    timestamp: "14:40",
-  },
-];
-
 const initialOutputLines = [
   "Awaiting command.",
   "Use the form to build a scan or edit the full command manually.",
@@ -40,8 +22,6 @@ const initialWorkspaceState: ToolWorkspaceStoreState = {
   targetUrl: "",
   activePanel: "form",
   isHelpOpen: false,
-  chatInput: "",
-  chatMessages: initialChatMessages,
   commandInput: "",
   generatedCommand: "",
   commandSource: "generated",
@@ -56,13 +36,6 @@ const initialWorkspaceState: ToolWorkspaceStoreState = {
   toolData: null,
 };
 
-function formatTime() {
-  return new Date().toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
   initializeWorkspace: (
     toolName: string,
@@ -74,8 +47,6 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
   openHelp: () => void;
   closeHelp: () => void;
   toggleHelp: () => void;
-  setChatInput: (value: string) => void;
-  submitChat: (value?: string) => void;
   setManualCommandInput: (value: string) => void;
   refreshGeneratedCommand: (value: string) => void;
   syncGeneratedCommand: () => void;
@@ -105,8 +76,6 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       targetUrl,
       activePanel: "form",
       isHelpOpen: false,
-      chatInput: "",
-      chatMessages: initialChatMessages,
       commandInput: generatedCommand,
       generatedCommand,
       commandSource: "generated",
@@ -136,37 +105,6 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
   closeHelp: () => set({ isHelpOpen: false }),
 
   toggleHelp: () => set((state) => ({ isHelpOpen: !state.isHelpOpen })),
-
-  setChatInput: (value) => set({ chatInput: value }),
-
-  submitChat: (value) =>
-    set((state) => {
-      const submittedValue = value?.trim() ? value : state.chatInput;
-      const content = submittedValue.trim();
-      if (!content) {
-        return state;
-      }
-
-      return {
-        chatInput: "",
-        chatMessages: [
-          ...state.chatMessages,
-          {
-            id: `user-${Date.now()}`,
-            sender: "user",
-            content,
-            timestamp: formatTime(),
-          },
-          {
-            id: `system-${Date.now()}`,
-            sender: "system",
-            content:
-              "Operator message queued. Agent-driven tool assistance will be wired in a later pass.",
-            timestamp: formatTime(),
-          },
-        ],
-      };
-    }),
 
   setManualCommandInput: (value) =>
     set((state) => ({
