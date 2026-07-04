@@ -1,7 +1,9 @@
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
+  renameSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -50,6 +52,13 @@ function getContextDirectory() {
 
 function getContextPath(sessionId: string) {
   return join(getContextDirectory(), `${encodeURIComponent(sessionId)}.json`);
+}
+
+function getTemporaryContextPath(sessionId: string) {
+  return join(
+    getContextDirectory(),
+    `${encodeURIComponent(sessionId)}.${process.pid}.tmp`,
+  );
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -124,11 +133,13 @@ export const toolWorkspaceContextService = {
       updatedAt: new Date().toISOString(),
     };
 
+    const temporaryPath = getTemporaryContextPath(input.sessionId);
     writeFileSync(
-      getContextPath(input.sessionId),
+      temporaryPath,
       `${JSON.stringify(snapshot, null, 2)}\n`,
       "utf8",
     );
+    renameSync(temporaryPath, getContextPath(input.sessionId));
 
     return snapshot;
   },
@@ -153,5 +164,20 @@ export const toolWorkspaceContextService = {
     }
 
     unlinkSync(contextPath);
+  },
+
+  clearAllActiveWorkspaces() {
+    const contextDirectory = getContextDirectory();
+    if (!existsSync(contextDirectory)) {
+      return;
+    }
+
+    for (const fileName of readdirSync(contextDirectory)) {
+      if (!fileName.endsWith(".json") && !fileName.endsWith(".tmp")) {
+        continue;
+      }
+
+      unlinkSync(join(contextDirectory, fileName));
+    }
   },
 };
