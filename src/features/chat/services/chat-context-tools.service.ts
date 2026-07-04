@@ -4,11 +4,13 @@ import {
   ChatContextToolDefinition,
   ChatContextToolSchema,
 } from "../model/chat-context-tool.types";
-import { listAvailableScannerToolsFromCatalog } from "../model/scanner-catalog-context";
 import {
   ScannerCatalogContext,
-  ScannerCatalogContextDependencies,
-} from "../model/scanner-catalog-context.types";
+  ScannerCatalogTool,
+  ScannerToolId,
+  listAvailableScannerToolsFromCatalog,
+  scannerCatalog,
+} from "../../tool/shared/registry/scanner-catalog";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { findingRepository } from "../../finding/services/finding.repository";
 import {
@@ -20,10 +22,6 @@ import {
   ToolRunSummary,
 } from "../../session/model/session.repository.types";
 import { sessionRepository } from "../../session/services/session.repository";
-import {
-  helpContent,
-  toolRegistry,
-} from "../../tool/shared/registry/tool-registry";
 import { ChatContextToolRegistry } from "./chat-context-tool-registry";
 import { conversationAttachmentService } from "./conversation-attachment.service";
 
@@ -417,10 +415,8 @@ export const toolRunArtifactChatContextToolsService =
 
 export class ScannerCatalogChatContextToolsService {
   constructor(
-    private readonly catalog: ScannerCatalogContextDependencies = {
-      toolRegistry,
-      helpContent,
-    },
+    private readonly catalog: Record<ScannerToolId, ScannerCatalogTool> =
+      scannerCatalog,
   ) {}
 
   listAvailableScannerTools(): ScannerCatalogContext {

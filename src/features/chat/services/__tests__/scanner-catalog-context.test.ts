@@ -1,6 +1,8 @@
 import { describe, expect, it, mock } from "bun:test";
-import { listAvailableScannerToolsFromCatalog } from "../../model/scanner-catalog-context";
-import { ScannerCatalogContext } from "../../model/scanner-catalog-context.types";
+import {
+  ScannerCatalogContext,
+  listAvailableScannerToolsFromCatalog,
+} from "../../../tool/shared/registry/scanner-catalog";
 import { ChatContextToolRegistry } from "../chat-context-tool-registry";
 import {
   createOpenCodeToolSource,
@@ -14,6 +16,15 @@ function createToolModule(id: FakeToolName) {
     id,
     name: id === "nmap" ? "Nmap" : "Nuclei",
     description: `${id} scanner`,
+    isImplemented: true,
+    helpContent: {
+      target: {
+        title: "Target",
+        summary: "Target host.",
+        commandEffect: "Adds a target.",
+        guidance: "Use a hostname.",
+      },
+    },
     Workspace: mock(() => null),
     createInitialToolData: mock(() => ({
       form: {},
@@ -31,31 +42,35 @@ describe("listAvailableScannerToolsFromCatalog", () => {
     const nuclei = createToolModule("nuclei");
 
     const context = listAvailableScannerToolsFromCatalog({
-      toolRegistry: {
-        nmap,
-        nuclei,
+      nmap,
+      nuclei,
+      ffuf: {
+        id: "ffuf",
+        name: "ffuf",
+        description: null,
+        isImplemented: false,
+        helpContent: null,
       },
-      helpContent: {
-        nmap: {
-          target: {
-            title: "Target",
-            summary: "Target host.",
-            commandEffect: "Adds a target.",
-            guidance: "Use a hostname.",
-          },
-        },
-        nuclei: {
-          target: {
-            title: "Target",
-            summary: "Target URL.",
-            commandEffect: "Adds a URL.",
-            guidance: "Use a URL.",
-          },
-        },
-        ffuf: null,
-        sqlmap: null,
-        zap: null,
-        nikto: null,
+      sqlmap: {
+        id: "sqlmap",
+        name: "sqlmap",
+        description: null,
+        isImplemented: false,
+        helpContent: null,
+      },
+      zap: {
+        id: "zap",
+        name: "zap",
+        description: null,
+        isImplemented: false,
+        helpContent: null,
+      },
+      nikto: {
+        id: "nikto",
+        name: "nikto",
+        description: null,
+        isImplemented: false,
+        helpContent: null,
       },
     });
 
@@ -122,16 +137,41 @@ describe("listAvailableScannerToolsFromCatalog", () => {
     const nmap = createToolModule("nmap");
 
     listAvailableScannerToolsFromCatalog({
-      toolRegistry: {
-        nmap,
+      nmap,
+      nuclei: {
+        id: "nuclei",
+        name: "nuclei",
+        description: null,
+        isImplemented: false,
+        helpContent: null,
       },
-      helpContent: {
-        nmap: null,
-        nuclei: null,
-        ffuf: null,
-        sqlmap: null,
-        zap: null,
-        nikto: null,
+      ffuf: {
+        id: "ffuf",
+        name: "ffuf",
+        description: null,
+        isImplemented: false,
+        helpContent: null,
+      },
+      sqlmap: {
+        id: "sqlmap",
+        name: "sqlmap",
+        description: null,
+        isImplemented: false,
+        helpContent: null,
+      },
+      zap: {
+        id: "zap",
+        name: "zap",
+        description: null,
+        isImplemented: false,
+        helpContent: null,
+      },
+      nikto: {
+        id: "nikto",
+        name: "nikto",
+        description: null,
+        isImplemented: false,
+        helpContent: null,
       },
     });
 
@@ -145,16 +185,41 @@ describe("listAvailableScannerToolsFromCatalog", () => {
   it("executes through the shared registry with no model-supplied args", async () => {
     const nmap = createToolModule("nmap");
     const service = new ScannerCatalogChatContextToolsService({
-      toolRegistry: {
-        nmap,
+      nmap,
+      nuclei: {
+        id: "nuclei",
+        name: "nuclei",
+        description: null,
+        isImplemented: false,
+        helpContent: null,
       },
-      helpContent: {
-        nmap: null,
-        nuclei: null,
-        ffuf: null,
-        sqlmap: null,
-        zap: null,
-        nikto: null,
+      ffuf: {
+        id: "ffuf",
+        name: "ffuf",
+        description: null,
+        isImplemented: false,
+        helpContent: null,
+      },
+      sqlmap: {
+        id: "sqlmap",
+        name: "sqlmap",
+        description: null,
+        isImplemented: false,
+        helpContent: null,
+      },
+      zap: {
+        id: "zap",
+        name: "zap",
+        description: null,
+        isImplemented: false,
+        helpContent: null,
+      },
+      nikto: {
+        id: "nikto",
+        name: "nikto",
+        description: null,
+        isImplemented: false,
+        helpContent: null,
       },
     });
     const registry = new ChatContextToolRegistry(

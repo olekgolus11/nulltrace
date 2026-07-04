@@ -1,5 +1,5 @@
-import { ToolHelpContent } from "../../shared/types/tool-screen.types";
-import { NmapFieldId } from "../types/nmap.types";
+import type { ToolHelpContent } from "../../shared/types/tool-screen.types";
+import type { NmapFieldId } from "../types/nmap.types";
 
 export const nmapHelpContent: Record<NmapFieldId, ToolHelpContent> = {
   target: {

@@ -7,11 +7,21 @@ import {
 } from "../../../session/model/session.repository.types";
 import { ChatContextToolRegistry } from "../chat-context-tool-registry";
 import {
+  chatContextToolRegistry,
   createArtifactPayloadPreview,
   createOpenCodeToolSource,
   FindingChatContextToolsService,
   ToolRunArtifactChatContextToolsService,
 } from "../chat-context-tools.service";
+
+const chatContextToolsImportPath = new URL(
+  "../chat-context-tools.service.ts",
+  import.meta.url,
+).pathname;
+const openCodePluginImportPath = new URL(
+  "../../../../../node_modules/@opencode-ai/plugin/dist/index.js",
+  import.meta.url,
+).pathname;
 
 class FakeConversationAttachments {
   constructor(
@@ -450,5 +460,23 @@ describe("ToolRunArtifactChatContextToolsService", () => {
       "\"maxCharacters\": tool.schema.number().describe(\"Optional maximum preview characters. The preview is always bounded.\").optional()",
     );
     expect(source).not.toContain("sessionId");
+  });
+});
+
+describe("createOpenCodeToolSource", () => {
+  it("generates importable wrappers for every registered chat context tool", async () => {
+    for (const definition of chatContextToolRegistry.listDefinitions()) {
+      const source = createOpenCodeToolSource(
+        definition.name,
+        chatContextToolsImportPath,
+        openCodePluginImportPath,
+      );
+      const wrapperPath = `/tmp/nulltrace-${definition.name}-${Date.now()}.ts`;
+
+      await Bun.write(wrapperPath, source);
+
+      const module = await import(wrapperPath);
+      expect(module.default).toBeTruthy();
+    }
   });
 });
