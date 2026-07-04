@@ -40,6 +40,7 @@ const openCodeConfig = {
     list_findings: "allow",
     list_tool_runs: "allow",
     get_artifact: "allow",
+    list_available_scanner_tools: "allow",
     webfetch: "allow",
     websearch: "allow",
   },

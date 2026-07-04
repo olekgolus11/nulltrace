@@ -4,6 +4,11 @@ import {
   ChatContextToolDefinition,
   ChatContextToolSchema,
 } from "../model/chat-context-tool.types";
+import { listAvailableScannerToolsFromCatalog } from "../model/scanner-catalog-context";
+import {
+  ScannerCatalogContext,
+  ScannerCatalogContextDependencies,
+} from "../model/scanner-catalog-context.types";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { findingRepository } from "../../finding/services/finding.repository";
 import {
@@ -15,6 +20,10 @@ import {
   ToolRunSummary,
 } from "../../session/model/session.repository.types";
 import { sessionRepository } from "../../session/services/session.repository";
+import {
+  helpContent,
+  toolRegistry,
+} from "../../tool/shared/registry/tool-registry";
 import { ChatContextToolRegistry } from "./chat-context-tool-registry";
 import { conversationAttachmentService } from "./conversation-attachment.service";
 
@@ -406,9 +415,41 @@ export class ToolRunArtifactChatContextToolsService {
 export const toolRunArtifactChatContextToolsService =
   new ToolRunArtifactChatContextToolsService();
 
+export class ScannerCatalogChatContextToolsService {
+  constructor(
+    private readonly catalog: ScannerCatalogContextDependencies = {
+      toolRegistry,
+      helpContent,
+    },
+  ) {}
+
+  listAvailableScannerTools(): ScannerCatalogContext {
+    return listAvailableScannerToolsFromCatalog(this.catalog);
+  }
+
+  createToolDefinitions(): ChatContextToolDefinition<
+    ChatContextToolArgs,
+    unknown
+  >[] {
+    return [
+      {
+        name: "list_available_scanner_tools",
+        description:
+          "List scanner tools known to NullTrace, including implemented tools and catalog-only placeholders. This is read-only and does not generate or run scanner commands.",
+        args: {},
+        execute: () => this.listAvailableScannerTools(),
+      },
+    ];
+  }
+}
+
+export const scannerCatalogChatContextToolsService =
+  new ScannerCatalogChatContextToolsService();
+
 export const chatContextToolRegistry = new ChatContextToolRegistry([
   ...findingChatContextToolsService.createToolDefinitions(),
   ...toolRunArtifactChatContextToolsService.createToolDefinitions(),
+  ...scannerCatalogChatContextToolsService.createToolDefinitions(),
 ]);
 
 function toOpenCodeSchemaSource(schema: ChatContextToolSchema) {
