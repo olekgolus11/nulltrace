@@ -5,7 +5,8 @@ import { theme } from "../../../app/theme/theme";
 import { Header } from "../../../shared/ui/Header";
 import { StatusBar } from "../../../shared/ui/StatusBar";
 import { getPanelDisplayNumber } from "../../../shared/model/panel-navigation";
-import { ChatWindow } from "../../chat/components/ChatWindow";
+import { SessionChatPanel } from "../../chat/components/SessionChatPanel";
+import { useSessionChat } from "../../chat/hooks/use-session-chat";
 import { DashboardPanel } from "../../dashboard/components/DashboardPanel";
 import { useSessionFindings } from "../../finding/hooks/use-session-findings";
 import { useSessionContextStore } from "../../session/store/session-context.store";
@@ -15,6 +16,7 @@ import { ToolHelpDialog } from "../shared/components/ToolHelpDialog";
 import { ToolRunHistoryPanel } from "../shared/components/ToolRunHistoryPanel";
 import { useToolKeyboardNavigation } from "../shared/hooks/use-tool-keyboard-navigation";
 import { toolPanels, toolRegistry } from "../shared/registry/tool-registry";
+import { toolWorkspaceContextService } from "../shared/services/tool-workspace-context.service";
 import { useToolWorkspaceStore } from "../shared/store/tool-workspace.store";
 import { ToolData, ToolName } from "../shared/types/tool-screen.types";
 
@@ -49,14 +51,54 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
   const historyScrollRef = useRef<ScrollBoxRenderable | null>(null);
   const sessionId = useSessionContextStore((state) => state.sessionId);
   const targetUrl = useSessionContextStore((state) => state.targetUrl);
+  const activeConversationId = useSessionContextStore(
+    (state) => state.activeConversationId,
+  );
+  const conversationError = useSessionContextStore(
+    (state) => state.conversationError,
+  );
+  const conversations = useSessionContextStore((state) => state.conversations);
+  const isLoadingConversations = useSessionContextStore(
+    (state) => state.isLoadingConversations,
+  );
+  const isCreatingConversation = useSessionContextStore(
+    (state) => state.isCreatingConversation,
+  );
+  const isArchivingConversation = useSessionContextStore(
+    (state) => state.isArchivingConversation,
+  );
+  const selectConversation = useSessionContextStore(
+    (state) => state.selectConversation,
+  );
+  const createConversation = useSessionContextStore(
+    (state) => state.createConversation,
+  );
+  const archiveActiveConversation = useSessionContextStore(
+    (state) => state.archiveActiveConversation,
+  );
+  const refreshConversationTitles = useSessionContextStore(
+    (state) => state.refreshConversationTitles,
+  );
+  const sessionChat = useSessionChat(sessionId, activeConversationId, {
+    onPromptComplete: () => {
+      void refreshConversationTitles();
+    },
+  });
   const layout = useToolLayout({ width, height });
   const activePanel = useToolWorkspaceStore((state) => state.activePanel);
-  const chatMessages = useToolWorkspaceStore((state) => state.chatMessages);
-  const chatInput = useToolWorkspaceStore((state) => state.chatInput);
-  const setChatInput = useToolWorkspaceStore((state) => state.setChatInput);
-  const submitChat = useToolWorkspaceStore((state) => state.submitChat);
   const isHelpOpen = useToolWorkspaceStore((state) => state.isHelpOpen);
   const setActivePanel = useToolWorkspaceStore((state) => state.setActivePanel);
+  const commandInput = useToolWorkspaceStore((state) => state.commandInput);
+  const generatedCommand = useToolWorkspaceStore(
+    (state) => state.generatedCommand,
+  );
+  const commandSource = useToolWorkspaceStore((state) => state.commandSource);
+  const executionStatus = useToolWorkspaceStore(
+    (state) => state.executionStatus,
+  );
+  const currentToolRunId = useToolWorkspaceStore(
+    (state) => state.currentToolRunId,
+  );
   const historyRuns = useToolWorkspaceStore((state) => state.historyRuns);
   const findingsRefreshKey = historyRuns
     .map((run) => `${run.id}:${run.status}:${run.endedAt ?? ""}`)
@@ -83,7 +125,24 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
     setActivePanel(panel);
   };
 
-  useToolKeyboardNavigation(onBack, historyScrollRef);
+  useToolKeyboardNavigation({
+    onBack,
+    historyScrollRef,
+    conversations,
+    activeConversationId,
+    isConversationNavigationDisabled:
+      sessionChat.isGenerating ||
+      isLoadingConversations ||
+      isCreatingConversation ||
+      isArchivingConversation,
+    onSelectConversation: selectConversation,
+    onCreateConversation: () => {
+      void createConversation();
+    },
+    onArchiveActiveConversation: () => {
+      void archiveActiveConversation();
+    },
+  });
 
   useEffect(() => {
     if (!sessionId || !targetUrl) {
@@ -96,6 +155,48 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
       stopCommand();
     };
   }, [initializeWorkspace, sessionId, stopCommand, targetUrl, toolName]);
+
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
+    toolWorkspaceContextService.saveActiveWorkspace({
+      sessionId,
+      toolName,
+      activePanel,
+      commandInput,
+      generatedCommand,
+      commandSource,
+      executionStatus,
+      currentToolRunId,
+      selectedHistoryRunId,
+      isHistoricPreview,
+      toolData,
+    });
+  }, [
+    activePanel,
+    commandInput,
+    commandSource,
+    currentToolRunId,
+    executionStatus,
+    generatedCommand,
+    isHistoricPreview,
+    selectedHistoryRunId,
+    sessionId,
+    toolData,
+    toolName,
+  ]);
+
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
+    return () => {
+      toolWorkspaceContextService.clearActiveWorkspace(sessionId);
+    };
+  }, [sessionId]);
 
   return (
     <box
@@ -124,13 +225,30 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
             focused={activePanel === "chat"}
             onMouseDown={() => focusPanel("chat")}
           >
-            <ChatWindow
-              messages={chatMessages}
-              inputValue={chatInput}
-              onInputChange={setChatInput}
-              onSubmit={submitChat}
+            <SessionChatPanel
+              messages={sessionChat.messages}
+              inputValue={sessionChat.inputValue}
+              availableWidth={Math.max(1, layout.leftPanelWidth - 4)}
+              activeConversationId={activeConversationId}
+              conversations={conversations}
+              conversationError={conversationError}
+              chatError={sessionChat.error}
+              isLoadingConversations={isLoadingConversations}
+              isCreatingConversation={isCreatingConversation}
+              isArchivingConversation={isArchivingConversation}
+              isLoadingMessages={sessionChat.isLoading}
+              isGenerating={sessionChat.isGenerating}
+              onInputChange={sessionChat.setInputValue}
+              onSubmit={sessionChat.submitInput}
               placeholder={`Ask about ${toolName} usage, flags, or scan strategy...`}
               focused={activePanel === "chat"}
+              onSelectConversation={selectConversation}
+              onCreateConversation={() => {
+                void createConversation();
+              }}
+              onArchiveConversation={() => {
+                void archiveActiveConversation();
+              }}
             />
           </DashboardPanel>
         </box>
@@ -185,6 +303,13 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
                 { key: "Ctrl+1-5", label: "jump" },
                 { key: "Ctrl+R", label: "run" },
                 { key: "Ctrl+H", label: "help" },
+                ...(activePanel === "chat"
+                  ? [
+                      { key: "Ctrl+←/→", label: "conversation" },
+                      { key: "Ctrl+N", label: "new" },
+                      { key: "Ctrl+D", label: "archive" },
+                    ]
+                  : []),
                 { key: "Ctrl+C", label: "cancel" },
                 { key: "ESC", label: "back" },
                 { key: "Ctrl+Q", label: "quit" },

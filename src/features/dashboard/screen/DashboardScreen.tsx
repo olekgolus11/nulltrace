@@ -31,9 +31,6 @@ export function DashboardScreen({
   const activeConversationId = useSessionContextStore(
     (state) => state.activeConversationId,
   );
-  const activeConversationTitle = useSessionContextStore(
-    (state) => state.activeConversationTitle,
-  );
   const conversationError = useSessionContextStore(
     (state) => state.conversationError,
   );
@@ -130,7 +127,6 @@ export function DashboardScreen({
           chatInput={sessionChat.inputValue}
           setActivePanel={setActivePanel}
           activeConversationId={activeConversationId}
-          activeConversationTitle={activeConversationTitle}
           conversationError={conversationError}
           conversations={conversations}
           isLoadingConversations={isLoadingConversations}
