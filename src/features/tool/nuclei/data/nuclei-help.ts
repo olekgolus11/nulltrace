@@ -1,5 +1,5 @@
-import { ToolHelpContent } from "../../shared/types/tool-screen.types";
-import { NucleiFieldId } from "../types/nuclei.types";
+import type { ToolHelpContent } from "../../shared/types/tool-screen.types";
+import type { NucleiFieldId } from "../types/nuclei.types";
 
 export const nucleiHelpContent: Record<NucleiFieldId, ToolHelpContent> = {
   target: {

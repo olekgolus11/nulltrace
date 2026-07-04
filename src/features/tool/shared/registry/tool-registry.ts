@@ -3,12 +3,10 @@ import {
   nmapBooleanFields,
   nmapFieldOrder,
 } from "../../nmap/config/nmap.config";
-import { nmapHelpContent } from "../../nmap/data/nmap-help";
 import { nmapCommandService } from "../../nmap/services/nmap-command.service";
 import { NmapFieldId, NmapToolData } from "../../nmap/types/nmap.types";
 import { NucleiWorkspace } from "../../nuclei/components/NucleiWorkspace";
 import { nucleiFieldOrder } from "../../nuclei/config/nuclei.config";
-import { nucleiHelpContent } from "../../nuclei/data/nuclei-help";
 import { nucleiCommandService } from "../../nuclei/services/nuclei-command.service";
 import { NucleiToolData } from "../../nuclei/types/nuclei.types";
 import { PanelDefinition } from "../../../../shared/model/panel-navigation.types";
@@ -20,12 +18,13 @@ import {
   ToolPrepareCommand,
   ToolRunCompleted,
 } from "../types/tool-screen.types";
+import { scannerCatalog } from "./scanner-catalog";
 
 export const toolRegistry: Record<string, ToolModule> = {
   nmap: {
-    id: "nmap",
-    name: "Nmap",
-    description: "Network mapper with guided scan profiles and manual control.",
+    id: scannerCatalog.nmap.id,
+    name: scannerCatalog.nmap.name,
+    description: scannerCatalog.nmap.description ?? "",
     Workspace: NmapWorkspace,
     createInitialToolData: (targetUrl: string) =>
       nmapCommandService.createInitialToolData(targetUrl),
@@ -110,9 +109,9 @@ export const toolRegistry: Record<string, ToolModule> = {
     },
   },
   nuclei: {
-    id: "nuclei",
-    name: "Nuclei",
-    description: "Template-based vulnerability scanner with editable runs.",
+    id: scannerCatalog.nuclei.id,
+    name: scannerCatalog.nuclei.name,
+    description: scannerCatalog.nuclei.description ?? "",
     Workspace: NucleiWorkspace,
     createInitialToolData: (targetUrl: string) =>
       nucleiCommandService.createInitialToolData(targetUrl),
@@ -199,10 +198,10 @@ export const helpContent: Record<
   ToolName,
   Record<string, ToolHelpContent> | null
 > = {
-  nmap: nmapHelpContent,
-  nuclei: nucleiHelpContent,
-  ffuf: null,
-  sqlmap: null,
-  zap: null,
-  nikto: null,
+  nmap: scannerCatalog.nmap.helpContent as Record<string, ToolHelpContent>,
+  nuclei: scannerCatalog.nuclei.helpContent as Record<string, ToolHelpContent>,
+  ffuf: scannerCatalog.ffuf.helpContent,
+  sqlmap: scannerCatalog.sqlmap.helpContent,
+  zap: scannerCatalog.zap.helpContent,
+  nikto: scannerCatalog.nikto.helpContent,
 };
