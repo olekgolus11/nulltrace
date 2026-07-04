@@ -26,9 +26,46 @@ import { ChatContextToolRegistry } from "./chat-context-tool-registry";
 import { conversationAttachmentService } from "./conversation-attachment.service";
 
 const DEFAULT_ARTIFACT_PREVIEW_MAX_CHARACTERS = 4000;
+const DEFAULT_FINDING_LIST_LIMIT = 25;
+const MAX_FINDING_LIST_LIMIT = 100;
+
+const findingSeverityRanks: Record<SessionFindingRecord["severity"], number> = {
+  critical: 5,
+  high: 4,
+  medium: 3,
+  low: 2,
+  info: 1,
+};
+
+const findingReviewStatusLabels: Record<
+  SessionFindingRecord["reviewStatus"],
+  true
+> = {
+  needs_review: true,
+  confirmed: true,
+  dismissed: true,
+};
 
 type GetFindingArgs = {
   findingId: string;
+};
+
+type ListFindingsArgs = {
+  limit?: number;
+  offset?: number;
+  query?: string;
+  severity?: SessionFindingRecord["severity"];
+  reviewStatus?: SessionFindingRecord["reviewStatus"];
+  sourceTool?: string;
+};
+
+type NormalizedListFindingsArgs = {
+  limit: number;
+  offset: number;
+  query?: string;
+  severity?: SessionFindingRecord["severity"];
+  reviewStatus?: SessionFindingRecord["reviewStatus"];
+  sourceTool?: string;
 };
 
 type GetArtifactArgs = {
@@ -92,8 +129,17 @@ export interface GetArtifactResult {
   artifact: ChatToolRunArtifactDetail | null;
 }
 
+export interface ListFindingsPagination {
+  limit: number;
+  offset: number;
+  nextOffset: number | null;
+  total: number;
+  hasMore: boolean;
+}
+
 export interface ListFindingsResult {
   findings: ChatFindingListItem[];
+  pagination: ListFindingsPagination;
 }
 
 export interface GetFindingResult {
@@ -126,6 +172,94 @@ function assertGetFindingArgs(args: ChatContextToolArgs): GetFindingArgs {
 
   return {
     findingId: findingId.trim(),
+  };
+}
+
+function normalizeOptionalString(value: unknown, argumentName: string) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "string") {
+    throw new Error(`list_findings ${argumentName} must be a string.`);
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function isFindingSeverity(
+  value: string,
+): value is SessionFindingRecord["severity"] {
+  return value in findingSeverityRanks;
+}
+
+function isFindingReviewStatus(
+  value: string,
+): value is SessionFindingRecord["reviewStatus"] {
+  return value in findingReviewStatusLabels;
+}
+
+function normalizeSeverity(value: unknown) {
+  const severity = normalizeOptionalString(value, "severity");
+  if (!severity) {
+    return undefined;
+  }
+
+  if (!isFindingSeverity(severity)) {
+    throw new Error(
+      "list_findings severity must be critical, high, medium, low, or info.",
+    );
+  }
+
+  return severity;
+}
+
+function normalizeReviewStatus(value: unknown) {
+  const reviewStatus = normalizeOptionalString(value, "reviewStatus");
+  if (!reviewStatus) {
+    return undefined;
+  }
+
+  if (!isFindingReviewStatus(reviewStatus)) {
+    throw new Error(
+      "list_findings reviewStatus must be needs_review, confirmed, or dismissed.",
+    );
+  }
+
+  return reviewStatus;
+}
+
+function assertListFindingsArgs(
+  args: ChatContextToolArgs | ListFindingsArgs,
+): NormalizedListFindingsArgs {
+  const limit = args.limit;
+  if (limit !== undefined) {
+    if (typeof limit !== "number" || !Number.isFinite(limit)) {
+      throw new Error("list_findings limit must be a finite number.");
+    }
+  }
+
+  const offset = args.offset;
+  if (offset !== undefined) {
+    if (typeof offset !== "number" || !Number.isFinite(offset)) {
+      throw new Error("list_findings offset must be a finite number.");
+    }
+  }
+
+  return {
+    limit: Math.min(
+      MAX_FINDING_LIST_LIMIT,
+      Math.max(
+        1,
+        Math.floor(limit ?? DEFAULT_FINDING_LIST_LIMIT),
+      ),
+    ),
+    offset: Math.max(0, Math.floor(offset ?? 0)),
+    query: normalizeOptionalString(args.query, "query"),
+    severity: normalizeSeverity(args.severity),
+    reviewStatus: normalizeReviewStatus(args.reviewStatus),
+    sourceTool: normalizeOptionalString(args.sourceTool, "sourceTool"),
   };
 }
 
@@ -188,6 +322,73 @@ function toFindingDetail(finding: SessionFindingRecord): ChatFindingDetail {
     createdAt: finding.createdAt,
     sourceContext: createFindingSourceContextFields(finding),
   };
+}
+
+function matchesFindingQuery(
+  finding: SessionFindingRecord,
+  normalizedQuery: string,
+) {
+  const haystack = [
+    finding.title,
+    finding.summary,
+    finding.target,
+    finding.sourceTool,
+    finding.severity,
+    finding.reviewStatus,
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(normalizedQuery);
+}
+
+function filterFindings(
+  findings: SessionFindingRecord[],
+  args: NormalizedListFindingsArgs,
+) {
+  const normalizedQuery = args.query?.toLowerCase();
+  const normalizedSourceTool = args.sourceTool?.toLowerCase();
+
+  return findings.filter((finding) => {
+    if (args.severity && finding.severity !== args.severity) {
+      return false;
+    }
+
+    if (args.reviewStatus && finding.reviewStatus !== args.reviewStatus) {
+      return false;
+    }
+
+    if (
+      normalizedSourceTool &&
+      finding.sourceTool.toLowerCase() !== normalizedSourceTool
+    ) {
+      return false;
+    }
+
+    if (normalizedQuery && !matchesFindingQuery(finding, normalizedQuery)) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function sortFindingsForDiscovery(findings: SessionFindingRecord[]) {
+  return [...findings].sort((left, right) => {
+    const severityDelta =
+      findingSeverityRanks[right.severity] - findingSeverityRanks[left.severity];
+    if (severityDelta !== 0) {
+      return severityDelta;
+    }
+
+    const lastSeenDelta =
+      Date.parse(right.lastSeenAt) - Date.parse(left.lastSeenAt);
+    if (lastSeenDelta !== 0) {
+      return lastSeenDelta;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
 }
 
 function serializeArtifactPayload(payload: unknown): {
@@ -269,16 +470,39 @@ export class FindingChatContextToolsService {
     private readonly findings: FindingReadRepository = findingRepository,
   ) {}
 
-  listFindings(opencodeConversationId: string): ListFindingsResult {
+  listFindings(
+    opencodeConversationId: string,
+    args: ListFindingsArgs = {},
+  ): ListFindingsResult {
     const attachment = requireActiveAttachment(
       this.attachments,
       opencodeConversationId,
     );
+    const normalizedArgs = assertListFindingsArgs(args);
+    const findings = sortFindingsForDiscovery(
+      filterFindings(
+        this.findings.listBySessionId(attachment.sessionId),
+        normalizedArgs,
+      ),
+    );
+    const page = findings.slice(
+      normalizedArgs.offset,
+      normalizedArgs.offset + normalizedArgs.limit,
+    );
+    const nextOffset =
+      normalizedArgs.offset + page.length < findings.length
+        ? normalizedArgs.offset + page.length
+        : null;
 
     return {
-      findings: this.findings
-        .listBySessionId(attachment.sessionId)
-        .map(toFindingListItem),
+      findings: page.map(toFindingListItem),
+      pagination: {
+        limit: normalizedArgs.limit,
+        offset: normalizedArgs.offset,
+        nextOffset,
+        total: findings.length,
+        hasMore: nextOffset !== null,
+      },
     };
   }
 
@@ -308,10 +532,50 @@ export class FindingChatContextToolsService {
       {
         name: "list_findings",
         description:
-          "List findings for the active NullTrace testing session attached to this OpenCode conversation.",
-        args: {},
-        execute: ({ opencodeConversationId }) =>
-          this.listFindings(opencodeConversationId),
+          "List a bounded page of findings for the active NullTrace testing session attached to this OpenCode conversation. Use filters or pagination to locate the exact finding ID before calling get_finding.",
+        args: {
+          limit: {
+            type: "number",
+            description:
+              "Optional page size. Defaults to 25 and is capped at 100.",
+            isOptional: true,
+          },
+          offset: {
+            type: "number",
+            description:
+              "Optional zero-based offset from a previous list_findings response.",
+            isOptional: true,
+          },
+          query: {
+            type: "string",
+            description:
+              "Optional case-insensitive text to match title, summary, target, source tool, severity, or review status.",
+            isOptional: true,
+          },
+          severity: {
+            type: "string",
+            description:
+              "Optional exact severity filter: critical, high, medium, low, or info.",
+            isOptional: true,
+          },
+          reviewStatus: {
+            type: "string",
+            description:
+              "Optional exact review status filter: needs_review, confirmed, or dismissed.",
+            isOptional: true,
+          },
+          sourceTool: {
+            type: "string",
+            description:
+              "Optional exact source tool filter, such as nmap or nuclei.",
+            isOptional: true,
+          },
+        },
+        execute: ({ opencodeConversationId, args }) =>
+          this.listFindings(
+            opencodeConversationId,
+            assertListFindingsArgs(args),
+          ),
       },
       {
         name: "get_finding",
