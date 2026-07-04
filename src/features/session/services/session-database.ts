@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { Database } from "bun:sqlite";
+import { createActionDraftsTable } from "../../action-draft/services/action-draft.schema";
 
 export function getAppDataDirectory() {
   if (process.env.NULLTRACE_APP_DATA_DIR) {
@@ -191,3 +192,4 @@ if (sessionFindingsTable) {
 createSessionFindingsTable();
 createFindingReviewsTable();
 createConversationAttachmentsTable();
+createActionDraftsTable(sessionDatabase);
