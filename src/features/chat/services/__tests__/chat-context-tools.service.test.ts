@@ -7,12 +7,14 @@ import {
 } from "../../../session/model/session.repository.types";
 import { ChatContextToolRegistry } from "../chat-context-tool-registry";
 import {
+  ActiveToolWorkspaceChatContextToolsService,
   chatContextToolRegistry,
   createArtifactPayloadPreview,
   createOpenCodeToolSource,
   FindingChatContextToolsService,
   ToolRunArtifactChatContextToolsService,
 } from "../chat-context-tools.service";
+import { ToolWorkspaceContextSnapshot } from "../../../tool/shared/services/tool-workspace-context.service";
 
 const chatContextToolsImportPath = new URL(
   "../chat-context-tools.service.ts",
@@ -67,6 +69,19 @@ class FakeToolRepository {
         (artifact) =>
           artifact.sessionId === sessionId && artifact.id === artifactId,
       ) ?? null
+    );
+  }
+}
+
+class FakeToolWorkspaceContextRepository {
+  constructor(
+    private readonly snapshots: ToolWorkspaceContextSnapshot[],
+  ) {}
+
+  getActiveWorkspace(sessionId: string) {
+    return (
+      this.snapshots.find((snapshot) => snapshot.sessionId === sessionId) ??
+      null
     );
   }
 }
@@ -234,6 +249,63 @@ function createToolRunArtifactService() {
           hidden: true,
         }),
       ],
+    ),
+  );
+}
+
+function createWorkspaceSnapshot(
+  overrides: Partial<ToolWorkspaceContextSnapshot> = {},
+): ToolWorkspaceContextSnapshot {
+  return {
+    sessionId: "session-1",
+    toolName: "nmap",
+    activePanel: "command",
+    commandInput: "nmap -sV example.com",
+    generatedCommand: "nmap -sV -T3 example.com",
+    commandSource: "manual",
+    executionStatus: "idle",
+    currentToolRunId: null,
+    selectedHistoryRunId: "run-1",
+    isHistoricPreview: false,
+    toolData: {
+      selectedField: 0,
+      form: {
+        target: "example.com",
+        ports: "80,443",
+        timing: "T3",
+        serviceDetection: true,
+        osDetection: false,
+        defaultScripts: false,
+        aggressive: false,
+        extraArgs: "",
+      },
+    },
+    updatedAt: "2026-05-10T10:04:00.000Z",
+    ...overrides,
+  };
+}
+
+function createActiveToolWorkspaceService(
+  snapshots: ToolWorkspaceContextSnapshot[] = [createWorkspaceSnapshot()],
+) {
+  return new ActiveToolWorkspaceChatContextToolsService(
+    new FakeConversationAttachments([
+      createAttachment("session-1", "opencode-1"),
+      createAttachment("session-2", "opencode-2"),
+      createAttachment(
+        "session-archived",
+        "opencode-archived",
+        "2026-05-10T10:03:00.000Z",
+      ),
+    ]),
+    new FakeToolWorkspaceContextRepository(snapshots),
+    new FakeToolRepository(
+      [
+        createRun("run-1", "session-1", "nmap"),
+        createRun("run-2", "session-1", "nuclei"),
+        createRun("run-3", "session-2", "nmap"),
+      ],
+      [],
     ),
   );
 }
@@ -610,6 +682,122 @@ describe("ToolRunArtifactChatContextToolsService", () => {
     expect(source).toContain(
       "\"maxCharacters\": tool.schema.number().describe(\"Optional maximum preview characters. The preview is always bounded.\").optional()",
     );
+    expect(source).not.toContain("sessionId");
+  });
+});
+
+describe("ActiveToolWorkspaceChatContextToolsService", () => {
+  it("returns active scanner workspace context for the attached session", () => {
+    const result =
+      createActiveToolWorkspaceService().getActiveToolWorkspace("opencode-1");
+
+    expect(result).toEqual({
+      workspace: {
+        sessionId: "session-1",
+        activeTool: "nmap",
+        activePanel: "command",
+        updatedAt: "2026-05-10T10:04:00.000Z",
+        command: {
+          currentCommand: "nmap -sV example.com",
+          generatedCommand: "nmap -sV -T3 example.com",
+          commandSource: "manual",
+          executionStatus: "idle",
+          currentToolRunId: null,
+          isHistoricPreview: false,
+        },
+        form: {
+          target: "example.com",
+          ports: "80,443",
+          timing: "T3",
+          serviceDetection: true,
+          osDetection: false,
+          defaultScripts: false,
+          aggressive: false,
+          extraArgs: "",
+        },
+        selectedField: 0,
+        selectedHistoricalRun: {
+          id: "run-1",
+          toolName: "nmap",
+          command: "nmap example.com",
+          status: "success",
+          startedAt: "2026-05-10T10:00:00.000Z",
+          endedAt: "2026-05-10T10:01:00.000Z",
+          exitCode: 0,
+        },
+        recentToolRuns: [
+          {
+            id: "run-1",
+            toolName: "nmap",
+            command: "nmap example.com",
+            status: "success",
+            startedAt: "2026-05-10T10:00:00.000Z",
+            endedAt: "2026-05-10T10:01:00.000Z",
+            exitCode: 0,
+          },
+        ],
+      },
+    });
+  });
+
+  it("returns null when no scanner workspace is active for the session", () => {
+    const result =
+      createActiveToolWorkspaceService([]).getActiveToolWorkspace("opencode-1");
+
+    expect(result).toEqual({
+      workspace: null,
+    });
+  });
+
+  it("rejects archived or unknown OpenCode conversations", () => {
+    const service = createActiveToolWorkspaceService();
+
+    expect(() => service.getActiveToolWorkspace("opencode-archived")).toThrow(
+      "No active NullTrace session attachment exists",
+    );
+    expect(() => service.getActiveToolWorkspace("unknown-opencode")).toThrow(
+      "No active NullTrace session attachment exists",
+    );
+  });
+
+  it("executes through the shared registry without accepting session ids", async () => {
+    const service = createActiveToolWorkspaceService();
+    const registry = new ChatContextToolRegistry(
+      service.createToolDefinitions(),
+    );
+
+    const result = await registry.execute(
+      "get_active_tool_workspace",
+      "opencode-1",
+      {
+        sessionId: "session-2",
+      },
+    );
+
+    expect(registry.listDefinitions()).toMatchObject([
+      {
+        name: "get_active_tool_workspace",
+        args: {},
+      },
+    ]);
+    expect(result).toMatchObject({
+      workspace: {
+        sessionId: "session-1",
+        activeTool: "nmap",
+      },
+    });
+  });
+
+  it("generates an OpenCode wrapper for get_active_tool_workspace", () => {
+    const source = createOpenCodeToolSource(
+      "get_active_tool_workspace",
+      "/tmp/nulltrace/chat-context-tools.service.ts",
+      "/tmp/nulltrace/node_modules/@opencode-ai/plugin/dist/index.js",
+    );
+
+    expect(source).toContain("context.sessionID");
+    expect(source).toContain("\"get_active_tool_workspace\"");
+    expect(source).toContain("args: {}");
     expect(source).not.toContain("sessionId");
   });
 });

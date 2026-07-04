@@ -16,6 +16,7 @@ import { ToolHelpDialog } from "../shared/components/ToolHelpDialog";
 import { ToolRunHistoryPanel } from "../shared/components/ToolRunHistoryPanel";
 import { useToolKeyboardNavigation } from "../shared/hooks/use-tool-keyboard-navigation";
 import { toolPanels, toolRegistry } from "../shared/registry/tool-registry";
+import { toolWorkspaceContextService } from "../shared/services/tool-workspace-context.service";
 import { useToolWorkspaceStore } from "../shared/store/tool-workspace.store";
 import { ToolData, ToolName } from "../shared/types/tool-screen.types";
 
@@ -87,6 +88,17 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
   const activePanel = useToolWorkspaceStore((state) => state.activePanel);
   const isHelpOpen = useToolWorkspaceStore((state) => state.isHelpOpen);
   const setActivePanel = useToolWorkspaceStore((state) => state.setActivePanel);
+  const commandInput = useToolWorkspaceStore((state) => state.commandInput);
+  const generatedCommand = useToolWorkspaceStore(
+    (state) => state.generatedCommand,
+  );
+  const commandSource = useToolWorkspaceStore((state) => state.commandSource);
+  const executionStatus = useToolWorkspaceStore(
+    (state) => state.executionStatus,
+  );
+  const currentToolRunId = useToolWorkspaceStore(
+    (state) => state.currentToolRunId,
+  );
   const historyRuns = useToolWorkspaceStore((state) => state.historyRuns);
   const findingsRefreshKey = historyRuns
     .map((run) => `${run.id}:${run.status}:${run.endedAt ?? ""}`)
@@ -143,6 +155,48 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
       stopCommand();
     };
   }, [initializeWorkspace, sessionId, stopCommand, targetUrl, toolName]);
+
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
+    toolWorkspaceContextService.saveActiveWorkspace({
+      sessionId,
+      toolName,
+      activePanel,
+      commandInput,
+      generatedCommand,
+      commandSource,
+      executionStatus,
+      currentToolRunId,
+      selectedHistoryRunId,
+      isHistoricPreview,
+      toolData,
+    });
+  }, [
+    activePanel,
+    commandInput,
+    commandSource,
+    currentToolRunId,
+    executionStatus,
+    generatedCommand,
+    isHistoricPreview,
+    selectedHistoryRunId,
+    sessionId,
+    toolData,
+    toolName,
+  ]);
+
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
+    return () => {
+      toolWorkspaceContextService.clearActiveWorkspace(sessionId);
+    };
+  }, [sessionId]);
 
   return (
     <box
