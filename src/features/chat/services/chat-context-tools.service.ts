@@ -436,12 +436,12 @@ function getScannerTargetForDraft(
   return target;
 }
 
-function replaceCommandTargetPlaceholders(command: string, target: string) {
+function replaceTargetPlaceholders(value: string, target: string) {
   if (!target) {
-    return command;
+    return value;
   }
 
-  return command
+  return value
     .replaceAll("{{TARGET}}", target)
     .replaceAll("<TARGET>", target)
     .replaceAll("{TARGET}", target);
@@ -457,6 +457,14 @@ function toCreateActionDraftPayload(
     formState && typeof formState === "object" && !Array.isArray(formState)
       ? {
           ...formState,
+          ...(typeof formState.target === "string"
+            ? {
+                target: replaceTargetPlaceholders(
+                  formState.target,
+                  scannerTarget,
+                ),
+              }
+            : {}),
           ...(!("target" in formState) && scannerTarget
             ? { target: scannerTarget }
             : {}),
@@ -475,10 +483,7 @@ function toCreateActionDraftPayload(
       : {}),
     ...(args.command
       ? {
-          command: replaceCommandTargetPlaceholders(
-            args.command,
-            scannerTarget,
-          ),
+          command: replaceTargetPlaceholders(args.command, scannerTarget),
         }
       : {}),
     ...(args.intentJson

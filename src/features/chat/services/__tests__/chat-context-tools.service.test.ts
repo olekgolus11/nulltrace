@@ -978,6 +978,7 @@ describe("ActionDraftChatContextToolsService", () => {
       title: "Scan selected target",
       command: "nmap -sS -sV <TARGET>",
       formStateJson: JSON.stringify({
+        target: "{{TARGET}}",
         ports: "80,443",
       }),
     });
