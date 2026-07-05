@@ -66,7 +66,7 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
     generatedCommand: string;
     commandSource: CommandSource;
     message: string;
-  }) => void;
+  }) => boolean;
   reportActionDraftApplyError: (message: string) => void;
 }
 
@@ -320,7 +320,19 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       toolData: updater(state.toolData),
     })),
 
-  applyActionDraftState: (draftState) =>
+  applyActionDraftState: (draftState) => {
+    if (get().executionStatus === "running") {
+      set({
+        activePanel: "output",
+        outputLines: [
+          "Could not apply action draft.",
+          "A scanner is currently running. Stop or wait for it to finish before applying a draft.",
+          "The active scanner process was left running.",
+        ],
+      });
+      return false;
+    }
+
     set({
       toolData: draftState.toolData,
       commandInput: draftState.commandInput,
@@ -336,7 +348,9 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       currentToolRunId: null,
       selectedHistoryRun: null,
       isHistoricPreview: false,
-    }),
+    });
+    return true;
+  },
 
   reportActionDraftApplyError: (message) =>
     set({

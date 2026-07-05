@@ -181,7 +181,11 @@ export function ToolScreen({
       return;
     }
 
-    applyActionDraftState(result.application);
+    const didApply = applyActionDraftState(result.application);
+    if (!didApply) {
+      return;
+    }
+
     actionDraftRepository.setStatus({
       actionDraftId: draft.id,
       status: "applied",
