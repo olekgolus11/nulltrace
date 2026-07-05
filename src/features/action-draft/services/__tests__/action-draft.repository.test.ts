@@ -137,6 +137,49 @@ describe("ActionDraftRepository", () => {
     expect(drafts[0].id).toBe(first.id);
   });
 
+  it("lists action drafts by creation time even after lifecycle updates", () => {
+    const database = createTestDatabase();
+    const repository = new ActionDraftRepository(database);
+    const older = repository.createDraft({
+      sessionId: "session-1",
+      targetTool: "nmap",
+      title: "Older draft",
+      summary: "Created first.",
+      payload: {},
+    });
+    const newer = repository.createDraft({
+      sessionId: "session-1",
+      targetTool: "nuclei",
+      title: "Newer draft",
+      summary: "Created second.",
+      payload: {},
+    });
+
+    database
+      .query(
+        `UPDATE action_drafts
+         SET created_at = ?2
+         WHERE id = ?1`,
+      )
+      .run(older.id, "2026-05-10T10:01:00.000Z");
+    database
+      .query(
+        `UPDATE action_drafts
+         SET created_at = ?2
+         WHERE id = ?1`,
+      )
+      .run(newer.id, "2026-05-10T10:02:00.000Z");
+
+    repository.setStatus({
+      actionDraftId: older.id,
+      status: "applied",
+    });
+
+    const drafts = repository.listBySessionId("session-1");
+
+    expect(drafts.map((draft) => draft.id)).toEqual([newer.id, older.id]);
+  });
+
   it("rejects catalog-only and unknown scanner tools", () => {
     const repository = new ActionDraftRepository(createTestDatabase());
     const createDraft = (targetTool: ScannerToolId) =>

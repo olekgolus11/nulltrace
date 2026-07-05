@@ -7,7 +7,13 @@ import {
 
 export type ToolName = "nmap" | "nuclei" | "ffuf" | "sqlmap" | "zap" | "nikto";
 
-export type ToolPanel = "chat" | "form" | "command" | "output" | "history";
+export type ToolPanel =
+  | "drafts"
+  | "chat"
+  | "form"
+  | "command"
+  | "output"
+  | "history";
 
 export type ExecutionStatus =
   | "idle"

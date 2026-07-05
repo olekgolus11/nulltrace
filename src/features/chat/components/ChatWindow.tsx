@@ -69,9 +69,9 @@ export function ChatWindow({
         contentOptions={{
           flexDirection: "column",
           paddingBottom: 1,
+          paddingRight: 1,
         }}
         verticalScrollbarOptions={{
-          width: 1,
           trackOptions: {
             backgroundColor: theme.border.muted,
             foregroundColor: theme.text.secondary,

@@ -238,8 +238,10 @@ export function FindingDetailModal({
           width={contentWidth}
           scrollY={true}
           stickyScroll={false}
+          contentOptions={{
+            paddingRight: 1,
+          }}
           verticalScrollbarOptions={{
-            width: 2,
             visible: true,
             trackOptions: modalScrollbarTrackOptions,
           }}

@@ -1,10 +1,15 @@
 import { ScrollBoxRenderable } from "@opentui/core";
 import { useTerminalDimensions } from "@opentui/react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { theme } from "../../../app/theme/theme";
 import { Header } from "../../../shared/ui/Header";
 import { StatusBar } from "../../../shared/ui/StatusBar";
 import { getPanelDisplayNumber } from "../../../shared/model/panel-navigation";
+import { ActionDraftList } from "../../action-draft/components/ActionDraftList";
+import { ActionDraftRecord } from "../../action-draft/model/action-draft.types";
+import { useSessionActionDrafts } from "../../action-draft/hooks/use-session-action-drafts";
+import { mapActionDraftToWorkspaceState } from "../../action-draft/services/action-draft-workspace.mapper";
+import { actionDraftRepository } from "../../action-draft/services/action-draft.repository.instance";
 import { SessionChatPanel } from "../../chat/components/SessionChatPanel";
 import { useSessionChat } from "../../chat/hooks/use-session-chat";
 import { DashboardPanel } from "../../dashboard/components/DashboardPanel";
@@ -23,6 +28,7 @@ import { ToolData, ToolName } from "../shared/types/tool-screen.types";
 interface ToolScreenProps {
   toolName: ToolName;
   onBack: () => void;
+  pendingActionDraftId?: string | null;
 }
 
 const emptyToolData: ToolData = {
@@ -46,9 +52,16 @@ function getToolData(
   );
 }
 
-export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
+export function ToolScreen({
+  toolName,
+  onBack,
+  pendingActionDraftId = null,
+}: ToolScreenProps) {
   const { width, height } = useTerminalDimensions();
+  const actionDraftScrollRef = useRef<ScrollBoxRenderable | null>(null);
   const historyScrollRef = useRef<ScrollBoxRenderable | null>(null);
+  const appliedPendingDraftIdRef = useRef<string | null>(null);
+  const [selectedActionDraftIndex, setSelectedActionDraftIndex] = useState(0);
   const sessionId = useSessionContextStore((state) => state.sessionId);
   const targetUrl = useSessionContextStore((state) => state.targetUrl);
   const activeConversationId = useSessionContextStore(
@@ -79,9 +92,11 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
   const refreshConversationTitles = useSessionContextStore(
     (state) => state.refreshConversationTitles,
   );
+  const { drafts, refreshDrafts } = useSessionActionDrafts(sessionId);
   const sessionChat = useSessionChat(sessionId, activeConversationId, {
     onPromptComplete: () => {
       void refreshConversationTitles();
+      refreshDrafts();
     },
   });
   const layout = useToolLayout({ width, height });
@@ -114,9 +129,28 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
     (state) => state.initializeWorkspace,
   );
   const stopCommand = useToolWorkspaceStore((state) => state.stopCommand);
+  const applyActionDraftState = useToolWorkspaceStore(
+    (state) => state.applyActionDraftState,
+  );
+  const reportActionDraftApplyError = useToolWorkspaceStore(
+    (state) => state.reportActionDraftApplyError,
+  );
   const toolData = useToolWorkspaceStore((state) =>
     getToolData(toolName, targetUrl, state.toolData),
   );
+  const toolActionDrafts = drafts.filter(
+    (draft) => draft.targetTool === toolName,
+  );
+  const visibleToolActionDrafts = toolActionDrafts.filter(
+    (draft) => draft.status !== "dismissed" && draft.status !== "superseded",
+  );
+  const selectedActionDraft =
+    visibleToolActionDrafts[
+      Math.min(
+        selectedActionDraftIndex,
+        Math.max(0, visibleToolActionDrafts.length - 1),
+      )
+    ] ?? null;
   const focusPanel = (panel: typeof activePanel) => {
     if (isHelpOpen) {
       return;
@@ -124,10 +158,83 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
 
     setActivePanel(panel);
   };
+  const applyActionDraft = (draft: ActionDraftRecord) => {
+    const state = useToolWorkspaceStore.getState();
+    const toolModule = toolRegistry[toolName];
+
+    if (!toolModule || !state.toolData) {
+      reportActionDraftApplyError(
+        "The scanner workspace is not ready for this draft yet.",
+      );
+      return;
+    }
+
+    const result = mapActionDraftToWorkspaceState({
+      draft,
+      currentToolName: toolName,
+      currentToolData: state.toolData,
+      buildGeneratedCommand: toolModule.buildGeneratedCommand,
+    });
+
+    if (!result.ok) {
+      reportActionDraftApplyError(result.reason);
+      return;
+    }
+
+    applyActionDraftState(result.application);
+    actionDraftRepository.setStatus({
+      actionDraftId: draft.id,
+      status: "applied",
+    });
+    refreshDrafts();
+  };
+  const archiveActionDraft = (draft: ActionDraftRecord) => {
+    actionDraftRepository.setStatus({
+      actionDraftId: draft.id,
+      status: "dismissed",
+    });
+    refreshDrafts();
+  };
+  const moveActionDraftSelection = (direction: -1 | 1) => {
+    setSelectedActionDraftIndex((currentIndex) =>
+      Math.max(
+        0,
+        Math.min(
+          visibleToolActionDrafts.length - 1,
+          currentIndex + direction,
+        ),
+      ),
+    );
+  };
+  const applySelectedActionDraft = () => {
+    if (selectedActionDraft) {
+      applyActionDraft(selectedActionDraft);
+    }
+  };
+  const selectAndApplyActionDraft = (draft: ActionDraftRecord) => {
+    const draftIndex = visibleToolActionDrafts.findIndex(
+      (visibleDraft) => visibleDraft.id === draft.id,
+    );
+
+    if (draftIndex >= 0) {
+      setSelectedActionDraftIndex(draftIndex);
+    }
+    focusPanel("drafts");
+    applyActionDraft(draft);
+  };
+  const archiveSelectedActionDraft = () => {
+    if (selectedActionDraft) {
+      archiveActionDraft(selectedActionDraft);
+    }
+  };
 
   useToolKeyboardNavigation({
     onBack,
+    actionDraftScrollRef,
     historyScrollRef,
+    onMoveActionDraftSelection: moveActionDraftSelection,
+    onApplySelectedActionDraft: applySelectedActionDraft,
+    onArchiveSelectedActionDraft: archiveSelectedActionDraft,
     conversations,
     activeConversationId,
     isConversationNavigationDisabled:
@@ -155,6 +262,42 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
       stopCommand();
     };
   }, [initializeWorkspace, sessionId, stopCommand, targetUrl, toolName]);
+
+  useEffect(() => {
+    setSelectedActionDraftIndex((currentIndex) =>
+      Math.max(
+        0,
+        Math.min(
+          currentIndex,
+          Math.max(0, visibleToolActionDrafts.length - 1),
+        ),
+      ),
+    );
+  }, [visibleToolActionDrafts.length]);
+
+  useEffect(() => {
+    if (
+      !pendingActionDraftId ||
+      appliedPendingDraftIdRef.current === pendingActionDraftId
+    ) {
+      return;
+    }
+
+    const state = useToolWorkspaceStore.getState();
+    if (state.toolName !== toolName || !state.toolData) {
+      return;
+    }
+
+    const draft = drafts.find(
+      (candidate) => candidate.id === pendingActionDraftId,
+    );
+    if (!draft) {
+      return;
+    }
+
+    appliedPendingDraftIdRef.current = pendingActionDraftId;
+    applyActionDraft(draft);
+  }, [drafts, pendingActionDraftId]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -218,6 +361,45 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
           height={layout.contentHeight}
           flexDirection="column"
         >
+          <DashboardPanel
+            title="Action Drafts"
+            panelNumber={getPanelDisplayNumber(toolPanels, "drafts")}
+            height={Math.min(11, Math.max(8, layout.contentHeight - 12))}
+            focused={activePanel === "drafts"}
+            paddingBottom={0}
+            onMouseDown={() => focusPanel("drafts")}
+          >
+            <scrollbox
+              ref={actionDraftScrollRef}
+              height={Math.max(1, Math.min(8, layout.contentHeight - 15))}
+              width={Math.max(1, layout.leftPanelWidth - 4)}
+              viewportOptions={{
+                height: Math.max(
+                  1,
+                  Math.min(7, layout.contentHeight - 16),
+                ),
+              }}
+              contentOptions={{
+                paddingRight: 1,
+              }}
+              stickyScroll={false}
+              verticalScrollbarOptions={{
+                visible: true,
+                trackOptions: {
+                  backgroundColor: theme.border.muted,
+                  foregroundColor: theme.text.secondary,
+                },
+              }}
+            >
+              <ActionDraftList
+                drafts={visibleToolActionDrafts}
+                emptyLabel={`No ${toolName} action drafts yet.`}
+                focused={activePanel === "drafts"}
+                selectedDraftId={selectedActionDraft?.id ?? null}
+                onApplyDraft={selectAndApplyActionDraft}
+              />
+            </scrollbox>
+          </DashboardPanel>
           <DashboardPanel
             title="Operator Chat"
             panelNumber={getPanelDisplayNumber(toolPanels, "chat")}
@@ -292,7 +474,7 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
           isHistoricPreview
             ? [
                 { key: "Tab/Shift+Tab", label: "switch" },
-                { key: "Ctrl+1-5", label: "jump" },
+                { key: "Ctrl+1-6", label: "jump" },
                 { key: "Enter", label: "preview" },
                 { key: "Ctrl+C", label: "exit preview" },
                 { key: "ESC", label: "back" },
@@ -300,7 +482,13 @@ export function ToolScreen({ toolName, onBack }: ToolScreenProps) {
               ]
             : [
                 { key: "Tab/Shift+Tab", label: "switch" },
-                { key: "Ctrl+1-5", label: "jump" },
+                { key: "Ctrl+1-6", label: "jump" },
+                ...(activePanel === "drafts"
+                  ? [
+                      { key: "Enter", label: "apply draft" },
+                      { key: "d", label: "archive" },
+                    ]
+                  : []),
                 { key: "Ctrl+R", label: "run" },
                 { key: "Ctrl+H", label: "help" },
                 ...(activePanel === "chat"

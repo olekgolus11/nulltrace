@@ -1,5 +1,7 @@
 import { ScrollBoxRenderable } from "@opentui/core";
 import { theme } from "../../../app/theme/theme";
+import { ActionDraftList } from "../../action-draft/components/ActionDraftList";
+import { ActionDraftRecord } from "../../action-draft/model/action-draft.types";
 import { SessionChatPanel } from "../../chat/components/SessionChatPanel";
 import { ChatMessageData } from "../../chat/model/chat.types";
 import { ActiveSessionConversation } from "../../chat/services/session-conversation.service";
@@ -58,10 +60,12 @@ export const LeftDashboardPanel = ({
           viewportOptions={{
             height: Math.max(1, layout.sitemapScrollHeight - 1),
           }}
+          contentOptions={{
+            paddingRight: 1,
+          }}
           scrollX={true}
           stickyScroll={false}
           verticalScrollbarOptions={{
-            width: 2,
             visible: true,
             trackOptions: dashboardScrollbarTrackOptions,
           }}
@@ -93,10 +97,12 @@ export const LeftDashboardPanel = ({
           viewportOptions={{
             height: Math.max(1, layout.findingsScrollHeight - 1),
           }}
+          contentOptions={{
+            paddingRight: 1,
+          }}
           scrollX={true}
           stickyScroll={false}
           verticalScrollbarOptions={{
-            width: 2,
             visible: true,
             trackOptions: dashboardScrollbarTrackOptions,
           }}
@@ -199,12 +205,20 @@ export const CenterDashboardPanel = ({
 export const RightDashboardPanel = ({
   dashboardState,
   layout,
+  actionDrafts,
   setActivePanel,
+  onSelectActionDraft,
 }: {
   dashboardState: DashboardState;
   layout: UseDashboardLayoutResult;
+  actionDrafts: ActionDraftRecord[];
   setActivePanel: (panel: DashboardPanelId) => void;
+  onSelectActionDraft: (draft: ActionDraftRecord) => void;
 }) => {
+  const visibleActionDrafts = actionDrafts.filter(
+    (draft) => draft.status !== "dismissed" && draft.status !== "superseded",
+  );
+
   return (
     <box
       width={layout.rightPanelWidth}
@@ -236,6 +250,36 @@ export const RightDashboardPanel = ({
             <text fg={theme.text.secondary}>e Export report</text>
             <text fg={theme.text.secondary}>s Settings</text>
           </box>
+        </box>
+        <box flexDirection="column" marginTop={2}>
+          <box marginBottom={1}>
+            <text fg={theme.accent.primary}>
+              <strong>Action Drafts</strong>
+            </text>
+          </box>
+          <scrollbox
+            height={Math.max(4, Math.min(10, layout.contentHeight - 18))}
+            width={Math.max(1, layout.rightPanelWidth - 4)}
+            viewportOptions={{
+              height: Math.max(3, Math.min(9, layout.contentHeight - 19)),
+            }}
+            contentOptions={{
+              paddingRight: 1,
+            }}
+            stickyScroll={false}
+            verticalScrollbarOptions={{
+              visible: true,
+              trackOptions: dashboardScrollbarTrackOptions,
+            }}
+          >
+            <ActionDraftList
+              drafts={visibleActionDrafts}
+              emptyLabel="No action drafts yet."
+              focused={dashboardState.activePanel === "tools"}
+              selectedDraftId={visibleActionDrafts[0]?.id ?? null}
+              onApplyDraft={onSelectActionDraft}
+            />
+          </scrollbox>
         </box>
       </DashboardPanel>
     </box>

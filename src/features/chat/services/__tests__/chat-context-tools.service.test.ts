@@ -1,4 +1,8 @@
 import { describe, expect, it } from "bun:test";
+import {
+  ActionDraftInput,
+  ActionDraftRecord,
+} from "../../../action-draft/model/action-draft.types";
 import { ConversationAttachmentRecord } from "../../model/conversation-attachment.types";
 import { SessionFindingRecord } from "../../../finding/model/finding.types";
 import {
@@ -8,13 +12,16 @@ import {
 import { ChatContextToolRegistry } from "../chat-context-tool-registry";
 import {
   ActiveToolWorkspaceChatContextToolsService,
+  ActionDraftChatContextToolsService,
   chatContextToolRegistry,
   createArtifactPayloadPreview,
   createOpenCodeToolSource,
   FindingChatContextToolsService,
+  SessionContextChatContextToolsService,
   ToolRunArtifactChatContextToolsService,
 } from "../chat-context-tools.service";
 import { ToolWorkspaceContextSnapshot } from "../../../tool/shared/services/tool-workspace-context.service";
+import { ScannerToolId } from "../../../tool/shared/registry/scanner-catalog";
 
 const chatContextToolsImportPath = new URL(
   "../chat-context-tools.service.ts",
@@ -83,6 +90,52 @@ class FakeToolWorkspaceContextRepository {
       this.snapshots.find((snapshot) => snapshot.sessionId === sessionId) ??
       null
     );
+  }
+}
+
+class FakeActionDraftRepository {
+  readonly drafts: ActionDraftRecord[] = [];
+
+  createDraft(input: ActionDraftInput) {
+    const draft: ActionDraftRecord = {
+      id: `draft-${this.drafts.length + 1}`,
+      sessionId: input.sessionId,
+      opencodeConversationId: input.opencodeConversationId ?? null,
+      targetTool: input.targetTool,
+      status: "draft",
+      title: input.title,
+      summary: input.summary,
+      payload: input.payload,
+      createdAt: "2026-05-10T10:04:00.000Z",
+      updatedAt: "2026-05-10T10:04:00.000Z",
+    };
+
+    this.drafts.push(draft);
+    return draft;
+  }
+}
+
+class FakeSessionRepository {
+  getSessionById(sessionId: string) {
+    if (sessionId === "session-1") {
+      return {
+        id: "session-1",
+        targetId: "target-1",
+        normalizedUrl: "http://honey.scanme.sh",
+        displayUrl: "http://honey.scanme.sh",
+      };
+    }
+
+    if (sessionId === "session-2") {
+      return {
+        id: "session-2",
+        targetId: "target-2",
+        normalizedUrl: "https://second.example.com",
+        displayUrl: "https://second.example.com",
+      };
+    }
+
+    return null;
   }
 }
 
@@ -309,6 +362,68 @@ function createActiveToolWorkspaceService(
     ),
   );
 }
+
+function createSessionContextService() {
+  return new SessionContextChatContextToolsService(
+    new FakeConversationAttachments([
+      createAttachment("session-1", "opencode-1"),
+      createAttachment("session-2", "opencode-2"),
+      createAttachment(
+        "session-archived",
+        "opencode-archived",
+        "2026-05-10T10:03:00.000Z",
+      ),
+    ]),
+    new FakeSessionRepository(),
+  );
+}
+
+function createActionDraftService(
+  drafts = new FakeActionDraftRepository(),
+) {
+  return {
+    drafts,
+    service: new ActionDraftChatContextToolsService(
+      new FakeConversationAttachments([
+        createAttachment("session-1", "opencode-1"),
+        createAttachment("session-2", "opencode-2"),
+        createAttachment(
+          "session-archived",
+          "opencode-archived",
+          "2026-05-10T10:03:00.000Z",
+        ),
+      ]),
+      drafts,
+      new FakeSessionRepository(),
+    ),
+  };
+}
+
+describe("SessionContextChatContextToolsService", () => {
+  it("returns the active session target for the attached OpenCode conversation", () => {
+    const result = createSessionContextService().getSessionContext("opencode-1");
+
+    expect(result).toEqual({
+      session: {
+        id: "session-1",
+        targetId: "target-1",
+        normalizedTarget: "http://honey.scanme.sh",
+        displayTarget: "http://honey.scanme.sh",
+      },
+    });
+  });
+
+  it("rejects archived or unknown OpenCode conversations", () => {
+    const service = createSessionContextService();
+
+    expect(() => service.getSessionContext("opencode-archived")).toThrow(
+      "No active NullTrace session attachment exists",
+    );
+    expect(() => service.getSessionContext("unknown-opencode")).toThrow(
+      "No active NullTrace session attachment exists",
+    );
+  });
+});
 
 describe("FindingChatContextToolsService", () => {
   it("lists findings for the session attached to the OpenCode conversation", () => {
@@ -798,6 +913,213 @@ describe("ActiveToolWorkspaceChatContextToolsService", () => {
     expect(source).toContain("context.sessionID");
     expect(source).toContain("\"get_active_tool_workspace\"");
     expect(source).toContain("args: {}");
+    expect(source).not.toContain("sessionId");
+  });
+});
+
+describe("ActionDraftChatContextToolsService", () => {
+  it("creates an action draft for the session attached to the OpenCode conversation", () => {
+    const { drafts, service } = createActionDraftService();
+
+    const result = service.createActionDraft("opencode-1", {
+      targetTool: "nmap",
+      title: "Probe web ports",
+      command: "nmap -Pn -sS -sV -p 80,443 example.com",
+      intentJson: JSON.stringify({
+        profile: "web-port-probe",
+      }),
+      formStateJson: JSON.stringify({
+        target: "example.com",
+        ports: "80,443",
+      }),
+    });
+
+    expect(result).toEqual({
+      actionDraft: {
+        id: "draft-1",
+        sessionId: "session-1",
+        opencodeConversationId: "opencode-1",
+        targetTool: "nmap",
+        status: "draft",
+        title: "Probe web ports",
+        createdAt: "2026-05-10T10:04:00.000Z",
+        updatedAt: "2026-05-10T10:04:00.000Z",
+      },
+    });
+    expect(drafts.drafts[0]).toMatchObject({
+      sessionId: "session-1",
+      opencodeConversationId: "opencode-1",
+      targetTool: "nmap",
+      status: "draft",
+      summary: "",
+      payload: {
+        command: "nmap -Pn -sS -sV -p 80,443 example.com",
+        sessionTarget: {
+          normalized: "http://honey.scanme.sh",
+          display: "http://honey.scanme.sh",
+          scannerTarget: "honey.scanme.sh",
+        },
+        intent: {
+          profile: "web-port-probe",
+        },
+        formState: {
+          target: "example.com",
+          ports: "80,443",
+        },
+      },
+    });
+  });
+
+  it("replaces command target placeholders with the session scanner target", () => {
+    const { drafts, service } = createActionDraftService();
+
+    service.createActionDraft("opencode-1", {
+      targetTool: "nmap",
+      title: "Scan selected target",
+      command: "nmap -sS -sV <TARGET>",
+      formStateJson: JSON.stringify({
+        ports: "80,443",
+      }),
+    });
+
+    expect(drafts.drafts[0]).toMatchObject({
+      payload: {
+        command: "nmap -sS -sV honey.scanme.sh",
+        sessionTarget: {
+          normalized: "http://honey.scanme.sh",
+          display: "http://honey.scanme.sh",
+          scannerTarget: "honey.scanme.sh",
+        },
+        formState: {
+          target: "honey.scanme.sh",
+          ports: "80,443",
+        },
+      },
+    });
+  });
+
+  it("scopes draft creation through the active conversation attachment", () => {
+    const { drafts, service } = createActionDraftService();
+
+    service.createActionDraft("opencode-2", {
+      targetTool: "nuclei",
+      title: "Check exposures",
+    });
+
+    expect(drafts.drafts[0]).toMatchObject({
+      sessionId: "session-2",
+      opencodeConversationId: "opencode-2",
+      targetTool: "nuclei",
+    });
+  });
+
+  it("rejects archived or unknown OpenCode conversations", () => {
+    const { service } = createActionDraftService();
+    const args = {
+      targetTool: "nmap" as ScannerToolId,
+      title: "Probe web ports",
+    };
+
+    expect(() =>
+      service.createActionDraft("opencode-archived", args),
+    ).toThrow("No active NullTrace session attachment exists");
+    expect(() =>
+      service.createActionDraft("unknown-opencode", args),
+    ).toThrow("No active NullTrace session attachment exists");
+  });
+
+  it("rejects catalog-only scanner tools before persistence", () => {
+    const { drafts, service } = createActionDraftService();
+
+    expect(() =>
+      service.createActionDraft("opencode-1", {
+        targetTool: "ffuf",
+        title: "Discover directories",
+      }),
+    ).toThrow(
+      "create_action_draft targetTool must be an implemented scanner tool: ffuf",
+    );
+    expect(() =>
+      service.createActionDraft("opencode-1", {
+        targetTool: "sqlmap",
+        title: "SQL injection probe",
+      }),
+    ).toThrow(
+      "create_action_draft targetTool must be an implemented scanner tool: sqlmap",
+    );
+    expect(drafts.drafts).toHaveLength(0);
+  });
+
+  it("does not create tool runs when creating an action draft", () => {
+    const toolRepository = new FakeToolRepository([], []);
+    const drafts = new FakeActionDraftRepository();
+    const service = new ActionDraftChatContextToolsService(
+      new FakeConversationAttachments([
+        createAttachment("session-1", "opencode-1"),
+      ]),
+      drafts,
+    );
+
+    service.createActionDraft("opencode-1", {
+      targetTool: "nmap",
+      title: "Version scan",
+      command: "nmap -sV example.com",
+    });
+
+    expect(drafts.drafts).toHaveLength(1);
+    expect(toolRepository.listToolRunsBySessionId("session-1")).toHaveLength(0);
+  });
+
+  it("executes through the shared registry without accepting session ids", async () => {
+    const { service } = createActionDraftService();
+    const registry = new ChatContextToolRegistry(
+      service.createToolDefinitions(),
+    );
+    const definitions = registry.listDefinitions();
+    const createDraft = definitions.find(
+      (definition) => definition.name === "create_action_draft",
+    );
+
+    const result = await registry.execute("create_action_draft", "opencode-1", {
+      sessionId: "session-2",
+      targetTool: "nuclei",
+      title: "Targeted exposure check",
+    });
+
+    expect(createDraft?.args).toMatchObject({
+      targetTool: {
+        type: "string",
+      },
+      title: {
+        type: "string",
+      },
+      command: {
+        type: "string",
+        isOptional: true,
+      },
+    });
+    expect(createDraft?.args).not.toHaveProperty("sessionId");
+    expect(result).toMatchObject({
+      actionDraft: {
+        sessionId: "session-1",
+        opencodeConversationId: "opencode-1",
+        targetTool: "nuclei",
+        status: "draft",
+      },
+    });
+  });
+
+  it("generates an OpenCode wrapper for create_action_draft", () => {
+    const source = createOpenCodeToolSource(
+      "create_action_draft",
+      "/tmp/nulltrace/chat-context-tools.service.ts",
+      "/tmp/nulltrace/node_modules/@opencode-ai/plugin/dist/index.js",
+    );
+
+    expect(source).toContain("context.sessionID");
+    expect(source).toContain("\"create_action_draft\"");
+    expect(source).toContain("\"targetTool\"");
+    expect(source).toContain("\"command\"");
     expect(source).not.toContain("sessionId");
   });
 });

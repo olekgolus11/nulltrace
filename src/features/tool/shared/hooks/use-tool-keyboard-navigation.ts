@@ -8,7 +8,11 @@ import { ActiveSessionConversation } from "../../../chat/services/session-conver
 
 interface UseToolKeyboardNavigationProps {
   onBack: () => void;
+  actionDraftScrollRef: RefObject<ScrollBoxRenderable | null>;
   historyScrollRef: RefObject<ScrollBoxRenderable | null>;
+  onMoveActionDraftSelection: (direction: -1 | 1) => void;
+  onApplySelectedActionDraft: () => void;
+  onArchiveSelectedActionDraft: () => void;
   conversations: ActiveSessionConversation[];
   activeConversationId: string | null;
   isConversationNavigationDisabled: boolean;
@@ -23,7 +27,11 @@ function clamp(value: number, min: number, max: number) {
 
 export function useToolKeyboardNavigation({
   onBack,
+  actionDraftScrollRef,
   historyScrollRef,
+  onMoveActionDraftSelection,
+  onApplySelectedActionDraft,
+  onArchiveSelectedActionDraft,
   conversations,
   activeConversationId,
   isConversationNavigationDisabled,
@@ -89,6 +97,30 @@ export function useToolKeyboardNavigation({
             nextConversation.attachment.opencodeConversationId,
           );
         }
+        return;
+      }
+    }
+
+    if (state.activePanel === "drafts") {
+      if (key.name === "up") {
+        actionDraftScrollRef.current?.scrollBy(-3, "step");
+        onMoveActionDraftSelection(-1);
+        return;
+      }
+
+      if (key.name === "down") {
+        actionDraftScrollRef.current?.scrollBy(3, "step");
+        onMoveActionDraftSelection(1);
+        return;
+      }
+
+      if (key.name === "return" || key.name === "enter") {
+        onApplySelectedActionDraft();
+        return;
+      }
+
+      if (key.name === "d") {
+        onArchiveSelectedActionDraft();
         return;
       }
     }

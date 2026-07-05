@@ -187,6 +187,7 @@ export const toolRegistry: Record<string, ToolModule> = {
 };
 
 export const toolPanels: Array<PanelDefinition<ToolPanel>> = [
+  { id: "drafts", label: "DRAFTS" },
   { id: "chat", label: "CHAT" },
   { id: "form", label: "FORM" },
   { id: "command", label: "COMMAND" },

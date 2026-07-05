@@ -19,8 +19,8 @@ export function createActionDraftsTable(database: Database) {
         ON DELETE SET NULL
     );
 
-    CREATE INDEX IF NOT EXISTS idx_action_drafts_session_updated
-      ON action_drafts(session_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_action_drafts_session_created
+      ON action_drafts(session_id, created_at DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_action_drafts_conversation
       ON action_drafts(opencode_conversation_id);
   `);

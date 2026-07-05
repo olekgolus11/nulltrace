@@ -149,7 +149,7 @@ export class ActionDraftRepository {
           updated_at AS updatedAt
         FROM action_drafts
         WHERE session_id = ?1
-        ORDER BY updated_at DESC, created_at DESC`,
+        ORDER BY created_at DESC, id DESC`,
       )
       .all(sessionId)
       .map(mapActionDraftRow);

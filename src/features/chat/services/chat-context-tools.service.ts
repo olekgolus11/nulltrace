@@ -5,6 +5,11 @@ import {
   ChatContextToolSchema,
 } from "../model/chat-context-tool.types";
 import {
+  ActionDraftInput,
+  ActionDraftRecord,
+} from "../../action-draft/model/action-draft.types";
+import { actionDraftRepository } from "../../action-draft/services/action-draft.repository.instance";
+import {
   ScannerCatalogContext,
   ScannerCatalogTool,
   ScannerToolId,
@@ -76,6 +81,14 @@ type NormalizedListFindingsArgs = {
 type GetArtifactArgs = {
   artifactId: string;
   maxCharacters?: number;
+};
+
+type CreateActionDraftArgs = {
+  targetTool: ScannerToolId;
+  title: string;
+  command?: string;
+  intentJson?: string;
+  formStateJson?: string;
 };
 
 export interface ChatFindingListItem {
@@ -176,10 +189,43 @@ export interface GetFindingResult {
   finding: ChatFindingDetail | null;
 }
 
+export interface CreateActionDraftResult {
+  actionDraft: {
+    id: string;
+    sessionId: string;
+    opencodeConversationId: string | null;
+    targetTool: ScannerToolId;
+    status: ActionDraftRecord["status"];
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+}
+
+export interface GetSessionContextResult {
+  session: {
+    id: string;
+    targetId: string;
+    normalizedTarget: string;
+    displayTarget: string;
+  } | null;
+}
+
 interface ConversationAttachmentScope {
   findActiveAttachmentByOpenCodeConversationId: (
     opencodeConversationId: string,
   ) => ConversationAttachmentRecord | null;
+}
+
+interface SessionContextRecord {
+  id: string;
+  targetId: string;
+  normalizedUrl: string;
+  displayUrl: string;
+}
+
+interface SessionContextReadRepository {
+  getSessionById: (sessionId: string) => SessionContextRecord | null;
 }
 
 interface FindingReadRepository {
@@ -196,6 +242,10 @@ interface ToolReadRepository {
 
 interface ToolWorkspaceContextReadRepository {
   getActiveWorkspace: (sessionId: string) => ToolWorkspaceContextSnapshot | null;
+}
+
+interface ActionDraftWriteRepository {
+  createDraft: (input: ActionDraftInput) => ActionDraftRecord;
 }
 
 function assertGetFindingArgs(args: ChatContextToolArgs): GetFindingArgs {
@@ -313,6 +363,171 @@ function assertGetArtifactArgs(args: ChatContextToolArgs): GetArtifactArgs {
   return {
     artifactId: artifactId.trim(),
     maxCharacters,
+  };
+}
+
+function normalizeRequiredString(
+  value: unknown,
+  toolName: string,
+  argumentName: string,
+) {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`${toolName} requires a ${argumentName} string.`);
+  }
+
+  return value.trim();
+}
+
+function normalizeOptionalToolString(
+  value: unknown,
+  toolName: string,
+  argumentName: string,
+) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "string") {
+    throw new Error(`${toolName} ${argumentName} must be a string.`);
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function parseOptionalJson(value: string | undefined, argumentName: string) {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    throw new Error(`create_action_draft ${argumentName} must be valid JSON.`);
+  }
+}
+
+function normalizeOptionalCommand(value: unknown) {
+  const command = normalizeOptionalToolString(
+    value,
+    "create_action_draft",
+    "command",
+  );
+  return command;
+}
+
+function getScannerTargetForDraft(
+  targetTool: ScannerToolId,
+  session: SessionContextRecord | null,
+) {
+  const target = session?.normalizedUrl.trim() || session?.displayUrl.trim();
+  if (!target) {
+    return "";
+  }
+
+  if (targetTool === "nmap") {
+    try {
+      return new URL(target).hostname;
+    } catch {
+      return target.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    }
+  }
+
+  return target;
+}
+
+function replaceCommandTargetPlaceholders(command: string, target: string) {
+  if (!target) {
+    return command;
+  }
+
+  return command
+    .replaceAll("{{TARGET}}", target)
+    .replaceAll("<TARGET>", target)
+    .replaceAll("{TARGET}", target);
+}
+
+function toCreateActionDraftPayload(
+  args: CreateActionDraftArgs,
+  session: SessionContextRecord | null,
+) {
+  const scannerTarget = getScannerTargetForDraft(args.targetTool, session);
+  const formState = parseOptionalJson(args.formStateJson, "formStateJson");
+  const normalizedFormState =
+    formState && typeof formState === "object" && !Array.isArray(formState)
+      ? {
+          ...formState,
+          ...(!("target" in formState) && scannerTarget
+            ? { target: scannerTarget }
+            : {}),
+        }
+      : formState;
+
+  return {
+    ...(scannerTarget
+      ? {
+          sessionTarget: {
+            normalized: session?.normalizedUrl ?? scannerTarget,
+            display: session?.displayUrl ?? scannerTarget,
+            scannerTarget,
+          },
+        }
+      : {}),
+    ...(args.command
+      ? {
+          command: replaceCommandTargetPlaceholders(
+            args.command,
+            scannerTarget,
+          ),
+        }
+      : {}),
+    ...(args.intentJson
+      ? { intent: parseOptionalJson(args.intentJson, "intentJson") }
+      : {}),
+    ...(normalizedFormState !== undefined
+      ? { formState: normalizedFormState }
+      : {}),
+  };
+}
+
+function normalizeActionDraftTargetTool(value: unknown) {
+  const targetTool = normalizeRequiredString(
+    value,
+    "create_action_draft",
+    "targetTool",
+  ) as ScannerToolId;
+  const scanner = scannerCatalog[targetTool];
+
+  if (!scanner?.isImplemented) {
+    throw new Error(
+      `create_action_draft targetTool must be an implemented scanner tool: ${targetTool}`,
+    );
+  }
+
+  return targetTool;
+}
+
+function assertCreateActionDraftArgs(
+  args: ChatContextToolArgs,
+): CreateActionDraftArgs {
+  return {
+    targetTool: normalizeActionDraftTargetTool(args.targetTool),
+    title: normalizeRequiredString(
+      args.title,
+      "create_action_draft",
+      "title",
+    ),
+    command: normalizeOptionalCommand(args.command),
+    intentJson: normalizeOptionalToolString(
+      args.intentJson,
+      "create_action_draft",
+      "intentJson",
+    ),
+    formStateJson: normalizeOptionalToolString(
+      args.formStateJson,
+      "create_action_draft",
+      "formStateJson",
+    ),
   };
 }
 
@@ -533,6 +748,68 @@ function toActiveToolWorkspaceContext(
       .map(toToolRunListItem),
   };
 }
+
+function toCreateActionDraftResult(
+  draft: ActionDraftRecord,
+): CreateActionDraftResult {
+  return {
+    actionDraft: {
+      id: draft.id,
+      sessionId: draft.sessionId,
+      opencodeConversationId: draft.opencodeConversationId,
+      targetTool: draft.targetTool,
+      status: draft.status,
+      title: draft.title,
+      createdAt: draft.createdAt,
+      updatedAt: draft.updatedAt,
+    },
+  };
+}
+
+export class SessionContextChatContextToolsService {
+  constructor(
+    private readonly attachments: ConversationAttachmentScope = conversationAttachmentService,
+    private readonly sessions: SessionContextReadRepository = sessionRepository,
+  ) {}
+
+  getSessionContext(opencodeConversationId: string): GetSessionContextResult {
+    const attachment = requireActiveAttachment(
+      this.attachments,
+      opencodeConversationId,
+    );
+    const session = this.sessions.getSessionById(attachment.sessionId);
+
+    return {
+      session: session
+        ? {
+            id: session.id,
+            targetId: session.targetId,
+            normalizedTarget: session.normalizedUrl,
+            displayTarget: session.displayUrl,
+          }
+        : null,
+    };
+  }
+
+  createToolDefinitions(): ChatContextToolDefinition<
+    ChatContextToolArgs,
+    unknown
+  >[] {
+    return [
+      {
+        name: "get_session_context",
+        description:
+          "Get the active NullTrace session target attached to this OpenCode conversation. Use this before drafting scanner commands so commands contain the real target instead of placeholders.",
+        args: {},
+        execute: ({ opencodeConversationId }) =>
+          this.getSessionContext(opencodeConversationId),
+      },
+    ];
+  }
+}
+
+export const sessionContextChatContextToolsService =
+  new SessionContextChatContextToolsService();
 
 export class FindingChatContextToolsService {
   constructor(
@@ -831,11 +1108,94 @@ export class ScannerCatalogChatContextToolsService {
 export const scannerCatalogChatContextToolsService =
   new ScannerCatalogChatContextToolsService();
 
+export class ActionDraftChatContextToolsService {
+  constructor(
+    private readonly attachments: ConversationAttachmentScope = conversationAttachmentService,
+    private readonly drafts: ActionDraftWriteRepository = actionDraftRepository,
+    private readonly sessions: SessionContextReadRepository = sessionRepository,
+  ) {}
+
+  createActionDraft(
+    opencodeConversationId: string,
+    args: CreateActionDraftArgs,
+  ): CreateActionDraftResult {
+    const targetTool = normalizeActionDraftTargetTool(args.targetTool);
+    const attachment = requireActiveAttachment(
+      this.attachments,
+      opencodeConversationId,
+    );
+    const session = this.sessions.getSessionById(attachment.sessionId);
+    const draft = this.drafts.createDraft({
+      sessionId: attachment.sessionId,
+      opencodeConversationId: attachment.opencodeConversationId,
+      targetTool,
+      title: args.title,
+      summary: "",
+      payload: toCreateActionDraftPayload(args, session),
+    });
+
+    return toCreateActionDraftResult(draft);
+  }
+
+  createToolDefinitions(): ChatContextToolDefinition<
+    ChatContextToolArgs,
+    unknown
+  >[] {
+    return [
+      {
+        name: "create_action_draft",
+        description:
+          "Create a session-level scanner action draft for operator inspection. This is the only mutating NullTrace chat tool: it may persist a proposal for implemented scanner tools only, but it never executes scanners, starts tool runs, or changes finding review state.",
+        args: {
+          targetTool: {
+            type: "string",
+            description:
+              "Implemented scanner tool to draft for. Must be nmap or nuclei; catalog-only tools such as ffuf, sqlmap, zap, and nikto are rejected.",
+          },
+          title: {
+            type: "string",
+            description:
+              "Short human-readable title for the proposed scanner action.",
+          },
+          command: {
+            type: "string",
+            description:
+              "Optional proposed scanner command text. This is persisted for review only and is never executed by the chat tool.",
+            isOptional: true,
+          },
+          intentJson: {
+            type: "string",
+            description:
+              "Optional JSON object or value describing the scanner intent.",
+            isOptional: true,
+          },
+          formStateJson: {
+            type: "string",
+            description:
+              "Optional JSON object or value with scanner form state to apply later.",
+            isOptional: true,
+          },
+        },
+        execute: ({ opencodeConversationId, args }) =>
+          this.createActionDraft(
+            opencodeConversationId,
+            assertCreateActionDraftArgs(args),
+          ),
+      },
+    ];
+  }
+}
+
+export const actionDraftChatContextToolsService =
+  new ActionDraftChatContextToolsService();
+
 export const chatContextToolRegistry = new ChatContextToolRegistry([
+  ...sessionContextChatContextToolsService.createToolDefinitions(),
   ...findingChatContextToolsService.createToolDefinitions(),
   ...toolRunArtifactChatContextToolsService.createToolDefinitions(),
   ...activeToolWorkspaceChatContextToolsService.createToolDefinitions(),
   ...scannerCatalogChatContextToolsService.createToolDefinitions(),
+  ...actionDraftChatContextToolsService.createToolDefinitions(),
 ]);
 
 function toOpenCodeSchemaSource(schema: ChatContextToolSchema) {
