@@ -5,6 +5,8 @@ import {
   LeftDashboardPanel,
   RightDashboardPanel,
 } from "../components/DashboardPanels";
+import { ActionDraftRecord } from "../../action-draft/model/action-draft.types";
+import { useSessionActionDrafts } from "../../action-draft/hooks/use-session-action-drafts";
 import { useDashboardLayout } from "../hooks/use-dashboard-layout";
 import { useDashboardShortcuts } from "../hooks/use-dashboard-shortcuts";
 import { dashboardPanels } from "../model/dashboard.state";
@@ -18,11 +20,13 @@ import { ToolName } from "../../tool/shared/types/tool-screen.types";
 
 interface DashboardScreenProps {
   onSelectTool: (toolName: ToolName) => void;
+  onSelectActionDraft: (draft: ActionDraftRecord) => void;
   onBack: () => void;
 }
 
 export function DashboardScreen({
   onSelectTool,
+  onSelectActionDraft,
   onBack,
 }: DashboardScreenProps) {
   const { width, height } = useTerminalDimensions();
@@ -56,9 +60,11 @@ export function DashboardScreen({
   const refreshConversationTitles = useSessionContextStore(
     (state) => state.refreshConversationTitles,
   );
+  const { drafts, refreshDrafts } = useSessionActionDrafts(sessionId);
   const sessionChat = useSessionChat(sessionId, activeConversationId, {
     onPromptComplete: () => {
       void refreshConversationTitles();
+      refreshDrafts();
     },
   });
   const sessionFindings = useSessionFindings(sessionId);
@@ -147,7 +153,9 @@ export function DashboardScreen({
         <RightDashboardPanel
           layout={layout}
           dashboardState={dashboardState}
+          actionDrafts={drafts}
           setActivePanel={setActivePanel}
+          onSelectActionDraft={onSelectActionDraft}
         />
       </box>
       <StatusBar

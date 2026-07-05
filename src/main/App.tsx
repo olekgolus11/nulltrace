@@ -1,6 +1,7 @@
 import { useKeyboard, useRenderer } from "@opentui/react";
 import { useEffect, useState } from "react";
 import { DashboardScreen } from "../features/dashboard/screen/DashboardScreen";
+import { ActionDraftRecord } from "../features/action-draft/model/action-draft.types";
 import { useSessionContextStore } from "../features/session/store/session-context.store";
 import { ToolName } from "../features/tool/shared/types/tool-screen.types";
 import { Screen } from "./routes";
@@ -60,6 +61,15 @@ export function App() {
     setCurrentScreen({
       type: "tool",
       toolName,
+      pendingActionDraftId: null,
+    });
+  };
+
+  const handleSelectActionDraft = (draft: ActionDraftRecord) => {
+    setCurrentScreen({
+      type: "tool",
+      toolName: draft.targetTool,
+      pendingActionDraftId: draft.id,
     });
   };
 
@@ -85,6 +95,7 @@ export function App() {
       return (
         <DashboardScreen
           onSelectTool={handleSelectTool}
+          onSelectActionDraft={handleSelectActionDraft}
           onBack={handleBackToEntry}
         />
       );
@@ -93,6 +104,7 @@ export function App() {
       return (
         <ToolScreen
           toolName={currentScreen.toolName}
+          pendingActionDraftId={currentScreen.pendingActionDraftId}
           onBack={handleBackToDashboard}
         />
       );

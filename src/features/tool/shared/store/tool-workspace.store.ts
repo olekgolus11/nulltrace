@@ -60,6 +60,14 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
   exitHistoricPreview: () => void;
   rerunSelectedHistoryRun: () => void;
   updateToolData: (updater: (current: unknown) => unknown) => void;
+  applyActionDraftState: (state: {
+    toolData: unknown;
+    commandInput: string;
+    generatedCommand: string;
+    commandSource: CommandSource;
+    message: string;
+  }) => boolean;
+  reportActionDraftApplyError: (message: string) => void;
 }
 
 export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
@@ -311,4 +319,46 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
     set((state) => ({
       toolData: updater(state.toolData),
     })),
+
+  applyActionDraftState: (draftState) => {
+    if (get().executionStatus === "running") {
+      set({
+        activePanel: "output",
+        outputLines: [
+          "Could not apply action draft.",
+          "A scanner is currently running. Stop or wait for it to finish before applying a draft.",
+          "The active scanner process was left running.",
+        ],
+      });
+      return false;
+    }
+
+    set({
+      toolData: draftState.toolData,
+      commandInput: draftState.commandInput,
+      generatedCommand: draftState.generatedCommand,
+      commandSource: draftState.commandSource,
+      activePanel: "form",
+      outputLines: [
+        draftState.message,
+        "Review and edit the scanner workspace before running.",
+      ],
+      executionStatus: "idle",
+      lastExitCode: null,
+      currentToolRunId: null,
+      selectedHistoryRun: null,
+      isHistoricPreview: false,
+    });
+    return true;
+  },
+
+  reportActionDraftApplyError: (message) =>
+    set({
+      activePanel: "output",
+      outputLines: [
+        "Could not apply action draft.",
+        message,
+        "The draft may be stale or missing compatible scanner state.",
+      ],
+    }),
 }));
