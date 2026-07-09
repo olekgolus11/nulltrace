@@ -18,6 +18,11 @@ type FetchFunction = (
   init?: RequestInit,
 ) => Promise<Response>;
 
+interface FetchedResponse {
+  response: Response;
+  url: URL;
+}
+
 interface QueuedUrl {
   url: URL;
   depth: number;
@@ -195,7 +200,7 @@ function extractHtmlDiscoveries(body: string, pageUrl: URL) {
   const links: DiscoveredUrl[] = [];
   const forms: DiscoveredForm[] = [];
 
-  $("a[href], link[href]").each((_, element) => {
+  $("a[href]").each((_, element) => {
     const url = createAbsoluteUrl($(element).attr("href"), pageUrl);
     if (url) {
       links.push({
@@ -323,19 +328,22 @@ export class PublicSitemapCrawler {
         visitedUrls.add(normalizedUrlValue);
         pageRequests += 1;
 
-        const response = await this.fetchWithTimeout(
+        const fetchedResponse = await this.fetchWithTimeout(
           normalizedUrl,
           limits.requestTimeoutMs,
         );
+        const response = fetchedResponse.response;
+        const pageUrl = fetchedResponse.url;
+        visitedUrls.add(pageUrl.toString());
         this.persistEntry(
           input.targetId,
-          normalizedUrl,
+          pageUrl,
           "GET",
           response.status,
           next.source,
           next.depth,
         );
-        discoveredEntries.add(`GET ${normalizedUrlValue}`);
+        discoveredEntries.add(`GET ${pageUrl.toString()}`);
 
         if (!response.ok || !isHtmlResponse(response)) {
           continue;
@@ -343,7 +351,7 @@ export class PublicSitemapCrawler {
 
         pagesFetched += 1;
         const body = await readResponseText(response, limits.maxResponseBytes);
-        const discoveries = extractHtmlDiscoveries(body, normalizedUrl);
+        const discoveries = extractHtmlDiscoveries(body, pageUrl);
 
         discoveries.links.forEach((link) => {
           this.enqueueDiscoveredUrl({
@@ -414,16 +422,17 @@ export class PublicSitemapCrawler {
     const defaultSitemapUrl = new URL("/sitemap.xml", rootUrl.origin);
 
     try {
-      const robotsResponse = await this.fetchWithTimeout(
+      const robotsFetch = await this.fetchWithTimeout(
         robotsUrl,
         limits.requestTimeoutMs,
       );
+      const robotsResponse = robotsFetch.response;
       if (robotsResponse.ok) {
         const body = await readResponseText(
           robotsResponse,
           limits.maxResponseBytes,
         );
-        extractRobotsSitemapUrls(body, rootUrl).forEach((url) => {
+        extractRobotsSitemapUrls(body, robotsFetch.url).forEach((url) => {
           if (isSameOrigin(url, origin)) {
             sitemapUrls.set(url.toString(), "robots_sitemap");
             this.persistEntry(targetId, url, "GET", null, "robots_sitemap", 0);
@@ -444,18 +453,26 @@ export class PublicSitemapCrawler {
       }
 
       try {
-        const response = await this.fetchWithTimeout(
+        const sitemapFetch = await this.fetchWithTimeout(
           sitemapUrl,
           limits.requestTimeoutMs,
         );
-        this.persistEntry(targetId, sitemapUrl, "GET", response.status, source, 0);
-        discoveredEntries.add(`GET ${sitemapUrl.toString()}`);
+        const response = sitemapFetch.response;
+        this.persistEntry(
+          targetId,
+          sitemapFetch.url,
+          "GET",
+          response.status,
+          source,
+          0,
+        );
+        discoveredEntries.add(`GET ${sitemapFetch.url.toString()}`);
         if (!response.ok || !isXmlResponse(response)) {
           continue;
         }
 
         const body = await readResponseText(response, limits.maxResponseBytes);
-        extractSitemapXmlUrls(body, rootUrl).forEach((url) => {
+        extractSitemapXmlUrls(body, sitemapFetch.url).forEach((url) => {
           if (!isSameOrigin(url, origin) || 1 > limits.maxDepth) {
             return;
           }
@@ -525,7 +542,10 @@ export class PublicSitemapCrawler {
     });
   }
 
-  private async fetchWithTimeout(url: URL, requestTimeoutMs: number) {
+  private async fetchWithTimeout(
+    url: URL,
+    requestTimeoutMs: number,
+  ): Promise<FetchedResponse> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
     let requestUrl = url;
@@ -539,12 +559,18 @@ export class PublicSitemapCrawler {
         const location = response.headers.get("location");
 
         if (response.status < 300 || response.status >= 400 || !location) {
-          return response;
+          return {
+            response,
+            url: requestUrl,
+          };
         }
 
         const nextUrl = createAbsoluteUrl(location, requestUrl);
         if (!nextUrl || !isSameOrigin(nextUrl, url.origin)) {
-          return response;
+          return {
+            response,
+            url: requestUrl,
+          };
         }
 
         requestUrl = nextUrl;

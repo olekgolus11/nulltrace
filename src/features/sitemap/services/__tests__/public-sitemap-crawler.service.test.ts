@@ -106,6 +106,7 @@ describe("PublicSitemapCrawler", () => {
           <html>
             <body>
               <a href="/admin">Admin</a>
+              <link rel="stylesheet" href="/styles.css" />
               <a href="https://other.example/private">External</a>
               <form method="post" action="/login"></form>
             </body>
@@ -132,6 +133,7 @@ describe("PublicSitemapCrawler", () => {
       ),
     ).toBe(false);
     expect(requestedUrls).toContain("https://example.com/admin");
+    expect(requestedUrls).not.toContain("https://example.com/styles.css");
     expect(requestedUrls).not.toContain("https://other.example/private");
     expect(repository.statuses.at(-1)).toEqual({ status: "completed" });
   });
@@ -230,6 +232,28 @@ describe("PublicSitemapCrawler", () => {
     });
 
     expect(requestedUrls).not.toContain("https://other.example/private");
+  });
+
+  it("resolves HTML links against the final same-origin redirect URL", async () => {
+    const { requestedUrls } = await runCrawler({
+      responses: {
+        "https://example.com/robots.txt": createResponse("", { status: 404 }),
+        "https://example.com/sitemap.xml": createResponse("", { status: 404 }),
+        "https://example.com/": new Response("", {
+          status: 302,
+          headers: {
+            location: "/docs/",
+          },
+        }),
+        "https://example.com/docs/": createResponse(
+          '<html><a href="page">Page</a></html>',
+        ),
+        "https://example.com/docs/page": createResponse("<html></html>"),
+      },
+    });
+
+    expect(requestedUrls).toContain("https://example.com/docs/page");
+    expect(requestedUrls).not.toContain("https://example.com/page");
   });
 
   it("extracts sitemap XML URLs from robots metadata and default sitemap.xml", async () => {

@@ -45,11 +45,6 @@ export class SitemapCrawlCoordinator {
     }
 
     const crawlStatus = this.repository.getCrawlStatus(targetId);
-    if (crawlStatus.status === "running") {
-      return {
-        state: "already_running",
-      };
-    }
 
     if (crawlStatus.status === "completed") {
       return {

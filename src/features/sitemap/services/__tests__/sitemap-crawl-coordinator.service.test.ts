@@ -95,7 +95,7 @@ describe("SitemapCrawlCoordinator", () => {
     expect(crawler.calls).toHaveLength(1);
   });
 
-  it("reuses persisted running status without starting a duplicate crawl", () => {
+  it("restarts a persisted running status without an in-memory crawl", () => {
     const crawler = new FakeCrawler();
     const coordinator = new SitemapCrawlCoordinator(
       new FakeStatusRepository({
@@ -109,9 +109,9 @@ describe("SitemapCrawlCoordinator", () => {
       rootUrl: "https://example.com",
     });
 
-    expect(result).toEqual({ state: "already_running" });
-    expect(crawler.calls).toHaveLength(0);
-    expect(coordinator.getRunningCrawlCount()).toBe(0);
+    expect(result).toEqual({ state: "started" });
+    expect(crawler.calls).toHaveLength(1);
+    expect(coordinator.getRunningCrawlCount()).toBe(1);
   });
 
   it("reuses completed sitemap data for later sessions", () => {
