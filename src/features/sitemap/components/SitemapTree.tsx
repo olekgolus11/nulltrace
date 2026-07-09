@@ -16,17 +16,17 @@ export function SitemapTree({
 }: SitemapTreeProps) {
   const flat = flattenTree(nodes);
   const selectedNode = flat[selectedIndex];
-  const selectedPath = selectedNode ? selectedNode.path : null;
+  const selectedId = selectedNode ? selectedNode.id : null;
 
   return (
     <box flexDirection="column">
       {nodes.map((node, idx) => (
         <SitemapTreeItem
-          key={node.path}
+          key={node.id}
           node={node}
           isLast={idx === nodes.length - 1}
           prefix=""
-          selectedPath={selectedPath}
+          selectedId={selectedId}
           focused={focused}
         />
       ))}

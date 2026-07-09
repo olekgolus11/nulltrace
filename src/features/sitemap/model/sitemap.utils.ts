@@ -7,11 +7,20 @@ interface FlatSitemapItem {
   method?: string;
 }
 
+function createNodeId(path: string, method?: string) {
+  return `${path}::${method ?? "branch"}`;
+}
+
 export function buildTree(items: FlatSitemapItem[]): SitemapNode[] {
   // Root node acts as an invisible container
-  const root: SitemapNode = { path: "", status: 0, children: [] };
+  const root: SitemapNode = {
+    id: createNodeId(""),
+    path: "",
+    status: 0,
+    children: [],
+  };
 
-  for (const item of items) {
+  for (const item of items.filter((item) => item.path !== "/")) {
     const segments = item.path.split("/").filter((s) => s.length > 0);
 
     let current = root;
@@ -21,12 +30,17 @@ export function buildTree(items: FlatSitemapItem[]): SitemapNode[] {
       builtPath += "/" + segments[i];
       const isLeaf = i === segments.length - 1;
 
-      let child = current.children?.find((c) => c.path === builtPath);
+      const nodeMethod = isLeaf ? item.method : undefined;
+      let child = current.children?.find(
+        (candidate) =>
+          candidate.path === builtPath && candidate.method === nodeMethod,
+      );
       if (!child) {
         child = {
+          id: createNodeId(builtPath, nodeMethod),
           path: builtPath,
           status: isLeaf ? item.status : 0,
-          method: isLeaf ? item.method : undefined,
+          method: nodeMethod,
           children: [],
         };
         if (!current.children) current.children = [];
@@ -44,22 +58,15 @@ export function buildTree(items: FlatSitemapItem[]): SitemapNode[] {
   }
 
   // Handle root "/" entry: check if any item is exactly "/"
-  const rootItem = items.find((i) => i.path === "/");
-  if (rootItem) {
-    // Insert "/" as the first top-level node
-    const rootEntry: SitemapNode = {
-      path: "/",
-      status: rootItem.status,
-      method: rootItem.method,
-      children: [],
-    };
-    // Move existing top-level children under "/" ? No - the screenshot shows
-    // "/" as a sibling of /admin, /api, etc. But looking more carefully at the
-    // screenshot, "/" is the very first entry and /admin, /api etc are its
-    // children (they are indented under it with tree lines).
-    // Let's make "/" the single root that contains everything.
-    rootEntry.children = root.children || [];
-    return [rootEntry];
+  const rootItems = items.filter((item) => item.path === "/");
+  if (rootItems.length > 0) {
+    return rootItems.map((item, index) => ({
+      id: createNodeId(item.path, item.method),
+      path: item.path,
+      status: item.status,
+      method: item.method,
+      children: index === 0 ? root.children : [],
+    }));
   }
 
   return root.children || [];

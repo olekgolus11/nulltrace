@@ -6,7 +6,7 @@ interface SitemapTreeItemProps {
   node: SitemapNode;
   isLast: boolean;
   prefix: string;
-  selectedPath: string | null;
+  selectedId: string | null;
   focused: boolean;
 }
 
@@ -14,16 +14,15 @@ export function SitemapTreeItem({
   node,
   isLast,
   prefix,
-  selectedPath,
+  selectedId,
   focused,
 }: SitemapTreeItemProps) {
-  const isSelected = focused && node.path === selectedPath;
+  const isSelected = focused && node.id === selectedId;
   const branch = isLast ? treeChars.lastBranch : treeChars.branch;
   const hasChildren = node.children && node.children.length > 0;
 
   // Build the display label
-  const showMethod =
-    node.method && (!hasChildren || node.children!.length === 0);
+  const showMethod = Boolean(node.method);
 
   const statusStr = node.status > 0 ? ` [${node.status}]` : "";
 
@@ -68,11 +67,11 @@ export function SitemapTreeItem({
         <box flexDirection="column">
           {node.children!.map((child, idx) => (
             <SitemapTreeItem
-              key={child.path}
+              key={child.id}
               node={child}
               isLast={idx === node.children!.length - 1}
               prefix={childPrefix}
-              selectedPath={selectedPath}
+              selectedId={selectedId}
               focused={focused}
             />
           ))}

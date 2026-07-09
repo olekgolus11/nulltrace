@@ -96,6 +96,49 @@ function createConversationAttachmentsTable() {
   `);
 }
 
+function createTargetSitemapTables() {
+  sessionDatabase.exec(`
+    CREATE TABLE IF NOT EXISTS target_sitemap_entries (
+      id TEXT PRIMARY KEY,
+      target_id TEXT NOT NULL,
+      normalized_url TEXT NOT NULL,
+      path TEXT NOT NULL,
+      method TEXT,
+      http_status INTEGER,
+      source TEXT NOT NULL,
+      depth INTEGER NOT NULL,
+      first_seen_at TEXT NOT NULL,
+      last_seen_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (target_id) REFERENCES targets(id) ON DELETE CASCADE
+    );
+  `);
+
+  sessionDatabase.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_target_sitemap_entries_target_url_method
+      ON target_sitemap_entries(target_id, normalized_url, method)
+      WHERE method IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_target_sitemap_entries_target_url_without_method
+      ON target_sitemap_entries(target_id, normalized_url)
+      WHERE method IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_target_sitemap_entries_target_depth
+      ON target_sitemap_entries(target_id, depth, path);
+  `);
+
+  sessionDatabase.exec(`
+    CREATE TABLE IF NOT EXISTS target_sitemap_crawl_statuses (
+      target_id TEXT PRIMARY KEY,
+      status TEXT NOT NULL,
+      started_at TEXT,
+      completed_at TEXT,
+      failed_at TEXT,
+      error_message TEXT,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (target_id) REFERENCES targets(id) ON DELETE CASCADE
+    );
+  `);
+}
+
 sessionDatabase.exec(`
   CREATE TABLE IF NOT EXISTS targets (
     id TEXT PRIMARY KEY,
@@ -193,3 +236,4 @@ createSessionFindingsTable();
 createFindingReviewsTable();
 createConversationAttachmentsTable();
 createActionDraftsTable(sessionDatabase);
+createTargetSitemapTables();

@@ -5,6 +5,7 @@ import {
 } from "../../chat/services/session-conversation.service";
 import { sessionRepository } from "../services/session.repository";
 import { normalizeTargetUrl } from "../services/session-url";
+import { sitemapCrawlCoordinator } from "../../sitemap/services/sitemap-crawl-coordinator.instance";
 
 interface SessionContextState {
   sessionId: string | null;
@@ -49,6 +50,13 @@ function getReadableError(error: unknown) {
 let sessionOpenRequestToken = 0;
 
 export const useSessionContextStore = create<SessionContextState>((set, get) => {
+  const ensureTargetSitemapCrawl = (targetId: string, rootUrl: string) => {
+    sitemapCrawlCoordinator.ensureTargetCrawl({
+      targetId,
+      rootUrl,
+    });
+  };
+
   const prepareActiveConversation = async (
     requestToken: number,
     sessionId: string,
@@ -245,6 +253,7 @@ export const useSessionContextStore = create<SessionContextState>((set, get) => 
         isArchivingConversation: false,
         conversationError: null,
       });
+      ensureTargetSitemapCrawl(target.id, target.normalizedUrl);
       void prepareActiveConversation(requestToken, session.id);
     },
 
@@ -265,6 +274,7 @@ export const useSessionContextStore = create<SessionContextState>((set, get) => 
         isArchivingConversation: false,
         conversationError: null,
       });
+      ensureTargetSitemapCrawl(target.id, normalizedUrl);
       void prepareActiveConversation(requestToken, session.id);
     },
 
@@ -289,6 +299,7 @@ export const useSessionContextStore = create<SessionContextState>((set, get) => 
         isArchivingConversation: false,
         conversationError: null,
       });
+      ensureTargetSitemapCrawl(session.targetId, session.normalizedUrl);
       void prepareActiveConversation(requestToken, session.id);
       return true;
     },
