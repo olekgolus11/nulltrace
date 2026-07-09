@@ -136,6 +136,26 @@ describe("PublicSitemapCrawler", () => {
     expect(repository.statuses.at(-1)).toEqual({ status: "completed" });
   });
 
+  it("keeps a form without an action on its current page", async () => {
+    const { repository } = await runCrawler({
+      responses: {
+        "https://example.com/robots.txt": createResponse("", { status: 404 }),
+        "https://example.com/sitemap.xml": createResponse("", { status: 404 }),
+        "https://example.com/": createResponse(
+          '<html><a href="/login">Login</a></html>',
+        ),
+        "https://example.com/login": createResponse(
+          '<html><form method="post"></form></html>',
+        ),
+      },
+    });
+
+    expect(findEntry(repository.entries, "/login", "POST")).toMatchObject({
+      source: "html_form",
+      depth: 2,
+    });
+  });
+
   it("enforces max depth while preserving shallow discoveries", async () => {
     const { repository, requestedUrls } = await runCrawler({
       limits: {
@@ -160,6 +180,56 @@ describe("PublicSitemapCrawler", () => {
     expect(findEntry(repository.entries, "/level-2")).toBeUndefined();
     expect(requestedUrls).toContain("https://example.com/level-1");
     expect(requestedUrls).not.toContain("https://example.com/level-2");
+  });
+
+  it("counts non-HTML responses against the page request limit", async () => {
+    const { requestedUrls } = await runCrawler({
+      limits: {
+        maxPages: 2,
+      },
+      responses: {
+        "https://example.com/robots.txt": createResponse("", { status: 404 }),
+        "https://example.com/sitemap.xml": createResponse("", { status: 404 }),
+        "https://example.com/": createResponse(
+          '<html><a href="/download">Download</a><a href="/next">Next</a></html>',
+        ),
+        "https://example.com/download": createResponse("binary", {
+          contentType: "application/octet-stream",
+        }),
+        "https://example.com/next": createResponse("<html></html>"),
+      },
+    });
+
+    expect(requestedUrls).toContain("https://example.com/download");
+    expect(requestedUrls).not.toContain("https://example.com/next");
+  });
+
+  it("does not follow an off-origin redirect", async () => {
+    const repository = new FakeSitemapRepository();
+    const requestedUrls: string[] = [];
+    const crawler = new PublicSitemapCrawler({
+      repository,
+      fetch: async (url: string) => {
+        requestedUrls.push(url);
+        if (url === "https://example.com/") {
+          return new Response("", {
+            status: 302,
+            headers: {
+              location: "https://other.example/private",
+            },
+          });
+        }
+
+        return createResponse("", { status: 404 });
+      },
+    });
+
+    await crawler.crawl({
+      targetId: "target-1",
+      rootUrl: "https://example.com",
+    });
+
+    expect(requestedUrls).not.toContain("https://other.example/private");
   });
 
   it("extracts sitemap XML URLs from robots metadata and default sitemap.xml", async () => {

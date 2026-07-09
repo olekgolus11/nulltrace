@@ -207,7 +207,8 @@ function extractHtmlDiscoveries(body: string, pageUrl: URL) {
 
   $("form").each((_, element) => {
     const method = getFormMethod($(element).attr("method"));
-    const url = createAbsoluteUrl($(element).attr("action") ?? ".", pageUrl);
+    const action = $(element).attr("action")?.trim();
+    const url = action ? createAbsoluteUrl(action, pageUrl) : normalizeUrl(pageUrl);
     if (url) {
       forms.push({
         url,
@@ -289,6 +290,7 @@ export class PublicSitemapCrawler {
     const visitedUrls = new Set<string>();
     const discoveredEntries = new Set<string>();
     let pagesFetched = 0;
+    let pageRequests = 0;
 
     this.repository.markCrawlRunning(input.targetId);
 
@@ -306,7 +308,7 @@ export class PublicSitemapCrawler {
         discoveredEntries,
       );
 
-      while (queue.length > 0 && pagesFetched < limits.maxPages) {
+      while (queue.length > 0 && pageRequests < limits.maxPages) {
         const next = queue.shift();
         if (!next || next.depth > limits.maxDepth) {
           continue;
@@ -319,6 +321,7 @@ export class PublicSitemapCrawler {
         }
 
         visitedUrls.add(normalizedUrlValue);
+        pageRequests += 1;
 
         const response = await this.fetchWithTimeout(
           normalizedUrl,
@@ -525,12 +528,29 @@ export class PublicSitemapCrawler {
   private async fetchWithTimeout(url: URL, requestTimeoutMs: number) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+    let requestUrl = url;
 
     try {
-      return await this.fetch(url.toString(), {
-        redirect: "follow",
-        signal: controller.signal,
-      });
+      for (let redirectCount = 0; redirectCount < 10; redirectCount += 1) {
+        const response = await this.fetch(requestUrl.toString(), {
+          redirect: "manual",
+          signal: controller.signal,
+        });
+        const location = response.headers.get("location");
+
+        if (response.status < 300 || response.status >= 400 || !location) {
+          return response;
+        }
+
+        const nextUrl = createAbsoluteUrl(location, requestUrl);
+        if (!nextUrl || !isSameOrigin(nextUrl, url.origin)) {
+          return response;
+        }
+
+        requestUrl = nextUrl;
+      }
+
+      throw new Error("Redirect limit exceeded.");
     } finally {
       clearTimeout(timeout);
     }

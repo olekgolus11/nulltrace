@@ -1,4 +1,5 @@
 export interface SitemapNode {
+  id: string;
   path: string;
   status: number;
   method?: string;
