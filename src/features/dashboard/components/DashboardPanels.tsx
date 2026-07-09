@@ -7,8 +7,11 @@ import { ChatMessageData } from "../../chat/model/chat.types";
 import { ActiveSessionConversation } from "../../chat/services/session-conversation.service";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { SitemapTree } from "../../sitemap/components/SitemapTree";
+import {
+  SitemapNode,
+  TargetSitemapCrawlStatusRecord,
+} from "../../sitemap/model/sitemap.types";
 import { FindingList } from "../../finding/components/FindingList";
-import { mockSitemapTree } from "../data/dashboard.mock";
 import { tools } from "../data/tool-catalog";
 import { dashboardPanels } from "../model/dashboard.state";
 import { DashboardPanelId, DashboardState } from "../model/dashboard.types";
@@ -24,6 +27,9 @@ const dashboardScrollbarTrackOptions = {
 
 export const LeftDashboardPanel = ({
   dashboardState,
+  sitemapNodes,
+  sitemapEntryCount,
+  sitemapStatus,
   findings,
   layout,
   sitemapScrollRef,
@@ -32,6 +38,9 @@ export const LeftDashboardPanel = ({
   selectFinding,
 }: {
   dashboardState: DashboardState;
+  sitemapNodes: SitemapNode[];
+  sitemapEntryCount: number;
+  sitemapStatus: TargetSitemapCrawlStatusRecord | null;
   findings: SessionFindingRecord[];
   layout: UseDashboardLayoutResult;
   sitemapScrollRef: React.RefObject<ScrollBoxRenderable | null>;
@@ -74,8 +83,15 @@ export const LeftDashboardPanel = ({
             trackOptions: dashboardScrollbarTrackOptions,
           }}
         >
+          <box height={1}>
+            <text fg={theme.text.dim}>
+              {sitemapStatus
+                ? `crawl: ${sitemapStatus.status} | ${sitemapEntryCount} entries`
+                : "crawl: idle | 0 entries"}
+            </text>
+          </box>
           <SitemapTree
-            nodes={mockSitemapTree}
+            nodes={sitemapNodes}
             selectedIndex={dashboardState.selectedSitemapItem}
             focused={dashboardState.activePanel === "sitemap"}
           />

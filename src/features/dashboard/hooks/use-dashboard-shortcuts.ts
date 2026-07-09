@@ -1,7 +1,6 @@
 import { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import { useEffect, useRef, useReducer } from "react";
-import { mockSitemapFlatNodes } from "../data/dashboard.mock";
 import { tools } from "../data/tool-catalog";
 import {
   dashboardPanels,
@@ -32,6 +31,7 @@ type DashboardAction =
 interface UseDashboardShortcutsProps {
   onBack: () => void;
   onSelectTool: (toolName: ToolName) => void;
+  sitemapCount: number;
   findings: SessionFindingRecord[];
   onSetFindingReviewStatus: (
     findingId: string,
@@ -140,6 +140,7 @@ function createDashboardReducer(counts: {
 export function useDashboardShortcuts({
   onBack,
   onSelectTool,
+  sitemapCount,
   findings,
   onSetFindingReviewStatus,
   conversations,
@@ -154,7 +155,7 @@ export function useDashboardShortcuts({
   const findingDetailScrollRef = useRef<ScrollBoxRenderable | null>(null);
   const reducer = createDashboardReducer({
     toolCount: tools.length,
-    sitemapCount: mockSitemapFlatNodes.length,
+    sitemapCount,
     findingCount: findings.length,
   });
 

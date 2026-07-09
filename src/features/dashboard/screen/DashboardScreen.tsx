@@ -16,6 +16,7 @@ import { useSessionChat } from "../../chat/hooks/use-session-chat";
 import { FindingDetailModal } from "../../finding/components/FindingDetailModal";
 import { useSessionFindings } from "../../finding/hooks/use-session-findings";
 import { useSessionContextStore } from "../../session/store/session-context.store";
+import { useTargetSitemap } from "../../sitemap/hooks/use-target-sitemap";
 import { ToolName } from "../../tool/shared/types/tool-screen.types";
 
 interface DashboardScreenProps {
@@ -31,6 +32,7 @@ export function DashboardScreen({
 }: DashboardScreenProps) {
   const { width, height } = useTerminalDimensions();
   const sessionId = useSessionContextStore((state) => state.sessionId);
+  const targetId = useSessionContextStore((state) => state.targetId);
   const targetUrl = useSessionContextStore((state) => state.targetUrl);
   const activeConversationId = useSessionContextStore(
     (state) => state.activeConversationId,
@@ -68,6 +70,7 @@ export function DashboardScreen({
     },
   });
   const sessionFindings = useSessionFindings(sessionId);
+  const targetSitemap = useTargetSitemap(targetId);
   const layout = useDashboardLayout({
     width,
     height,
@@ -82,6 +85,7 @@ export function DashboardScreen({
   } = useDashboardShortcuts({
     onBack,
     onSelectTool,
+    sitemapCount: targetSitemap.flatNodes.length,
     findings: sessionFindings.findings,
     onSetFindingReviewStatus: sessionFindings.setReviewStatus,
     conversations,
@@ -119,6 +123,9 @@ export function DashboardScreen({
         <LeftDashboardPanel
           layout={layout}
           dashboardState={dashboardState}
+          sitemapNodes={targetSitemap.nodes}
+          sitemapEntryCount={targetSitemap.entries.length}
+          sitemapStatus={targetSitemap.status}
           findings={sessionFindings.findings}
           sitemapScrollRef={sitemapScrollRef}
           findingsScrollRef={findingsScrollRef}
