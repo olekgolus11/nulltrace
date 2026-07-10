@@ -248,6 +248,46 @@ describe("SitemapRepository", () => {
     expect(repository.findEntryByIdForTarget("target-2", form.id)).toBeNull();
   });
 
+  it("treats SQL wildcard characters as literal path search text", async () => {
+    const repository = await createRepository(createTestDatabase());
+    const paths = [
+      "/file_1",
+      "/fileA1",
+      "/progress-100%",
+      "/progress-100x",
+      "/back\\slash",
+      "/backXslash",
+    ];
+
+    paths.forEach((path) => {
+      repository.upsertEntry({
+        targetId: "target-1",
+        normalizedUrl: `https://example.com${path}`,
+        path,
+        method: "GET",
+        httpStatus: 200,
+        source: "html_link",
+        depth: 1,
+      });
+    });
+
+    expect(
+      repository
+        .listEntries({ targetId: "target-1", path: "file_1" })
+        .entries.map((entry) => entry.path),
+    ).toEqual(["/file_1"]);
+    expect(
+      repository
+        .listEntries({ targetId: "target-1", path: "100%" })
+        .entries.map((entry) => entry.path),
+    ).toEqual(["/progress-100%"]);
+    expect(
+      repository
+        .listEntries({ targetId: "target-1", path: "back\\slash" })
+        .entries.map((entry) => entry.path),
+    ).toEqual(["/back\\slash"]);
+  });
+
   it("tracks crawl status transitions with useful timestamps and errors", async () => {
     const repository = await createRepository(createTestDatabase());
 

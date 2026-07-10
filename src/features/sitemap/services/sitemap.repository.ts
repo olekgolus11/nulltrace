@@ -78,6 +78,10 @@ function normalizeOffset(offset: number | undefined) {
   return Math.max(0, Math.trunc(offset));
 }
 
+function escapeLikePattern(value: string) {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
+
 function normalizeEntrySource(value: string): TargetSitemapEntrySource {
   if (entrySources.includes(value as TargetSitemapEntrySource)) {
     return value as TargetSitemapEntrySource;
@@ -245,8 +249,8 @@ export class SitemapRepository {
     }
 
     if (filters.path) {
-      params.push(`%${filters.path.toLowerCase()}%`);
-      clauses.push(`LOWER(path) LIKE ?${params.length}`);
+      params.push(`%${escapeLikePattern(filters.path.toLowerCase())}%`);
+      clauses.push(`LOWER(path) LIKE ?${params.length} ESCAPE '\\'`);
     }
 
     if (filters.method) {
