@@ -24,12 +24,15 @@ function readTargetSitemap(targetId: string): TargetSitemapState {
 }
 
 export function useTargetSitemap(targetId: string | null) {
+  const [maxDepth, setMaxDepth] = useState<number | null>(null);
   const [state, setState] = useState<TargetSitemapState>({
     entries: [],
     status: null,
   });
 
   useEffect(() => {
+    setMaxDepth(null);
+
     if (!targetId) {
       setState({
         entries: [],
@@ -48,23 +51,51 @@ export function useTargetSitemap(targetId: string | null) {
     return () => clearInterval(interval);
   }, [targetId]);
 
+  const availableMaxDepth = useMemo(
+    () => Math.max(0, ...state.entries.map((entry) => entry.depth)),
+    [state.entries],
+  );
+  const visibleEntries = useMemo(
+    () =>
+      maxDepth === null
+        ? state.entries
+        : state.entries.filter((entry) => entry.depth <= maxDepth),
+    [maxDepth, state.entries],
+  );
+
   const nodes = useMemo(
     () =>
       buildTree(
-        state.entries.map((entry) => ({
+        visibleEntries.map((entry) => ({
           path: entry.path,
           status: entry.httpStatus ?? 0,
           method: entry.method ?? undefined,
         })),
       ),
-    [state.entries],
+    [visibleEntries],
   );
   const flatNodes = useMemo(() => flattenTree(nodes), [nodes]);
 
+  const cycleMaxDepth = (direction: -1 | 1) => {
+    setMaxDepth((currentDepth) => {
+      const currentIndex =
+        currentDepth === null ? availableMaxDepth + 1 : currentDepth;
+      const nextIndex = Math.max(
+        0,
+        Math.min(availableMaxDepth + 1, currentIndex + direction),
+      );
+
+      return nextIndex > availableMaxDepth ? null : nextIndex;
+    });
+  };
+
   return {
     entries: state.entries,
+    visibleEntries,
     nodes,
     flatNodes,
     status: state.status,
+    maxDepth,
+    cycleMaxDepth,
   };
 }
