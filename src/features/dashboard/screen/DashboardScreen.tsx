@@ -86,6 +86,7 @@ export function DashboardScreen({
     onBack,
     onSelectTool,
     sitemapCount: targetSitemap.flatNodes.length,
+    onCycleSitemapDepth: targetSitemap.cycleMaxDepth,
     findings: sessionFindings.findings,
     onSetFindingReviewStatus: sessionFindings.setReviewStatus,
     conversations,
@@ -125,6 +126,8 @@ export function DashboardScreen({
           dashboardState={dashboardState}
           sitemapNodes={targetSitemap.nodes}
           sitemapEntryCount={targetSitemap.entries.length}
+          visibleSitemapEntryCount={targetSitemap.visibleEntries.length}
+          sitemapMaxDepth={targetSitemap.maxDepth}
           sitemapStatus={targetSitemap.status}
           findings={sessionFindings.findings}
           sitemapScrollRef={sitemapScrollRef}
@@ -183,7 +186,12 @@ export function DashboardScreen({
                       { key: "Ctrl+N", label: "new" },
                       { key: "Ctrl+D", label: "archive" },
                     ]
-                  : [{ key: "Enter", label: "select" }]),
+                  : dashboardState.activePanel === "sitemap"
+                    ? [
+                        { key: "Up/Down", label: "navigate" },
+                        { key: "Left/Right", label: "depth" },
+                      ]
+                    : [{ key: "Enter", label: "select" }]),
                 { key: "ESC", label: "back" },
                 { key: "Ctrl+Q", label: "quit" },
               ]),

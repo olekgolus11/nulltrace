@@ -32,6 +32,7 @@ interface UseDashboardShortcutsProps {
   onBack: () => void;
   onSelectTool: (toolName: ToolName) => void;
   sitemapCount: number;
+  onCycleSitemapDepth: (direction: -1 | 1) => void;
   findings: SessionFindingRecord[];
   onSetFindingReviewStatus: (
     findingId: string,
@@ -141,6 +142,7 @@ export function useDashboardShortcuts({
   onBack,
   onSelectTool,
   sitemapCount,
+  onCycleSitemapDepth,
   findings,
   onSetFindingReviewStatus,
   conversations,
@@ -279,6 +281,11 @@ export function useDashboardShortcuts({
         break;
 
       case "sitemap":
+        if (key.name === "left" || key.name === "right") {
+          onCycleSitemapDepth(key.name === "left" ? -1 : 1);
+          sitemapScrollRef.current?.scrollTo(0);
+          return;
+        }
         if (key.name === "up") {
           sitemapScrollRef.current?.scrollBy(-1, "step");
           dispatch({

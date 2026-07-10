@@ -29,6 +29,8 @@ export const LeftDashboardPanel = ({
   dashboardState,
   sitemapNodes,
   sitemapEntryCount,
+  visibleSitemapEntryCount,
+  sitemapMaxDepth,
   sitemapStatus,
   findings,
   layout,
@@ -40,6 +42,8 @@ export const LeftDashboardPanel = ({
   dashboardState: DashboardState;
   sitemapNodes: SitemapNode[];
   sitemapEntryCount: number;
+  visibleSitemapEntryCount: number;
+  sitemapMaxDepth: number | null;
   sitemapStatus: TargetSitemapCrawlStatusRecord | null;
   findings: SessionFindingRecord[];
   layout: UseDashboardLayoutResult;
@@ -83,12 +87,37 @@ export const LeftDashboardPanel = ({
             trackOptions: dashboardScrollbarTrackOptions,
           }}
         >
-          <box height={1}>
-            <text fg={theme.text.dim}>
-              {sitemapStatus
-                ? `crawl: ${sitemapStatus.status} | ${sitemapEntryCount} entries`
-                : "crawl: idle | 0 entries"}
-            </text>
+          <box flexDirection="column">
+            {sitemapStatus?.status === "running" ? (
+              <text fg={theme.accent.primary}>
+                <strong>Scanning sitemap...</strong> {sitemapEntryCount} target entries discovered
+              </text>
+            ) : sitemapStatus?.status === "failed" ? (
+              <>
+                <text fg={theme.accent.warning}>
+                  {sitemapEntryCount > 0
+                    ? `Sitemap scan incomplete | ${sitemapEntryCount} target entries retained`
+                    : "Sitemap scan failed | No target sitemap entries discovered."}
+                </text>
+                {sitemapStatus.errorMessage ? (
+                  <text fg={theme.text.secondary}>Error: {sitemapStatus.errorMessage}</text>
+                ) : null}
+              </>
+            ) : sitemapStatus?.status === "completed" ? (
+              <text fg={theme.text.secondary}>
+                {sitemapEntryCount > 0
+                  ? `Sitemap scan complete | ${sitemapEntryCount} target entries`
+                  : "Sitemap scan complete | No target sitemap entries discovered."}
+              </text>
+            ) : (
+              <text fg={theme.text.dim}>Waiting to scan target sitemap...</text>
+            )}
+            {sitemapEntryCount > 0 ? (
+              <text fg={theme.text.dim}>
+                Depth: {sitemapMaxDepth === null ? "all" : `0-${sitemapMaxDepth}`} |{" "}
+                {visibleSitemapEntryCount} visible | Left/Right filter
+              </text>
+            ) : null}
           </box>
           <SitemapTree
             nodes={sitemapNodes}
