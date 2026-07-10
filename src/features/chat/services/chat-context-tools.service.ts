@@ -28,6 +28,14 @@ import {
 } from "../../session/model/session.repository.types";
 import { sessionRepository } from "../../session/services/session.repository";
 import {
+  TargetSitemapCrawlStatusRecord,
+  TargetSitemapEntryListFilters,
+  TargetSitemapEntryListResult,
+  TargetSitemapEntryRecord,
+  TargetSitemapEntrySource,
+} from "../../sitemap/model/sitemap.types";
+import { sitemapRepository } from "../../sitemap/services/sitemap.repository";
+import {
   ToolWorkspaceContextSnapshot,
   toolWorkspaceContextService,
 } from "../../tool/shared/services/tool-workspace-context.service";
@@ -38,6 +46,8 @@ const DEFAULT_ARTIFACT_PREVIEW_MAX_CHARACTERS = 4000;
 const DEFAULT_FINDING_LIST_LIMIT = 25;
 const MAX_FINDING_LIST_LIMIT = 100;
 const DEFAULT_ACTIVE_TOOL_HISTORY_LIMIT = 5;
+const DEFAULT_SITEMAP_LIST_LIMIT = 25;
+const MAX_SITEMAP_LIST_LIMIT = 100;
 
 const findingSeverityRanks: Record<SessionFindingRecord["severity"], number> = {
   critical: 5,
@@ -89,6 +99,24 @@ type CreateActionDraftArgs = {
   command?: string;
   intentJson?: string;
   formStateJson?: string;
+};
+
+type ListSitemapEntriesArgs = {
+  limit?: number;
+  offset?: number;
+  depth?: number;
+  maxDepth?: number;
+};
+
+type SearchSitemapEntriesArgs = ListSitemapEntriesArgs & {
+  path?: string;
+  method?: string;
+  httpStatus?: number;
+  source?: TargetSitemapEntrySource;
+};
+
+type GetSitemapEntryArgs = {
+  entryId: string;
 };
 
 export interface ChatFindingListItem {
@@ -211,6 +239,40 @@ export interface GetSessionContextResult {
   } | null;
 }
 
+export interface ChatSitemapEntry {
+  id: string;
+  normalizedUrl: string;
+  path: string;
+  method: string | null;
+  httpStatus: number | null;
+  source: TargetSitemapEntrySource;
+  depth: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  createdAt: string;
+}
+
+export interface ChatSitemapPagination {
+  limit: number;
+  offset: number;
+  nextOffset: number | null;
+  total: number;
+  hasMore: boolean;
+}
+
+export interface GetSitemapStatusResult {
+  crawl: TargetSitemapCrawlStatusRecord & { entryCount: number };
+}
+
+export interface ListSitemapEntriesResult {
+  entries: ChatSitemapEntry[];
+  pagination: ChatSitemapPagination;
+}
+
+export interface GetSitemapEntryResult {
+  entry: (ChatSitemapEntry & { discoveryContext: string }) | null;
+}
+
 interface ConversationAttachmentScope {
   findActiveAttachmentByOpenCodeConversationId: (
     opencodeConversationId: string,
@@ -246,6 +308,17 @@ interface ToolWorkspaceContextReadRepository {
 
 interface ActionDraftWriteRepository {
   createDraft: (input: ActionDraftInput) => ActionDraftRecord;
+}
+
+interface SitemapReadRepository {
+  getCrawlStatus: (targetId: string) => TargetSitemapCrawlStatusRecord;
+  listEntries: (
+    filters: TargetSitemapEntryListFilters,
+  ) => TargetSitemapEntryListResult;
+  findEntryByIdForTarget: (
+    targetId: string,
+    entryId: string,
+  ) => TargetSitemapEntryRecord | null;
 }
 
 function assertGetFindingArgs(args: ChatContextToolArgs): GetFindingArgs {
@@ -771,6 +844,245 @@ function toCreateActionDraftResult(
   };
 }
 
+function normalizeSitemapNumber(
+  value: unknown,
+  argumentName: string,
+  defaultValue?: number,
+) {
+  if (value === undefined) {
+    return defaultValue;
+  }
+
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${argumentName} must be a finite number.`);
+  }
+
+  return Math.max(0, Math.floor(value));
+}
+
+function normalizeSitemapListArgs(
+  args: ChatContextToolArgs | ListSitemapEntriesArgs,
+): Required<Pick<ListSitemapEntriesArgs, "limit" | "offset">> &
+  Pick<ListSitemapEntriesArgs, "depth" | "maxDepth"> {
+  const limit = normalizeSitemapNumber(args.limit, "sitemap limit");
+  return {
+    limit: Math.max(
+      1,
+      Math.min(limit ?? DEFAULT_SITEMAP_LIST_LIMIT, MAX_SITEMAP_LIST_LIMIT),
+    ),
+    offset: normalizeSitemapNumber(args.offset, "sitemap offset", 0) ?? 0,
+    depth: normalizeSitemapNumber(args.depth, "sitemap depth"),
+    maxDepth: normalizeSitemapNumber(args.maxDepth, "sitemap maxDepth"),
+  };
+}
+
+function normalizeSitemapSearchArgs(
+  args: ChatContextToolArgs | SearchSitemapEntriesArgs,
+): SearchSitemapEntriesArgs & { limit: number; offset: number } {
+  const listArgs = normalizeSitemapListArgs(args);
+  const source = normalizeOptionalToolString(
+    args.source,
+    "search_sitemap_entries",
+    "source",
+  ) as TargetSitemapEntrySource | undefined;
+  const allowedSources: TargetSitemapEntrySource[] = [
+    "seed",
+    "html_link",
+    "html_form",
+    "sitemap_xml",
+    "robots_sitemap",
+    "manual",
+  ];
+  if (source && !allowedSources.includes(source)) {
+    throw new Error(
+      "search_sitemap_entries source must be seed, html_link, html_form, sitemap_xml, robots_sitemap, or manual.",
+    );
+  }
+
+  return {
+    ...listArgs,
+    path: normalizeOptionalToolString(
+      args.path,
+      "search_sitemap_entries",
+      "path",
+    ),
+    method: normalizeOptionalToolString(
+      args.method,
+      "search_sitemap_entries",
+      "method",
+    )?.toUpperCase(),
+    httpStatus: normalizeSitemapNumber(
+      args.httpStatus,
+      "search_sitemap_entries httpStatus",
+    ),
+    source,
+  };
+}
+
+function assertGetSitemapEntryArgs(
+  args: ChatContextToolArgs,
+): GetSitemapEntryArgs {
+  return {
+    entryId: normalizeRequiredString(
+      args.entryId,
+      "get_sitemap_entry",
+      "entryId",
+    ),
+  };
+}
+
+function toChatSitemapEntry(
+  entry: TargetSitemapEntryRecord,
+): ChatSitemapEntry {
+  return {
+    id: entry.id,
+    normalizedUrl: entry.normalizedUrl,
+    path: entry.path,
+    method: entry.method,
+    httpStatus: entry.httpStatus,
+    source: entry.source,
+    depth: entry.depth,
+    firstSeenAt: entry.firstSeenAt,
+    lastSeenAt: entry.lastSeenAt,
+    createdAt: entry.createdAt,
+  };
+}
+
+function toSitemapListResult(
+  result: TargetSitemapEntryListResult,
+): ListSitemapEntriesResult {
+  const nextOffset =
+    result.offset + result.entries.length < result.total
+      ? result.offset + result.entries.length
+      : null;
+  return {
+    entries: result.entries.map(toChatSitemapEntry),
+    pagination: {
+      limit: result.limit,
+      offset: result.offset,
+      nextOffset,
+      total: result.total,
+      hasMore: nextOffset !== null,
+    },
+  };
+}
+
+export class SitemapChatContextToolsService {
+  constructor(
+    private readonly attachments: ConversationAttachmentScope = conversationAttachmentService,
+    private readonly sessions: SessionContextReadRepository = sessionRepository,
+    private readonly sitemap: SitemapReadRepository = sitemapRepository,
+  ) {}
+
+  private getTargetId(opencodeConversationId: string) {
+    const attachment = requireActiveAttachment(
+      this.attachments,
+      opencodeConversationId,
+    );
+    const session = this.sessions.getSessionById(attachment.sessionId);
+    if (!session) {
+      throw new Error("The attached NullTrace session no longer exists.");
+    }
+    return session.targetId;
+  }
+
+  getStatus(opencodeConversationId: string): GetSitemapStatusResult {
+    const targetId = this.getTargetId(opencodeConversationId);
+    return {
+      crawl: {
+        ...this.sitemap.getCrawlStatus(targetId),
+        entryCount: this.sitemap.listEntries({ targetId, limit: 1 }).total,
+      },
+    };
+  }
+
+  listEntries(
+    opencodeConversationId: string,
+    args: ListSitemapEntriesArgs = {},
+  ) {
+    const targetId = this.getTargetId(opencodeConversationId);
+    return toSitemapListResult(
+      this.sitemap.listEntries({ targetId, ...normalizeSitemapListArgs(args) }),
+    );
+  }
+
+  searchEntries(
+    opencodeConversationId: string,
+    args: SearchSitemapEntriesArgs,
+  ) {
+    const targetId = this.getTargetId(opencodeConversationId);
+    return toSitemapListResult(
+      this.sitemap.listEntries({ targetId, ...normalizeSitemapSearchArgs(args) }),
+    );
+  }
+
+  getEntry(
+    opencodeConversationId: string,
+    args: GetSitemapEntryArgs,
+  ): GetSitemapEntryResult {
+    const targetId = this.getTargetId(opencodeConversationId);
+    const entry = this.sitemap.findEntryByIdForTarget(targetId, args.entryId);
+    return {
+      entry: entry
+        ? {
+            ...toChatSitemapEntry(entry),
+            discoveryContext:
+              entry.source === "html_form"
+                ? "Discovered from an HTML form. The persisted sitemap model retains the form action and method, but not form fields or the referring page."
+                : `Discovered via ${entry.source}. The persisted sitemap model does not retain the referring page.`,
+          }
+        : null,
+    };
+  }
+
+  createToolDefinitions(): ChatContextToolDefinition<
+    ChatContextToolArgs,
+    unknown
+  >[] {
+    const paginationArgs = {
+      limit: { type: "number", description: "Optional page size, capped at 100.", isOptional: true },
+      offset: { type: "number", description: "Optional zero-based page offset.", isOptional: true },
+      depth: { type: "number", description: "Optional exact crawl depth.", isOptional: true },
+      maxDepth: { type: "number", description: "Optional maximum crawl depth.", isOptional: true },
+    } as const;
+    return [
+      {
+        name: "get_sitemap_status",
+        description: "Read crawl state, entry count, timestamps, and failure detail for the active conversation's session target.",
+        args: {},
+        execute: ({ opencodeConversationId }) => this.getStatus(opencodeConversationId),
+      },
+      {
+        name: "list_sitemap_entries",
+        description: "List a bounded page of sitemap entries for the active conversation's session target, optionally filtered by depth.",
+        args: paginationArgs,
+        execute: ({ opencodeConversationId, args }) => this.listEntries(opencodeConversationId, normalizeSitemapListArgs(args)),
+      },
+      {
+        name: "search_sitemap_entries",
+        description: "Search sitemap entries for the active conversation's session target by path, method, HTTP status, discovery source, and depth.",
+        args: {
+          ...paginationArgs,
+          path: { type: "string", description: "Optional case-insensitive path substring.", isOptional: true },
+          method: { type: "string", description: "Optional exact HTTP method.", isOptional: true },
+          httpStatus: { type: "number", description: "Optional exact HTTP status.", isOptional: true },
+          source: { type: "string", description: "Optional exact discovery source.", isOptional: true },
+        },
+        execute: ({ opencodeConversationId, args }) => this.searchEntries(opencodeConversationId, normalizeSitemapSearchArgs(args)),
+      },
+      {
+        name: "get_sitemap_entry",
+        description: "Get one sitemap entry and its persisted form or discovery context for the active conversation's session target.",
+        args: { entryId: { type: "string", description: "Entry ID returned by a sitemap list or search tool." } },
+        execute: ({ opencodeConversationId, args }) => this.getEntry(opencodeConversationId, assertGetSitemapEntryArgs(args)),
+      },
+    ];
+  }
+}
+
+export const sitemapChatContextToolsService =
+  new SitemapChatContextToolsService();
+
 export class SessionContextChatContextToolsService {
   constructor(
     private readonly attachments: ConversationAttachmentScope = conversationAttachmentService,
@@ -1196,6 +1508,7 @@ export const actionDraftChatContextToolsService =
 
 export const chatContextToolRegistry = new ChatContextToolRegistry([
   ...sessionContextChatContextToolsService.createToolDefinitions(),
+  ...sitemapChatContextToolsService.createToolDefinitions(),
   ...findingChatContextToolsService.createToolDefinitions(),
   ...toolRunArtifactChatContextToolsService.createToolDefinitions(),
   ...activeToolWorkspaceChatContextToolsService.createToolDefinitions(),

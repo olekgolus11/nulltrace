@@ -50,6 +50,10 @@ export interface TargetSitemapEntryListFilters {
   offset?: number;
   depth?: number;
   maxDepth?: number;
+  path?: string;
+  method?: string;
+  httpStatus?: number;
+  source?: TargetSitemapEntrySource;
 }
 
 export interface TargetSitemapEntryListResult {

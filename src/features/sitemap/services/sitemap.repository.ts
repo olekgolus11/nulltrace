@@ -244,6 +244,26 @@ export class SitemapRepository {
       clauses.push(`depth <= ?${params.length}`);
     }
 
+    if (filters.path) {
+      params.push(`%${filters.path.toLowerCase()}%`);
+      clauses.push(`LOWER(path) LIKE ?${params.length}`);
+    }
+
+    if (filters.method) {
+      params.push(filters.method.toUpperCase());
+      clauses.push(`method = ?${params.length}`);
+    }
+
+    if (filters.httpStatus !== undefined) {
+      params.push(filters.httpStatus);
+      clauses.push(`http_status = ?${params.length}`);
+    }
+
+    if (filters.source) {
+      params.push(filters.source);
+      clauses.push(`source = ?${params.length}`);
+    }
+
     const whereClause = clauses.join(" AND ");
     const total = this.database
       .query<{ count: number }, Array<string | number>>(
@@ -301,6 +321,29 @@ export class SitemapRepository {
       .get(targetId);
 
     return row ? mapCrawlStatusRow(row) : createIdleCrawlStatus(targetId);
+  }
+
+  findEntryByIdForTarget(targetId: string, entryId: string) {
+    const row = this.database
+      .query<TargetSitemapEntryRow, [string, string]>(
+        `SELECT
+          id,
+          target_id AS targetId,
+          normalized_url AS normalizedUrl,
+          path,
+          method,
+          http_status AS httpStatus,
+          source,
+          depth,
+          first_seen_at AS firstSeenAt,
+          last_seen_at AS lastSeenAt,
+          created_at AS createdAt
+        FROM target_sitemap_entries
+        WHERE target_id = ?1 AND id = ?2`,
+      )
+      .get(targetId, entryId);
+
+    return row ? mapEntryRow(row) : null;
   }
 
   markCrawlRunning(targetId: string) {

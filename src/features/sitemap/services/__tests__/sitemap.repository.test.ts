@@ -213,6 +213,41 @@ describe("SitemapRepository", () => {
     ]);
   });
 
+  it("searches entries and retrieves detail within one target", async () => {
+    const repository = await createRepository(createTestDatabase());
+    const form = repository.upsertEntry({
+      targetId: "target-1",
+      normalizedUrl: "https://example.com/Admin/Login",
+      path: "/Admin/Login",
+      method: "POST",
+      httpStatus: 403,
+      source: "html_form",
+      depth: 2,
+    });
+    repository.upsertEntry({
+      targetId: "target-2",
+      normalizedUrl: "https://other.example/Admin/Login",
+      path: "/Admin/Login",
+      method: "POST",
+      httpStatus: 403,
+      source: "html_form",
+      depth: 2,
+    });
+
+    const result = repository.listEntries({
+      targetId: "target-1",
+      path: "admin",
+      method: "post",
+      httpStatus: 403,
+      source: "html_form",
+      depth: 2,
+    });
+
+    expect(result.entries.map((entry) => entry.id)).toEqual([form.id]);
+    expect(repository.findEntryByIdForTarget("target-1", form.id)).toEqual(form);
+    expect(repository.findEntryByIdForTarget("target-2", form.id)).toBeNull();
+  });
+
   it("tracks crawl status transitions with useful timestamps and errors", async () => {
     const repository = await createRepository(createTestDatabase());
 
