@@ -8,6 +8,7 @@ export interface DashboardState {
   selectedSitemapItem: number;
   selectedFindingItem: number;
   selectedFindingDetailId: string | null;
+  isAuthenticationContextOpen: boolean;
 }
 
 export interface UseDashboardLayoutResult {

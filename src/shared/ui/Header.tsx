@@ -1,12 +1,14 @@
 import { theme } from "../../app/theme/theme.js";
 import { FindingCounts } from "../../features/finding/components/FindingCounts.js";
 import { FindingSummaryProps } from "../../features/finding/model/finding-summary.types.js";
+import { AuthenticatedRequestContextMetadata } from "../../features/authentication/model/authenticated-request-context.types.js";
 
 interface HeaderProps {
   title?: string;
   subtitle?: string;
   targetUrl?: string;
   counts?: FindingSummaryProps;
+  authenticationContext?: AuthenticatedRequestContextMetadata | null;
 }
 
 const emptyCounts: FindingSummaryProps = {
@@ -23,6 +25,7 @@ export function Header({
   subtitle,
   targetUrl,
   counts = emptyCounts,
+  authenticationContext,
 }: HeaderProps) {
   return (
     <box
@@ -51,6 +54,23 @@ export function Header({
               <span fg={theme.accent.secondary}>{targetUrl}</span>
             </>
           )}
+          <span fg={theme.text.dim}> | </span>
+          <span fg={theme.text.primary}>Auth: </span>
+          <span
+            fg={
+              authenticationContext?.storageMode === "memory"
+                ? theme.accent.warning
+                : authenticationContext
+                  ? theme.accent.primary
+                  : theme.text.muted
+            }
+          >
+            {authenticationContext
+              ? authenticationContext.storageMode === "secure"
+                ? "active (secure)"
+                : "active (memory-only)"
+              : "none"}
+          </span>
         </text>
       </box>
 
