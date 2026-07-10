@@ -19,7 +19,10 @@ interface ChatWindowProps {
 function SpinnerAiMessage() {
   return (
     <ChatMessage sender="ai" content="">
-      <spinner name="dots" color="white" />
+      <box flexDirection="row" gap={1}>
+        <spinner name="dots" color="white" />
+        <text fg={theme.text.secondary}>Thinking…</text>
+      </box>
     </ChatMessage>
   );
 }
@@ -96,6 +99,7 @@ export function ChatWindow({
               sender={msg.sender}
               content={msg.content}
               timestamp={msg.timestamp}
+              activities={msg.activities}
             />
           ))
         )}

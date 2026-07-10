@@ -11,7 +11,13 @@ import {
   ChatRuntimeConversationNotFoundError,
   ChatRuntimeError,
 } from "../model/chat-runtime.types";
+import { ChatToolActivity } from "../model/chat-tool-activity.types";
 import { chatContextToolRegistry } from "./chat-context-tools.service";
+import {
+  readSafeChatToolActivities,
+  toSafeChatToolActivity,
+  upsertChatToolActivity,
+} from "./chat-tool-activity.service";
 import { getSelectedOpenCodeModel } from "./opencode-runtime.config";
 import { openCodeServerService } from "./opencode-server.service";
 
@@ -167,7 +173,8 @@ function readTextContent(parts: OpenCodeMessageItem["parts"]) {
 
 function toChatMessage(item: OpenCodeMessageItem): ChatMessageData | null {
   const content = readTextContent(item.parts);
-  if (!content) {
+  const activities = readSafeChatToolActivities(item.parts);
+  if (!content && activities.length === 0) {
     return null;
   }
 
@@ -176,6 +183,7 @@ function toChatMessage(item: OpenCodeMessageItem): ChatMessageData | null {
     sender: item.info.role === "assistant" ? "ai" : "user",
     content,
     timestamp: formatTimestamp(item.info.time.created),
+    ...(activities.length > 0 ? { activities } : {}),
   };
 }
 
@@ -232,6 +240,7 @@ async function streamPrompt(
   const assistantMessageIds = new Set<string>();
   const partTypeById = new Map<string, string>();
   const textByMessageId = new Map<string, Map<string, string>>();
+  const activitiesByMessageId = new Map<string, ChatToolActivity[]>();
   let activeMessageId: string | null = null;
   let createdAt = Date.now();
   let isReady = false;
@@ -270,7 +279,8 @@ async function streamPrompt(
     const content = messageParts
       ? [...messageParts.values()].join("\n\n").trim()
       : "";
-    if (!content) {
+    const activities = activitiesByMessageId.get(messageId) ?? [];
+    if (!content && activities.length === 0) {
       return;
     }
 
@@ -279,6 +289,7 @@ async function streamPrompt(
       sender: "ai",
       content,
       timestamp: formatTimestamp(createdAt),
+      ...(activities.length > 0 ? { activities } : {}),
     });
   };
 
@@ -293,6 +304,17 @@ async function streamPrompt(
     }
 
     partTypeById.set(part.id, part.type);
+    const activity = toSafeChatToolActivity(part);
+    if (activity) {
+      activeMessageId = part.messageID;
+      const activities = activitiesByMessageId.get(part.messageID) ?? [];
+      activitiesByMessageId.set(
+        part.messageID,
+        upsertChatToolActivity(activities, activity),
+      );
+      emitProgress(part.messageID);
+    }
+
     if (part.type !== "text") {
       return;
     }
