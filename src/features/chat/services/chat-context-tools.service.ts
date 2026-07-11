@@ -1058,8 +1058,8 @@ export class SitemapChatContextToolsService {
     const paginationArgs = {
       limit: { type: "number", description: "Optional page size, capped at 100.", isOptional: true },
       offset: { type: "number", description: "Optional zero-based page offset.", isOptional: true },
-      depth: { type: "number", description: "Optional exact crawl depth.", isOptional: true },
-      maxDepth: { type: "number", description: "Optional maximum crawl depth.", isOptional: true },
+      depth: { type: "number", description: "Optional exact crawl depth. Omit unless the operator explicitly requests a depth-filtered result; zero is a real root-level filter.", isOptional: true },
+      maxDepth: { type: "number", description: "Optional maximum crawl depth. Omit unless the operator explicitly requests a depth-filtered result; zero is a real root-level filter.", isOptional: true },
     } as const;
     return [
       {
@@ -1070,13 +1070,13 @@ export class SitemapChatContextToolsService {
       },
       {
         name: "list_sitemap_entries",
-        description: "List a bounded page of sitemap entries for the active conversation's session target, optionally filtered by depth.",
+        description: "List a bounded page of sitemap entries for the active conversation's session target. Omit depth and maxDepth for a complete sitemap list. Only set a depth filter when the operator explicitly asks for a depth-filtered result.",
         args: paginationArgs,
         execute: ({ opencodeConversationId, args }) => this.listEntries(opencodeConversationId, normalizeSitemapListArgs(args)),
       },
       {
         name: "search_sitemap_entries",
-        description: "Search sitemap entries for the active conversation's session target by path, method, HTTP status, discovery source, and depth.",
+        description: "Search sitemap entries for the active conversation's session target by path, method, HTTP status, discovery source, and optional depth filters. Omit depth and maxDepth unless the operator explicitly asks for a depth-filtered search.",
         args: {
           ...paginationArgs,
           path: { type: "string", description: "Optional case-insensitive path substring.", isOptional: true },

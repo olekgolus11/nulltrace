@@ -215,6 +215,17 @@ describe("sitemap chat context tools", () => {
     expect(allNames).not.toContain("stop_sitemap_crawl");
     expect(allNames).not.toContain("refresh_sitemap");
   });
+
+  it("tells the agent to omit depth filters for a complete sitemap list", () => {
+    const definitions = serviceDefinitions();
+    const listEntries = definitions.find(
+      (definition) => definition.name === "list_sitemap_entries",
+    );
+
+    expect(listEntries?.description).toContain(
+      "Omit depth and maxDepth for a complete sitemap list.",
+    );
+  });
 });
 
 function serviceDefinitions() {
