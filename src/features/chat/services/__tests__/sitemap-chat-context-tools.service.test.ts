@@ -169,6 +169,23 @@ describe("sitemap chat context tools", () => {
     expect(service.listEntries("conversation-1", { limit: 1000 }).pagination.limit).toBe(100);
   });
 
+  it("ignores negative depth sentinels from the chat runtime", () => {
+    const { service } = createService();
+
+    const result = service.listEntries("conversation-1", {
+      limit: 100,
+      depth: -1,
+      maxDepth: -1,
+    });
+
+    expect(result.entries.map((entry) => entry.id)).toEqual([
+      "entry-root",
+      "entry-admin",
+      "entry-login",
+    ]);
+    expect(result.pagination.total).toBe(3);
+  });
+
   it("searches by path, method, status, source, and depth", () => {
     const { service } = createService();
     expect(service.searchEntries("conversation-1", { path: "ADMIN", method: "get", httpStatus: 403, source: "html_link", depth: 1 }).entries.map((entry) => entry.id)).toEqual(["entry-admin"]);

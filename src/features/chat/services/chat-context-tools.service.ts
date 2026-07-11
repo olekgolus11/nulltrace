@@ -860,6 +860,19 @@ function normalizeSitemapNumber(
   return Math.max(0, Math.floor(value));
 }
 
+function normalizeOptionalSitemapDepth(value: unknown, argumentName: string) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${argumentName} must be a finite number.`);
+  }
+
+  const depth = Math.floor(value);
+  return depth < 0 ? undefined : depth;
+}
+
 function normalizeSitemapListArgs(
   args: ChatContextToolArgs | ListSitemapEntriesArgs,
 ): Required<Pick<ListSitemapEntriesArgs, "limit" | "offset">> &
@@ -871,8 +884,11 @@ function normalizeSitemapListArgs(
       Math.min(limit ?? DEFAULT_SITEMAP_LIST_LIMIT, MAX_SITEMAP_LIST_LIMIT),
     ),
     offset: normalizeSitemapNumber(args.offset, "sitemap offset", 0) ?? 0,
-    depth: normalizeSitemapNumber(args.depth, "sitemap depth"),
-    maxDepth: normalizeSitemapNumber(args.maxDepth, "sitemap maxDepth"),
+    depth: normalizeOptionalSitemapDepth(args.depth, "sitemap depth"),
+    maxDepth: normalizeOptionalSitemapDepth(
+      args.maxDepth,
+      "sitemap maxDepth",
+    ),
   };
 }
 
