@@ -160,19 +160,18 @@ describe("sitemap chat context tools", () => {
     expect(repository.reads[0]?.targetId).toBe("target-1");
   });
 
-  it("lists bounded pages and applies exact and maximum depth filters", () => {
+  it("lists bounded pages across every crawl depth", () => {
     const { service } = createService();
-    const firstPage = service.listEntries("conversation-1", { limit: 1, maxDepth: 1 });
+    const firstPage = service.listEntries("conversation-1", { limit: 1 });
     expect(firstPage.entries.map((entry) => entry.id)).toEqual(["entry-root"]);
-    expect(firstPage.pagination).toMatchObject({ total: 2, nextOffset: 1, hasMore: true });
-    expect(service.listEntries("conversation-1", { depth: 2 }).entries.map((entry) => entry.id)).toEqual(["entry-login"]);
+    expect(firstPage.pagination).toMatchObject({ total: 3, nextOffset: 1, hasMore: true });
     expect(service.listEntries("conversation-1", { limit: 1000 }).pagination.limit).toBe(100);
   });
 
-  it("ignores negative depth sentinels from the chat runtime", () => {
+  it("ignores negative search depth sentinels from the chat runtime", () => {
     const { service } = createService();
 
-    const result = service.listEntries("conversation-1", {
+    const result = service.searchEntries("conversation-1", {
       limit: 100,
       depth: -1,
       maxDepth: -1,
@@ -221,10 +220,14 @@ describe("sitemap chat context tools", () => {
     const listEntries = definitions.find(
       (definition) => definition.name === "list_sitemap_entries",
     );
-
-    expect(listEntries?.description).toContain(
-      "Omit depth and maxDepth for a complete sitemap list.",
+    const searchEntries = definitions.find(
+      (definition) => definition.name === "search_sitemap_entries",
     );
+
+    expect(Object.keys(listEntries?.args ?? {})).toEqual(["limit", "offset"]);
+    expect(listEntries?.description).toContain("all sitemap entries");
+    expect(Object.keys(searchEntries?.args ?? {})).toContain("depth");
+    expect(Object.keys(searchEntries?.args ?? {})).toContain("maxDepth");
   });
 });
 
