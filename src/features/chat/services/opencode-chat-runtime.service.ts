@@ -11,7 +11,13 @@ import {
   ChatRuntimeConversationNotFoundError,
   ChatRuntimeError,
 } from "../model/chat-runtime.types";
+import { ChatToolActivity } from "../model/chat-tool-activity.types";
 import { chatContextToolRegistry } from "./chat-context-tools.service";
+import {
+  readSafeChatToolActivities,
+  toSafeChatToolActivity,
+  upsertChatToolActivity,
+} from "./chat-tool-activity.service";
 import { getSelectedOpenCodeModel } from "./opencode-runtime.config";
 import { openCodeServerService } from "./opencode-server.service";
 
@@ -66,6 +72,7 @@ const chatContextSystemPrompt = [
   "You are the NullTrace dashboard assistant for the active testing session.",
   "Ground answers about session findings, finding details, tool run history, artifact previews, active scanner workspace state, scanner catalog availability, and scanner action drafts in the provided NullTrace context tools.",
   "Use get_session_context for the active session target, list_findings/get_finding for findings, list_tool_runs/get_artifact for tool history and artifacts, get_active_tool_workspace for the currently open scanner workspace, and list_available_scanner_tools for scanner catalog questions.",
+  "For a complete sitemap overview or when comparing the sitemap count with listed entries, call list_sitemap_entries, which always lists across every crawl depth. Use search_sitemap_entries depth filters only when the operator explicitly requests a depth-filtered result; zero is a real root-level filter.",
   "Use create_action_draft when the operator asks you to prepare or propose an nmap or nuclei scanner action for later inspection. Before creating a draft, use get_session_context and put the real target in command/form state instead of placeholders such as <TARGET>.",
   "Do not execute scanner tools, generate live scanner commands as if they were run, mutate review status, or mutate session state except by creating an action draft through create_action_draft.",
   "Action drafts are proposals only. Tell the operator that scanner execution still requires explicit review and approval in the scanner workspace.",
@@ -167,7 +174,8 @@ function readTextContent(parts: OpenCodeMessageItem["parts"]) {
 
 function toChatMessage(item: OpenCodeMessageItem): ChatMessageData | null {
   const content = readTextContent(item.parts);
-  if (!content) {
+  const activities = readSafeChatToolActivities(item.parts);
+  if (!content && activities.length === 0) {
     return null;
   }
 
@@ -176,6 +184,7 @@ function toChatMessage(item: OpenCodeMessageItem): ChatMessageData | null {
     sender: item.info.role === "assistant" ? "ai" : "user",
     content,
     timestamp: formatTimestamp(item.info.time.created),
+    ...(activities.length > 0 ? { activities } : {}),
   };
 }
 
@@ -232,6 +241,7 @@ async function streamPrompt(
   const assistantMessageIds = new Set<string>();
   const partTypeById = new Map<string, string>();
   const textByMessageId = new Map<string, Map<string, string>>();
+  const activitiesByMessageId = new Map<string, ChatToolActivity[]>();
   let activeMessageId: string | null = null;
   let createdAt = Date.now();
   let isReady = false;
@@ -270,7 +280,8 @@ async function streamPrompt(
     const content = messageParts
       ? [...messageParts.values()].join("\n\n").trim()
       : "";
-    if (!content) {
+    const activities = activitiesByMessageId.get(messageId) ?? [];
+    if (!content && activities.length === 0) {
       return;
     }
 
@@ -279,6 +290,7 @@ async function streamPrompt(
       sender: "ai",
       content,
       timestamp: formatTimestamp(createdAt),
+      ...(activities.length > 0 ? { activities } : {}),
     });
   };
 
@@ -293,6 +305,17 @@ async function streamPrompt(
     }
 
     partTypeById.set(part.id, part.type);
+    const activity = toSafeChatToolActivity(part);
+    if (activity) {
+      activeMessageId = part.messageID;
+      const activities = activitiesByMessageId.get(part.messageID) ?? [];
+      activitiesByMessageId.set(
+        part.messageID,
+        upsertChatToolActivity(activities, activity),
+      );
+      emitProgress(part.messageID);
+    }
+
     if (part.type !== "text") {
       return;
     }

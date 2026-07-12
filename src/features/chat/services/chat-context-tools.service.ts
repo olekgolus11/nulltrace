@@ -104,11 +104,11 @@ type CreateActionDraftArgs = {
 type ListSitemapEntriesArgs = {
   limit?: number;
   offset?: number;
-  depth?: number;
-  maxDepth?: number;
 };
 
 type SearchSitemapEntriesArgs = ListSitemapEntriesArgs & {
+  depth?: number;
+  maxDepth?: number;
   path?: string;
   method?: string;
   httpStatus?: number;
@@ -860,10 +860,22 @@ function normalizeSitemapNumber(
   return Math.max(0, Math.floor(value));
 }
 
+function normalizeOptionalSitemapDepth(value: unknown, argumentName: string) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${argumentName} must be a finite number.`);
+  }
+
+  const depth = Math.floor(value);
+  return depth < 0 ? undefined : depth;
+}
+
 function normalizeSitemapListArgs(
   args: ChatContextToolArgs | ListSitemapEntriesArgs,
-): Required<Pick<ListSitemapEntriesArgs, "limit" | "offset">> &
-  Pick<ListSitemapEntriesArgs, "depth" | "maxDepth"> {
+): Required<ListSitemapEntriesArgs> {
   const limit = normalizeSitemapNumber(args.limit, "sitemap limit");
   return {
     limit: Math.max(
@@ -871,8 +883,6 @@ function normalizeSitemapListArgs(
       Math.min(limit ?? DEFAULT_SITEMAP_LIST_LIMIT, MAX_SITEMAP_LIST_LIMIT),
     ),
     offset: normalizeSitemapNumber(args.offset, "sitemap offset", 0) ?? 0,
-    depth: normalizeSitemapNumber(args.depth, "sitemap depth"),
-    maxDepth: normalizeSitemapNumber(args.maxDepth, "sitemap maxDepth"),
   };
 }
 
@@ -901,6 +911,11 @@ function normalizeSitemapSearchArgs(
 
   return {
     ...listArgs,
+    depth: normalizeOptionalSitemapDepth(args.depth, "sitemap depth"),
+    maxDepth: normalizeOptionalSitemapDepth(
+      args.maxDepth,
+      "sitemap maxDepth",
+    ),
     path: normalizeOptionalToolString(
       args.path,
       "search_sitemap_entries",
@@ -1042,8 +1057,10 @@ export class SitemapChatContextToolsService {
     const paginationArgs = {
       limit: { type: "number", description: "Optional page size, capped at 100.", isOptional: true },
       offset: { type: "number", description: "Optional zero-based page offset.", isOptional: true },
-      depth: { type: "number", description: "Optional exact crawl depth.", isOptional: true },
-      maxDepth: { type: "number", description: "Optional maximum crawl depth.", isOptional: true },
+    } as const;
+    const depthFilterArgs = {
+      depth: { type: "number", description: "Optional exact crawl depth. Omit unless the operator explicitly requests a depth-filtered result; zero is a real root-level filter.", isOptional: true },
+      maxDepth: { type: "number", description: "Optional maximum crawl depth. Omit unless the operator explicitly requests a depth-filtered result; zero is a real root-level filter.", isOptional: true },
     } as const;
     return [
       {
@@ -1054,15 +1071,16 @@ export class SitemapChatContextToolsService {
       },
       {
         name: "list_sitemap_entries",
-        description: "List a bounded page of sitemap entries for the active conversation's session target, optionally filtered by depth.",
+        description: "List a bounded page of all sitemap entries for the active conversation's session target. This tool does not filter by crawl depth; use search_sitemap_entries only when the operator explicitly requests filtered results.",
         args: paginationArgs,
         execute: ({ opencodeConversationId, args }) => this.listEntries(opencodeConversationId, normalizeSitemapListArgs(args)),
       },
       {
         name: "search_sitemap_entries",
-        description: "Search sitemap entries for the active conversation's session target by path, method, HTTP status, discovery source, and depth.",
+        description: "Search sitemap entries for the active conversation's session target by path, method, HTTP status, discovery source, and optional depth filters. Omit depth and maxDepth unless the operator explicitly asks for a depth-filtered search.",
         args: {
           ...paginationArgs,
+          ...depthFilterArgs,
           path: { type: "string", description: "Optional case-insensitive path substring.", isOptional: true },
           method: { type: "string", description: "Optional exact HTTP method.", isOptional: true },
           httpStatus: { type: "number", description: "Optional exact HTTP status.", isOptional: true },
