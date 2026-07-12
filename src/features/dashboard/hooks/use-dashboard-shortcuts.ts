@@ -26,7 +26,9 @@ type DashboardAction =
   | { type: "MOVE_FINDING_SELECTION"; delta: -1 | 1 }
   | { type: "SELECT_FINDING"; index: number }
   | { type: "OPEN_FINDING_DETAIL"; findingId: string }
-  | { type: "CLOSE_FINDING_DETAIL" };
+  | { type: "CLOSE_FINDING_DETAIL" }
+  | { type: "OPEN_AUTHENTICATION_CONTEXT" }
+  | { type: "CLOSE_AUTHENTICATION_CONTEXT" };
 
 interface UseDashboardShortcutsProps {
   onBack: () => void;
@@ -134,6 +136,18 @@ function createDashboardReducer(counts: {
           ...state,
           selectedFindingDetailId: null,
         };
+
+      case "OPEN_AUTHENTICATION_CONTEXT":
+        return {
+          ...state,
+          isAuthenticationContextOpen: true,
+        };
+
+      case "CLOSE_AUTHENTICATION_CONTEXT":
+        return {
+          ...state,
+          isAuthenticationContextOpen: false,
+        };
     }
   };
 }
@@ -178,6 +192,13 @@ export function useDashboardShortcuts({
   }, [findings, state.selectedFindingDetailId]);
 
   useKeyboard((key) => {
+    if (state.isAuthenticationContextOpen) {
+      if (key.name === "escape") {
+        dispatch({ type: "CLOSE_AUTHENTICATION_CONTEXT" });
+      }
+      return;
+    }
+
     if (state.selectedFindingDetailId) {
       const reviewStatus = reviewStatusByShortcut[key.name];
 
@@ -194,6 +215,11 @@ export function useDashboardShortcuts({
       if (key.name === "down") {
         findingDetailScrollRef.current?.scrollBy(1, "step");
       }
+      return;
+    }
+
+    if (key.ctrl && key.name === "a") {
+      dispatch({ type: "OPEN_AUTHENTICATION_CONTEXT" });
       return;
     }
 
@@ -354,10 +380,15 @@ export function useDashboardShortcuts({
     dispatch({ type: "SELECT_FINDING", index });
   };
 
+  const closeAuthenticationContext = () => {
+    dispatch({ type: "CLOSE_AUTHENTICATION_CONTEXT" });
+  };
+
   return {
     dashboardState: state,
     setActivePanel,
     selectFinding,
+    closeAuthenticationContext,
     sitemapScrollRef,
     findingsScrollRef,
     findingDetailScrollRef,

@@ -18,6 +18,8 @@ import { useSessionFindings } from "../../finding/hooks/use-session-findings";
 import { useSessionContextStore } from "../../session/store/session-context.store";
 import { useTargetSitemap } from "../../sitemap/hooks/use-target-sitemap";
 import { ToolName } from "../../tool/shared/types/tool-screen.types";
+import { AuthenticationContextModal } from "../../authentication/components/AuthenticationContextModal";
+import { useSessionAuthenticatedRequestContext } from "../../authentication/hooks/use-session-authenticated-request-context";
 
 interface DashboardScreenProps {
   onSelectTool: (toolName: ToolName) => void;
@@ -63,6 +65,10 @@ export function DashboardScreen({
     (state) => state.refreshConversationTitles,
   );
   const { drafts, refreshDrafts } = useSessionActionDrafts(sessionId);
+  const authenticationContext = useSessionAuthenticatedRequestContext(
+    sessionId,
+    targetUrl,
+  );
   const sessionChat = useSessionChat(sessionId, activeConversationId, {
     onPromptComplete: () => {
       void refreshConversationTitles();
@@ -82,6 +88,7 @@ export function DashboardScreen({
     sitemapScrollRef,
     findingsScrollRef,
     findingDetailScrollRef,
+    closeAuthenticationContext,
   } = useDashboardShortcuts({
     onBack,
     onSelectTool,
@@ -119,7 +126,11 @@ export function DashboardScreen({
       height={height}
       backgroundColor={theme.bg.primary}
     >
-      <Header targetUrl={targetUrl} counts={sessionFindings.counts} />
+      <Header
+        targetUrl={targetUrl}
+        counts={sessionFindings.counts}
+        authenticationContext={authenticationContext.metadata}
+      />
       <box flexDirection="row" height={layout.contentHeight}>
         <LeftDashboardPanel
           layout={layout}
@@ -180,6 +191,7 @@ export function DashboardScreen({
             : [
                 { key: "Tab/Shift+Tab", label: "switch" },
                 { key: "Ctrl+1-4", label: "jump" },
+                { key: "Ctrl+A", label: "auth" },
                 ...(dashboardState.activePanel === "chat"
                   ? [
                       { key: "Ctrl+←/→", label: "conversation" },
@@ -203,6 +215,19 @@ export function DashboardScreen({
           width={modalWidth}
           height={modalHeight}
           scrollRef={findingDetailScrollRef}
+        />
+      ) : null}
+      {dashboardState.isAuthenticationContextOpen ? (
+        <AuthenticationContextModal
+          targetUrl={targetUrl}
+          width={modalWidth}
+          height={modalHeight}
+          metadata={authenticationContext.metadata}
+          isSaving={authenticationContext.isSaving}
+          error={authenticationContext.error}
+          onSave={authenticationContext.save}
+          onClear={authenticationContext.clear}
+          onClose={closeAuthenticationContext}
         />
       ) : null}
     </box>

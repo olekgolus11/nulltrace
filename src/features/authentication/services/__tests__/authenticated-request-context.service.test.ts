@@ -1,0 +1,161 @@
+import { describe, expect, test } from "bun:test";
+import {
+  AuthenticatedRequestContextService,
+  validateAuthenticatedRequestContextOrigin,
+} from "../authenticated-request-context.service";
+import {
+  createRedactedAuthenticatedRequestContextPreview,
+} from "../authenticated-request-context-redaction";
+import {
+  PlatformSecretStore,
+  PlatformSecretStoreAdapter,
+  SecretStore,
+  SecretStoreValue,
+} from "../platform-secret-store";
+
+class TestSecretStore implements SecretStore {
+  private readonly values = new Map<string, string>();
+
+  constructor(private readonly storageMode: SecretStoreValue["storageMode"] = "secure") {}
+
+  async save(key: string, value: string) {
+    this.values.set(key, value);
+    return this.storageMode;
+  }
+
+  async load(key: string) {
+    const value = this.values.get(key);
+    return value === undefined ? null : { value, storageMode: this.storageMode };
+  }
+
+  async clear(key: string) {
+    this.values.delete(key);
+  }
+}
+
+describe("AuthenticatedRequestContextService", () => {
+  test("stores only redacted metadata outside the secure-store payload", async () => {
+    const service = new AuthenticatedRequestContextService(new TestSecretStore());
+
+    const metadata = await service.save("session-1", "https://app.example.test/login", {
+      origin: "https://app.example.test",
+      cookies: "session=very-secret; csrf=also-secret",
+      headers: "Authorization: Bearer never-show | X-CSRF-Token: hidden",
+    });
+
+    expect(metadata).toEqual({
+      origin: "https://app.example.test",
+      cookieCount: 2,
+      headerNames: ["Authorization", "X-CSRF-Token"],
+      storageMode: "secure",
+      updatedAt: expect.any(String),
+    });
+  });
+
+  test("replacement and clearing invalidate dependent auth state", async () => {
+    const service = new AuthenticatedRequestContextService(new TestSecretStore());
+    const invalidations: string[] = [];
+    service.subscribeToInvalidation((invalidation) => {
+      invalidations.push(`${invalidation.reason}:${invalidation.version}`);
+    });
+
+    await service.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=first",
+      headers: "",
+    });
+    await service.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=replacement",
+      headers: "",
+    });
+    await service.clear("session-1");
+
+    expect(invalidations).toEqual(["replaced:1", "replaced:2", "cleared:3"]);
+    expect(service.getAuthStateVersion("session-1")).toBe(3);
+    expect(await service.getMetadata("session-1")).toBeNull();
+  });
+
+  test("rejects a different scheme, port, or origin", () => {
+    expect(() =>
+      validateAuthenticatedRequestContextOrigin(
+        "https://app.example.test:8443/path",
+        "https://app.example.test",
+      ),
+    ).toThrow("exact origin");
+    expect(() =>
+      validateAuthenticatedRequestContextOrigin(
+        "https://app.example.test",
+        "http://app.example.test",
+      ),
+    ).toThrow("exact origin");
+  });
+});
+
+describe("authenticated request context redaction", () => {
+  test("exposes cookie counts and header names without authorization values", () => {
+    const preview = createRedactedAuthenticatedRequestContextPreview({
+      origin: "https://app.example.test",
+      cookies: "session=very-secret; csrf=also-secret",
+      headers: "Authorization: Bearer never-show | X-CSRF-Token: hidden",
+    });
+
+    expect(preview).toEqual({
+      origin: "https://app.example.test",
+      cookieCount: 2,
+      headerNames: ["Authorization", "X-CSRF-Token"],
+      cookiePreview: "2 cookies [redacted]",
+      headerPreview: ["Authorization: [redacted]", "X-CSRF-Token: [redacted]"],
+    });
+    expect(JSON.stringify(preview)).not.toContain("very-secret");
+    expect(JSON.stringify(preview)).not.toContain("never-show");
+  });
+});
+
+describe("PlatformSecretStore", () => {
+  test("uses the secure-store contract when an adapter is available", async () => {
+    const values = new Map<string, string>();
+    const adapter: PlatformSecretStoreAdapter = {
+      isAvailable: async () => true,
+      save: async (key, value) => {
+        values.set(key, value);
+      },
+      load: async (key) => values.get(key) ?? null,
+      clear: async (key) => {
+        values.delete(key);
+      },
+    };
+    const store = new PlatformSecretStore(adapter);
+
+    expect(await store.save("session-1", "protected-value")).toBe("secure");
+    expect(await store.load("session-1")).toEqual({
+      value: "protected-value",
+      storageMode: "secure",
+    });
+    await store.clear("session-1");
+    expect(await store.load("session-1")).toBeNull();
+  });
+
+  test("uses an explicit memory-only fallback when the platform store is unavailable", async () => {
+    let saveCalls = 0;
+    const unavailableAdapter: PlatformSecretStoreAdapter = {
+      isAvailable: async () => false,
+      save: async () => {
+        saveCalls += 1;
+      },
+      load: async () => null,
+      clear: async () => {},
+    };
+    const store = new PlatformSecretStore(unavailableAdapter);
+
+    expect(await store.save("session-1", "not-on-disk")).toBe("memory");
+    expect(saveCalls).toBe(0);
+    expect(await store.load("session-1")).toEqual({
+      value: "not-on-disk",
+      storageMode: "memory",
+    });
+
+    await store.clear("session-1");
+    expect(await store.load("session-1")).toBeNull();
+  });
+});
