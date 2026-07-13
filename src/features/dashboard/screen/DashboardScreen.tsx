@@ -20,6 +20,7 @@ import { useTargetSitemap } from "../../sitemap/hooks/use-target-sitemap";
 import { ToolName } from "../../tool/shared/types/tool-screen.types";
 import { AuthenticationContextModal } from "../../authentication/components/AuthenticationContextModal";
 import { useSessionAuthenticatedRequestContext } from "../../authentication/hooks/use-session-authenticated-request-context";
+import { createAuthCheckUrlSuggestions } from "../../authentication/services/auth-check.service";
 
 interface DashboardScreenProps {
   onSelectTool: (toolName: ToolName) => void;
@@ -77,6 +78,12 @@ export function DashboardScreen({
   });
   const sessionFindings = useSessionFindings(sessionId);
   const targetSitemap = useTargetSitemap(targetId);
+  const verificationUrlSuggestions = createAuthCheckUrlSuggestions(
+    targetUrl,
+    targetSitemap.entries
+      .filter((entry) => !entry.method || entry.method === "GET")
+      .map((entry) => entry.normalizedUrl),
+  );
   const layout = useDashboardLayout({
     width,
     height,
@@ -223,10 +230,16 @@ export function DashboardScreen({
           width={modalWidth}
           height={modalHeight}
           metadata={authenticationContext.metadata}
+          verificationUrlSuggestions={verificationUrlSuggestions}
           isSaving={authenticationContext.isSaving}
+          isChecking={authenticationContext.isChecking}
           error={authenticationContext.error}
           onSave={authenticationContext.save}
           onClear={authenticationContext.clear}
+          onRunAuthCheck={authenticationContext.runAuthCheck}
+          onAcknowledgeInconclusive={
+            authenticationContext.acknowledgeInconclusive
+          }
           onClose={closeAuthenticationContext}
         />
       ) : null}

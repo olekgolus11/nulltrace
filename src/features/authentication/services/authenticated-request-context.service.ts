@@ -3,7 +3,10 @@ import {
   AuthenticatedRequestContext,
   AuthenticatedRequestContextInput,
 } from "../model/authenticated-request-context.types";
-import { createAuthenticatedRequestContextMetadata } from "./authenticated-request-context-redaction";
+import {
+  createAuthenticatedRequestContextMetadata,
+  splitAuthenticatedHeaderEntries,
+} from "./authenticated-request-context-redaction";
 import { platformSecretStore, SecretStore } from "./platform-secret-store";
 
 interface StoredAuthenticatedRequestContext extends AuthenticatedRequestContext {
@@ -47,10 +50,7 @@ function parseStoredContext(value: string): StoredAuthenticatedRequestContext | 
 }
 
 function validateHeaders(headers: string) {
-  const entries = headers
-    .split(/[\n\r|]+/)
-    .map((entry) => entry.trim())
-    .filter(Boolean);
+  const entries = splitAuthenticatedHeaderEntries(headers);
   const invalidHeader = entries.find((entry) => {
     const separatorIndex = entry.indexOf(":");
     return separatorIndex <= 0 || !entry.slice(separatorIndex + 1).trim();
@@ -119,6 +119,17 @@ export class AuthenticatedRequestContextService {
     return context
       ? createAuthenticatedRequestContextMetadata(context, stored.storageMode)
       : null;
+  }
+
+  async loadProtectedContext(
+    sessionId: string,
+  ): Promise<AuthenticatedRequestContext | null> {
+    const stored = await this.secretStore.load(getSecretStoreKey(sessionId));
+    if (!stored) {
+      return null;
+    }
+
+    return parseStoredContext(stored.value);
   }
 
   async save(

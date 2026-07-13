@@ -4,9 +4,22 @@ import {
   AuthenticatedRequestContextMetadata,
 } from "../model/authenticated-request-context.types";
 import { authenticatedRequestContextService } from "../services/authenticated-request-context.service";
+import { authCheckService } from "../services/auth-check.service";
 
 function getReadableError(error: unknown) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function withAuthCheckMetadata(
+  sessionId: string,
+  metadata: AuthenticatedRequestContextMetadata | null,
+) {
+  return metadata
+    ? {
+        ...metadata,
+        authCheck: authCheckService.getMetadata(sessionId),
+      }
+    : null;
 }
 
 export function useSessionAuthenticatedRequestContext(
@@ -17,6 +30,7 @@ export function useSessionAuthenticatedRequestContext(
     useState<AuthenticatedRequestContextMetadata | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -28,7 +42,7 @@ export function useSessionAuthenticatedRequestContext(
 
     setIsLoading(true);
     try {
-      setMetadata(await authenticatedRequestContextService.getMetadata(sessionId));
+      setMetadata(await authCheckService.getAuthContextMetadata(sessionId));
       setError(null);
     } catch (nextError) {
       setMetadata(null);
@@ -55,7 +69,7 @@ export function useSessionAuthenticatedRequestContext(
           targetUrl,
           input,
         );
-        setMetadata(nextMetadata);
+        setMetadata(withAuthCheckMetadata(sessionId, nextMetadata));
         setError(null);
         return true;
       } catch (nextError) {
@@ -85,13 +99,71 @@ export function useSessionAuthenticatedRequestContext(
     }
   }, [sessionId]);
 
+  const runAuthCheck = useCallback(
+    async (verificationUrl: string) => {
+      if (!sessionId || !metadata) {
+        setError("Save an authentication context before running Auth Check.");
+        return false;
+      }
+
+      setIsChecking(true);
+      try {
+        const authCheck = await authCheckService.run(
+          sessionId,
+          targetUrl,
+          verificationUrl,
+        );
+        setMetadata((current) =>
+          current ? { ...current, authCheck } : current,
+        );
+        setError(null);
+        return true;
+      } catch (nextError) {
+        setMetadata((current) =>
+          current
+            ? {
+                ...current,
+                authCheck: authCheckService.getMetadata(sessionId),
+              }
+            : current,
+        );
+        setError(getReadableError(nextError));
+        return false;
+      } finally {
+        setIsChecking(false);
+      }
+    },
+    [metadata, sessionId, targetUrl],
+  );
+
+  const acknowledgeInconclusive = useCallback(() => {
+    if (!sessionId || !metadata) {
+      return false;
+    }
+
+    try {
+      const authCheck = authCheckService.acknowledgeInconclusive(sessionId);
+      setMetadata((current) =>
+        current ? { ...current, authCheck } : current,
+      );
+      setError(null);
+      return true;
+    } catch (nextError) {
+      setError(getReadableError(nextError));
+      return false;
+    }
+  }, [metadata, sessionId]);
+
   return {
     metadata,
     isLoading,
     isSaving,
+    isChecking,
     error,
     save,
     clear,
+    runAuthCheck,
+    acknowledgeInconclusive,
     refresh,
   };
 }

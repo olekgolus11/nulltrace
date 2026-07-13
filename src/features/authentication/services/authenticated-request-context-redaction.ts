@@ -1,8 +1,21 @@
 import {
+  AuthCheckMetadata,
   AuthenticatedRequestContext,
   AuthenticatedRequestContextMetadata,
   RedactedAuthenticatedRequestContextPreview,
 } from "../model/authenticated-request-context.types";
+
+export function createUncheckedAuthCheckMetadata(): AuthCheckMetadata {
+  return {
+    status: "not_checked",
+    verificationUrl: null,
+    checkedAt: null,
+    acknowledgedAt: null,
+    isProceedAllowed: false,
+    summary: "Authentication context has not been checked.",
+    signals: null,
+  };
+}
 
 function splitCookieEntries(value: string) {
   return value
@@ -11,7 +24,7 @@ function splitCookieEntries(value: string) {
     .filter(Boolean);
 }
 
-function splitHeaderEntries(value: string) {
+export function splitAuthenticatedHeaderEntries(value: string): string[] {
   return value
     .split(/[\n\r|]+/)
     .map((entry) => entry.trim())
@@ -19,7 +32,7 @@ function splitHeaderEntries(value: string) {
 }
 
 export function getAuthenticatedHeaderNames(value: string) {
-  return splitHeaderEntries(value).map((entry) => {
+  return splitAuthenticatedHeaderEntries(value).map((entry) => {
     const separatorIndex = entry.indexOf(":");
     return separatorIndex === -1 ? entry : entry.slice(0, separatorIndex).trim();
   });
@@ -57,5 +70,6 @@ export function createAuthenticatedRequestContextMetadata(
     headerNames: preview.headerNames,
     storageMode,
     updatedAt: context.updatedAt,
+    authCheck: createUncheckedAuthCheckMetadata(),
   };
 }
