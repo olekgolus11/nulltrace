@@ -5,6 +5,7 @@ import {
 } from "../model/authenticated-request-context.types";
 import { authenticatedRequestContextService } from "../services/authenticated-request-context.service";
 import { authCheckService } from "../services/auth-check.service";
+import { authenticatedSitemapCrawlCoordinator } from "../../sitemap/services/authenticated-sitemap-crawl-coordinator.instance";
 
 function getReadableError(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -24,6 +25,7 @@ function withAuthCheckMetadata(
 
 export function useSessionAuthenticatedRequestContext(
   sessionId: string | null,
+  targetId: string | null,
   targetUrl: string,
 ) {
   const [metadata, setMetadata] =
@@ -116,6 +118,13 @@ export function useSessionAuthenticatedRequestContext(
         setMetadata((current) =>
           current ? { ...current, authCheck } : current,
         );
+        if (authCheck.isProceedAllowed && targetId) {
+          await authenticatedSitemapCrawlCoordinator.startAfterAcceptedAuthCheck({
+            sessionId,
+            targetId,
+            rootUrl: targetUrl,
+          });
+        }
         setError(null);
         return true;
       } catch (nextError) {
@@ -133,7 +142,7 @@ export function useSessionAuthenticatedRequestContext(
         setIsChecking(false);
       }
     },
-    [metadata, sessionId, targetUrl],
+    [metadata, sessionId, targetId, targetUrl],
   );
 
   const acknowledgeInconclusive = useCallback(() => {
@@ -147,12 +156,19 @@ export function useSessionAuthenticatedRequestContext(
         current ? { ...current, authCheck } : current,
       );
       setError(null);
+      if (targetId) {
+        void authenticatedSitemapCrawlCoordinator.startAfterAcceptedAuthCheck({
+          sessionId,
+          targetId,
+          rootUrl: targetUrl,
+        });
+      }
       return true;
     } catch (nextError) {
       setError(getReadableError(nextError));
       return false;
     }
-  }, [metadata, sessionId]);
+  }, [metadata, sessionId, targetId, targetUrl]);
 
   return {
     metadata,

@@ -1,17 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildTree, flattenTree } from "../model/sitemap.utils";
+import { filterTargetSitemapEntries } from "../model/sitemap-read-model";
 import {
+  AuthenticatedSitemapAccessObservationRecord,
+  AuthenticatedSitemapCrawlStatusRecord,
   TargetSitemapCrawlStatusRecord,
   TargetSitemapEntryRecord,
+  TargetSitemapProvenanceFilter,
 } from "../model/sitemap.types";
 import { sitemapRepository } from "../services/sitemap.repository";
 
 interface TargetSitemapState {
   entries: TargetSitemapEntryRecord[];
   status: TargetSitemapCrawlStatusRecord | null;
+  authenticatedStatus: AuthenticatedSitemapCrawlStatusRecord | null;
+  accessObservations: AuthenticatedSitemapAccessObservationRecord[];
 }
 
-function readTargetSitemap(targetId: string): TargetSitemapState {
+function readTargetSitemap(
+  targetId: string,
+  sessionId: string | null,
+): TargetSitemapState {
   const result = sitemapRepository.listEntries({
     targetId,
     limit: 500,
@@ -20,47 +29,78 @@ function readTargetSitemap(targetId: string): TargetSitemapState {
   return {
     entries: result.entries,
     status: sitemapRepository.getCrawlStatus(targetId),
+    authenticatedStatus: sessionId
+      ? sitemapRepository.getAuthenticatedCrawlStatus(sessionId, targetId)
+      : null,
+    accessObservations: sessionId
+      ? sitemapRepository.listAccessObservations(sessionId)
+      : [],
   };
 }
 
-export function useTargetSitemap(targetId: string | null) {
+const provenanceFilters: TargetSitemapProvenanceFilter[] = [
+  "all",
+  "public",
+  "authenticated",
+  "both",
+];
+
+export function useTargetSitemap(
+  targetId: string | null,
+  sessionId: string | null,
+) {
   const [maxDepth, setMaxDepth] = useState<number | null>(null);
+  const [provenanceFilter, setProvenanceFilter] =
+    useState<TargetSitemapProvenanceFilter>("all");
   const [state, setState] = useState<TargetSitemapState>({
     entries: [],
     status: null,
+    authenticatedStatus: null,
+    accessObservations: [],
   });
 
   useEffect(() => {
     setMaxDepth(null);
+    setProvenanceFilter("all");
 
     if (!targetId) {
       setState({
         entries: [],
         status: null,
+        authenticatedStatus: null,
+        accessObservations: [],
       });
       return;
     }
 
     const refresh = () => {
-      setState(readTargetSitemap(targetId));
+      setState(readTargetSitemap(targetId, sessionId));
     };
 
     refresh();
     const interval = setInterval(refresh, 1000);
 
     return () => clearInterval(interval);
-  }, [targetId]);
+  }, [sessionId, targetId]);
 
   const availableMaxDepth = useMemo(
     () => Math.max(0, ...state.entries.map((entry) => entry.depth)),
     [state.entries],
   );
   const visibleEntries = useMemo(
+    () => filterTargetSitemapEntries(state.entries, maxDepth, provenanceFilter),
+    [maxDepth, provenanceFilter, state.entries],
+  );
+
+  const observationByEntryId = useMemo(
     () =>
-      maxDepth === null
-        ? state.entries
-        : state.entries.filter((entry) => entry.depth <= maxDepth),
-    [maxDepth, state.entries],
+      new Map(
+        state.accessObservations.map((observation) => [
+          observation.entryId,
+          observation,
+        ]),
+      ),
+    [state.accessObservations],
   );
 
   const nodes = useMemo(
@@ -70,9 +110,13 @@ export function useTargetSitemap(targetId: string | null) {
           path: entry.path,
           status: entry.httpStatus ?? 0,
           method: entry.method ?? undefined,
+          entryId: entry.id,
+          normalizedUrl: entry.normalizedUrl,
+          provenance: entry.provenance,
+          accessObservation: observationByEntryId.get(entry.id),
         })),
       ),
-    [visibleEntries],
+    [observationByEntryId, visibleEntries],
   );
   const flatNodes = useMemo(() => flattenTree(nodes), [nodes]);
 
@@ -89,13 +133,26 @@ export function useTargetSitemap(targetId: string | null) {
     });
   };
 
+  const cycleProvenance = (direction: -1 | 1) => {
+    setProvenanceFilter((current) => {
+      const currentIndex = provenanceFilters.indexOf(current);
+      const nextIndex =
+        (currentIndex + direction + provenanceFilters.length) %
+        provenanceFilters.length;
+      return provenanceFilters[nextIndex]!;
+    });
+  };
+
   return {
     entries: state.entries,
     visibleEntries,
     nodes,
     flatNodes,
     status: state.status,
+    authenticatedStatus: state.authenticatedStatus,
     maxDepth,
+    provenanceFilter,
     cycleMaxDepth,
+    cycleProvenance,
   };
 }

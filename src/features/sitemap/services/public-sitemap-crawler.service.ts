@@ -5,6 +5,10 @@ import {
   UpsertTargetSitemapEntryInput,
 } from "../model/sitemap.types";
 import { sitemapRepository } from "./sitemap.repository";
+import {
+  createAbsoluteCrawlUrl,
+  normalizeCrawlUrl,
+} from "./sitemap-crawler-url";
 
 interface PublicSitemapCrawlerPersistence {
   upsertEntry(input: UpsertTargetSitemapEntryInput): unknown;
@@ -65,12 +69,12 @@ interface PublicSitemapCrawlerOptions {
   limits?: Partial<PublicSitemapCrawlerLimits>;
 }
 
-const defaultCrawlerLimits: PublicSitemapCrawlerLimits = {
+export const defaultPublicSitemapCrawlerLimits = {
   maxDepth: 3,
   maxPages: 50,
   requestTimeoutMs: 10_000,
   maxResponseBytes: 1_000_000,
-};
+} as const satisfies PublicSitemapCrawlerLimits;
 
 const sitemapXmlParser = new XMLParser({
   ignoreAttributes: false,
@@ -82,7 +86,7 @@ function mergeLimits(
   inputLimits: Partial<PublicSitemapCrawlerLimits> | undefined,
 ): PublicSitemapCrawlerLimits {
   return {
-    ...defaultCrawlerLimits,
+    ...defaultPublicSitemapCrawlerLimits,
     ...baseLimits,
     ...inputLimits,
   };
@@ -100,13 +104,6 @@ function getOrigin(value: URL) {
 
 function isSameOrigin(url: URL, origin: string) {
   return url.origin === origin;
-}
-
-function normalizeUrl(value: URL) {
-  const normalized = new URL(value.toString());
-  normalized.hash = "";
-
-  return normalized;
 }
 
 function getPath(value: URL) {
@@ -140,18 +137,6 @@ function toErrorMessage(error: unknown) {
   return "Public sitemap crawl failed.";
 }
 
-function createAbsoluteUrl(value: string | undefined, baseUrl: URL) {
-  if (!value || value.startsWith("javascript:") || value.startsWith("mailto:")) {
-    return null;
-  }
-
-  try {
-    return normalizeUrl(new URL(value, baseUrl));
-  } catch {
-    return null;
-  }
-}
-
 function getFormMethod(value: string | undefined) {
   return value?.trim().toUpperCase() || "GET";
 }
@@ -161,7 +146,7 @@ function extractRobotsSitemapUrls(body: string, rootUrl: URL) {
     .split(/\r?\n/)
     .map((line) => line.match(/^\s*sitemap:\s*(.+?)\s*$/i)?.[1])
     .filter((value): value is string => Boolean(value))
-    .map((value) => createAbsoluteUrl(value, rootUrl))
+    .map((value) => createAbsoluteCrawlUrl(value, rootUrl))
     .filter((url): url is URL => Boolean(url));
 }
 
@@ -191,7 +176,7 @@ function extractSitemapXmlUrls(body: string, rootUrl: URL) {
   collectXmlValues(parsed, "loc", locValues);
 
   return locValues
-    .map((value) => createAbsoluteUrl(value, rootUrl))
+    .map((value) => createAbsoluteCrawlUrl(value, rootUrl))
     .filter((url): url is URL => Boolean(url));
 }
 
@@ -201,7 +186,7 @@ function extractHtmlDiscoveries(body: string, pageUrl: URL) {
   const forms: DiscoveredForm[] = [];
 
   $("a[href]").each((_, element) => {
-    const url = createAbsoluteUrl($(element).attr("href"), pageUrl);
+    const url = createAbsoluteCrawlUrl($(element).attr("href"), pageUrl);
     if (url) {
       links.push({
         url,
@@ -213,7 +198,9 @@ function extractHtmlDiscoveries(body: string, pageUrl: URL) {
   $("form").each((_, element) => {
     const method = getFormMethod($(element).attr("method"));
     const action = $(element).attr("action")?.trim();
-    const url = action ? createAbsoluteUrl(action, pageUrl) : normalizeUrl(pageUrl);
+    const url = action
+      ? createAbsoluteCrawlUrl(action, pageUrl)
+      : normalizeCrawlUrl(pageUrl);
     if (url) {
       forms.push({
         url,
@@ -228,7 +215,7 @@ function extractHtmlDiscoveries(body: string, pageUrl: URL) {
   };
 }
 
-async function readResponseText(response: Response, maxBytes: number) {
+export async function readResponseText(response: Response, maxBytes: number) {
   if (!response.body) {
     const text = await response.text();
     if (new TextEncoder().encode(text).byteLength > maxBytes) {
@@ -319,7 +306,7 @@ export class PublicSitemapCrawler {
           continue;
         }
 
-        const normalizedUrl = normalizeUrl(next.url);
+        const normalizedUrl = normalizeCrawlUrl(next.url);
         const normalizedUrlValue = normalizedUrl.toString();
         if (visitedUrls.has(normalizedUrlValue)) {
           continue;
@@ -529,14 +516,14 @@ export class PublicSitemapCrawler {
     depth: number,
     source: TargetSitemapEntrySource,
   ) {
-    const normalizedUrl = normalizeUrl(url).toString();
+    const normalizedUrl = normalizeCrawlUrl(url).toString();
     if (queuedUrls.has(normalizedUrl)) {
       return;
     }
 
     queuedUrls.add(normalizedUrl);
     queue.push({
-      url: normalizeUrl(url),
+      url: normalizeCrawlUrl(url),
       depth,
       source,
     });
@@ -565,7 +552,7 @@ export class PublicSitemapCrawler {
           };
         }
 
-        const nextUrl = createAbsoluteUrl(location, requestUrl);
+        const nextUrl = createAbsoluteCrawlUrl(location, requestUrl);
         if (!nextUrl || !isSameOrigin(nextUrl, url.origin)) {
           return {
             response,
@@ -590,7 +577,7 @@ export class PublicSitemapCrawler {
     source: TargetSitemapEntrySource,
     depth: number,
   ) {
-    const normalizedUrl = normalizeUrl(url);
+    const normalizedUrl = normalizeCrawlUrl(url);
 
     this.repository.upsertEntry({
       targetId,

@@ -7,9 +7,12 @@ import { ChatMessageData } from "../../chat/model/chat.types";
 import { ActiveSessionConversation } from "../../chat/services/session-conversation.service";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { SitemapTree } from "../../sitemap/components/SitemapTree";
+import { flattenTree } from "../../sitemap/model/sitemap.utils";
 import {
+  AuthenticatedSitemapCrawlStatusRecord,
   SitemapNode,
   TargetSitemapCrawlStatusRecord,
+  TargetSitemapProvenanceFilter,
 } from "../../sitemap/model/sitemap.types";
 import { FindingList } from "../../finding/components/FindingList";
 import { tools } from "../data/tool-catalog";
@@ -31,7 +34,9 @@ export const LeftDashboardPanel = ({
   sitemapEntryCount,
   visibleSitemapEntryCount,
   sitemapMaxDepth,
+  sitemapProvenanceFilter,
   sitemapStatus,
+  authenticatedSitemapStatus,
   findings,
   layout,
   sitemapScrollRef,
@@ -44,7 +49,9 @@ export const LeftDashboardPanel = ({
   sitemapEntryCount: number;
   visibleSitemapEntryCount: number;
   sitemapMaxDepth: number | null;
+  sitemapProvenanceFilter: TargetSitemapProvenanceFilter;
   sitemapStatus: TargetSitemapCrawlStatusRecord | null;
+  authenticatedSitemapStatus: AuthenticatedSitemapCrawlStatusRecord | null;
   findings: SessionFindingRecord[];
   layout: UseDashboardLayoutResult;
   sitemapScrollRef: React.RefObject<ScrollBoxRenderable | null>;
@@ -52,6 +59,10 @@ export const LeftDashboardPanel = ({
   setActivePanel: (panel: DashboardPanelId) => void;
   selectFinding: (index: number) => void;
 }) => {
+  const selectedSitemapNode = flattenTree(sitemapNodes)[
+    dashboardState.selectedSitemapItem
+  ];
+
   return (
     <box
       width={layout.leftPanelWidth}
@@ -115,10 +126,43 @@ export const LeftDashboardPanel = ({
             {sitemapEntryCount > 0 ? (
               <text fg={theme.text.dim}>
                 Depth: {sitemapMaxDepth === null ? "all" : `0-${sitemapMaxDepth}`} |{" "}
-                {visibleSitemapEntryCount} visible | Left/Right filter
+                Provenance: {sitemapProvenanceFilter} | {visibleSitemapEntryCount} visible
+              </text>
+            ) : null}
+            {authenticatedSitemapStatus?.status === "running" ? (
+              <text fg={theme.accent.primary}>Authenticated crawl running...</text>
+            ) : authenticatedSitemapStatus?.status === "authentication_required" ? (
+              <text fg={theme.accent.warning}>
+                Authenticated crawl paused: authentication required
+              </text>
+            ) : null}
+            {sitemapEntryCount > 0 ? (
+              <text fg={theme.text.dim}>
+                Left/Right depth | P/Shift+P provenance | Access is current-session only
               </text>
             ) : null}
           </box>
+          {selectedSitemapNode?.entryId ? (
+            <box
+              flexDirection="column"
+              border
+              borderColor={theme.border.muted}
+              paddingLeft={1}
+              paddingRight={1}
+            >
+              <text fg={theme.text.secondary}>
+                Detail: {selectedSitemapNode.method ?? "GET"} {selectedSitemapNode.path}
+              </text>
+              <text fg={theme.text.dim}>
+                Discovery: {selectedSitemapNode.provenance ?? "public"}
+              </text>
+              <text fg={theme.text.dim}>
+                {selectedSitemapNode.accessObservation
+                  ? `Current session observed HTTP ${selectedSitemapNode.accessObservation.httpStatus}; not role-wide access.`
+                  : "No authenticated access observation for current session."}
+              </text>
+            </box>
+          ) : null}
           <SitemapTree
             nodes={sitemapNodes}
             selectedIndex={dashboardState.selectedSitemapItem}

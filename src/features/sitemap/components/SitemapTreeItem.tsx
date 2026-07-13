@@ -25,6 +25,10 @@ export function SitemapTreeItem({
   const showMethod = Boolean(node.method);
 
   const statusStr = node.status > 0 ? ` [${node.status}]` : "";
+  const provenanceLabel = node.provenance
+    ? ` [${node.provenance === "authenticated" ? "AUTH" : node.provenance.toUpperCase()}]`
+    : "";
+  const sessionAccessLabel = node.accessObservation ? " [SESSION ACCESS]" : "";
 
   // The prefix for children: if this node is the last child, its children
   // get empty space; otherwise they get a vertical continuation line.
@@ -60,6 +64,8 @@ export function SitemapTreeItem({
           </text>
         )}
         <text fg={statusColor(node.status)}>{statusStr}</text>
+        <text fg={theme.accent.info}>{provenanceLabel}</text>
+        <text fg={theme.accent.secondary}>{sessionAccessLabel}</text>
       </box>
 
       {/* Children */}

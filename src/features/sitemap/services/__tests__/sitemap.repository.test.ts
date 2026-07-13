@@ -31,6 +31,7 @@ function createTestDatabase() {
       method TEXT,
       http_status INTEGER,
       source TEXT NOT NULL,
+      provenance TEXT NOT NULL DEFAULT 'public',
       depth INTEGER NOT NULL,
       first_seen_at TEXT NOT NULL,
       last_seen_at TEXT NOT NULL,
@@ -49,6 +50,27 @@ function createTestDatabase() {
       status TEXT NOT NULL,
       started_at TEXT,
       completed_at TEXT,
+      failed_at TEXT,
+      error_message TEXT,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE authenticated_sitemap_access_observations (
+      session_id TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      entry_id TEXT NOT NULL,
+      http_status INTEGER NOT NULL,
+      observed_at TEXT NOT NULL,
+      PRIMARY KEY (session_id, entry_id)
+    );
+
+    CREATE TABLE authenticated_sitemap_crawl_statuses (
+      session_id TEXT PRIMARY KEY,
+      target_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      started_at TEXT,
+      completed_at TEXT,
+      paused_at TEXT,
       failed_at TEXT,
       error_message TEXT,
       updated_at TEXT NOT NULL
@@ -331,5 +353,79 @@ describe("SitemapRepository", () => {
       errorMessage: null,
     });
     expect(completed.completedAt).toBeString();
+  });
+
+  it("merges public and authenticated discovery while keeping access session-scoped", async () => {
+    const repository = await createRepository(createTestDatabase());
+    const publicEntry = repository.upsertEntry({
+      targetId: "target-1",
+      normalizedUrl: "https://example.com/account",
+      path: "/account",
+      method: "GET",
+      httpStatus: 200,
+      source: "html_link",
+      provenance: "public",
+      depth: 2,
+    });
+    const mergedEntry = repository.upsertEntry({
+      targetId: "target-1",
+      normalizedUrl: "https://example.com/account",
+      path: "/account",
+      method: "GET",
+      httpStatus: null,
+      source: "html_link",
+      provenance: "authenticated",
+      depth: 1,
+    });
+    repository.upsertAccessObservation({
+      sessionId: "session-1",
+      targetId: "target-1",
+      entryId: mergedEntry.id,
+      httpStatus: 200,
+    });
+
+    expect(mergedEntry).toMatchObject({
+      id: publicEntry.id,
+      provenance: "both",
+      depth: 1,
+      httpStatus: 200,
+    });
+    expect(
+      repository.listEntries({
+        targetId: "target-1",
+        provenance: "both",
+      }).entries.map((entry) => entry.id),
+    ).toEqual([mergedEntry.id]);
+    expect(repository.listAccessObservations("session-1")).toEqual([
+      expect.objectContaining({
+        sessionId: "session-1",
+        targetId: "target-1",
+        entryId: mergedEntry.id,
+        httpStatus: 200,
+      }),
+    ]);
+    expect(repository.listAccessObservations("session-2")).toEqual([]);
+  });
+
+  it("records authenticated crawl authentication-required state per session", async () => {
+    const repository = await createRepository(createTestDatabase());
+
+    repository.markAuthenticatedCrawlRunning("session-1", "target-1");
+    const paused = repository.markAuthenticatedCrawlAuthenticationRequired(
+      "session-1",
+      "target-1",
+      "Authentication required",
+    );
+
+    expect(paused).toMatchObject({
+      sessionId: "session-1",
+      targetId: "target-1",
+      status: "authentication_required",
+      errorMessage: "Authentication required",
+    });
+    expect(paused.startedAt).toBeString();
+    expect(paused.pausedAt).toBeString();
+    expect(repository.getAuthenticatedCrawlStatus("session-2", "target-1"))
+      .toMatchObject({ status: "idle", sessionId: "session-2" });
   });
 });
