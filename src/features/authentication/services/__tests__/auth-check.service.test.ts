@@ -354,6 +354,7 @@ describe("Auth Check state", () => {
         "https://app.example.test/account",
       ),
     ).rejects.toThrow("context changed");
+    expect(requestCount).toBe(1);
     expect(authCheckService.getMetadata("session-1").status).toBe(
       "not_checked",
     );

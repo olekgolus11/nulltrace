@@ -380,6 +380,11 @@ export class AuthCheckService {
         normalizedVerificationUrl,
         createRequestHeaders("", ""),
       );
+      if (
+        this.contextService.getAuthStateVersion(sessionId) !== contextVersion
+      ) {
+        throw new Error("Authentication context changed during Auth Check.");
+      }
       const authenticated = await this.fetchSignals(
         normalizedVerificationUrl,
         createRequestHeaders(context.cookies, context.headers),
