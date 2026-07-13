@@ -1,5 +1,6 @@
+import { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { theme } from "../../../app/theme/theme";
 import {
   AuthCheckMetadata,
@@ -117,6 +118,7 @@ export function AuthenticationContextModal({
   const [importError, setImportError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isReadingHar, setIsReadingHar] = useState(false);
+  const bodyScrollRef = useRef<ScrollBoxRenderable | null>(null);
   const preview = createRedactedAuthenticatedRequestContextPreview({
     origin: targetUrl,
     cookies,
@@ -158,6 +160,7 @@ export function AuthenticationContextModal({
     setHarData("");
     setHarRequests([]);
     setSelectedHarRequest(0);
+    bodyScrollRef.current?.scrollTo(0);
   };
 
   const prepareImportedContext = (
@@ -303,6 +306,13 @@ export function AuthenticationContextModal({
       onClose();
       return;
     }
+    if (key.name === "pageup" || key.name === "pagedown") {
+      bodyScrollRef.current?.scrollBy(
+        key.name === "pageup" ? -8 : 8,
+        "step",
+      );
+      return;
+    }
     if (key.ctrl && key.name === "e") {
       selectMode("manual");
       return;
@@ -319,7 +329,14 @@ export function AuthenticationContextModal({
       const currentIndex = fields.indexOf(selectedField);
       const nextIndex =
         (currentIndex + (key.shift ? -1 : 1) + fields.length) % fields.length;
-      setSelectedField(fields[nextIndex]!);
+      const nextField = fields[nextIndex]!;
+      setSelectedField(nextField);
+      if (nextField === "actions" || nextField === "import") {
+        const scrollbox = bodyScrollRef.current;
+        scrollbox?.scrollTo(scrollbox.scrollHeight);
+      } else if (nextField === fields[0]) {
+        bodyScrollRef.current?.scrollTo(0);
+      }
       return;
     }
     if (
@@ -400,137 +417,112 @@ export function AuthenticationContextModal({
           <text fg={theme.text.dim}>Esc close</text>
         </box>
 
-        <text fg={theme.text.secondary}>Exact origin: {preview.origin}</text>
-        <text
-          fg={
-            metadata?.storageMode === "memory"
-              ? theme.accent.warning
-              : theme.text.dim
-          }
+        <scrollbox
+          ref={bodyScrollRef}
+          width="100%"
+          height={Math.max(1, height - 6)}
         >
-          Storage: {getStorageLabel(metadata)}
-        </text>
-        <text fg={theme.text.dim}>
-          Modes: Ctrl+E manual | Ctrl+U curl | Ctrl+R HAR
-        </text>
-        <text fg={theme.accent.secondary}>
-          Active: {mode === "review" ? "redacted import review" : mode}
-        </text>
+          <box flexDirection="column" width="100%" flexShrink={0}>
+            <text fg={theme.text.dim}>PgUp/PgDn scroll</text>
+            <text fg={theme.text.secondary}>Exact origin: {preview.origin}</text>
+            <text
+              fg={
+                metadata?.storageMode === "memory"
+                  ? theme.accent.warning
+                  : theme.text.dim
+              }
+            >
+              Storage: {getStorageLabel(metadata)}
+            </text>
+            <text fg={theme.text.dim}>
+              Modes: Ctrl+E manual | Ctrl+U curl | Ctrl+R HAR
+            </text>
+            <text fg={theme.accent.secondary}>
+              Active: {mode === "review" ? "redacted import review" : mode}
+            </text>
 
-        {mode === "manual" ? (
-          <>
-            <box flexDirection="row" marginTop={1}>
-              <box width={18}>
-                <text
-                  fg={
-                    selectedField === "cookies"
-                      ? theme.accent.primary
-                      : theme.text.secondary
-                  }
-                >
-                  {selectedField === "cookies" ? "> Cookies" : "  Cookies"}
-                </text>
-              </box>
-              <box flexGrow={1} minWidth={0}>
-                <input
-                  value={cookies}
-                  width="100%"
-                  onInput={setCookies}
-                  placeholder="session=…; csrf=…"
-                  focused={selectedField === "cookies"}
-                  backgroundColor={theme.bg.input}
-                  textColor={theme.text.primary}
-                  cursorColor={theme.accent.primary}
-                  focusedBackgroundColor={theme.bg.elevated}
-                  placeholderColor={theme.text.dim}
-                />
-              </box>
-            </box>
+            {mode === "manual" ? (
+              <>
+                <box flexDirection="row" marginTop={1}>
+                  <box width={18}>
+                    <text
+                      fg={
+                        selectedField === "cookies"
+                          ? theme.accent.primary
+                          : theme.text.secondary
+                      }
+                    >
+                      {selectedField === "cookies" ? "> Cookies" : "  Cookies"}
+                    </text>
+                  </box>
+                  <box flexGrow={1} minWidth={0}>
+                    <input
+                      value={cookies}
+                      width="100%"
+                      onInput={setCookies}
+                      placeholder="session=…; csrf=…"
+                      focused={selectedField === "cookies"}
+                      backgroundColor={theme.bg.input}
+                      textColor={theme.text.primary}
+                      cursorColor={theme.accent.primary}
+                      focusedBackgroundColor={theme.bg.elevated}
+                      placeholderColor={theme.text.dim}
+                    />
+                  </box>
+                </box>
 
-            <box flexDirection="row" marginTop={1}>
-              <box width={18}>
-                <text
-                  fg={
-                    selectedField === "headers"
-                      ? theme.accent.primary
-                      : theme.text.secondary
-                  }
-                >
-                  {selectedField === "headers" ? "> Headers" : "  Headers"}
-                </text>
-              </box>
-              <box flexGrow={1} minWidth={0}>
-                <input
-                  value={headers}
-                  width="100%"
-                  onInput={setHeaders}
-                  placeholder="Authorization: … | X-CSRF-Token: …"
-                  focused={selectedField === "headers"}
-                  backgroundColor={theme.bg.input}
-                  textColor={theme.text.primary}
-                  cursorColor={theme.accent.primary}
-                  focusedBackgroundColor={theme.bg.elevated}
-                  placeholderColor={theme.text.dim}
-                />
-              </box>
-            </box>
-          </>
-        ) : null}
+                <box flexDirection="row" marginTop={1}>
+                  <box width={18}>
+                    <text
+                      fg={
+                        selectedField === "headers"
+                          ? theme.accent.primary
+                          : theme.text.secondary
+                      }
+                    >
+                      {selectedField === "headers" ? "> Headers" : "  Headers"}
+                    </text>
+                  </box>
+                  <box flexGrow={1} minWidth={0}>
+                    <input
+                      value={headers}
+                      width="100%"
+                      onInput={setHeaders}
+                      placeholder="Authorization: … | X-CSRF-Token: …"
+                      focused={selectedField === "headers"}
+                      backgroundColor={theme.bg.input}
+                      textColor={theme.text.primary}
+                      cursorColor={theme.accent.primary}
+                      focusedBackgroundColor={theme.bg.elevated}
+                      placeholderColor={theme.text.dim}
+                    />
+                  </box>
+                </box>
+              </>
+            ) : null}
 
-        {mode === "curl" ? (
-          <box flexDirection="row" marginTop={1}>
-            <box width={18}>
-              <text
-                fg={
-                  selectedField === "curlSource"
-                    ? theme.accent.primary
-                    : theme.text.secondary
-                }
-              >
-                {selectedField === "curlSource"
-                  ? "> curl command"
-                  : "  curl command"}
-              </text>
-            </box>
-            <box flexGrow={1} minWidth={0}>
-              <input
-                value={curlSource}
-                width="100%"
-                onInput={setCurlSource}
-                placeholder="curl 'https://target/…' -H 'Authorization: …'"
-                focused={selectedField === "curlSource"}
-                backgroundColor={theme.bg.input}
-                textColor={theme.text.primary}
-                cursorColor={theme.accent.primary}
-                focusedBackgroundColor={theme.bg.elevated}
-                placeholderColor={theme.text.dim}
-              />
-            </box>
-          </box>
-        ) : null}
-
-        {mode === "har" ? (
-          <>
-            {harRequests.length === 0 ? (
+            {mode === "curl" ? (
               <box flexDirection="row" marginTop={1}>
                 <box width={18}>
                   <text
                     fg={
-                      selectedField === "harPath"
+                      selectedField === "curlSource"
                         ? theme.accent.primary
                         : theme.text.secondary
                     }
                   >
-                    {selectedField === "harPath" ? "> HAR file" : "  HAR file"}
+                    {selectedField === "curlSource"
+                      ? "> curl command"
+                      : "  curl command"}
                   </text>
                 </box>
                 <box flexGrow={1} minWidth={0}>
                   <input
-                    value={harPath}
+                    value={curlSource}
                     width="100%"
-                    onInput={setHarPath}
-                    placeholder="/path/to/session.har"
-                    focused={selectedField === "harPath"}
+                    onInput={setCurlSource}
+                    placeholder="curl 'https://target/…' -H 'Authorization: …'"
+                    focused={selectedField === "curlSource"}
                     backgroundColor={theme.bg.input}
                     textColor={theme.text.primary}
                     cursorColor={theme.accent.primary}
@@ -539,140 +531,178 @@ export function AuthenticationContextModal({
                   />
                 </box>
               </box>
-            ) : (
-              <box flexDirection="column" marginTop={1} height={8}>
-                <text fg={theme.text.secondary}>
-                  Same-origin requests ({harRequests.length})
-                </text>
-                <select
-                  options={harRequests.map((request) => ({
-                    name: `${request.method} ${request.path}`,
-                    description: `HAR request ${request.entryIndex + 1}`,
-                    value: request.entryIndex,
-                  }))}
-                  height={6}
-                  selectedIndex={selectedHarRequest}
-                  focused={selectedField === "harRequests"}
-                  showScrollIndicator
-                  onChange={(index) => setSelectedHarRequest(index)}
-                  onSelect={(index) => importHarRequest(index)}
-                />
-              </box>
-            )}
-          </>
-        ) : null}
+            ) : null}
 
-        <box flexDirection="column" marginTop={1}>
-          <text fg={theme.accent.primary}>
-            <strong>Redacted preview</strong>
-          </text>
-          <text fg={theme.text.secondary}>Cookies: {preview.cookiePreview}</text>
-          <text fg={theme.text.secondary}>
-            Headers:{" "}
-            {preview.headerPreview.length > 0
-              ? preview.headerPreview.join(" | ")
-              : "No headers"}
-          </text>
-        </box>
+            {mode === "har" ? (
+              <>
+                {harRequests.length === 0 ? (
+                  <box flexDirection="row" marginTop={1}>
+                    <box width={18}>
+                      <text
+                        fg={
+                          selectedField === "harPath"
+                            ? theme.accent.primary
+                            : theme.text.secondary
+                        }
+                      >
+                        {selectedField === "harPath" ? "> HAR file" : "  HAR file"}
+                      </text>
+                    </box>
+                    <box flexGrow={1} minWidth={0}>
+                      <input
+                        value={harPath}
+                        width="100%"
+                        onInput={setHarPath}
+                        placeholder="/path/to/session.har"
+                        focused={selectedField === "harPath"}
+                        backgroundColor={theme.bg.input}
+                        textColor={theme.text.primary}
+                        cursorColor={theme.accent.primary}
+                        focusedBackgroundColor={theme.bg.elevated}
+                        placeholderColor={theme.text.dim}
+                      />
+                    </box>
+                  </box>
+                ) : (
+                  <box flexDirection="column" marginTop={1} height={8}>
+                    <text fg={theme.text.secondary}>
+                      Same-origin requests ({harRequests.length})
+                    </text>
+                    <select
+                      options={harRequests.map((request) => ({
+                        name: `${request.method} ${request.path}`,
+                        description: `HAR request ${request.entryIndex + 1}`,
+                        value: request.entryIndex,
+                      }))}
+                      height={6}
+                      selectedIndex={selectedHarRequest}
+                      focused={selectedField === "harRequests"}
+                      showScrollIndicator
+                      onChange={(index) => setSelectedHarRequest(index)}
+                      onSelect={(index) => importHarRequest(index)}
+                    />
+                  </box>
+                )}
+              </>
+            ) : null}
 
-        <box flexDirection="column" marginTop={1}>
-          <text fg={theme.accent.secondary}>
-            <strong>Auth Check</strong>
-          </text>
-          <box flexDirection="row">
-            <box width={18}>
-              <text
-                fg={
-                  selectedField === "verification_url"
-                    ? theme.accent.primary
-                    : theme.text.secondary
-                }
-              >
-                {selectedField === "verification_url" ? "> Verify URL" : "  Verify URL"}
+            <box flexDirection="column" marginTop={1}>
+              <text fg={theme.accent.primary}>
+                <strong>Redacted preview</strong>
+              </text>
+              <text fg={theme.text.secondary}>Cookies: {preview.cookiePreview}</text>
+              <text fg={theme.text.secondary}>
+                Headers:{" "}
+                {preview.headerPreview.length > 0
+                  ? preview.headerPreview.join(" | ")
+                  : "No headers"}
               </text>
             </box>
-            <box flexGrow={1} minWidth={0}>
-              <input
-                value={verificationUrl}
-                width="100%"
-                onInput={setVerificationUrl}
-                focused={selectedField === "verification_url"}
-                backgroundColor={theme.bg.input}
-                textColor={theme.text.primary}
-                cursorColor={theme.accent.primary}
-                focusedBackgroundColor={theme.bg.elevated}
-                placeholderColor={theme.text.dim}
-              />
+
+            <box flexDirection="column" marginTop={1}>
+              <text fg={theme.accent.secondary}>
+                <strong>Auth Check</strong>
+              </text>
+              <box flexDirection="row">
+                <box width={18}>
+                  <text
+                    fg={
+                      selectedField === "verification_url"
+                        ? theme.accent.primary
+                        : theme.text.secondary
+                    }
+                  >
+                    {selectedField === "verification_url" ? "> Verify URL" : "  Verify URL"}
+                  </text>
+                </box>
+                <box flexGrow={1} minWidth={0}>
+                  <input
+                    value={verificationUrl}
+                    width="100%"
+                    onInput={setVerificationUrl}
+                    focused={selectedField === "verification_url"}
+                    backgroundColor={theme.bg.input}
+                    textColor={theme.text.primary}
+                    cursorColor={theme.accent.primary}
+                    focusedBackgroundColor={theme.bg.elevated}
+                    placeholderColor={theme.text.dim}
+                  />
+                </box>
+              </box>
+              <text fg={theme.text.dim}>
+                Ctrl+↑/↓ known route ({verificationUrlSuggestions.length} suggestions, root included)
+              </text>
+              <text fg={checkPresentation?.color ?? theme.text.muted}>
+                <strong>
+                  {isChecking
+                    ? "CHECKING…"
+                    : checkPresentation?.modalLabel ?? "SAVE CONTEXT FIRST"}
+                </strong>
+              </text>
+              {authCheck ? (
+                <>
+                  <text fg={theme.text.secondary}>{authCheck.summary}</text>
+                  <text fg={theme.text.dim}>{getSignalSummary(authCheck)}</text>
+                </>
+              ) : null}
             </box>
-          </box>
-          <text fg={theme.text.dim}>
-            Ctrl+↑/↓ known route ({verificationUrlSuggestions.length} suggestions, root included)
-          </text>
-          <text fg={checkPresentation?.color ?? theme.text.muted}>
-            <strong>
-              {isChecking
-                ? "CHECKING…"
-                : checkPresentation?.modalLabel ?? "SAVE CONTEXT FIRST"}
-            </strong>
-          </text>
-          {authCheck ? (
-            <>
-              <text fg={theme.text.secondary}>{authCheck.summary}</text>
-              <text fg={theme.text.dim}>{getSignalSummary(authCheck)}</text>
-            </>
-          ) : null}
-        </box>
 
-        {notice ? (
-          <text fg={theme.accent.info} marginTop={1}>
-            {notice}
-          </text>
-        ) : null}
-        {importError || error ? (
-          <text fg={theme.accent.critical} marginTop={1}>
-            {importError ?? error}
-          </text>
-        ) : null}
+            {notice ? (
+              <text fg={theme.accent.info} marginTop={1}>
+                {notice}
+              </text>
+            ) : null}
+            {importError || error ? (
+              <text fg={theme.accent.critical} marginTop={1}>
+                {importError ?? error}
+              </text>
+            ) : null}
 
-        <box
-          flexDirection="row"
-          marginTop={1}
-          border
-          borderColor={
-            selectedField === "actions" || selectedField === "import"
-              ? theme.accent.primary
-              : theme.border.muted
-          }
-          paddingLeft={1}
-          paddingRight={1}
-        >
-          <box flexGrow={1}>
-            <text fg={theme.text.primary}>
-              <strong>{isSaving ? "Saving…" : actionLabel}</strong>
+            <box
+              flexDirection="column"
+              marginTop={1}
+              border
+              borderColor={
+                selectedField === "actions" || selectedField === "import"
+                  ? theme.accent.primary
+                  : theme.border.muted
+              }
+              paddingLeft={1}
+              paddingRight={1}
+            >
+              <text fg={theme.text.primary}>
+                <strong>{isSaving ? "Saving…" : actionLabel}</strong>
+              </text>
+              <text>
+                <span
+                  fg={
+                    metadata ? theme.accent.secondary : theme.text.muted
+                  }
+                >
+                  Ctrl+K check
+                </span>
+                <span fg={theme.text.dim}> | </span>
+                <span
+                  fg={
+                    authCheck?.status === "inconclusive" &&
+                    !authCheck.isProceedAllowed
+                      ? theme.accent.warning
+                      : theme.text.muted
+                  }
+                >
+                  Ctrl+Y acknowledge
+                </span>
+                <span fg={theme.text.dim}> | Ctrl+D clear</span>
+              </text>
+            </box>
+
+            <text fg={theme.text.dim} marginTop={1}>
+              Imports ignore methods and bodies; saving requires confirmation.
+              Auth Check is heuristic only and does not establish authorization
+              scope. Secrets and response content stay out of metadata.
             </text>
           </box>
-          <text fg={metadata ? theme.accent.secondary : theme.text.muted}>
-            Ctrl+K check
-          </text>
-          <text fg={theme.text.dim}> | </text>
-          <text
-            fg={
-              authCheck?.status === "inconclusive" &&
-              !authCheck.isProceedAllowed
-                ? theme.accent.warning
-                : theme.text.muted
-            }
-          >
-            Ctrl+Y acknowledge
-          </text>
-          <text fg={theme.text.dim}> | Ctrl+D clear</text>
-        </box>
-
-        <text fg={theme.text.dim} marginTop={1}>
-          Imports ignore methods and bodies; saving requires confirmation. Auth
-          Check is heuristic only and does not establish authorization scope.
-          Secrets and response content stay out of metadata.
-        </text>
+        </scrollbox>
       </box>
     </box>
   );
