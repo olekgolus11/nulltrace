@@ -348,7 +348,11 @@ export function AuthenticationContextModal({
       return;
     }
     if (key.ctrl && key.name === "s") {
-      void save();
+      if (mode === "curl" || mode === "har") {
+        runImportAction();
+      } else {
+        void save();
+      }
       return;
     }
     if (key.ctrl && key.name === "d") {
@@ -378,12 +382,12 @@ export function AuthenticationContextModal({
       : mode === "review"
         ? "Ctrl+S confirm replace"
         : mode === "har" && harRequests.length > 0
-          ? "Enter import selected request"
+          ? "Ctrl+S import selected request"
           : mode === "har"
             ? isReadingHar
               ? "Reading HAR…"
-              : "Enter list HAR requests"
-            : "Enter parse curl";
+              : "Ctrl+S list HAR requests"
+            : "Ctrl+S parse curl";
 
   return (
     <box
