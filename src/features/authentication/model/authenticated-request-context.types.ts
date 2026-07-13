@@ -1,5 +1,38 @@
 export type AuthenticatedContextStorageMode = "secure" | "memory";
 
+export type AuthCheckStatus =
+  | "not_checked"
+  | "verified"
+  | "inconclusive"
+  | "failed";
+
+export interface AuthCheckSignalMetadata {
+  unauthenticatedStatus: number;
+  authenticatedStatus: number;
+  unauthenticatedRedirectCount: number;
+  authenticatedRedirectCount: number;
+  unauthenticatedContentType: string;
+  authenticatedContentType: string;
+  unauthenticatedHasLoginForm: boolean;
+  authenticatedHasLoginForm: boolean;
+  hasStatusChanged: boolean;
+  hasRedirectsChanged: boolean;
+  hasContentTypeChanged: boolean;
+  hasContentFingerprintChanged: boolean;
+  hasTitleChanged: boolean;
+  hasLoginFormChanged: boolean;
+}
+
+export interface AuthCheckMetadata {
+  status: AuthCheckStatus;
+  verificationUrl: string | null;
+  checkedAt: string | null;
+  acknowledgedAt: string | null;
+  isProceedAllowed: boolean;
+  summary: string;
+  signals: AuthCheckSignalMetadata | null;
+}
+
 export interface AuthenticatedRequestContextInput {
   origin: string;
   cookies: string;
@@ -19,6 +52,7 @@ export interface AuthenticatedRequestContextMetadata {
   headerNames: string[];
   storageMode: AuthenticatedContextStorageMode;
   updatedAt: string;
+  authCheck: AuthCheckMetadata;
 }
 
 export interface RedactedAuthenticatedRequestContextPreview {

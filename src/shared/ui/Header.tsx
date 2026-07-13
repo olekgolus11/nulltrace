@@ -2,6 +2,7 @@ import { theme } from "../../app/theme/theme.js";
 import { FindingCounts } from "../../features/finding/components/FindingCounts.js";
 import { FindingSummaryProps } from "../../features/finding/model/finding-summary.types.js";
 import { AuthenticatedRequestContextMetadata } from "../../features/authentication/model/authenticated-request-context.types.js";
+import { getAuthCheckPresentation } from "../../features/authentication/components/auth-check-presentation.js";
 
 interface HeaderProps {
   title?: string;
@@ -27,6 +28,10 @@ export function Header({
   counts = emptyCounts,
   authenticationContext,
 }: HeaderProps) {
+  const authenticationPosture = authenticationContext
+    ? getAuthCheckPresentation(authenticationContext.authCheck)
+    : null;
+
   return (
     <box
       height={3}
@@ -56,20 +61,11 @@ export function Header({
           )}
           <span fg={theme.text.dim}> | </span>
           <span fg={theme.text.primary}>Auth: </span>
-          <span
-            fg={
-              authenticationContext?.storageMode === "memory"
-                ? theme.accent.warning
-                : authenticationContext
-                  ? theme.accent.primary
-                  : theme.text.muted
-            }
-          >
-            {authenticationContext
-              ? authenticationContext.storageMode === "secure"
-                ? "active (secure)"
-                : "active (memory-only)"
-              : "none"}
+          <span fg={authenticationPosture?.color ?? theme.text.muted}>
+            {authenticationPosture?.headerLabel ?? "none"}
+            {authenticationContext?.storageMode === "memory"
+              ? " / memory-only"
+              : ""}
           </span>
         </text>
       </box>

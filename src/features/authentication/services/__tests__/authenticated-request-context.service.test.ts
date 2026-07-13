@@ -49,6 +49,15 @@ describe("AuthenticatedRequestContextService", () => {
       headerNames: ["Authorization", "X-CSRF-Token"],
       storageMode: "secure",
       updatedAt: expect.any(String),
+      authCheck: {
+        status: "not_checked",
+        verificationUrl: null,
+        checkedAt: null,
+        acknowledgedAt: null,
+        isProceedAllowed: false,
+        summary: "Authentication context has not been checked.",
+        signals: null,
+      },
     });
   });
 
