@@ -364,7 +364,7 @@ export function AuthenticationContextModal({
                 <input
                   value={cookies}
                   width="100%"
-                  onChange={setCookies}
+                  onInput={setCookies}
                   placeholder="session=…; csrf=…"
                   focused={selectedField === "cookies"}
                   backgroundColor={theme.bg.input}
@@ -392,7 +392,7 @@ export function AuthenticationContextModal({
                 <input
                   value={headers}
                   width="100%"
-                  onChange={setHeaders}
+                  onInput={setHeaders}
                   placeholder="Authorization: … | X-CSRF-Token: …"
                   focused={selectedField === "headers"}
                   backgroundColor={theme.bg.input}
@@ -425,7 +425,7 @@ export function AuthenticationContextModal({
               <input
                 value={curlSource}
                 width="100%"
-                onChange={setCurlSource}
+                onInput={setCurlSource}
                 placeholder="curl 'https://target/…' -H 'Authorization: …'"
                 focused={selectedField === "curlSource"}
                 backgroundColor={theme.bg.input}
@@ -457,7 +457,7 @@ export function AuthenticationContextModal({
                   <input
                     value={harPath}
                     width="100%"
-                    onChange={setHarPath}
+                    onInput={setHarPath}
                     placeholder="/path/to/session.har"
                     focused={selectedField === "harPath"}
                     backgroundColor={theme.bg.input}
