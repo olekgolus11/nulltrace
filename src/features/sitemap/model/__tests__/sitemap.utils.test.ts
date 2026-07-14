@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildTree, flattenTree } from "./sitemap.utils";
+import { buildTree, flattenTree } from "../sitemap.utils";
 
 describe("buildTree", () => {
   it("preserves entries that share a path but use different methods", () => {

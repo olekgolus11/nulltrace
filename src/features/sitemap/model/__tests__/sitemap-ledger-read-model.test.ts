@@ -3,7 +3,7 @@ import {
   createSitemapLedgerColumns,
   formatSitemapLedgerPath,
   getSitemapLedgerScopeLabel,
-} from "./sitemap-ledger-read-model";
+} from "../sitemap-ledger-read-model";
 
 describe("sitemap ledger read model", () => {
   it("keeps fixed columns while giving remaining width to routes", () => {

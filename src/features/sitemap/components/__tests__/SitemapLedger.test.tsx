@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { testRender } from "@opentui/react/test-utils";
 import { act } from "react";
-import { SitemapNode } from "../model/sitemap.types";
-import { SitemapLedger } from "./SitemapLedger";
+import { SitemapNode } from "../../model/sitemap.types";
+import { SitemapLedger } from "../SitemapLedger";
 
 let testSetup: Awaited<ReturnType<typeof testRender>> | null = null;
 

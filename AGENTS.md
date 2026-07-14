@@ -211,6 +211,7 @@ config/
 
 ## Testing Guidance
 
+- Always place test files inside a `__tests__/` directory near the code they cover. Never put `*.test.ts` or `*.test.tsx` files directly beside production files.
 - Do not add unit tests unless the user explicitly asks for them.
 - If a change needs verification, prefer `bunx tsc --noEmit` and manual app checks over test creation.
 - Existing `.test.ts` files may still be run if they help validate a change, but new routine coverage is not expected.

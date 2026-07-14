@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { TargetSitemapEntryRecord } from "./sitemap.types";
-import { filterTargetSitemapEntries } from "./sitemap-read-model";
+import { TargetSitemapEntryRecord } from "../sitemap.types";
+import { filterTargetSitemapEntries } from "../sitemap-read-model";
 
 function entry(
   id: string,

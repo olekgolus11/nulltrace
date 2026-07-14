@@ -2,8 +2,8 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { KeyEvent } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
 import { act } from "react";
-import { AuthenticationContextModal } from "./AuthenticationContextModal";
-import { AuthenticatedRequestContextInput } from "../model/authenticated-request-context.types";
+import { AuthenticationContextModal } from "../AuthenticationContextModal";
+import { AuthenticatedRequestContextInput } from "../../model/authenticated-request-context.types";
 
 let testSetup: Awaited<ReturnType<typeof testRender>> | null = null;
 
