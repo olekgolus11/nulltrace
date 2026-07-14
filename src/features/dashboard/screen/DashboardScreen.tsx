@@ -68,6 +68,7 @@ export function DashboardScreen({
   const { drafts, refreshDrafts } = useSessionActionDrafts(sessionId);
   const authenticationContext = useSessionAuthenticatedRequestContext(
     sessionId,
+    targetId,
     targetUrl,
   );
   const sessionChat = useSessionChat(sessionId, activeConversationId, {
@@ -77,7 +78,7 @@ export function DashboardScreen({
     },
   });
   const sessionFindings = useSessionFindings(sessionId);
-  const targetSitemap = useTargetSitemap(targetId);
+  const targetSitemap = useTargetSitemap(targetId, sessionId);
   const verificationUrlSuggestions = createAuthCheckUrlSuggestions(
     targetUrl,
     targetSitemap.entries
@@ -99,8 +100,9 @@ export function DashboardScreen({
   } = useDashboardShortcuts({
     onBack,
     onSelectTool,
-    sitemapCount: targetSitemap.flatNodes.length,
+    sitemapCount: targetSitemap.entryNodes.length,
     onCycleSitemapDepth: targetSitemap.cycleMaxDepth,
+    onCycleSitemapProvenance: targetSitemap.cycleProvenance,
     findings: sessionFindings.findings,
     onSetFindingReviewStatus: sessionFindings.setReviewStatus,
     conversations,
@@ -146,7 +148,9 @@ export function DashboardScreen({
           sitemapEntryCount={targetSitemap.entries.length}
           visibleSitemapEntryCount={targetSitemap.visibleEntries.length}
           sitemapMaxDepth={targetSitemap.maxDepth}
+          sitemapProvenanceFilter={targetSitemap.provenanceFilter}
           sitemapStatus={targetSitemap.status}
+          authenticatedSitemapStatus={targetSitemap.authenticatedStatus}
           findings={sessionFindings.findings}
           sitemapScrollRef={sitemapScrollRef}
           findingsScrollRef={findingsScrollRef}
@@ -209,6 +213,7 @@ export function DashboardScreen({
                     ? [
                         { key: "Up/Down", label: "navigate" },
                         { key: "Left/Right", label: "depth" },
+                        { key: "P/Shift+P", label: "provenance" },
                       ]
                     : [{ key: "Enter", label: "select" }]),
                 { key: "ESC", label: "back" },

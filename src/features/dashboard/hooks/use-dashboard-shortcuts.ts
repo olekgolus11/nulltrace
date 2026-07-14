@@ -35,6 +35,7 @@ interface UseDashboardShortcutsProps {
   onSelectTool: (toolName: ToolName) => void;
   sitemapCount: number;
   onCycleSitemapDepth: (direction: -1 | 1) => void;
+  onCycleSitemapProvenance: (direction: -1 | 1) => void;
   findings: SessionFindingRecord[];
   onSetFindingReviewStatus: (
     findingId: string,
@@ -157,6 +158,7 @@ export function useDashboardShortcuts({
   onSelectTool,
   sitemapCount,
   onCycleSitemapDepth,
+  onCycleSitemapProvenance,
   findings,
   onSetFindingReviewStatus,
   conversations,
@@ -307,6 +309,11 @@ export function useDashboardShortcuts({
         break;
 
       case "sitemap":
+        if (key.name === "p") {
+          onCycleSitemapProvenance(key.shift ? -1 : 1);
+          sitemapScrollRef.current?.scrollTo(0);
+          return;
+        }
         if (key.name === "left" || key.name === "right") {
           onCycleSitemapDepth(key.name === "left" ? -1 : 1);
           sitemapScrollRef.current?.scrollTo(0);

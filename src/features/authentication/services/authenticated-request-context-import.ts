@@ -24,6 +24,11 @@ export interface HarAuthenticationRequestSelection {
   path: string;
 }
 
+export interface HarAuthenticationContextImport {
+  context: AuthenticatedRequestContextInput;
+  verificationUrl: string;
+}
+
 const excludedHeaderNames = [
   "connection",
   "content-length",
@@ -343,11 +348,11 @@ export function listHarAuthenticationRequests(
   return selections;
 }
 
-export function parseHarAuthenticationContext(
+export function parseHarAuthenticationContextImport(
   input: string,
   targetUrl: string,
   entryIndex: number,
-): AuthenticatedRequestContextInput {
+): HarAuthenticationContextImport {
   const targetOrigin = normalizeExactOrigin(targetUrl);
   const request = parseHarRequests(input)[entryIndex];
   if (!request) {
@@ -370,19 +375,36 @@ export function parseHarAuthenticationContext(
       "The selected HAR request does not contain supported authentication material.",
     );
   }
+  requestUrl.hash = "";
   return {
-    origin: targetOrigin,
-    cookies,
-    headers: supportedHeaders
-      .map(({ name, value }) => `${name}: ${value}`)
-      .join(" | "),
+    context: {
+      origin: targetOrigin,
+      cookies,
+      headers: supportedHeaders
+        .map(({ name, value }) => `${name}: ${value}`)
+        .join(" | "),
+    },
+    verificationUrl: requestUrl.toString(),
   };
 }
 
-export function parseCurlAuthenticationContext(
+export function parseHarAuthenticationContext(
   input: string,
   targetUrl: string,
+  entryIndex: number,
 ): AuthenticatedRequestContextInput {
+  return parseHarAuthenticationContextImport(input, targetUrl, entryIndex).context;
+}
+
+export interface CurlAuthenticationContextImport {
+  context: AuthenticatedRequestContextInput;
+  verificationUrl: string;
+}
+
+export function parseCurlAuthenticationContextImport(
+  input: string,
+  targetUrl: string,
+): CurlAuthenticationContextImport {
   const tokens = tokenizeCurlCommand(input);
   if (!["curl", "curl.exe"].includes(tokens[0]?.toLowerCase() ?? "")) {
     throw new Error("Unsupported curl input. Paste a complete curl command.");
@@ -477,8 +499,11 @@ export function parseCurlAuthenticationContext(
 
   const targetOrigin = normalizeExactOrigin(targetUrl);
   let requestOrigin: string | null = null;
+  let verificationUrl: URL | null = null;
   if (requestUrl) {
     try {
+      verificationUrl = new URL(requestUrl);
+      verificationUrl.hash = "";
       requestOrigin = normalizeExactOrigin(requestUrl);
     } catch {
       throw new Error(
@@ -486,7 +511,7 @@ export function parseCurlAuthenticationContext(
       );
     }
   }
-  if (!requestOrigin || requestOrigin !== targetOrigin) {
+  if (!requestOrigin || !verificationUrl || requestOrigin !== targetOrigin) {
     throw new Error("The curl request must use the session target's exact origin.");
   }
   if (cookies.length === 0 && headers.length === 0) {
@@ -494,8 +519,20 @@ export function parseCurlAuthenticationContext(
   }
 
   return {
-    origin: targetOrigin,
-    cookies: joinCookies(cookies),
-    headers: headers.map(({ name, value }) => `${name}: ${value}`).join(" | "),
+    context: {
+      origin: targetOrigin,
+      cookies: joinCookies(cookies),
+      headers: headers
+        .map(({ name, value }) => `${name}: ${value}`)
+        .join(" | "),
+    },
+    verificationUrl: verificationUrl.toString(),
   };
+}
+
+export function parseCurlAuthenticationContext(
+  input: string,
+  targetUrl: string,
+): AuthenticatedRequestContextInput {
+  return parseCurlAuthenticationContextImport(input, targetUrl).context;
 }

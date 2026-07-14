@@ -114,6 +114,15 @@ function createTargetSitemapTables() {
     );
   `);
 
+  const entryColumns = sessionDatabase
+    .query<{ name: string }, []>("PRAGMA table_info(target_sitemap_entries)")
+    .all();
+  if (!entryColumns.some((column) => column.name === "provenance")) {
+    sessionDatabase.exec(
+      "ALTER TABLE target_sitemap_entries ADD COLUMN provenance TEXT NOT NULL DEFAULT 'public'",
+    );
+  }
+
   sessionDatabase.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_target_sitemap_entries_target_url_method
       ON target_sitemap_entries(target_id, normalized_url, method)
@@ -134,6 +143,36 @@ function createTargetSitemapTables() {
       failed_at TEXT,
       error_message TEXT,
       updated_at TEXT NOT NULL,
+      FOREIGN KEY (target_id) REFERENCES targets(id) ON DELETE CASCADE
+    );
+  `);
+
+  sessionDatabase.exec(`
+    CREATE TABLE IF NOT EXISTS authenticated_sitemap_access_observations (
+      session_id TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      entry_id TEXT NOT NULL,
+      http_status INTEGER NOT NULL,
+      observed_at TEXT NOT NULL,
+      PRIMARY KEY (session_id, entry_id),
+      FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+      FOREIGN KEY (target_id) REFERENCES targets(id) ON DELETE CASCADE,
+      FOREIGN KEY (entry_id) REFERENCES target_sitemap_entries(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_authenticated_sitemap_access_session
+      ON authenticated_sitemap_access_observations(session_id, observed_at);
+
+    CREATE TABLE IF NOT EXISTS authenticated_sitemap_crawl_statuses (
+      session_id TEXT PRIMARY KEY,
+      target_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      started_at TEXT,
+      completed_at TEXT,
+      paused_at TEXT,
+      failed_at TEXT,
+      error_message TEXT,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
       FOREIGN KEY (target_id) REFERENCES targets(id) ON DELETE CASCADE
     );
   `);

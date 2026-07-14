@@ -1,8 +1,13 @@
 import { Database } from "bun:sqlite";
 import { sessionDatabase } from "../../session/services/session-database";
 import {
+  AuthenticatedSitemapAccessObservationInput,
+  AuthenticatedSitemapAccessObservationRecord,
+  AuthenticatedSitemapCrawlStatus,
+  AuthenticatedSitemapCrawlStatusRecord,
   TargetSitemapCrawlStatus,
   TargetSitemapCrawlStatusRecord,
+  TargetSitemapDiscoveryProvenance,
   TargetSitemapEntryListFilters,
   TargetSitemapEntryListResult,
   TargetSitemapEntryRecord,
@@ -18,6 +23,7 @@ interface TargetSitemapEntryRow {
   method: string | null;
   httpStatus: number | null;
   source: string;
+  provenance: string;
   depth: number;
   firstSeenAt: string;
   lastSeenAt: string;
@@ -29,6 +35,26 @@ interface TargetSitemapCrawlStatusRow {
   status: string;
   startedAt: string | null;
   completedAt: string | null;
+  failedAt: string | null;
+  errorMessage: string | null;
+  updatedAt: string;
+}
+
+interface AuthenticatedSitemapAccessObservationRow {
+  sessionId: string;
+  targetId: string;
+  entryId: string;
+  httpStatus: number;
+  observedAt: string;
+}
+
+interface AuthenticatedSitemapCrawlStatusRow {
+  sessionId: string;
+  targetId: string;
+  status: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  pausedAt: string | null;
   failedAt: string | null;
   errorMessage: string | null;
   updatedAt: string;
@@ -48,6 +74,20 @@ const entrySources: TargetSitemapEntrySource[] = [
   "sitemap_xml",
   "robots_sitemap",
   "manual",
+];
+
+const discoveryProvenances: TargetSitemapDiscoveryProvenance[] = [
+  "public",
+  "authenticated",
+  "both",
+];
+
+const authenticatedCrawlStatuses: AuthenticatedSitemapCrawlStatus[] = [
+  "idle",
+  "running",
+  "completed",
+  "authentication_required",
+  "failed",
 ];
 
 function createTimestamp() {
@@ -98,6 +138,19 @@ function normalizeCrawlStatus(value: string): TargetSitemapCrawlStatus {
   return "idle";
 }
 
+function normalizeProvenance(value: string): TargetSitemapDiscoveryProvenance {
+  return discoveryProvenances.includes(value as TargetSitemapDiscoveryProvenance)
+    ? (value as TargetSitemapDiscoveryProvenance)
+    : "public";
+}
+
+function mergeProvenance(
+  existing: TargetSitemapDiscoveryProvenance,
+  incoming: Exclude<TargetSitemapDiscoveryProvenance, "both">,
+): TargetSitemapDiscoveryProvenance {
+  return existing === incoming ? existing : "both";
+}
+
 function mapEntryRow(row: TargetSitemapEntryRow): TargetSitemapEntryRecord {
   return {
     id: row.id,
@@ -107,6 +160,7 @@ function mapEntryRow(row: TargetSitemapEntryRow): TargetSitemapEntryRecord {
     method: row.method,
     httpStatus: row.httpStatus,
     source: normalizeEntrySource(row.source),
+    provenance: normalizeProvenance(row.provenance),
     depth: row.depth,
     firstSeenAt: row.firstSeenAt,
     lastSeenAt: row.lastSeenAt,
@@ -161,6 +215,7 @@ export class SitemapRepository {
         method,
         httpStatus: input.httpStatus ?? null,
         source: input.source,
+        provenance: input.provenance ?? "public",
         depth: input.depth,
         firstSeenAt: timestamp,
         lastSeenAt: timestamp,
@@ -177,11 +232,12 @@ export class SitemapRepository {
             method,
             http_status,
             source,
+            provenance,
             depth,
             first_seen_at,
             last_seen_at,
             created_at
-          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`,
+          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`,
         )
         .run(
           record.id,
@@ -191,6 +247,7 @@ export class SitemapRepository {
           record.method,
           record.httpStatus,
           record.source,
+          record.provenance,
           record.depth,
           record.firstSeenAt,
           record.lastSeenAt,
@@ -202,6 +259,10 @@ export class SitemapRepository {
 
     const nextDepth = Math.min(existing.depth, input.depth);
     const nextHttpStatus = input.httpStatus ?? existing.httpStatus;
+    const nextProvenance = mergeProvenance(
+      existing.provenance,
+      input.provenance ?? "public",
+    );
 
     this.database
       .query(
@@ -209,8 +270,9 @@ export class SitemapRepository {
          SET path = ?2,
              http_status = ?3,
              source = ?4,
-             depth = ?5,
-             last_seen_at = ?6
+             provenance = ?5,
+             depth = ?6,
+             last_seen_at = ?7
          WHERE id = ?1`,
       )
       .run(
@@ -218,6 +280,7 @@ export class SitemapRepository {
         input.path,
         nextHttpStatus,
         input.source,
+        nextProvenance,
         nextDepth,
         timestamp,
       );
@@ -227,6 +290,7 @@ export class SitemapRepository {
       path: input.path,
       httpStatus: nextHttpStatus,
       source: input.source,
+      provenance: nextProvenance,
       depth: nextDepth,
       lastSeenAt: timestamp,
     };
@@ -268,6 +332,11 @@ export class SitemapRepository {
       clauses.push(`source = ?${params.length}`);
     }
 
+    if (filters.provenance) {
+      params.push(filters.provenance);
+      clauses.push(`provenance = ?${params.length}`);
+    }
+
     const whereClause = clauses.join(" AND ");
     const total = this.database
       .query<{ count: number }, Array<string | number>>(
@@ -287,6 +356,7 @@ export class SitemapRepository {
           method,
           http_status AS httpStatus,
           source,
+          provenance,
           depth,
           first_seen_at AS firstSeenAt,
           last_seen_at AS lastSeenAt,
@@ -338,6 +408,7 @@ export class SitemapRepository {
           method,
           http_status AS httpStatus,
           source,
+          provenance,
           depth,
           first_seen_at AS firstSeenAt,
           last_seen_at AS lastSeenAt,
@@ -429,6 +500,162 @@ export class SitemapRepository {
     return this.getCrawlStatus(targetId);
   }
 
+  upsertAccessObservation(input: AuthenticatedSitemapAccessObservationInput) {
+    const observedAt = createTimestamp();
+    this.database
+      .query(
+        `INSERT INTO authenticated_sitemap_access_observations (
+          session_id, target_id, entry_id, http_status, observed_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5)
+        ON CONFLICT(session_id, entry_id) DO UPDATE SET
+          http_status = excluded.http_status,
+          observed_at = excluded.observed_at`,
+      )
+      .run(
+        input.sessionId,
+        input.targetId,
+        input.entryId,
+        input.httpStatus,
+        observedAt,
+      );
+    return { ...input, observedAt };
+  }
+
+  listAccessObservations(
+    sessionId: string,
+  ): AuthenticatedSitemapAccessObservationRecord[] {
+    return this.database
+      .query<AuthenticatedSitemapAccessObservationRow, [string]>(
+        `SELECT session_id AS sessionId, target_id AS targetId,
+          entry_id AS entryId, http_status AS httpStatus,
+          observed_at AS observedAt
+         FROM authenticated_sitemap_access_observations
+         WHERE session_id = ?1
+         ORDER BY observed_at ASC`,
+      )
+      .all(sessionId);
+  }
+
+  getAuthenticatedCrawlStatus(sessionId: string, targetId: string) {
+    const row = this.database
+      .query<AuthenticatedSitemapCrawlStatusRow, [string]>(
+        `SELECT session_id AS sessionId, target_id AS targetId, status,
+          started_at AS startedAt, completed_at AS completedAt,
+          paused_at AS pausedAt, failed_at AS failedAt,
+          error_message AS errorMessage, updated_at AS updatedAt
+         FROM authenticated_sitemap_crawl_statuses
+         WHERE session_id = ?1`,
+      )
+      .get(sessionId);
+    if (!row) {
+      return {
+        sessionId,
+        targetId,
+        status: "idle",
+        startedAt: null,
+        completedAt: null,
+        pausedAt: null,
+        failedAt: null,
+        errorMessage: null,
+        updatedAt: null,
+      } satisfies AuthenticatedSitemapCrawlStatusRecord;
+    }
+    return {
+      ...row,
+      status: authenticatedCrawlStatuses.includes(
+        row.status as AuthenticatedSitemapCrawlStatus,
+      )
+        ? (row.status as AuthenticatedSitemapCrawlStatus)
+        : "idle",
+    };
+  }
+
+  markAuthenticatedCrawlRunning(sessionId: string, targetId: string) {
+    return this.writeAuthenticatedCrawlStatus(
+      sessionId,
+      targetId,
+      "running",
+      null,
+    );
+  }
+
+  markAuthenticatedCrawlCompleted(sessionId: string, targetId: string) {
+    return this.writeAuthenticatedCrawlStatus(
+      sessionId,
+      targetId,
+      "completed",
+      null,
+    );
+  }
+
+  markAuthenticatedCrawlAuthenticationRequired(
+    sessionId: string,
+    targetId: string,
+    errorMessage: string,
+  ) {
+    return this.writeAuthenticatedCrawlStatus(
+      sessionId,
+      targetId,
+      "authentication_required",
+      errorMessage,
+    );
+  }
+
+  markAuthenticatedCrawlFailed(
+    sessionId: string,
+    targetId: string,
+    errorMessage: string,
+  ) {
+    return this.writeAuthenticatedCrawlStatus(
+      sessionId,
+      targetId,
+      "failed",
+      errorMessage,
+    );
+  }
+
+  private writeAuthenticatedCrawlStatus(
+    sessionId: string,
+    targetId: string,
+    status: Exclude<AuthenticatedSitemapCrawlStatus, "idle">,
+    errorMessage: string | null,
+  ) {
+    const timestamp = createTimestamp();
+    const completedAt = status === "completed" ? timestamp : null;
+    const pausedAt = status === "authentication_required" ? timestamp : null;
+    const failedAt = status === "failed" ? timestamp : null;
+    this.database
+      .query(
+        `INSERT INTO authenticated_sitemap_crawl_statuses (
+          session_id, target_id, status, started_at, completed_at,
+          paused_at, failed_at, error_message, updated_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?4)
+        ON CONFLICT(session_id) DO UPDATE SET
+          target_id = excluded.target_id,
+          status = excluded.status,
+          started_at = CASE
+            WHEN excluded.status = 'running' THEN excluded.started_at
+            ELSE started_at
+          END,
+          completed_at = excluded.completed_at,
+          paused_at = excluded.paused_at,
+          failed_at = excluded.failed_at,
+          error_message = excluded.error_message,
+          updated_at = excluded.updated_at`,
+      )
+      .run(
+        sessionId,
+        targetId,
+        status,
+        timestamp,
+        completedAt,
+        pausedAt,
+        failedAt,
+        errorMessage,
+      );
+    return this.getAuthenticatedCrawlStatus(sessionId, targetId);
+  }
+
   private findEntryByNormalizedUrl(
     targetId: string,
     normalizedUrl: string,
@@ -444,6 +671,7 @@ export class SitemapRepository {
           method,
           http_status AS httpStatus,
           source,
+          provenance,
           depth,
           first_seen_at AS firstSeenAt,
           last_seen_at AS lastSeenAt,

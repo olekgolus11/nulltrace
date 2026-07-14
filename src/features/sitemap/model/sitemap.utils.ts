@@ -2,9 +2,14 @@ import { theme } from "../../../app/theme/theme";
 import { SitemapNode } from "./sitemap.types";
 
 interface FlatSitemapItem {
+  entryId?: string;
   path: string;
   status: number;
   method?: string;
+  normalizedUrl?: string;
+  provenance?: SitemapNode["provenance"];
+  source?: SitemapNode["source"];
+  accessObservation?: SitemapNode["accessObservation"];
 }
 
 function createNodeId(path: string, method?: string) {
@@ -38,9 +43,14 @@ export function buildTree(items: FlatSitemapItem[]): SitemapNode[] {
       if (!child) {
         child = {
           id: createNodeId(builtPath, nodeMethod),
+          entryId: isLeaf ? item.entryId : undefined,
           path: builtPath,
           status: isLeaf ? item.status : 0,
           method: nodeMethod,
+          normalizedUrl: isLeaf ? item.normalizedUrl : undefined,
+          provenance: isLeaf ? item.provenance : undefined,
+          source: isLeaf ? item.source : undefined,
+          accessObservation: isLeaf ? item.accessObservation : undefined,
           children: [],
         };
         if (!current.children) current.children = [];
@@ -51,6 +61,11 @@ export function buildTree(items: FlatSitemapItem[]): SitemapNode[] {
       if (isLeaf) {
         child.status = item.status;
         child.method = item.method;
+        child.entryId = item.entryId;
+        child.normalizedUrl = item.normalizedUrl;
+        child.provenance = item.provenance;
+        child.source = item.source;
+        child.accessObservation = item.accessObservation;
       }
 
       current = child;
@@ -62,9 +77,14 @@ export function buildTree(items: FlatSitemapItem[]): SitemapNode[] {
   if (rootItems.length > 0) {
     return rootItems.map((item, index) => ({
       id: createNodeId(item.path, item.method),
+      entryId: item.entryId,
       path: item.path,
       status: item.status,
       method: item.method,
+      normalizedUrl: item.normalizedUrl,
+      provenance: item.provenance,
+      source: item.source,
+      accessObservation: item.accessObservation,
       children: index === 0 ? root.children : [],
     }));
   }

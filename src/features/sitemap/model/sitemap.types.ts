@@ -1,10 +1,24 @@
 export interface SitemapNode {
   id: string;
+  entryId?: string;
   path: string;
   status: number;
   method?: string;
+  normalizedUrl?: string;
+  provenance?: TargetSitemapDiscoveryProvenance;
+  source?: TargetSitemapEntrySource;
+  accessObservation?: AuthenticatedSitemapAccessObservationRecord;
   children?: SitemapNode[];
 }
+
+export type TargetSitemapDiscoveryProvenance =
+  | "public"
+  | "authenticated"
+  | "both";
+
+export type TargetSitemapProvenanceFilter =
+  | "all"
+  | TargetSitemapDiscoveryProvenance;
 
 export type TargetSitemapCrawlStatus =
   | "idle"
@@ -28,6 +42,7 @@ export interface TargetSitemapEntryRecord {
   method: string | null;
   httpStatus: number | null;
   source: TargetSitemapEntrySource;
+  provenance: TargetSitemapDiscoveryProvenance;
   depth: number;
   firstSeenAt: string;
   lastSeenAt: string;
@@ -41,6 +56,7 @@ export interface UpsertTargetSitemapEntryInput {
   method?: string | null;
   httpStatus?: number | null;
   source: TargetSitemapEntrySource;
+  provenance?: Exclude<TargetSitemapDiscoveryProvenance, "both">;
   depth: number;
 }
 
@@ -54,6 +70,7 @@ export interface TargetSitemapEntryListFilters {
   method?: string;
   httpStatus?: number;
   source?: TargetSitemapEntrySource;
+  provenance?: TargetSitemapDiscoveryProvenance;
 }
 
 export interface TargetSitemapEntryListResult {
@@ -71,4 +88,35 @@ export interface TargetSitemapCrawlStatusRecord {
   failedAt: string | null;
   errorMessage: string | null;
   updatedAt: string | null;
+}
+
+export type AuthenticatedSitemapCrawlStatus =
+  | "idle"
+  | "running"
+  | "completed"
+  | "authentication_required"
+  | "failed";
+
+export interface AuthenticatedSitemapCrawlStatusRecord {
+  sessionId: string;
+  targetId: string;
+  status: AuthenticatedSitemapCrawlStatus;
+  startedAt: string | null;
+  completedAt: string | null;
+  pausedAt: string | null;
+  failedAt: string | null;
+  errorMessage: string | null;
+  updatedAt: string | null;
+}
+
+export interface AuthenticatedSitemapAccessObservationInput {
+  sessionId: string;
+  targetId: string;
+  entryId: string;
+  httpStatus: number;
+}
+
+export interface AuthenticatedSitemapAccessObservationRecord
+  extends AuthenticatedSitemapAccessObservationInput {
+  observedAt: string;
 }
