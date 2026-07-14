@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildTree, flattenTree } from "../model/sitemap.utils";
-import { filterTargetSitemapEntries } from "../model/sitemap-read-model";
+import {
+  filterTargetSitemapEntries,
+  getTargetSitemapEntryDisplayStatus,
+} from "../model/sitemap-read-model";
 import {
   AuthenticatedSitemapAccessObservationRecord,
   AuthenticatedSitemapCrawlStatusRecord,
@@ -106,16 +109,22 @@ export function useTargetSitemap(
   const nodes = useMemo(
     () =>
       buildTree(
-        visibleEntries.map((entry) => ({
-          path: entry.path,
-          status: entry.httpStatus ?? 0,
-          method: entry.method ?? undefined,
-          entryId: entry.id,
-          normalizedUrl: entry.normalizedUrl,
-          provenance: entry.provenance,
-          source: entry.source,
-          accessObservation: observationByEntryId.get(entry.id),
-        })),
+        visibleEntries.map((entry) => {
+          const accessObservation = observationByEntryId.get(entry.id);
+          return {
+            path: entry.path,
+            status: getTargetSitemapEntryDisplayStatus(
+              entry,
+              accessObservation,
+            ),
+            method: entry.method ?? undefined,
+            entryId: entry.id,
+            normalizedUrl: entry.normalizedUrl,
+            provenance: entry.provenance,
+            source: entry.source,
+            accessObservation,
+          };
+        }),
       ),
     [observationByEntryId, visibleEntries],
   );

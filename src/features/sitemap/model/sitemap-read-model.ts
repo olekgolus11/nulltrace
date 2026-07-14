@@ -1,7 +1,15 @@
 import {
+  AuthenticatedSitemapAccessObservationRecord,
   TargetSitemapEntryRecord,
   TargetSitemapProvenanceFilter,
 } from "./sitemap.types";
+
+export function getTargetSitemapEntryDisplayStatus(
+  entry: TargetSitemapEntryRecord,
+  accessObservation?: AuthenticatedSitemapAccessObservationRecord,
+) {
+  return entry.httpStatus ?? accessObservation?.httpStatus ?? 0;
+}
 
 export function filterTargetSitemapEntries(
   entries: TargetSitemapEntryRecord[],

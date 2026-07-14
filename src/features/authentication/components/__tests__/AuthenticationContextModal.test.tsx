@@ -6,6 +6,7 @@ import { AuthenticationContextModal } from "../AuthenticationContextModal";
 import { AuthenticatedRequestContextInput } from "../../model/authenticated-request-context.types";
 
 let testSetup: Awaited<ReturnType<typeof testRender>> | null = null;
+const temporaryFiles: string[] = [];
 
 function renderModal(
   width: number,
@@ -61,6 +62,7 @@ afterEach(async () => {
   await act(async () => {
     testSetup?.renderer.destroy();
   });
+  await Promise.all(temporaryFiles.splice(0).map((path) => Bun.file(path).delete()));
   testSetup = null;
 });
 
@@ -152,5 +154,65 @@ describe("AuthenticationContextModal layout", () => {
       await Promise.resolve();
     });
     expect(checkedUrl).toBe("http://localhost:4280/account");
+  });
+
+  test("uses the selected HAR request URL for verification", async () => {
+    const harPath = `/tmp/nulltrace-auth-modal-${crypto.randomUUID()}.har`;
+    temporaryFiles.push(harPath);
+    await Bun.write(
+      harPath,
+      JSON.stringify({
+        log: {
+          entries: [
+            {
+              request: {
+                method: "GET",
+                url: "http://localhost:4280/account?view=summary",
+                headers: [
+                  { name: "Authorization", value: "Bearer secret" },
+                ],
+                cookies: [],
+              },
+            },
+          ],
+        },
+      }),
+    );
+    let checkedUrl = "";
+    testSetup = await renderModal(92, {
+      onRunAuthCheck: async (verificationUrl) => {
+        checkedUrl = verificationUrl;
+        return true;
+      },
+    });
+    await testSetup.renderOnce();
+
+    await act(async () => {
+      testSetup!.mockInput.pressKey("r", { ctrl: true });
+    });
+    await testSetup.renderOnce();
+    await act(async () => {
+      await testSetup!.mockInput.typeText(harPath);
+    });
+    await testSetup.renderOnce();
+    await act(async () => {
+      testSetup!.mockInput.pressKey("s", { ctrl: true });
+      await Bun.sleep(10);
+    });
+    await testSetup.renderOnce();
+    await act(async () => {
+      testSetup!.mockInput.pressKey("s", { ctrl: true });
+    });
+    await testSetup.renderOnce();
+
+    expect(testSetup.captureCharFrame()).toContain(
+      "http://localhost:4280/account?view=summary",
+    );
+
+    await act(async () => {
+      testSetup!.mockInput.pressKey("k", { ctrl: true });
+      await Promise.resolve();
+    });
+    expect(checkedUrl).toBe("http://localhost:4280/account?view=summary");
   });
 });

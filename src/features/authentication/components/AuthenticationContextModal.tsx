@@ -11,7 +11,7 @@ import {
   HarAuthenticationRequestSelection,
   listHarAuthenticationRequests,
   parseCurlAuthenticationContextImport,
-  parseHarAuthenticationContext,
+  parseHarAuthenticationContextImport,
 } from "../services/authenticated-request-context-import";
 import { createRedactedAuthenticatedRequestContextPreview } from "../services/authenticated-request-context-redaction";
 import { getAuthCheckPresentation } from "./auth-check-presentation";
@@ -246,13 +246,15 @@ export function AuthenticationContextModal({
       return;
     }
     try {
+      const imported = parseHarAuthenticationContextImport(
+        harData,
+        targetUrl,
+        selection.entryIndex,
+      );
       prepareImportedContext(
-        parseHarAuthenticationContext(
-          harData,
-          targetUrl,
-          selection.entryIndex,
-        ),
+        imported.context,
         "HAR",
+        imported.verificationUrl,
       );
     } catch (nextError) {
       setImportError(getImportError(nextError));

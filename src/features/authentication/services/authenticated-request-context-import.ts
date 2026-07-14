@@ -24,6 +24,11 @@ export interface HarAuthenticationRequestSelection {
   path: string;
 }
 
+export interface HarAuthenticationContextImport {
+  context: AuthenticatedRequestContextInput;
+  verificationUrl: string;
+}
+
 const excludedHeaderNames = [
   "connection",
   "content-length",
@@ -343,11 +348,11 @@ export function listHarAuthenticationRequests(
   return selections;
 }
 
-export function parseHarAuthenticationContext(
+export function parseHarAuthenticationContextImport(
   input: string,
   targetUrl: string,
   entryIndex: number,
-): AuthenticatedRequestContextInput {
+): HarAuthenticationContextImport {
   const targetOrigin = normalizeExactOrigin(targetUrl);
   const request = parseHarRequests(input)[entryIndex];
   if (!request) {
@@ -370,13 +375,25 @@ export function parseHarAuthenticationContext(
       "The selected HAR request does not contain supported authentication material.",
     );
   }
+  requestUrl.hash = "";
   return {
-    origin: targetOrigin,
-    cookies,
-    headers: supportedHeaders
-      .map(({ name, value }) => `${name}: ${value}`)
-      .join(" | "),
+    context: {
+      origin: targetOrigin,
+      cookies,
+      headers: supportedHeaders
+        .map(({ name, value }) => `${name}: ${value}`)
+        .join(" | "),
+    },
+    verificationUrl: requestUrl.toString(),
   };
+}
+
+export function parseHarAuthenticationContext(
+  input: string,
+  targetUrl: string,
+  entryIndex: number,
+): AuthenticatedRequestContextInput {
+  return parseHarAuthenticationContextImport(input, targetUrl, entryIndex).context;
 }
 
 export interface CurlAuthenticationContextImport {

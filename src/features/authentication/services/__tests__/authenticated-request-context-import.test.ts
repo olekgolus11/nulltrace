@@ -3,6 +3,7 @@ import {
   listHarAuthenticationRequests,
   parseCurlAuthenticationContext,
   parseHarAuthenticationContext,
+  parseHarAuthenticationContextImport,
 } from "../authenticated-request-context-import";
 import { createRedactedAuthenticatedRequestContextPreview } from "../authenticated-request-context-redaction";
 
@@ -209,6 +210,16 @@ describe("HAR authentication context import", () => {
     ]);
     expect(JSON.stringify(preview)).not.toContain("har-secret");
     expect(JSON.stringify(preview)).not.toContain("cookie-secret");
+  });
+
+  test("returns the selected same-origin request URL for verification", () => {
+    expect(
+      parseHarAuthenticationContextImport(
+        harWithMixedOrigins,
+        "https://app.example.test",
+        0,
+      ).verificationUrl,
+    ).toBe("https://app.example.test/account?token=query-secret");
   });
 
   test("rejects cross-origin choices and malformed input without echoing secrets", () => {

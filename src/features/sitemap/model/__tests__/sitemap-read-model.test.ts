@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { TargetSitemapEntryRecord } from "../sitemap.types";
-import { filterTargetSitemapEntries } from "../sitemap-read-model";
+import {
+  filterTargetSitemapEntries,
+  getTargetSitemapEntryDisplayStatus,
+} from "../sitemap-read-model";
 
 function entry(
   id: string,
@@ -38,5 +41,32 @@ describe("filterTargetSitemapEntries", () => {
       .toEqual(["both"]);
     expect(filterTargetSitemapEntries(entries, 1, "all").map((item) => item.id))
       .toEqual(["public"]);
+  });
+});
+
+describe("getTargetSitemapEntryDisplayStatus", () => {
+  it("uses the current session observation when no public status exists", () => {
+    const authenticatedEntry = {
+      ...entry("authenticated", 1, "authenticated"),
+      httpStatus: null,
+    };
+    const observation = {
+      sessionId: "session-1",
+      targetId: "target-1",
+      entryId: authenticatedEntry.id,
+      httpStatus: 403,
+      observedAt: "2026-07-14T10:00:00.000Z",
+    };
+
+    expect(
+      getTargetSitemapEntryDisplayStatus(authenticatedEntry, observation),
+    ).toBe(403);
+    expect(
+      getTargetSitemapEntryDisplayStatus(
+        { ...authenticatedEntry, httpStatus: 200 },
+        observation,
+      ),
+    ).toBe(200);
+    expect(getTargetSitemapEntryDisplayStatus(authenticatedEntry)).toBe(0);
   });
 });
