@@ -113,12 +113,17 @@ export function useTargetSitemap(
           entryId: entry.id,
           normalizedUrl: entry.normalizedUrl,
           provenance: entry.provenance,
+          source: entry.source,
           accessObservation: observationByEntryId.get(entry.id),
         })),
       ),
     [observationByEntryId, visibleEntries],
   );
   const flatNodes = useMemo(() => flattenTree(nodes), [nodes]);
+  const entryNodes = useMemo(
+    () => flatNodes.filter((node) => node.entryId),
+    [flatNodes],
+  );
 
   const cycleMaxDepth = (direction: -1 | 1) => {
     setMaxDepth((currentDepth) => {
@@ -148,6 +153,7 @@ export function useTargetSitemap(
     visibleEntries,
     nodes,
     flatNodes,
+    entryNodes,
     status: state.status,
     authenticatedStatus: state.authenticatedStatus,
     maxDepth,

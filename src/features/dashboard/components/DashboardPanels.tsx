@@ -6,8 +6,10 @@ import { SessionChatPanel } from "../../chat/components/SessionChatPanel";
 import { ChatMessageData } from "../../chat/model/chat.types";
 import { ActiveSessionConversation } from "../../chat/services/session-conversation.service";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
-import { SitemapTree } from "../../sitemap/components/SitemapTree";
-import { flattenTree } from "../../sitemap/model/sitemap.utils";
+import {
+  SitemapLedger,
+  SitemapLedgerHeader,
+} from "../../sitemap/components/SitemapLedger";
 import {
   AuthenticatedSitemapCrawlStatusRecord,
   SitemapNode,
@@ -59,9 +61,34 @@ export const LeftDashboardPanel = ({
   setActivePanel: (panel: DashboardPanelId) => void;
   selectFinding: (index: number) => void;
 }) => {
-  const selectedSitemapNode = flattenTree(sitemapNodes)[
-    dashboardState.selectedSitemapItem
-  ];
+  const sitemapLedgerWidth = Math.max(1, layout.sitemapScrollWidth - 1);
+  const hasFilterSummary = sitemapEntryCount > 0;
+  const hasAuthenticatedStatus =
+    authenticatedSitemapStatus?.status === "running" ||
+    authenticatedSitemapStatus?.status === "authentication_required";
+  const sitemapHeaderHeight =
+    2 + (hasFilterSummary ? 1 : 0) + (hasAuthenticatedStatus ? 1 : 0);
+  const sitemapLedgerHeight = Math.max(
+    1,
+    layout.sitemapScrollHeight - sitemapHeaderHeight,
+  );
+  const sitemapStatusSummary = sitemapStatus?.status === "running"
+    ? `${sitemapEntryCount} routes \u00b7 scanning`
+    : sitemapStatus?.status === "failed"
+      ? `${sitemapEntryCount} routes \u00b7 incomplete`
+      : sitemapStatus?.status === "completed"
+        ? `${sitemapEntryCount} routes \u00b7 complete`
+        : `${sitemapEntryCount} routes \u00b7 waiting`;
+  const sitemapStatusColor = sitemapStatus?.status === "failed"
+    ? theme.accent.warning
+    : sitemapStatus?.status === "running"
+      ? theme.accent.primary
+      : theme.text.secondary;
+  const sitemapScopeLabel = sitemapProvenanceFilter === "authenticated"
+    ? "auth"
+    : sitemapProvenanceFilter === "public"
+      ? "pub"
+      : sitemapProvenanceFilter;
 
   return (
     <box
@@ -70,103 +97,57 @@ export const LeftDashboardPanel = ({
       flexDirection="column"
     >
       <DashboardPanel
-        title="Sitemap"
+        title="Route Ledger"
         panelNumber={getPanelDisplayNumber(dashboardPanels, "sitemap")}
         height={layout.leftPanelTopHeight}
         focused={dashboardState.activePanel === "sitemap"}
         paddingBottom={0}
         onMouseDown={() => setActivePanel("sitemap")}
       >
+        <box flexDirection="column" width={sitemapLedgerWidth}>
+          <text fg={sitemapStatusColor}>{sitemapStatusSummary}</text>
+          {hasFilterSummary ? (
+            <text fg={theme.text.dim}>
+              {`depth ${sitemapMaxDepth === null ? "all" : `0-${sitemapMaxDepth}`} \u00b7 scope ${sitemapScopeLabel} \u00b7 ${visibleSitemapEntryCount} shown`}
+            </text>
+          ) : null}
+          {authenticatedSitemapStatus?.status === "running" ? (
+            <text fg={theme.accent.primary}>authenticated crawl running</text>
+          ) : authenticatedSitemapStatus?.status === "authentication_required" ? (
+            <text fg={theme.accent.warning}>{"auth required \u00b7 crawl paused"}</text>
+          ) : null}
+          <SitemapLedgerHeader availableWidth={sitemapLedgerWidth} />
+        </box>
         <scrollbox
           ref={sitemapScrollRef}
-          height={layout.sitemapScrollHeight}
+          height={sitemapLedgerHeight}
           width={layout.sitemapScrollWidth}
           viewportOptions={{
-            height: Math.max(1, layout.sitemapScrollHeight - 1),
+            height: sitemapLedgerHeight,
           }}
           contentOptions={{
-            paddingRight: 1,
+            paddingRight: 0,
           }}
-          scrollX={true}
+          scrollX={false}
           stickyScroll={false}
           verticalScrollbarOptions={{
             visible: true,
             trackOptions: dashboardScrollbarTrackOptions,
           }}
           horizontalScrollbarOptions={{
-            visible: true,
-            trackOptions: dashboardScrollbarTrackOptions,
+            visible: false,
           }}
         >
-          <box flexDirection="column">
-            {sitemapStatus?.status === "running" ? (
-              <text fg={theme.accent.primary}>
-                <strong>Scanning sitemap...</strong> {sitemapEntryCount} target entries discovered
-              </text>
-            ) : sitemapStatus?.status === "failed" ? (
-              <>
-                <text fg={theme.accent.warning}>
-                  {sitemapEntryCount > 0
-                    ? `Sitemap scan incomplete | ${sitemapEntryCount} target entries retained`
-                    : "Sitemap scan failed | No target sitemap entries discovered."}
-                </text>
-                {sitemapStatus.errorMessage ? (
-                  <text fg={theme.text.secondary}>Error: {sitemapStatus.errorMessage}</text>
-                ) : null}
-              </>
-            ) : sitemapStatus?.status === "completed" ? (
-              <text fg={theme.text.secondary}>
-                {sitemapEntryCount > 0
-                  ? `Sitemap scan complete | ${sitemapEntryCount} target entries`
-                  : "Sitemap scan complete | No target sitemap entries discovered."}
-              </text>
-            ) : (
-              <text fg={theme.text.dim}>Waiting to scan target sitemap...</text>
-            )}
-            {sitemapEntryCount > 0 ? (
-              <text fg={theme.text.dim}>
-                Depth: {sitemapMaxDepth === null ? "all" : `0-${sitemapMaxDepth}`} |{" "}
-                Provenance: {sitemapProvenanceFilter} | {visibleSitemapEntryCount} visible
-              </text>
-            ) : null}
-            {authenticatedSitemapStatus?.status === "running" ? (
-              <text fg={theme.accent.primary}>Authenticated crawl running...</text>
-            ) : authenticatedSitemapStatus?.status === "authentication_required" ? (
-              <text fg={theme.accent.warning}>
-                Authenticated crawl paused: authentication required
-              </text>
-            ) : null}
-            {sitemapEntryCount > 0 ? (
-              <text fg={theme.text.dim}>
-                Left/Right depth | P/Shift+P provenance | Access is current-session only
-              </text>
-            ) : null}
-          </box>
-          {selectedSitemapNode?.entryId ? (
-            <box
-              flexDirection="column"
-              border
-              borderColor={theme.border.muted}
-              paddingLeft={1}
-              paddingRight={1}
-            >
-              <text fg={theme.text.secondary}>
-                Detail: {selectedSitemapNode.method ?? "GET"} {selectedSitemapNode.path}
-              </text>
-              <text fg={theme.text.dim}>
-                Discovery: {selectedSitemapNode.provenance ?? "public"}
-              </text>
-              <text fg={theme.text.dim}>
-                {selectedSitemapNode.accessObservation
-                  ? `Current session observed HTTP ${selectedSitemapNode.accessObservation.httpStatus}; not role-wide access.`
-                  : "No authenticated access observation for current session."}
-              </text>
-            </box>
-          ) : null}
-          <SitemapTree
+          <SitemapLedger
             nodes={sitemapNodes}
             selectedIndex={dashboardState.selectedSitemapItem}
-            focused={dashboardState.activePanel === "sitemap"}
+            isFocused={dashboardState.activePanel === "sitemap"}
+            availableWidth={sitemapLedgerWidth}
+            emptyMessage={
+              sitemapEntryCount > 0
+                ? "No routes match current filters."
+                : "No routes discovered."
+            }
           />
         </scrollbox>
       </DashboardPanel>

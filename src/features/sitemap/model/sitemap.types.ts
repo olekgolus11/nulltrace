@@ -6,6 +6,7 @@ export interface SitemapNode {
   method?: string;
   normalizedUrl?: string;
   provenance?: TargetSitemapDiscoveryProvenance;
+  source?: TargetSitemapEntrySource;
   accessObservation?: AuthenticatedSitemapAccessObservationRecord;
   children?: SitemapNode[];
 }

@@ -100,7 +100,7 @@ export function DashboardScreen({
   } = useDashboardShortcuts({
     onBack,
     onSelectTool,
-    sitemapCount: targetSitemap.flatNodes.length,
+    sitemapCount: targetSitemap.entryNodes.length,
     onCycleSitemapDepth: targetSitemap.cycleMaxDepth,
     onCycleSitemapProvenance: targetSitemap.cycleProvenance,
     findings: sessionFindings.findings,

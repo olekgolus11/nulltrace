@@ -3,10 +3,17 @@ import { KeyEvent } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
 import { act } from "react";
 import { AuthenticationContextModal } from "./AuthenticationContextModal";
+import { AuthenticatedRequestContextInput } from "../model/authenticated-request-context.types";
 
 let testSetup: Awaited<ReturnType<typeof testRender>> | null = null;
 
-function renderModal(width: number) {
+function renderModal(
+  width: number,
+  callbacks: {
+    onSave?: (input: AuthenticatedRequestContextInput) => Promise<boolean>;
+    onRunAuthCheck?: (verificationUrl: string) => Promise<boolean>;
+  } = {},
+) {
   return testRender(
     <AuthenticationContextModal
       targetUrl="http://localhost:4280"
@@ -21,9 +28,9 @@ function renderModal(width: number) {
       isSaving={false}
       isChecking={false}
       error="Save an authentication context before running Auth Check."
-      onSave={async () => false}
+      onSave={callbacks.onSave ?? (async () => false)}
       onClear={async () => {}}
-      onRunAuthCheck={async () => false}
+      onRunAuthCheck={callbacks.onRunAuthCheck ?? (async () => false)}
       onAcknowledgeInconclusive={() => false}
       onClose={() => {}}
     />,
@@ -90,5 +97,60 @@ describe("AuthenticationContextModal layout", () => {
     expect(testSetup.captureCharFrame()).toContain(
       "Ctrl+K check | Ctrl+Y acknowledge | Ctrl+D clear",
     );
+  });
+
+  test("uses the imported curl route for verification after saving", async () => {
+    let savedContext: AuthenticatedRequestContextInput | null = null;
+    let checkedUrl = "";
+    testSetup = await renderModal(92, {
+      onSave: async (input) => {
+        savedContext = input;
+        return true;
+      },
+      onRunAuthCheck: async (verificationUrl) => {
+        checkedUrl = verificationUrl;
+        return true;
+      },
+    });
+    await testSetup.renderOnce();
+
+    await act(async () => {
+      testSetup!.mockInput.pressKey("u", { ctrl: true });
+    });
+    await testSetup.renderOnce();
+    await act(async () => {
+      await testSetup!.mockInput.typeText(
+        "curl 'http://localhost:4280/account' -b 'session=secret'",
+      );
+    });
+    await testSetup.renderOnce();
+    await act(async () => {
+      testSetup!.mockInput.pressKey("s", { ctrl: true });
+    });
+    await testSetup.renderOnce();
+
+    expect(testSetup.captureCharFrame()).toContain(
+      "http://localhost:4280/account",
+    );
+
+    await act(async () => {
+      testSetup!.mockInput.pressKey("s", { ctrl: true });
+      await Promise.resolve();
+    });
+    await testSetup.renderOnce();
+    expect(savedContext).toMatchObject({
+      origin: "http://localhost:4280",
+      cookies: "session=secret",
+    });
+    expect(testSetup.captureCharFrame()).toContain(
+      "Active: redacted import review",
+    );
+    expect(testSetup.captureCharFrame()).not.toContain("Active: manual");
+
+    await act(async () => {
+      testSetup!.mockInput.pressKey("k", { ctrl: true });
+      await Promise.resolve();
+    });
+    expect(checkedUrl).toBe("http://localhost:4280/account");
   });
 });

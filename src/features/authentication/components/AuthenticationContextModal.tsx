@@ -10,7 +10,7 @@ import {
 import {
   HarAuthenticationRequestSelection,
   listHarAuthenticationRequests,
-  parseCurlAuthenticationContext,
+  parseCurlAuthenticationContextImport,
   parseHarAuthenticationContext,
 } from "../services/authenticated-request-context-import";
 import { createRedactedAuthenticatedRequestContextPreview } from "../services/authenticated-request-context-redaction";
@@ -48,11 +48,15 @@ const modeFields: Record<
   readonly AuthenticationField[]
 > = {
   manual: ["cookies", "headers", "verification_url", "actions"],
-  curl: ["curlSource", "import"],
-  har: ["harPath", "import"],
-  review: ["actions"],
+  curl: ["curlSource", "verification_url", "import"],
+  har: ["harPath", "verification_url", "import"],
+  review: ["verification_url", "actions"],
 } as const;
-const harRequestFields = ["harRequests", "import"] as const;
+const harRequestFields = [
+  "harRequests",
+  "verification_url",
+  "import",
+] as const;
 
 function getStorageLabel(metadata: AuthenticatedRequestContextMetadata | null) {
   if (!metadata) {
@@ -166,25 +170,35 @@ export function AuthenticationContextModal({
   const prepareImportedContext = (
     context: AuthenticatedRequestContextInput,
     source: "curl" | "HAR",
+    importedVerificationUrl?: string,
   ) => {
     setCookies(context.cookies);
     setHeaders(context.headers);
     setCurlSource("");
     setHarData("");
     setHarRequests([]);
+    if (importedVerificationUrl) {
+      setVerificationUrl(importedVerificationUrl);
+    }
     setMode("review");
-    setSelectedField("actions");
+    setSelectedField("verification_url");
     setImportError(null);
     setNotice(
-      `${source} import prepared. Review the redacted preview, then press Ctrl+S to replace context.`,
+      `${source} import prepared. Verify the URL and redacted preview, then press Ctrl+S to replace context.`,
     );
+    bodyScrollRef.current?.scrollTo(bodyScrollRef.current.scrollHeight);
   };
 
   const importCurl = () => {
     try {
+      const imported = parseCurlAuthenticationContextImport(
+        curlSource,
+        targetUrl,
+      );
       prepareImportedContext(
-        parseCurlAuthenticationContext(curlSource, targetUrl),
+        imported.context,
         "curl",
+        imported.verificationUrl,
       );
     } catch (nextError) {
       setImportError(getImportError(nextError));
@@ -266,7 +280,7 @@ export function AuthenticationContextModal({
     if (saved) {
       setCookies("");
       setHeaders("");
-      setMode("manual");
+      setMode("review");
       setSelectedField("verification_url");
       setNotice("Authentication context saved.");
     }
@@ -331,7 +345,11 @@ export function AuthenticationContextModal({
         (currentIndex + (key.shift ? -1 : 1) + fields.length) % fields.length;
       const nextField = fields[nextIndex]!;
       setSelectedField(nextField);
-      if (nextField === "actions" || nextField === "import") {
+      if (
+        nextField === "actions" ||
+        nextField === "import" ||
+        nextField === "verification_url"
+      ) {
         const scrollbox = bodyScrollRef.current;
         scrollbox?.scrollTo(scrollbox.scrollHeight);
       } else if (nextField === fields[0]) {

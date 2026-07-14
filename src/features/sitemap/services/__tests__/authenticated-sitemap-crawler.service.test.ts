@@ -145,6 +145,33 @@ describe("AuthenticatedSitemapCrawler", () => {
     expect(input.context.cookies).toBe("saved=original");
   });
 
+  it("applies every saved header separator supported by authentication contexts", async () => {
+    let requestHeaders = new Headers();
+    const crawler = await createCrawler({
+      repository: new FakePersistence(),
+      fetch: async (_url: string, init?: RequestInit) => {
+        requestHeaders = new Headers(init?.headers);
+        return html("done");
+      },
+      limits: { maxDepth: 0, maxPages: 1 },
+    });
+
+    await crawler.crawl({
+      sessionId: "session-1",
+      targetId: "target-1",
+      rootUrl: "https://example.com",
+      context: {
+        origin: "https://example.com",
+        cookies: "",
+        headers: "Authorization: Bearer secret | X-CSRF-Token: csrf-secret",
+        updatedAt: "2026-07-13T10:00:00.000Z",
+      },
+    });
+
+    expect(requestHeaders.get("authorization")).toBe("Bearer secret");
+    expect(requestHeaders.get("x-csrf-token")).toBe("csrf-secret");
+  });
+
   it("pauses after repeated authentication-required responses", async () => {
     const persistence = new FakePersistence();
     const requests: string[] = [];

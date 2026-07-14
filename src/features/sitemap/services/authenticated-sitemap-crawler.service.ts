@@ -1,5 +1,6 @@
 import { load } from "cheerio";
 import { AuthenticatedRequestContext } from "../../authentication/model/authenticated-request-context.types";
+import { splitAuthenticatedHeaderEntries } from "../../authentication/services/authenticated-request-context-redaction";
 import {
   AuthenticatedSitemapAccessObservationInput,
   AuthenticatedSitemapCrawlStatus,
@@ -68,13 +69,6 @@ interface QueuedUrl {
 }
 
 const authenticationSignalThreshold = 2;
-
-function parseHeaderLines(value: string) {
-  return value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
 
 class TemporaryCookieJar {
   private readonly cookies = new Map<string, string>();
@@ -356,7 +350,7 @@ export class AuthenticatedSitemapCrawler {
       const headers = new Headers({
         accept: "text/html,application/xhtml+xml,*/*;q=0.8",
       });
-      parseHeaderLines(contextHeaders).forEach((line) => {
+      splitAuthenticatedHeaderEntries(contextHeaders).forEach((line) => {
         const separator = line.indexOf(":");
         if (separator > 0) {
           headers.set(line.slice(0, separator).trim(), line.slice(separator + 1).trim());

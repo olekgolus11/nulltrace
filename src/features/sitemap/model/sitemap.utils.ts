@@ -8,6 +8,7 @@ interface FlatSitemapItem {
   method?: string;
   normalizedUrl?: string;
   provenance?: SitemapNode["provenance"];
+  source?: SitemapNode["source"];
   accessObservation?: SitemapNode["accessObservation"];
 }
 
@@ -48,6 +49,7 @@ export function buildTree(items: FlatSitemapItem[]): SitemapNode[] {
           method: nodeMethod,
           normalizedUrl: isLeaf ? item.normalizedUrl : undefined,
           provenance: isLeaf ? item.provenance : undefined,
+          source: isLeaf ? item.source : undefined,
           accessObservation: isLeaf ? item.accessObservation : undefined,
           children: [],
         };
@@ -62,6 +64,7 @@ export function buildTree(items: FlatSitemapItem[]): SitemapNode[] {
         child.entryId = item.entryId;
         child.normalizedUrl = item.normalizedUrl;
         child.provenance = item.provenance;
+        child.source = item.source;
         child.accessObservation = item.accessObservation;
       }
 
@@ -80,6 +83,7 @@ export function buildTree(items: FlatSitemapItem[]): SitemapNode[] {
       method: item.method,
       normalizedUrl: item.normalizedUrl,
       provenance: item.provenance,
+      source: item.source,
       accessObservation: item.accessObservation,
       children: index === 0 ? root.children : [],
     }));
