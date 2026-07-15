@@ -103,7 +103,7 @@ describe("sitemap crawl lifecycle", () => {
     ).toMatchObject({
       scope: "public",
       status: "paused",
-      hint: "Public · Space resume · r retry failures · R restart",
+      hint: "Public · Space resume · Ctrl+R restart",
     });
     expect(
       getSitemapCrawlControlPresentation(
@@ -116,14 +116,14 @@ describe("sitemap crawl lifecycle", () => {
     ).toMatchObject({
       scope: "authenticated",
       status: "authentication_required",
-      hint: "Authenticated locked · lifecycle keys open auth renewal",
+      hint: "Authenticated locked · Ctrl+R opens auth renewal",
     });
     expect(
       getSitemapCrawlControlPresentation("all", "running", "paused", 0, 0),
     ).toMatchObject({
       scope: "public",
       status: "running",
-      hint: "Public · Space pause · R restart",
+      hint: "Public · Space pause · Ctrl+R restart",
     });
   });
 });
