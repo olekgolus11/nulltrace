@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { Database } from "bun:sqlite";
 import { createActionDraftsTable } from "../../action-draft/services/action-draft.schema";
+import { createAuthenticationContextMetadataTable } from "../../authentication/services/authentication-context-metadata.schema";
 
 export function getAppDataDirectory() {
   if (process.env.NULLTRACE_APP_DATA_DIR) {
@@ -275,4 +276,5 @@ createSessionFindingsTable();
 createFindingReviewsTable();
 createConversationAttachmentsTable();
 createActionDraftsTable(sessionDatabase);
+createAuthenticationContextMetadataTable(sessionDatabase);
 createTargetSitemapTables();

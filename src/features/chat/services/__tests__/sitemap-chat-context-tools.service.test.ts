@@ -33,7 +33,7 @@ const entries: TargetSitemapEntryRecord[] = [
     method: "GET",
     httpStatus: 403,
     source: "html_link",
-    provenance: "public",
+    provenance: "authenticated",
     depth: 1,
     firstSeenAt: "2026-07-10T10:01:00.000Z",
     lastSeenAt: "2026-07-10T10:02:00.000Z",
@@ -120,6 +120,13 @@ class FakeSitemapRepository {
       if (filters.method && entry.method !== filters.method) return false;
       if (filters.httpStatus !== undefined && entry.httpStatus !== filters.httpStatus) return false;
       if (filters.source && entry.source !== filters.source) return false;
+      if (filters.provenance && entry.provenance !== filters.provenance) return false;
+      if (filters.hasAccessObservation !== undefined) {
+        const hasObservation = this.listAccessObservations("session-1").some(
+          (observation) => observation.entryId === entry.id,
+        );
+        if (hasObservation !== filters.hasAccessObservation) return false;
+      }
       return true;
     });
     const limit = filters.limit ?? 100;
@@ -134,6 +141,20 @@ class FakeSitemapRepository {
 
   findEntryByIdForTarget(targetId: string, entryId: string) {
     return entries.find((entry) => entry.targetId === targetId && entry.id === entryId) ?? null;
+  }
+
+  listAccessObservations(sessionId: string) {
+    return sessionId === "session-1"
+      ? [
+          {
+            sessionId,
+            targetId: "target-1",
+            entryId: "entry-admin",
+            httpStatus: 200,
+            observedAt: "2026-07-10T10:04:00.000Z",
+          },
+        ]
+      : [];
   }
 }
 
@@ -193,6 +214,26 @@ describe("sitemap chat context tools", () => {
     const { service } = createService();
     expect(service.searchEntries("conversation-1", { path: "ADMIN", method: "get", httpStatus: 403, source: "html_link", depth: 1 }).entries.map((entry) => entry.id)).toEqual(["entry-admin"]);
     expect(service.searchEntries("conversation-1", { method: "post", source: "html_form", maxDepth: 2 }).entries.map((entry) => entry.id)).toEqual(["entry-login"]);
+  });
+
+  it("filters by discovery provenance and current-session access observations", () => {
+    const { service } = createService();
+
+    const result = service.searchEntries("conversation-1", {
+      provenance: "authenticated",
+      hasCurrentSessionAccess: true,
+    });
+
+    expect(result.entries).toEqual([
+      expect.objectContaining({
+        id: "entry-admin",
+        provenance: "authenticated",
+        accessObservation: {
+          httpStatus: 200,
+          observedAt: "2026-07-10T10:04:00.000Z",
+        },
+      }),
+    ]);
   });
 
   it("returns scoped entry detail with persisted form discovery context", () => {

@@ -69,6 +69,7 @@ export function createAuthenticatedRequestContextMetadata(
     cookieCount: preview.cookieCount,
     headerNames: preview.headerNames,
     storageMode,
+    importSource: context.importSource ?? "manual",
     updatedAt: context.updatedAt,
     authCheck: createUncheckedAuthCheckMetadata(),
   };

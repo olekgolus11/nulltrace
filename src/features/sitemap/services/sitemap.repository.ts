@@ -337,6 +337,21 @@ export class SitemapRepository {
       clauses.push(`provenance = ?${params.length}`);
     }
 
+    if (
+      filters.hasAccessObservation !== undefined &&
+      filters.accessObservedBySessionId
+    ) {
+      params.push(filters.accessObservedBySessionId);
+      clauses.push(
+        `${filters.hasAccessObservation ? "" : "NOT "}EXISTS (
+          SELECT 1
+          FROM authenticated_sitemap_access_observations AS access_observation
+          WHERE access_observation.entry_id = target_sitemap_entries.id
+            AND access_observation.session_id = ?${params.length}
+        )`,
+      );
+    }
+
     const whereClause = clauses.join(" AND ");
     const total = this.database
       .query<{ count: number }, Array<string | number>>(
