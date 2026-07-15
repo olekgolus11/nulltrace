@@ -280,7 +280,7 @@ describe("AuthenticatedSitemapCrawler", () => {
     expect(requestHeaders.get("x-csrf-token")).toBe("csrf-secret");
   });
 
-  it("pauses after repeated authentication-required responses", async () => {
+  it("continues after route denials when the verification URL remains authenticated", async () => {
     const persistence = new FakePersistence();
     const requests: string[] = [];
     const crawler = await createCrawler({
@@ -289,6 +289,48 @@ describe("AuthenticatedSitemapCrawler", () => {
         requests.push(`${init?.method ?? "GET"} ${url}`);
         if (url.endsWith("/")) {
           return html('<a href="/one">one</a><a href="/two">two</a>');
+        }
+        if (url.endsWith("/verify")) {
+          return html("authenticated account");
+        }
+        return new Response("forbidden", { status: 403 });
+      },
+      limits: { maxDepth: 1, maxPages: 5 },
+    });
+
+    const result = await crawler.crawl({
+      sessionId: "session-1",
+      targetId: "target-1",
+      rootUrl: "https://example.com",
+      verificationUrl: "https://example.com/verify",
+      context: {
+        origin: "https://example.com",
+        cookies: "session=valid",
+        headers: "",
+        updatedAt: "2026-07-13T10:00:00.000Z",
+      },
+    });
+
+    expect(result.status).toBe("completed");
+    expect(persistence.status).toBe("completed");
+    expect(requests).toEqual([
+      "GET https://example.com/",
+      "GET https://example.com/one",
+      "GET https://example.com/verify",
+      "GET https://example.com/two",
+      "GET https://example.com/verify",
+    ]);
+  });
+
+  it("pauses only when the dedicated verification URL also requires authentication", async () => {
+    const persistence = new FakePersistence();
+    const requests: string[] = [];
+    const crawler = await createCrawler({
+      repository: persistence,
+      fetch: async (url: string, init?: RequestInit) => {
+        requests.push(`${init?.method ?? "GET"} ${url}`);
+        if (url.endsWith("/")) {
+          return html('<a href="/protected">protected</a>');
         }
         return new Response("sign in", { status: 401 });
       },
@@ -299,6 +341,7 @@ describe("AuthenticatedSitemapCrawler", () => {
       sessionId: "session-1",
       targetId: "target-1",
       rootUrl: "https://example.com",
+      verificationUrl: "https://example.com/verify",
       context: {
         origin: "https://example.com",
         cookies: "session=expired",
@@ -311,8 +354,8 @@ describe("AuthenticatedSitemapCrawler", () => {
     expect(persistence.status).toBe("authentication_required");
     expect(requests).toEqual([
       "GET https://example.com/",
-      "GET https://example.com/one",
-      "HEAD https://example.com/one",
+      "GET https://example.com/protected",
+      "GET https://example.com/verify",
     ]);
   });
 
@@ -341,6 +384,7 @@ describe("AuthenticatedSitemapCrawler", () => {
       sessionId: "session-1",
       targetId: "target-1",
       rootUrl: "https://example.com",
+      verificationUrl: "https://example.com/verify",
       context: {
         origin: "https://example.com",
         cookies: "session=expired",
@@ -390,6 +434,9 @@ describe("AuthenticatedSitemapCrawler", () => {
             headers: { location: "/signin" },
           });
         }
+        if (url === "https://example.com/verify") {
+          return new Response("sign in", { status: 401 });
+        }
         return html("Continue with SSO");
       },
     });
@@ -398,6 +445,7 @@ describe("AuthenticatedSitemapCrawler", () => {
       sessionId: "session-1",
       targetId: "target-1",
       rootUrl: "https://example.com",
+      verificationUrl: "https://example.com/verify",
       context: {
         origin: "https://example.com",
         cookies: "session=expired",
@@ -410,7 +458,7 @@ describe("AuthenticatedSitemapCrawler", () => {
     expect(requests).toEqual([
       "GET https://example.com/",
       "GET https://example.com/signin",
-      "HEAD https://example.com/signin",
+      "GET https://example.com/verify",
     ]);
   });
 

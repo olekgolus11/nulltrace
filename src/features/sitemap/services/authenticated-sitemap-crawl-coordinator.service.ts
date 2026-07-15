@@ -18,6 +18,10 @@ interface AuthenticatedCrawlStatusReader {
   ): AuthenticatedSitemapCrawlStatusRecord;
 }
 
+interface AuthCheckMetadataReader {
+  getMetadata(sessionId: string): { verificationUrl: string | null };
+}
+
 export interface StartAuthenticatedSitemapCrawlInput {
   sessionId: string;
   targetId: string;
@@ -44,6 +48,7 @@ export class AuthenticatedSitemapCrawlCoordinator {
     private readonly contextLoader: AuthenticatedContextLoader,
     private readonly crawler: AuthenticatedCrawlerRunner,
     private readonly repository?: AuthenticatedCrawlStatusReader,
+    private readonly authCheckMetadata?: AuthCheckMetadataReader,
   ) {}
 
   async startAfterAcceptedAuthCheck({
@@ -155,6 +160,8 @@ export class AuthenticatedSitemapCrawlCoordinator {
       sessionId,
       targetId,
       rootUrl,
+      verificationUrl:
+        this.authCheckMetadata?.getMetadata(sessionId).verificationUrl ?? null,
       context,
       mode,
     });

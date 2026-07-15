@@ -58,6 +58,7 @@ export interface AuthenticatedSitemapCrawlerInput {
   sessionId: string;
   targetId: string;
   rootUrl: string;
+  verificationUrl?: string | null;
   context: AuthenticatedRequestContext;
   limits?: Partial<PublicSitemapCrawlerLimits>;
   mode?: SitemapCrawlRunMode;
@@ -84,8 +85,6 @@ interface QueuedUrl {
   depth: number;
   source: TargetSitemapEntrySource;
 }
-
-const authenticationSignalThreshold = 2;
 
 class TemporaryCookieJar {
   private readonly cookies = new Map<string, string>();
@@ -165,6 +164,22 @@ function isAuthenticationSignal(
   );
 }
 
+function isVerificationAuthenticationFailure(
+  response: Response,
+  initialUrl: URL,
+  finalUrl: URL,
+  body: string,
+  crossOriginRedirectUrl: URL | null,
+) {
+  return (
+    response.status === 401 ||
+    response.status === 403 ||
+    (crossOriginRedirectUrl !== null && isLoginLikeUrl(crossOriginRedirectUrl)) ||
+    (finalUrl.toString() !== initialUrl.toString() && isLoginLikeUrl(finalUrl)) ||
+    hasLoginForm(body)
+  );
+}
+
 function toErrorMessage(error: unknown) {
   return error instanceof Error && error.message
     ? error.message
@@ -240,8 +255,6 @@ export class AuthenticatedSitemapCrawler {
           (failure) => !selectTransientCrawlFailures([failure]).length,
         )
       : [...(checkpoint?.failures ?? [])];
-    let authenticationSignals = 0;
-
     if (mode === "fresh") {
       this.repository.deleteCrawlCheckpoint?.("authenticated", input.sessionId);
     }
@@ -325,13 +338,7 @@ export class AuthenticatedSitemapCrawler {
           body,
           fetched.crossOriginRedirectUrl,
         );
-        authenticationSignals = hasAuthenticationSignal
-          ? authenticationSignals + 1
-          : 0;
-        if (
-          hasAuthenticationSignal &&
-          authenticationSignals < authenticationSignalThreshold
-        ) {
+        if (hasAuthenticationSignal) {
           const pausedResult = this.checkpointAndPauseIfRequested(
             input,
             queue,
@@ -343,43 +350,32 @@ export class AuthenticatedSitemapCrawler {
           if (pausedResult) {
             return pausedResult;
           }
-          const confirmation = await this.fetchSameOrigin(
-            url,
+          const verificationFailed = await this.verificationRequiresAuthentication(
+            input.verificationUrl,
             contextOrigin,
             input.context.headers,
             cookieJar,
             limits.requestTimeoutMs,
-            "HEAD",
+            limits.maxResponseBytes,
           );
-          cookieJar.accept(confirmation.response);
-          if (
-            isAuthenticationSignal(
-              confirmation.response,
-              confirmation.url,
-              "",
-              confirmation.crossOriginRedirectUrl,
-            )
-          ) {
-            authenticationSignals += 1;
+          if (verificationFailed) {
+            const errorMessage =
+              "The accepted authentication verification URL now requires authentication.";
+            visited.delete(next.url.toString());
+            queue.unshift(next);
+            this.repository.markAuthenticatedCrawlAuthenticationRequired(
+              input.sessionId,
+              input.targetId,
+              errorMessage,
+            );
+            this.saveCheckpoint(input, queue, visited, failures, pagesFetched, entries);
+            return {
+              status: "authentication_required",
+              pagesFetched,
+              entriesDiscovered: entries.size,
+              errorMessage,
+            };
           }
-        }
-        if (authenticationSignals >= authenticationSignalThreshold) {
-          const errorMessage =
-            "Repeated authentication-required responses paused the authenticated crawl.";
-          visited.delete(next.url.toString());
-          queue.unshift(next);
-          this.repository.markAuthenticatedCrawlAuthenticationRequired(
-            input.sessionId,
-            input.targetId,
-            errorMessage,
-          );
-          this.saveCheckpoint(input, queue, visited, failures, pagesFetched, entries);
-          return {
-            status: "authentication_required",
-            pagesFetched,
-            entriesDiscovered: entries.size,
-            errorMessage,
-          };
         }
 
         if (!response.ok || !isHtml(response)) {
@@ -564,6 +560,52 @@ export class AuthenticatedSitemapCrawler {
       url = nextUrl;
     }
     throw new Error("Authenticated crawl redirect limit exceeded.");
+  }
+
+  private async verificationRequiresAuthentication(
+    verificationUrl: string | null | undefined,
+    origin: string,
+    contextHeaders: string,
+    cookieJar: TemporaryCookieJar,
+    timeoutMs: number,
+    maxResponseBytes: number,
+  ) {
+    if (!verificationUrl) {
+      return false;
+    }
+
+    let initialUrl: URL;
+    try {
+      initialUrl = new URL(verificationUrl);
+    } catch {
+      return false;
+    }
+    if (initialUrl.origin !== origin) {
+      return false;
+    }
+
+    try {
+      const verification = await this.fetchSameOrigin(
+        initialUrl,
+        origin,
+        contextHeaders,
+        cookieJar,
+        timeoutMs,
+      );
+      cookieJar.accept(verification.response);
+      const body = isHtml(verification.response)
+        ? await readResponseText(verification.response, maxResponseBytes)
+        : "";
+      return isVerificationAuthenticationFailure(
+        verification.response,
+        initialUrl,
+        verification.url,
+        body,
+        verification.crossOriginRedirectUrl,
+      );
+    } catch {
+      return false;
+    }
   }
 }
 

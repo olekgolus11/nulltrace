@@ -36,6 +36,12 @@ describe("AuthenticatedSitemapCrawlCoordinator", () => {
         },
         requestPause: () => true,
       },
+      undefined,
+      {
+        getMetadata: () => ({
+          verificationUrl: "https://example.com/account",
+        }),
+      },
     );
 
     const firstStart = coordinator.startAfterAcceptedAuthCheck({
@@ -58,6 +64,7 @@ describe("AuthenticatedSitemapCrawlCoordinator", () => {
         sessionId: "session-1",
         targetId: "target-1",
         rootUrl: "https://example.com/app",
+        verificationUrl: "https://example.com/account",
         context,
         mode: "fresh",
       },
