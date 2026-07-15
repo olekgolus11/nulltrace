@@ -220,7 +220,7 @@ export function DashboardScreen({
                         { key: "↑↓", label: "navigate" },
                         { key: "←→", label: "depth" },
                         { key: "P/Shift+P", label: "provenance" },
-                        { key: "Space", label: "pause/resume crawl" },
+                        { key: "Space", label: "pause crawl" },
                         { key: "Ctrl+R", label: "restart crawl" },
                       ]
                     : [{ key: "Enter", label: "select" }]),
