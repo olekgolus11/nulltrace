@@ -4,8 +4,9 @@ import { act, useEffect } from "react";
 import { useDashboardShortcuts } from "../use-dashboard-shortcuts";
 
 let testSetup: Awaited<ReturnType<typeof testRender>> | null = null;
+let restartCallCount = 0;
 
-function DashboardShortcutHarness() {
+function DashboardShortcutHarness({ isLocked = true }: { isLocked?: boolean }) {
   const { dashboardState, setActivePanel } = useDashboardShortcuts({
     onBack: () => {},
     onSelectTool: () => {},
@@ -13,9 +14,10 @@ function DashboardShortcutHarness() {
     onCycleSitemapDepth: () => {},
     onCycleSitemapProvenance: () => {},
     onPauseOrResumeSitemapCrawl: () => {},
-    onRetrySitemapFailures: () => {},
-    onRestartSitemapCrawl: () => {},
-    isSitemapAuthRenewalRequired: true,
+    onRestartSitemapCrawl: () => {
+      restartCallCount += 1;
+    },
+    isSitemapAuthRenewalRequired: isLocked,
     findings: [],
     onSetFindingReviewStatus: () => {},
     conversations: [],
@@ -44,13 +46,13 @@ afterEach(async () => {
     testSetup?.renderer.destroy();
   });
   testSetup = null;
+  restartCallCount = 0;
 });
 
 describe("useDashboardShortcuts", () => {
   test.each([
     ["pause/resume", " "],
-    ["retry", "r"],
-    ["restart", "R"],
+    ["restart", "CTRL_R"],
   ])(
     "opens authentication renewal for a locked crawl's %s key",
     async (_, key) => {
@@ -63,10 +65,35 @@ describe("useDashboardShortcuts", () => {
       expect(testSetup.captureCharFrame()).toContain("sitemap:auth-closed");
 
       await act(async () => {
-        testSetup!.mockInput.pressKey(key);
+        if (key === "CTRL_R") {
+          testSetup!.mockInput.pressKey("r", { ctrl: true });
+        } else {
+          testSetup!.mockInput.pressKey(key);
+        }
       });
       await testSetup.renderOnce();
       expect(testSetup.captureCharFrame()).toContain("sitemap:auth-open");
     },
   );
+
+  test("uses Ctrl+R for restart and leaves plain r unbound", async () => {
+    testSetup = await testRender(
+      <DashboardShortcutHarness isLocked={false} />,
+      {
+        width: 60,
+        height: 10,
+      },
+    );
+
+    await testSetup.renderOnce();
+    await act(async () => {
+      testSetup!.mockInput.pressKey("r");
+    });
+    expect(restartCallCount).toBe(0);
+
+    await act(async () => {
+      testSetup!.mockInput.pressKey("r", { ctrl: true });
+    });
+    expect(restartCallCount).toBe(1);
+  });
 });

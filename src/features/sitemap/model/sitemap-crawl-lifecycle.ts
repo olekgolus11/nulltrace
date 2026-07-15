@@ -75,7 +75,7 @@ export function getSitemapCrawlControlPresentation(
     return {
       scope,
       status,
-      hint: `${scopeLabel} locked · lifecycle keys open auth renewal`,
+      hint: `${scopeLabel} locked · Ctrl+R opens auth renewal`,
       actions,
     };
   }
@@ -85,11 +85,8 @@ export function getSitemapCrawlControlPresentation(
   } else if (actions.canResume) {
     hints.push("Space resume");
   }
-  if (actions.canRetryFailures) {
-    hints.push("r retry failures");
-  }
   if (actions.canRestart) {
-    hints.push("R restart");
+    hints.push("Ctrl+R restart");
   }
   return {
     scope,
