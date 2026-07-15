@@ -25,4 +25,5 @@ export const nucleiFieldOrder: NucleiFieldId[] = [
   "tags",
   "templatesPath",
   "extraArgs",
+  "useAuthenticatedContext",
 ];

@@ -1,11 +1,10 @@
 import { ActionDraftRecord } from "../model/action-draft.types";
-import {
-  nmapTimingOptions,
-} from "../../tool/nmap/config/nmap.config";
+import { AuthenticatedRequestContextMetadata } from "../../authentication/model/authenticated-request-context.types";
+import { normalizeExactOrigin } from "../../authentication/services/authenticated-request-context.service";
+import { nmapTimingOptions } from "../../tool/nmap/config/nmap.config";
 import { NmapToolData } from "../../tool/nmap/types/nmap.types";
-import {
-  nucleiSeverityOptions,
-} from "../../tool/nuclei/config/nuclei.config";
+import { nucleiSeverityOptions } from "../../tool/nuclei/config/nuclei.config";
+import { redactNucleiCommandForPersistence } from "../../tool/nuclei/services/nuclei-command-redaction";
 import { NucleiToolData } from "../../tool/nuclei/types/nuclei.types";
 import { CommandSource } from "../../tool/shared/types/tool-screen.types";
 
@@ -32,6 +31,7 @@ export interface ActionDraftWorkspaceMapInput {
   currentToolName: string;
   currentToolData: unknown;
   buildGeneratedCommand: (toolData: unknown) => string;
+  authenticatedContext?: AuthenticatedRequestContextMetadata | null;
 }
 
 interface ActionDraftPayload {
@@ -125,10 +125,21 @@ function applyNmapFormState(
 function applyNucleiFormState(
   toolData: NucleiToolData,
   formState: Record<string, unknown> | null,
+  authenticatedContext: AuthenticatedRequestContextMetadata | null,
 ) {
   if (!formState) {
     return {
-      toolData,
+      toolData: {
+        ...toolData,
+        form: {
+          ...toolData.form,
+          useAuthenticatedContext: false,
+        },
+        authentication: {
+          ...toolData.authentication,
+          strategy: "none" as const,
+        },
+      },
       didApply: false,
     };
   }
@@ -157,11 +168,41 @@ function applyNucleiFormState(
     didApply = true;
   }
 
+  const useAuthenticatedContext = getBooleanField(
+    formState,
+    "useAuthenticatedContext",
+  );
+  form.useAuthenticatedContext = useAuthenticatedContext ?? false;
+  if (useAuthenticatedContext !== undefined) {
+    didApply = true;
+  }
+
+  const authenticatedOrigin = authenticatedContext?.authCheck.isProceedAllowed
+    ? authenticatedContext.origin
+    : null;
+  let isAuthenticationAvailable = false;
+  try {
+    isAuthenticationAvailable = Boolean(
+      authenticatedOrigin &&
+        normalizeExactOrigin(form.target) === authenticatedOrigin,
+    );
+  } catch {
+    isAuthenticationAvailable = false;
+  }
+
   return {
     toolData: {
       ...toolData,
       selectedField: 0,
       form,
+      authentication: {
+        strategy:
+          form.useAuthenticatedContext && isAuthenticationAvailable
+            ? "session"
+            : "none",
+        isAvailable: isAuthenticationAvailable,
+        origin: authenticatedOrigin,
+      },
     },
     didApply,
   };
@@ -171,13 +212,18 @@ function applyFormState(
   currentToolName: string,
   currentToolData: unknown,
   formState: Record<string, unknown> | null,
+  authenticatedContext: AuthenticatedRequestContextMetadata | null,
 ) {
   if (currentToolName === "nmap") {
     return applyNmapFormState(currentToolData as NmapToolData, formState);
   }
 
   if (currentToolName === "nuclei") {
-    return applyNucleiFormState(currentToolData as NucleiToolData, formState);
+    return applyNucleiFormState(
+      currentToolData as NucleiToolData,
+      formState,
+      authenticatedContext,
+    );
   }
 
   return {
@@ -191,6 +237,7 @@ export function mapActionDraftToWorkspaceState({
   currentToolName,
   currentToolData,
   buildGeneratedCommand,
+  authenticatedContext = null,
 }: ActionDraftWorkspaceMapInput): ActionDraftWorkspaceApplyResult {
   if (draft.targetTool !== currentToolName) {
     return {
@@ -207,11 +254,48 @@ export function mapActionDraftToWorkspaceState({
   }
 
   const payload = getPayload(draft);
-  const command = getCommand(payload);
+  const rawCommand = getCommand(payload);
+  const command =
+    rawCommand && currentToolName === "nuclei"
+      ? redactNucleiCommandForPersistence(rawCommand)
+      : rawCommand;
+  const formState = getFormState(payload);
+  if (
+    currentToolName === "nuclei" &&
+    getBooleanField(formState ?? {}, "useAuthenticatedContext") === true
+  ) {
+    if (getStringField(formState ?? {}, "templatesPath")?.trim()) {
+      return {
+        ok: false,
+        reason:
+          "Authenticated Nuclei drafts cannot use custom template or workflow paths.",
+      };
+    }
+    const target =
+      getStringField(formState ?? {}, "target") ??
+      (currentToolData as NucleiToolData).form.target;
+    let isExactOriginAccepted = false;
+    try {
+      isExactOriginAccepted = Boolean(
+        authenticatedContext?.authCheck.isProceedAllowed &&
+          authenticatedContext.origin === normalizeExactOrigin(target),
+      );
+    } catch {
+      isExactOriginAccepted = false;
+    }
+    if (!isExactOriginAccepted) {
+      return {
+        ok: false,
+        reason:
+          "This draft requires an accepted authentication context for the target's exact origin.",
+      };
+    }
+  }
   const { toolData, didApply } = applyFormState(
     currentToolName,
     currentToolData,
-    getFormState(payload),
+    formState,
+    authenticatedContext,
   );
 
   if (!command && !didApply) {

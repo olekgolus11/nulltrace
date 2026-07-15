@@ -10,6 +10,7 @@ import { getAppDataDirectory } from "../../../session/services/session-database"
 import { ToolRunArtifactInput } from "../../../session/model/session.repository.types";
 import {
   ToolPrepareCommand,
+  ToolPreparedCommand,
   ToolRunCompleted,
 } from "../../shared/types/tool-screen.types";
 import {
@@ -18,6 +19,10 @@ import {
   NucleiSeverityPreset,
   NucleiToolData,
 } from "../types/nuclei.types";
+import { normalizeExactOrigin } from "../../../authentication/services/authenticated-request-context.service";
+import { nucleiAuthenticatedRunService } from "./nuclei-authenticated-run.service";
+import { redactNucleiCommandForPersistence } from "./nuclei-command-redaction";
+import { shellQuote, shellTokenPattern, tokenizeShellCommand } from "./nuclei-shell";
 
 interface NucleiRawFinding {
   [key: string]: unknown;
@@ -40,12 +45,67 @@ export interface ParsedNucleiJsonl {
   parseErrorCount: number;
 }
 
-const shellTokenPattern = String.raw`(?:'[^']*'|"(?:\\.|[^"])*"|\S+)`;
 const nucleiOutputFlagPattern = new RegExp(
   String.raw`\s+(?:(?:-jsonl|-json|-j|-sresp|-store-resp)(?=\s|$)|(?:-o|-output|-jle|-jsonl-export|-je|-json-export|-me|-markdown-export|-se|-sarif-export|-rdb|-report-db|-srd|-store-resp-dir)(?:\s+${shellTokenPattern}))`,
   "g",
 );
 const nucleiNoColorFlagPattern = /(?:^|\s)-(?:nc|no-color)(?=\s|$)/;
+const authenticatedIncompatibleFlags = new Set([
+  "debug",
+  "dreq",
+  "debug-req",
+  "dresp",
+  "debug-resp",
+  "sresp",
+  "store-resp",
+  "srd",
+  "store-resp-dir",
+  "irr",
+  "include-rr",
+  "trace-log",
+  "tlog",
+  "H",
+  "header",
+  "V",
+  "var",
+  "sf",
+  "secret-file",
+  "fr",
+  "follow-redirects",
+  "fhr",
+  "follow-host-redirects",
+  "l",
+  "list",
+  "targets-inline",
+  "resume",
+  "t",
+  "templates",
+  "turl",
+  "template-url",
+  "w",
+  "workflows",
+  "wurl",
+  "workflow-url",
+  "ai",
+  "prompt",
+  "code",
+  "esc",
+  "enable-self-contained",
+  "file",
+]);
+
+function parseCommandFlag(token: string) {
+  if (!token.startsWith("-") || token === "-") {
+    return null;
+  }
+  const separatorIndex = token.indexOf("=");
+  const rawName = separatorIndex === -1 ? token : token.slice(0, separatorIndex);
+  return {
+    name: rawName.replace(/^-+/, ""),
+    inlineValue:
+      separatorIndex === -1 ? null : token.slice(separatorIndex + 1),
+  };
+}
 
 function getString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
@@ -143,10 +203,6 @@ class NucleiCommandService {
     );
   }
 
-  private shellQuotePath(path: string): string {
-    return `'${path.split("'").join("'\\''")}'`;
-  }
-
   private extractTarget(targetUrl: string) {
     return targetUrl.trim();
   }
@@ -160,11 +216,14 @@ class NucleiCommandService {
         tags: "",
         templatesPath: "",
         extraArgs: "",
+        useAuthenticatedContext: false,
+      },
+      authentication: {
+        strategy: "none",
+        isAvailable: false,
+        origin: null,
       },
       future: {
-        auth: {
-          strategy: "none",
-        },
         headers: {
           entries: [],
         },
@@ -202,18 +261,76 @@ class NucleiCommandService {
     return cmd.join(" ").trim();
   }
 
+  setAuthenticationAvailability(
+    toolData: NucleiToolData,
+    origin: string | null,
+  ): NucleiToolData {
+    let isAvailable = false;
+    try {
+      isAvailable = Boolean(
+        origin && normalizeExactOrigin(toolData.form.target) === origin,
+      );
+    } catch {
+      isAvailable = false;
+    }
+    return {
+      ...toolData,
+      selectedField: isAvailable
+        ? toolData.selectedField
+        : Math.min(toolData.selectedField, nucleiFieldOrder.length - 2),
+      form: {
+        ...toolData.form,
+        useAuthenticatedContext: isAvailable
+          ? toolData.form.useAuthenticatedContext
+          : false,
+      },
+      authentication: {
+        strategy:
+          isAvailable && toolData.form.useAuthenticatedContext
+            ? "session"
+            : "none",
+        isAvailable,
+        origin,
+      },
+    };
+  }
+
+  toggleAuthenticatedContext(toolData: NucleiToolData): NucleiToolData {
+    if (!toolData.authentication.isAvailable) {
+      return toolData;
+    }
+    const useAuthenticatedContext = !toolData.form.useAuthenticatedContext;
+    return {
+      ...toolData,
+      form: {
+        ...toolData.form,
+        useAuthenticatedContext,
+      },
+      authentication: {
+        ...toolData.authentication,
+        strategy: useAuthenticatedContext ? "session" : "none",
+      },
+    };
+  }
+
   setField(
     toolData: NucleiToolData,
     field: keyof NucleiFormState,
     value: string | NucleiSeverityPreset,
   ): NucleiToolData {
-    return {
+    const updated = {
       ...toolData,
       form: {
         ...toolData.form,
         [field]: value,
       },
     };
+    return field === "target"
+      ? this.setAuthenticationAvailability(
+          updated,
+          toolData.authentication.origin,
+        )
+      : updated;
   }
 
   moveSelection(
@@ -248,11 +365,69 @@ class NucleiCommandService {
     return field === "severityPreset";
   }
 
+  isAuthenticationFieldSelected(field: NucleiFieldId | undefined) {
+    return field === "useAuthenticatedContext";
+  }
+
   getFieldCount() {
     return nucleiFieldOrder.length;
   }
 
-  prepareCommandForRun(options: ToolPrepareCommand): string {
+  redactCommandForPersistence(command: string) {
+    return redactNucleiCommandForPersistence(command);
+  }
+
+  private validateAuthenticatedCommand(command: string) {
+    const tokens = tokenizeShellCommand(command);
+    const targets: string[] = [];
+
+    if (tokens[0] !== "nuclei") {
+      throw new Error(
+        "Authenticated Nuclei runs require the nuclei executable directly.",
+      );
+    }
+
+    tokens.forEach((token, index) => {
+      const flag = parseCommandFlag(token);
+      if (!flag) {
+        return;
+      }
+      if (authenticatedIncompatibleFlags.has(flag.name)) {
+        throw new Error(
+          "Authenticated Nuclei runs cannot use options that expose raw requests or responses, enable redirects, accept multiple targets, or supply authorization values directly.",
+        );
+      }
+      if (flag.name === "omit-raw" || flag.name === "or") {
+        const value = flag.inlineValue ?? tokens[index + 1] ?? "";
+        if (value.toLowerCase() === "false") {
+          throw new Error(
+            "Authenticated Nuclei runs cannot disable raw request or response omission.",
+          );
+        }
+      }
+      if (flag.name === "u" || flag.name === "target") {
+        const target = flag.inlineValue ?? tokens[index + 1] ?? "";
+        if (target) {
+          targets.push(target);
+        }
+      }
+    });
+
+    if (
+      targets.length !== 1 ||
+      targets[0]?.includes(",") ||
+      targets[0]?.includes("\n")
+    ) {
+      throw new Error(
+        "Authenticated Nuclei runs require exactly one explicit HTTP or HTTPS target.",
+      );
+    }
+    return targets[0]!;
+  }
+
+  async prepareCommandForRun(
+    options: ToolPrepareCommand,
+  ): Promise<string | ToolPreparedCommand> {
     const { command, sessionId, toolRunId } = options;
 
     if (!sessionId || !toolRunId) {
@@ -267,8 +442,23 @@ class NucleiCommandService {
     const colorSafeCommand = nucleiNoColorFlagPattern.test(strippedCommand)
       ? strippedCommand
       : strippedCommand + " -nc";
-    const jsonlOutputFlags = ` -jsonl-export ${this.shellQuotePath(jsonlOutputPath)}`;
-    return colorSafeCommand + jsonlOutputFlags;
+    const jsonlOutputFlags = ` -jsonl-export ${shellQuote(jsonlOutputPath)}`;
+    const controlledCommand = colorSafeCommand + jsonlOutputFlags;
+    const toolData = options.toolData as NucleiToolData | null | undefined;
+    if (!toolData?.form.useAuthenticatedContext) {
+      return controlledCommand;
+    }
+
+    const authenticatedTarget = this.validateAuthenticatedCommand(command);
+    const prepared = await nucleiAuthenticatedRunService.prepare({
+      sessionId,
+      targetUrl: authenticatedTarget,
+      command: `${controlledCommand} -omit-raw -disable-redirects -disable-unsigned-templates`,
+    });
+    return {
+      command: prepared.command,
+      cleanup: prepared.cleanup,
+    };
   }
 
   async collectArtifacts(

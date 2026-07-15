@@ -9,6 +9,7 @@ import {
   ActionDraftRecord,
 } from "../../action-draft/model/action-draft.types";
 import { actionDraftRepository } from "../../action-draft/services/action-draft.repository.instance";
+import { authenticatedContextAcceptanceService } from "../../authentication/services/authenticated-context-acceptance.service";
 import {
   ScannerCatalogContext,
   ScannerCatalogTool,
@@ -16,6 +17,8 @@ import {
   listAvailableScannerToolsFromCatalog,
   scannerCatalog,
 } from "../../tool/shared/registry/scanner-catalog";
+import { redactNucleiCommandForPersistence } from "../../tool/nuclei/services/nuclei-command-redaction";
+import { assertSimpleShellCommand } from "../../tool/nuclei/services/nuclei-shell";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { findingRepository } from "../../finding/services/finding.repository";
 import {
@@ -310,6 +313,10 @@ interface ActionDraftWriteRepository {
   createDraft: (input: ActionDraftInput) => ActionDraftRecord;
 }
 
+interface AuthenticatedContextAcceptanceContract {
+  isProceedAllowed: (sessionId: string) => boolean;
+}
+
 interface SitemapReadRepository {
   getCrawlStatus: (targetId: string) => TargetSitemapCrawlStatusRecord;
   listEntries: (
@@ -520,25 +527,56 @@ function replaceTargetPlaceholders(value: string, target: string) {
     .replaceAll("{TARGET}", target);
 }
 
+function redactDraftAuthorizationValues(value: unknown): unknown {
+  if (typeof value === "string") {
+    return redactNucleiCommandForPersistence(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(redactDraftAuthorizationValues);
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entryValue]) => [
+      key,
+      /authorization|cookie|header|password|secret|token/i.test(key)
+        ? "[redacted]"
+        : redactDraftAuthorizationValues(entryValue),
+    ]),
+  );
+}
+
 function toCreateActionDraftPayload(
   args: CreateActionDraftArgs,
   session: SessionContextRecord | null,
 ) {
   const scannerTarget = getScannerTargetForDraft(args.targetTool, session);
-  const formState = parseOptionalJson(args.formStateJson, "formStateJson");
-  const normalizedFormState =
+  const parsedFormState = parseOptionalJson(
+    args.formStateJson,
+    "formStateJson",
+  );
+  const formState =
+    args.targetTool === "nuclei"
+      ? redactDraftAuthorizationValues(parsedFormState)
+      : parsedFormState;
+  const formStateRecord =
     formState && typeof formState === "object" && !Array.isArray(formState)
+      ? (formState as Record<string, unknown>)
+      : null;
+  const normalizedFormState =
+    formStateRecord
       ? {
-          ...formState,
-          ...(typeof formState.target === "string"
+          ...formStateRecord,
+          ...(typeof formStateRecord.target === "string"
             ? {
                 target: replaceTargetPlaceholders(
-                  formState.target,
+                  formStateRecord.target,
                   scannerTarget,
                 ),
               }
             : {}),
-          ...(!("target" in formState) && scannerTarget
+          ...(!("target" in formStateRecord) && scannerTarget
             ? { target: scannerTarget }
             : {}),
         }
@@ -556,11 +594,23 @@ function toCreateActionDraftPayload(
       : {}),
     ...(args.command
       ? {
-          command: replaceTargetPlaceholders(args.command, scannerTarget),
+          command:
+            args.targetTool === "nuclei"
+              ? redactNucleiCommandForPersistence(
+                  replaceTargetPlaceholders(args.command, scannerTarget),
+                )
+              : replaceTargetPlaceholders(args.command, scannerTarget),
         }
       : {}),
     ...(args.intentJson
-      ? { intent: parseOptionalJson(args.intentJson, "intentJson") }
+      ? {
+          intent:
+            args.targetTool === "nuclei"
+              ? redactDraftAuthorizationValues(
+                  parseOptionalJson(args.intentJson, "intentJson"),
+                )
+              : parseOptionalJson(args.intentJson, "intentJson"),
+        }
       : {}),
     ...(normalizedFormState !== undefined
       ? { formState: normalizedFormState }
@@ -1448,6 +1498,8 @@ export class ActionDraftChatContextToolsService {
     private readonly attachments: ConversationAttachmentScope = conversationAttachmentService,
     private readonly drafts: ActionDraftWriteRepository = actionDraftRepository,
     private readonly sessions: SessionContextReadRepository = sessionRepository,
+    private readonly authenticationAcceptance: AuthenticatedContextAcceptanceContract =
+      authenticatedContextAcceptanceService,
   ) {}
 
   createActionDraft(
@@ -1460,13 +1512,37 @@ export class ActionDraftChatContextToolsService {
       opencodeConversationId,
     );
     const session = this.sessions.getSessionById(attachment.sessionId);
+    const payload = toCreateActionDraftPayload(args, session);
+    const formState =
+      payload.formState &&
+      typeof payload.formState === "object" &&
+      !Array.isArray(payload.formState)
+        ? (payload.formState as Record<string, unknown>)
+        : null;
+    if (
+      targetTool === "nuclei" &&
+      formState?.useAuthenticatedContext === true &&
+      !this.authenticationAcceptance.isProceedAllowed(attachment.sessionId)
+    ) {
+      throw new Error(
+        "Authenticated Nuclei drafts require an accepted authentication context.",
+      );
+    }
+    if (targetTool === "nuclei" && formState?.useAuthenticatedContext === true) {
+      if (typeof payload.command === "string") {
+        assertSimpleShellCommand(payload.command);
+      }
+      if (typeof formState.extraArgs === "string") {
+        assertSimpleShellCommand(formState.extraArgs);
+      }
+    }
     const draft = this.drafts.createDraft({
       sessionId: attachment.sessionId,
       opencodeConversationId: attachment.opencodeConversationId,
       targetTool,
       title: args.title,
       summary: "",
-      payload: toCreateActionDraftPayload(args, session),
+      payload,
     });
 
     return toCreateActionDraftResult(draft);

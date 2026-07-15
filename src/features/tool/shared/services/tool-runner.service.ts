@@ -26,6 +26,7 @@ interface ActiveToolRun {
   onSystemLines: (lines: string[]) => void;
   onRunCancelled?: (event: { toolRunId: string | null }) => void;
   cancelled: boolean;
+  cleanupPreparedRun: (() => void) | null;
 }
 
 interface RunToolCommandInput {
@@ -34,6 +35,7 @@ interface RunToolCommandInput {
   command: string;
   commandSource: import("../types/tool-screen.types").CommandSource;
   toolModule: ToolModule | undefined;
+  toolData?: unknown;
   onRunStarted?: (toolRunId: string | null) => void;
   onStdoutLines: (lines: string[]) => void;
   onStderrLines: (lines: string[]) => void;
@@ -64,6 +66,7 @@ export class ToolRunnerService {
     command,
     commandSource,
     toolModule,
+    toolData,
     onRunStarted,
     onStdoutLines,
     onStderrLines,
@@ -71,11 +74,13 @@ export class ToolRunnerService {
     onRunFinished,
     onRunCancelled,
   }: RunToolCommandInput) {
+    const persistedCommand =
+      toolModule?.redactCommandForPersistence?.(command) ?? command;
     const toolRun =
       sessionId && toolName
         ? this.repository.recordToolRun(sessionId, {
             toolName,
-            command,
+            command: persistedCommand,
             commandSource,
             status: "running",
           })
@@ -88,19 +93,45 @@ export class ToolRunnerService {
       onSystemLines,
       onRunCancelled,
       cancelled: false,
+      cleanupPreparedRun: null,
     };
 
     this.activeRun = activeRun;
     onRunStarted?.(toolRunId);
 
-    const preparedCommand =
-      toolModule?.prepareCommandForRun?.({
-        command,
-        sessionId,
-        toolRunId,
-      }) ?? command;
-
     try {
+      const preparation =
+        toolModule?.prepareCommandForRun?.({
+          command,
+          sessionId,
+          toolRunId,
+          toolData,
+        }) ?? command;
+      const prepared =
+        typeof preparation === "object" &&
+        preparation !== null &&
+        "then" in preparation
+          ? await preparation
+          : preparation;
+      const preparedCommand =
+        typeof prepared === "string" ? prepared : prepared.command;
+      let hasCleanedPreparedRun = false;
+      activeRun.cleanupPreparedRun =
+        typeof prepared === "string" || !prepared.cleanup
+          ? null
+          : () => {
+              if (hasCleanedPreparedRun) {
+                return;
+              }
+              hasCleanedPreparedRun = true;
+              prepared.cleanup?.();
+            };
+
+      if (activeRun.cancelled) {
+        activeRun.cleanupPreparedRun?.();
+        return;
+      }
+
       const exitCode = await this.commandRunner.run(
         preparedCommand,
         (lines) => {
@@ -179,6 +210,7 @@ export class ToolRunnerService {
         exitCode: null,
       });
     } finally {
+      activeRun.cleanupPreparedRun?.();
       if (this.activeRun === activeRun) {
         this.activeRun = null;
       }
@@ -204,6 +236,7 @@ export class ToolRunnerService {
     this.activeRun.onRunCancelled?.({
       toolRunId: this.activeRun.toolRunId,
     });
+    this.activeRun.cleanupPreparedRun?.();
     this.commandRunner.stop();
   }
 }

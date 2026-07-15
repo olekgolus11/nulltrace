@@ -66,8 +66,35 @@ describe("nucleiCommandService", () => {
     );
   });
 
-  test("forces controlled JSONL output for prepared runs", () => {
-    const preparedCommand = nucleiCommandService.prepareCommandForRun({
+  test("hides and disables session auth when the editable target changes origin", () => {
+    let toolData = nucleiCommandService.createInitialToolData(
+      "https://example.com",
+    );
+    toolData = nucleiCommandService.setAuthenticationAvailability(
+      toolData,
+      "https://example.com",
+    );
+    toolData = nucleiCommandService.toggleAuthenticatedContext(toolData);
+
+    expect(toolData.authentication.isAvailable).toBe(true);
+    expect(toolData.form.useAuthenticatedContext).toBe(true);
+
+    toolData = nucleiCommandService.setField(
+      toolData,
+      "target",
+      "https://api.example.com",
+    );
+
+    expect(toolData.authentication).toMatchObject({
+      isAvailable: false,
+      origin: "https://example.com",
+      strategy: "none",
+    });
+    expect(toolData.form.useAuthenticatedContext).toBe(false);
+  });
+
+  test("forces controlled JSONL output for prepared runs", async () => {
+    const preparedCommand = await nucleiCommandService.prepareCommandForRun({
       command:
         "nuclei -u https://example.com -json -o /tmp/manual.json -jle /tmp/manual.jsonl",
       sessionId: "session-1",
@@ -85,18 +112,22 @@ describe("nucleiCommandService", () => {
     );
   });
 
-  test("keeps an existing no-color flag when preparing a run", () => {
-    const preparedCommand = nucleiCommandService.prepareCommandForRun({
+  test("keeps an existing no-color flag when preparing a run", async () => {
+    const preparedCommand = await nucleiCommandService.prepareCommandForRun({
       command: "nuclei -u https://example.com -nc",
       sessionId: "session-1",
       toolRunId: "run-no-color",
     });
 
+    if (typeof preparedCommand !== "string") {
+      throw new Error("Expected unauthenticated command preparation.");
+    }
+
     expect(preparedCommand.match(/ -nc/g)).toHaveLength(1);
   });
 
-  test("strips quoted output flag paths without leaving dangling arguments", () => {
-    const preparedCommand = nucleiCommandService.prepareCommandForRun({
+  test("strips quoted output flag paths without leaving dangling arguments", async () => {
+    const preparedCommand = await nucleiCommandService.prepareCommandForRun({
       command:
         "nuclei -u https://example.com -jsonl-export '/tmp/my output.jsonl' -o \"/tmp/text output.txt\"",
       sessionId: "session-1",
@@ -111,6 +142,68 @@ describe("nucleiCommandService", () => {
     expect(preparedCommand).toContain(
       "artifacts/sessions/session-1/tool-runs/run-quoted/nuclei.jsonl",
     );
+  });
+
+  test("rejects raw request or response output flags for authenticated runs", async () => {
+    const toolData = nucleiCommandService.createInitialToolData(
+      "https://example.com",
+    );
+    toolData.form.useAuthenticatedContext = true;
+
+    await expect(
+      nucleiCommandService.prepareCommandForRun({
+        command:
+          "nuclei -u https://example.com -debug-req -store-resp-dir /tmp/raw",
+        sessionId: "session-1",
+        toolRunId: "run-auth",
+        toolData,
+      }),
+    ).rejects.toThrow("Authenticated Nuclei runs cannot use options");
+    await expect(
+      nucleiCommandService.prepareCommandForRun({
+        command: "nuclei -u https://example.com -follow-host-redirects",
+        sessionId: "session-1",
+        toolRunId: "run-auth-redirect",
+        toolData,
+      }),
+    ).rejects.toThrow("Authenticated Nuclei runs cannot use options");
+    for (const command of [
+      "nuclei -u https://example.com --debug",
+      "nuclei -u https://example.com '-include-rr'",
+      'nuclei -u https://example.com -de""bug',
+      "nuclei -u https://example.com --omit-raw=false",
+      "nuclei -u https://example.com -u http://example.com",
+      "nuclei -list targets.txt",
+      "F=-debug; nuclei $F -u https://example.com",
+      "nuclei $(printf -- -debug) -u https://example.com",
+      "nuclei -u https://example.com -*",
+      "/tmp/helper -u https://example.com",
+      "nuclei -u https://example.com -t /tmp/custom-template.yaml",
+    ]) {
+      await expect(
+        nucleiCommandService.prepareCommandForRun({
+          command,
+          sessionId: "session-1",
+          toolRunId: "run-auth-bypass",
+          toolData,
+        }),
+      ).rejects.toThrow("Authenticated Nuclei runs");
+    }
+  });
+
+  test("redacts manually supplied authorization values from persisted commands", () => {
+    expect(
+      nucleiCommandService.redactCommandForPersistence(
+        "nuclei -u https://example.com -H 'Authorization: Bearer secret-token' -H 'Cookie: session=secret-cookie'",
+      ),
+    ).toBe(
+      "nuclei -u https://example.com -H '[redacted]' -H '[redacted]'",
+    );
+    expect(
+      nucleiCommandService.redactCommandForPersistence(
+        "nuclei -u=https://example.com -header='Authorization: Bearer inline-secret'",
+      ),
+    ).toBe("nuclei -u=https://example.com -header '[redacted]'");
   });
 
   test("parses valid JSONL findings with normalized convenience fields and raw preservation", () => {

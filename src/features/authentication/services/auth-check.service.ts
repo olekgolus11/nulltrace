@@ -9,6 +9,7 @@ import {
   AuthenticatedRequestContextService,
   normalizeExactOrigin,
 } from "./authenticated-request-context.service";
+import { authenticatedContextAcceptanceService } from "./authenticated-context-acceptance.service";
 import {
   createUncheckedAuthCheckMetadata,
   splitAuthenticatedHeaderEntries,
@@ -313,6 +314,7 @@ export class AuthCheckService {
     this.maxRedirects = options.maxRedirects ?? defaultLimits.maxRedirects;
     this.contextService.subscribeToInvalidation(({ sessionId }) => {
       this.states.delete(sessionId);
+      authenticatedContextAcceptanceService.clear(sessionId);
     });
   }
 
@@ -350,6 +352,7 @@ export class AuthCheckService {
         "The operator acknowledged an inconclusive Auth Check. Authorization scope is not established.",
     };
     this.states.set(sessionId, acknowledged);
+    authenticatedContextAcceptanceService.setProceedAllowed(sessionId, true);
     return acknowledged;
   }
 
@@ -408,12 +411,17 @@ export class AuthCheckService {
         acknowledgedAt: null,
       };
       this.states.set(sessionId, metadata);
+      authenticatedContextAcceptanceService.setProceedAllowed(
+        sessionId,
+        metadata.isProceedAllowed,
+      );
       return metadata;
     } catch {
       if (
         this.contextService.getAuthStateVersion(sessionId) !== contextVersion
       ) {
         this.states.delete(sessionId);
+        authenticatedContextAcceptanceService.clear(sessionId);
         throw new Error(
           "Authentication context changed during Auth Check. Run it again.",
         );
@@ -430,6 +438,7 @@ export class AuthCheckService {
           "Auth Check could not compare bounded responses. Authorization scope is not established.",
         signals: null,
       });
+      authenticatedContextAcceptanceService.clear(sessionId);
       throw new Error(
         "Auth Check could not compare the selected same-origin URL.",
       );

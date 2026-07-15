@@ -179,9 +179,11 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
     const toolModule = state.toolName
       ? toolRegistry[state.toolName]
       : undefined;
+    const persistedCommand =
+      toolModule?.redactCommandForPersistence?.(command) ?? command;
 
     set({
-      outputLines: [`$ ${command}`, ""],
+      outputLines: [`$ ${persistedCommand}`, ""],
       executionStatus: "running" satisfies ExecutionStatus,
       lastExitCode: null,
       currentToolRunId: null,
@@ -194,6 +196,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       command,
       commandSource: state.commandSource,
       toolModule,
+      toolData: state.toolData,
       onRunStarted: (toolRunId) => {
         set({
           currentToolRunId: toolRunId,

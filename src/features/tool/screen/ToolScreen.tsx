@@ -15,6 +15,9 @@ import { useSessionChat } from "../../chat/hooks/use-session-chat";
 import { DashboardPanel } from "../../dashboard/components/DashboardPanel";
 import { useSessionFindings } from "../../finding/hooks/use-session-findings";
 import { useSessionContextStore } from "../../session/store/session-context.store";
+import { useSessionAuthenticatedRequestContext } from "../../authentication/hooks/use-session-authenticated-request-context";
+import { nucleiCommandService } from "../nuclei/services/nuclei-command.service";
+import { NucleiToolData } from "../nuclei/types/nuclei.types";
 import { useToolLayout } from "../hooks/use-tool-layout";
 import { ActiveToolWorkspace } from "../shared/components/ActiveToolWorkspace";
 import { ToolHelpDialog } from "../shared/components/ToolHelpDialog";
@@ -63,7 +66,13 @@ export function ToolScreen({
   const appliedPendingDraftIdRef = useRef<string | null>(null);
   const [selectedActionDraftIndex, setSelectedActionDraftIndex] = useState(0);
   const sessionId = useSessionContextStore((state) => state.sessionId);
+  const targetId = useSessionContextStore((state) => state.targetId);
   const targetUrl = useSessionContextStore((state) => state.targetUrl);
+  const authenticationContext = useSessionAuthenticatedRequestContext(
+    sessionId,
+    targetId,
+    targetUrl,
+  );
   const activeConversationId = useSessionContextStore(
     (state) => state.activeConversationId,
   );
@@ -174,6 +183,7 @@ export function ToolScreen({
       currentToolName: toolName,
       currentToolData: state.toolData,
       buildGeneratedCommand: toolModule.buildGeneratedCommand,
+      authenticatedContext: authenticationContext.metadata,
     });
 
     if (!result.ok) {
@@ -268,6 +278,40 @@ export function ToolScreen({
   }, [initializeWorkspace, sessionId, stopCommand, targetUrl, toolName]);
 
   useEffect(() => {
+    if (toolName !== "nuclei") {
+      return;
+    }
+    const metadata = authenticationContext.metadata;
+    let acceptedOrigin: string | null = null;
+    try {
+      acceptedOrigin =
+        metadata?.authCheck.isProceedAllowed &&
+        metadata.origin === new URL(targetUrl).origin
+          ? metadata.origin
+          : null;
+    } catch {
+      acceptedOrigin = null;
+    }
+    const state = useToolWorkspaceStore.getState();
+    if (!state.toolData) {
+      return;
+    }
+    const current = state.toolData as NucleiToolData;
+    if (
+      current.authentication.origin === acceptedOrigin &&
+      current.authentication.isAvailable === Boolean(acceptedOrigin)
+    ) {
+      return;
+    }
+    state.updateToolData((toolData) =>
+      nucleiCommandService.setAuthenticationAvailability(
+        toolData as NucleiToolData,
+        acceptedOrigin,
+      ),
+    );
+  }, [authenticationContext.metadata, targetUrl, toolName]);
+
+  useEffect(() => {
     setSelectedActionDraftIndex((currentIndex) =>
       Math.max(
         0,
@@ -357,6 +401,7 @@ export function ToolScreen({
         subtitle="guided controls + raw command"
         targetUrl={targetUrl}
         counts={sessionFindings.counts}
+        authenticationContext={authenticationContext.metadata}
       />
 
       <box flexDirection="row" height={layout.contentHeight}>

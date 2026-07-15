@@ -7,10 +7,13 @@ export type NucleiFieldId =
   | "severityPreset"
   | "tags"
   | "templatesPath"
-  | "extraArgs";
+  | "extraArgs"
+  | "useAuthenticatedContext";
 
-export interface NucleiAuthPlaceholder {
-  strategy: "none";
+export interface NucleiAuthenticationState {
+  strategy: "none" | "session";
+  isAvailable: boolean;
+  origin: string | null;
 }
 
 export interface NucleiHeadersPlaceholder {
@@ -22,7 +25,6 @@ export interface NucleiTemplateManagementPlaceholder {
 }
 
 export interface NucleiFutureSlots {
-  auth: NucleiAuthPlaceholder;
   headers: NucleiHeadersPlaceholder;
   templateManagement: NucleiTemplateManagementPlaceholder;
 }
@@ -33,10 +35,12 @@ export interface NucleiFormState extends Record<string, unknown> {
   tags: string;
   templatesPath: string;
   extraArgs: string;
+  useAuthenticatedContext: boolean;
 }
 
 export interface NucleiToolData extends ToolData {
   form: NucleiFormState;
   selectedField: number;
+  authentication: NucleiAuthenticationState;
   future: NucleiFutureSlots;
 }

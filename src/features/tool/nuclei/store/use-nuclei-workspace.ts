@@ -55,6 +55,15 @@ export function useNucleiWorkspace() {
     syncGeneratedCommand();
   };
 
+  const toggleAuthenticatedContext = () => {
+    updateToolData((current) =>
+      nucleiCommandService.toggleAuthenticatedContext(
+        getNucleiToolData(current),
+      ),
+    );
+    syncGeneratedCommand();
+  };
+
   return {
     activePanel,
     toolData,
@@ -69,6 +78,7 @@ export function useNucleiWorkspace() {
     selectedHistoryRun,
     isHistoricPreview,
     setField,
+    toggleAuthenticatedContext,
     setManualCommandInput,
     runCommand,
   };

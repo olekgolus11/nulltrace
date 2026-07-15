@@ -8,12 +8,7 @@ import {
   NucleiSeverityPreset,
 } from "../types/nuclei.types";
 
-export function NucleiForm({
-  form,
-  selectedField,
-  focused,
-  onFieldChange,
-}: {
+interface NucleiFormProps {
   form: NucleiFormState;
   selectedField: number;
   focused: boolean;
@@ -21,7 +16,20 @@ export function NucleiForm({
     field: keyof NucleiFormState,
     value: string | NucleiSeverityPreset,
   ) => void;
-}) {
+  authAvailable: boolean;
+  authOrigin: string | null;
+  onToggleAuthenticatedContext: () => void;
+}
+
+export function NucleiForm({
+  form,
+  selectedField,
+  focused,
+  onFieldChange,
+  authAvailable,
+  authOrigin,
+  onToggleAuthenticatedContext,
+}: NucleiFormProps) {
   const selectedId = nucleiFieldOrder[selectedField];
 
   return (
@@ -165,6 +173,39 @@ export function NucleiForm({
           />
         </box>
       </box>
+
+      {authAvailable ? (
+        <box
+          flexDirection="row"
+          width="100%"
+          marginTop={1}
+          onMouseDown={onToggleAuthenticatedContext}
+        >
+          <box width={20}>
+            <text
+              fg={
+                selectedId === "useAuthenticatedContext"
+                  ? theme.accent.primary
+                  : theme.text.secondary
+              }
+            >
+              {selectedId === "useAuthenticatedContext"
+                ? "> Session auth"
+                : "  Session auth"}
+            </text>
+          </box>
+          <text fg={theme.text.primary}>
+            {form.useAuthenticatedContext
+              ? "[enabled]  disabled"
+              : "enabled  [disabled]"}
+          </text>
+          <text fg={theme.text.dim}>
+            {form.useAuthenticatedContext
+              ? `  -sf added at run  ${authOrigin ?? ""}`
+              : `  use left/right  ${authOrigin ?? ""}`}
+          </text>
+        </box>
+      ) : null}
     </box>
   );
 }
