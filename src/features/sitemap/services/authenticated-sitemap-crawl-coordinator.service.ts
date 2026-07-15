@@ -1,5 +1,6 @@
 import { AuthenticatedRequestContext } from "../../authentication/model/authenticated-request-context.types";
 import { AuthenticatedSitemapCrawlerInput } from "./authenticated-sitemap-crawler.service";
+import { AuthenticatedSitemapCrawlStatusRecord } from "../model/sitemap.types";
 
 interface AuthenticatedContextLoader {
   loadProtectedContext(sessionId: string): Promise<AuthenticatedRequestContext | null>;
@@ -7,6 +8,14 @@ interface AuthenticatedContextLoader {
 
 interface AuthenticatedCrawlerRunner {
   crawl(input: AuthenticatedSitemapCrawlerInput): Promise<unknown>;
+  requestPause(sessionId: string): boolean;
+}
+
+interface AuthenticatedCrawlStatusReader {
+  getAuthenticatedCrawlStatus(
+    sessionId: string,
+    targetId: string,
+  ): AuthenticatedSitemapCrawlStatusRecord;
 }
 
 export interface StartAuthenticatedSitemapCrawlInput {
@@ -18,7 +27,10 @@ export interface StartAuthenticatedSitemapCrawlInput {
 export type StartAuthenticatedSitemapCrawlState =
   | "started"
   | "already_running"
-  | "context_unavailable";
+  | "context_unavailable"
+  | "auth_check_required"
+  | "pause_requested"
+  | "unavailable";
 
 export interface StartAuthenticatedSitemapCrawlResult {
   state: StartAuthenticatedSitemapCrawlState;
@@ -31,6 +43,7 @@ export class AuthenticatedSitemapCrawlCoordinator {
   constructor(
     private readonly contextLoader: AuthenticatedContextLoader,
     private readonly crawler: AuthenticatedCrawlerRunner,
+    private readonly repository?: AuthenticatedCrawlStatusReader,
   ) {}
 
   async startAfterAcceptedAuthCheck({
@@ -38,6 +51,78 @@ export class AuthenticatedSitemapCrawlCoordinator {
     targetId,
     rootUrl,
   }: StartAuthenticatedSitemapCrawlInput): Promise<StartAuthenticatedSitemapCrawlResult> {
+    const status = this.repository?.getAuthenticatedCrawlStatus(
+      sessionId,
+      targetId,
+    ).status;
+    return this.startWithContext(
+      { sessionId, targetId, rootUrl },
+      status === "paused" || status === "authentication_required"
+        ? "resume"
+        : "fresh",
+    );
+  }
+
+  pauseSessionCrawl(sessionId: string): StartAuthenticatedSitemapCrawlResult {
+    return this.crawler.requestPause(sessionId)
+      ? { state: "pause_requested", crawl: this.runningBySessionId.get(sessionId) ?? null }
+      : { state: "unavailable", crawl: null };
+  }
+
+  async resumePausedCrawl(
+    input: StartAuthenticatedSitemapCrawlInput,
+  ): Promise<StartAuthenticatedSitemapCrawlResult> {
+    const status = this.repository?.getAuthenticatedCrawlStatus(
+      input.sessionId,
+      input.targetId,
+    ).status;
+    if (status === "authentication_required") {
+      return { state: "auth_check_required", crawl: null };
+    }
+    if (status !== "paused") {
+      return { state: "unavailable", crawl: null };
+    }
+    return this.startWithContext(input, "resume");
+  }
+
+  async retrySessionFailures(
+    input: StartAuthenticatedSitemapCrawlInput,
+  ): Promise<StartAuthenticatedSitemapCrawlResult> {
+    const status = this.repository?.getAuthenticatedCrawlStatus(
+      input.sessionId,
+      input.targetId,
+    ).status;
+    if (status === "authentication_required") {
+      return { state: "auth_check_required", crawl: null };
+    }
+    return this.startWithContext(input, "retry_failures");
+  }
+
+  async restartSessionCrawl(
+    input: StartAuthenticatedSitemapCrawlInput,
+  ): Promise<StartAuthenticatedSitemapCrawlResult> {
+    const status = this.repository?.getAuthenticatedCrawlStatus(
+      input.sessionId,
+      input.targetId,
+    ).status;
+    if (status === "authentication_required") {
+      return { state: "auth_check_required", crawl: null };
+    }
+    const running = this.runningBySessionId.get(input.sessionId);
+    if (running) {
+      this.crawler.requestPause(input.sessionId);
+      void running.finally(() => {
+        void this.startWithContext(input, "fresh");
+      });
+      return { state: "pause_requested", crawl: running };
+    }
+    return this.startWithContext(input, "fresh");
+  }
+
+  private async startWithContext(
+    { sessionId, targetId, rootUrl }: StartAuthenticatedSitemapCrawlInput,
+    mode: "fresh" | "resume" | "retry_failures",
+  ): Promise<StartAuthenticatedSitemapCrawlResult> {
     const running = this.runningBySessionId.get(sessionId);
     if (running) {
       return { state: "already_running", crawl: running };
@@ -66,7 +151,13 @@ export class AuthenticatedSitemapCrawlCoordinator {
       return { state: "context_unavailable", crawl: null };
     }
 
-    const crawl = this.crawler.crawl({ sessionId, targetId, rootUrl, context });
+    const crawl = this.crawler.crawl({
+      sessionId,
+      targetId,
+      rootUrl,
+      context,
+      mode,
+    });
     void crawl.then(resolveCrawl, rejectCrawl);
     void trackedCrawl
       .catch(() => undefined)

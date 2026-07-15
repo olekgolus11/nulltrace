@@ -1,9 +1,12 @@
 import { load } from "cheerio";
 import { XMLParser } from "fast-xml-parser";
 import {
+  SitemapCrawlCheckpoint,
+  SitemapCrawlRunMode,
   TargetSitemapEntrySource,
   UpsertTargetSitemapEntryInput,
 } from "../model/sitemap.types";
+import { selectTransientCrawlFailures } from "../model/sitemap-crawl-lifecycle";
 import { sitemapRepository } from "./sitemap.repository";
 import {
   createAbsoluteCrawlUrl,
@@ -15,6 +18,15 @@ interface PublicSitemapCrawlerPersistence {
   markCrawlRunning(targetId: string): unknown;
   markCrawlCompleted(targetId: string): unknown;
   markCrawlFailed(targetId: string, errorMessage: string): unknown;
+  markCrawlPaused?(targetId: string): unknown;
+  saveCrawlCheckpoint?(
+    input: Omit<SitemapCrawlCheckpoint, "updatedAt">,
+  ): unknown;
+  getCrawlCheckpoint?(
+    crawlerType: "public",
+    ownerId: string,
+  ): SitemapCrawlCheckpoint | null;
+  deleteCrawlCheckpoint?(crawlerType: "public", ownerId: string): unknown;
 }
 
 type FetchFunction = (
@@ -54,10 +66,11 @@ export interface PublicSitemapCrawlerInput {
   targetId: string;
   rootUrl: string;
   limits?: Partial<PublicSitemapCrawlerLimits>;
+  mode?: SitemapCrawlRunMode;
 }
 
 export interface PublicSitemapCrawlerResult {
-  status: "completed" | "failed";
+  status: "completed" | "paused" | "failed";
   pagesFetched: number;
   entriesDiscovered: number;
   errorMessage?: string;
@@ -258,11 +271,21 @@ export class PublicSitemapCrawler {
   private readonly repository: PublicSitemapCrawlerPersistence;
   private readonly fetch: FetchFunction;
   private readonly limits: Partial<PublicSitemapCrawlerLimits>;
+  private readonly activeTargetIds = new Set<string>();
+  private readonly pauseRequestedTargetIds = new Set<string>();
 
   constructor(options: PublicSitemapCrawlerOptions = {}) {
     this.repository = options.repository ?? sitemapRepository;
     this.fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.limits = options.limits ?? {};
+  }
+
+  requestPause(targetId: string) {
+    if (!this.activeTargetIds.has(targetId)) {
+      return false;
+    }
+    this.pauseRequestedTargetIds.add(targetId);
+    return true;
   }
 
   async crawl(
@@ -271,34 +294,71 @@ export class PublicSitemapCrawler {
     const limits = mergeLimits(this.limits, input.limits);
     const rootUrl = normalizeRootUrl(input.rootUrl);
     const origin = getOrigin(rootUrl);
-    const queue: QueuedUrl[] = [
-      {
-        url: rootUrl,
-        depth: 0,
-        source: "seed",
-      },
-    ];
-    const queuedUrls = new Set([rootUrl.toString()]);
-    const visitedUrls = new Set<string>();
-    const discoveredEntries = new Set<string>();
-    let pagesFetched = 0;
+    const mode = input.mode ?? "fresh";
+    const checkpoint = mode === "fresh"
+      ? null
+      : this.repository.getCrawlCheckpoint?.("public", input.targetId) ?? null;
+    const recoveredFrontier = mode === "retry_failures"
+      ? selectTransientCrawlFailures(checkpoint?.failures ?? [])
+      : checkpoint?.frontier ?? null;
+    const queue: QueuedUrl[] = recoveredFrontier
+      ? recoveredFrontier.map((entry) => ({
+          url: new URL(entry.url),
+          depth: entry.depth,
+          source: entry.source,
+        }))
+      : [{ url: rootUrl, depth: 0, source: "seed" }];
+    const visitedUrls = new Set(checkpoint?.visitedUrls ?? []);
+    if (mode === "retry_failures") {
+      queue.forEach((entry) => visitedUrls.delete(entry.url.toString()));
+    }
+    const queuedUrls = new Set([
+      ...visitedUrls,
+      ...queue.map((entry) => entry.url.toString()),
+    ]);
+    const discoveredEntries = new Set(
+      checkpoint?.discoveredEntryKeys ?? [],
+    );
+    let pagesFetched = checkpoint?.pagesFetched ?? 0;
+    const failures = mode === "retry_failures"
+      ? (checkpoint?.failures ?? []).filter(
+          (failure) => !selectTransientCrawlFailures([failure]).length,
+        )
+      : [...(checkpoint?.failures ?? [])];
     let pageRequests = 0;
 
+    if (mode === "fresh") {
+      this.repository.deleteCrawlCheckpoint?.("public", input.targetId);
+    }
+    this.activeTargetIds.add(input.targetId);
     this.repository.markCrawlRunning(input.targetId);
 
     try {
-      this.persistEntry(input.targetId, rootUrl, "GET", null, "seed", 0);
-      discoveredEntries.add(`GET ${rootUrl.toString()}`);
+      if (!checkpoint) {
+        this.persistEntry(input.targetId, rootUrl, "GET", null, "seed", 0);
+        discoveredEntries.add(`GET ${rootUrl.toString()}`);
 
-      await this.discoverSitemaps(
-        input.targetId,
-        rootUrl,
-        origin,
-        limits,
-        queue,
-        queuedUrls,
-        discoveredEntries,
-      );
+        await this.discoverSitemaps(
+          input.targetId,
+          rootUrl,
+          origin,
+          limits,
+          queue,
+          queuedUrls,
+          discoveredEntries,
+        );
+        const pausedResult = this.checkpointAndPauseIfRequested(
+          input,
+          queue,
+          visitedUrls,
+          failures,
+          pagesFetched,
+          discoveredEntries,
+        );
+        if (pausedResult) {
+          return pausedResult;
+        }
+      }
 
       while (queue.length > 0 && pageRequests < limits.maxPages) {
         const next = queue.shift();
@@ -315,10 +375,35 @@ export class PublicSitemapCrawler {
         visitedUrls.add(normalizedUrlValue);
         pageRequests += 1;
 
-        const fetchedResponse = await this.fetchWithTimeout(
-          normalizedUrl,
-          limits.requestTimeoutMs,
-        );
+        let fetchedResponse: FetchedResponse;
+        try {
+          fetchedResponse = await this.fetchWithTimeout(
+            normalizedUrl,
+            limits.requestTimeoutMs,
+          );
+        } catch (error) {
+          failures.push({
+            url: normalizedUrlValue,
+            depth: next.depth,
+            source: next.source,
+            kind:
+              error instanceof Error &&
+                (error.name === "TimeoutError" || error.name === "AbortError")
+                ? "timeout"
+                : "network",
+            httpStatus: null,
+            errorMessage: toErrorMessage(error),
+          });
+          this.saveCheckpoint(
+            input,
+            queue,
+            visitedUrls,
+            failures,
+            pagesFetched,
+            discoveredEntries,
+          );
+          throw error;
+        }
         const response = fetchedResponse.response;
         const pageUrl = fetchedResponse.url;
         visitedUrls.add(pageUrl.toString());
@@ -332,7 +417,35 @@ export class PublicSitemapCrawler {
         );
         discoveredEntries.add(`GET ${pageUrl.toString()}`);
 
+        const previousFailureIndex = failures.findIndex(
+          (failure) => failure.url === normalizedUrlValue,
+        );
+        if (previousFailureIndex >= 0) {
+          failures.splice(previousFailureIndex, 1);
+        }
+        if (!response.ok) {
+          failures.push({
+            url: normalizedUrlValue,
+            depth: next.depth,
+            source: next.source,
+            kind: "http",
+            httpStatus: response.status,
+            errorMessage: `HTTP ${response.status}`,
+          });
+        }
+
         if (!response.ok || !isHtmlResponse(response)) {
+          const pausedResult = this.checkpointAndPauseIfRequested(
+            input,
+            queue,
+            visitedUrls,
+            failures,
+            pagesFetched,
+            discoveredEntries,
+          );
+          if (pausedResult) {
+            return pausedResult;
+          }
           continue;
         }
 
@@ -373,6 +486,18 @@ export class PublicSitemapCrawler {
             this.enqueueUrl(queue, queuedUrls, form.url, formDepth, "html_form");
           }
         });
+
+        const pausedResult = this.checkpointAndPauseIfRequested(
+          input,
+          queue,
+          visitedUrls,
+          failures,
+          pagesFetched,
+          discoveredEntries,
+        );
+        if (pausedResult) {
+          return pausedResult;
+        }
       }
 
       this.repository.markCrawlCompleted(input.targetId);
@@ -392,7 +517,63 @@ export class PublicSitemapCrawler {
         entriesDiscovered: discoveredEntries.size,
         errorMessage,
       };
+    } finally {
+      this.activeTargetIds.delete(input.targetId);
+      this.pauseRequestedTargetIds.delete(input.targetId);
     }
+  }
+
+  private saveCheckpoint(
+    input: PublicSitemapCrawlerInput,
+    queue: QueuedUrl[],
+    visitedUrls: Set<string>,
+    failures: SitemapCrawlCheckpoint["failures"],
+    pagesFetched: number,
+    discoveredEntries: Set<string>,
+  ) {
+    this.repository.saveCrawlCheckpoint?.({
+      crawlerType: "public",
+      ownerId: input.targetId,
+      targetId: input.targetId,
+      rootUrl: input.rootUrl,
+      frontier: queue.map((entry) => ({
+        url: entry.url.toString(),
+        depth: entry.depth,
+        source: entry.source,
+      })),
+      visitedUrls: [...visitedUrls],
+      failures,
+      discoveredEntryKeys: [...discoveredEntries],
+      pagesFetched,
+      entriesDiscovered: discoveredEntries.size,
+    });
+  }
+
+  private checkpointAndPauseIfRequested(
+    input: PublicSitemapCrawlerInput,
+    queue: QueuedUrl[],
+    visitedUrls: Set<string>,
+    failures: SitemapCrawlCheckpoint["failures"],
+    pagesFetched: number,
+    discoveredEntries: Set<string>,
+  ): PublicSitemapCrawlerResult | null {
+    this.saveCheckpoint(
+      input,
+      queue,
+      visitedUrls,
+      failures,
+      pagesFetched,
+      discoveredEntries,
+    );
+    if (!this.pauseRequestedTargetIds.has(input.targetId)) {
+      return null;
+    }
+    this.repository.markCrawlPaused?.(input.targetId);
+    return {
+      status: "paused",
+      pagesFetched,
+      entriesDiscovered: discoveredEntries.size,
+    };
   }
 
   private async discoverSitemaps(
@@ -431,9 +612,16 @@ export class PublicSitemapCrawler {
       // Optional discovery source; the page crawl can still continue.
     }
 
+    if (this.pauseRequestedTargetIds.has(targetId)) {
+      return;
+    }
+
     sitemapUrls.set(defaultSitemapUrl.toString(), "sitemap_xml");
 
     for (const [sitemapUrlValue, source] of sitemapUrls) {
+      if (this.pauseRequestedTargetIds.has(targetId)) {
+        return;
+      }
       const sitemapUrl = new URL(sitemapUrlValue);
       if (!isSameOrigin(sitemapUrl, origin)) {
         continue;

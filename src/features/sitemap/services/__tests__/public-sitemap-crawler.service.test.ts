@@ -1,15 +1,17 @@
 import { describe, expect, it } from "bun:test";
 import { PublicSitemapCrawler } from "../public-sitemap-crawler.service";
 import { UpsertTargetSitemapEntryInput } from "../../model/sitemap.types";
+import { SitemapCrawlCheckpoint } from "../../model/sitemap.types";
 
 interface RecordedStatus {
-  status: "running" | "completed" | "failed";
+  status: "running" | "paused" | "completed" | "failed";
   errorMessage?: string;
 }
 
 class FakeSitemapRepository {
   entries: UpsertTargetSitemapEntryInput[] = [];
   statuses: RecordedStatus[] = [];
+  checkpoint: SitemapCrawlCheckpoint | null = null;
 
   upsertEntry(input: UpsertTargetSitemapEntryInput) {
     this.entries.push(input);
@@ -25,6 +27,26 @@ class FakeSitemapRepository {
 
   markCrawlFailed(_targetId: string, errorMessage: string) {
     this.statuses.push({ status: "failed", errorMessage });
+  }
+
+  markCrawlPaused() {
+    this.statuses.push({ status: "paused" });
+  }
+
+  saveCrawlCheckpoint(input: Omit<SitemapCrawlCheckpoint, "updatedAt">) {
+    this.checkpoint = {
+      ...input,
+      updatedAt: "2026-07-15T10:00:00.000Z",
+    };
+    return this.checkpoint;
+  }
+
+  getCrawlCheckpoint() {
+    return this.checkpoint;
+  }
+
+  deleteCrawlCheckpoint() {
+    this.checkpoint = null;
   }
 }
 
@@ -97,6 +119,115 @@ function findEntry(
 }
 
 describe("PublicSitemapCrawler", () => {
+  it("finishes in-flight work, retains frontier, and resumes it", async () => {
+    const repository = new FakeSitemapRepository();
+    let resolveRoot!: (response: Response) => void;
+    const rootResponse = new Promise<Response>((resolve) => {
+      resolveRoot = resolve;
+    });
+    const requestedUrls: string[] = [];
+    const crawler = new PublicSitemapCrawler({
+      repository,
+      fetch: async (url: string) => {
+        requestedUrls.push(url);
+        if (url === "https://example.com/") {
+          return rootResponse;
+        }
+        if (url === "https://example.com/next") {
+          return createResponse("<html></html>");
+        }
+        return createResponse("", { status: 404 });
+      },
+    });
+
+    const pausedCrawl = crawler.crawl({
+      targetId: "target-1",
+      rootUrl: "https://example.com",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    crawler.requestPause("target-1");
+    resolveRoot(createResponse('<html><a href="/next">next</a></html>'));
+
+    expect(await pausedCrawl).toMatchObject({ status: "paused" });
+    expect(requestedUrls).not.toContain("https://example.com/next");
+    expect(repository.checkpoint?.frontier).toEqual([
+      {
+        url: "https://example.com/next",
+        depth: 1,
+        source: "html_link",
+      },
+    ]);
+    const pausedEntryCount = repository.checkpoint?.entriesDiscovered;
+
+    expect(
+      await crawler.crawl({
+        targetId: "target-1",
+        rootUrl: "https://example.com",
+        mode: "resume",
+      }),
+    ).toMatchObject({
+      status: "completed",
+      entriesDiscovered: pausedEntryCount,
+    });
+    expect(
+      requestedUrls.filter((url) => url === "https://example.com/"),
+    ).toHaveLength(1);
+    expect(requestedUrls).toContain("https://example.com/next");
+  });
+
+  it("retries only timeout, 429, and 5xx checkpoint failures", async () => {
+    const repository = new FakeSitemapRepository();
+    repository.checkpoint = {
+      crawlerType: "public",
+      ownerId: "target-1",
+      targetId: "target-1",
+      rootUrl: "https://example.com",
+      frontier: [],
+      visitedUrls: [],
+      failures: [
+        ["/timeout", "timeout", null],
+        ["/rate", "http", 429],
+        ["/server", "http", 502],
+        ["/missing", "http", 404],
+        ["/network", "network", null],
+      ].map(([path, kind, httpStatus]) => ({
+        url: `https://example.com${path}`,
+        depth: 1,
+        source: "html_link" as const,
+        kind: kind as "timeout" | "http" | "network",
+        httpStatus: httpStatus as number | null,
+        errorMessage: String(kind),
+      })),
+      discoveredEntryKeys: [
+        "GET https://example.com/",
+        "GET https://example.com/existing",
+        "GET https://example.com/third",
+      ],
+      pagesFetched: 1,
+      entriesDiscovered: 3,
+      updatedAt: "2026-07-15T10:00:00.000Z",
+    };
+    const requestedUrls: string[] = [];
+    const crawler = new PublicSitemapCrawler({
+      repository,
+      fetch: async (url: string) => {
+        requestedUrls.push(url);
+        return createResponse("<html></html>");
+      },
+    });
+
+    await crawler.crawl({
+      targetId: "target-1",
+      rootUrl: "https://example.com",
+      mode: "retry_failures",
+    });
+
+    expect(requestedUrls).toEqual([
+      "https://example.com/timeout",
+      "https://example.com/rate",
+      "https://example.com/server",
+    ]);
+  });
   it("extracts same-origin HTML links and forms without external URLs", async () => {
     const { repository, requestedUrls, result } = await runCrawler({
       responses: {
