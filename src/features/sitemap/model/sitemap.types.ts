@@ -72,6 +72,8 @@ export interface TargetSitemapEntryListFilters {
   httpStatus?: number;
   source?: TargetSitemapEntrySource;
   provenance?: TargetSitemapDiscoveryProvenance;
+  accessObservedBySessionId?: string;
+  hasAccessObservation?: boolean;
 }
 
 export interface TargetSitemapEntryListResult {

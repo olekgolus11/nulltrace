@@ -144,6 +144,7 @@ export function DashboardScreen({
         targetUrl={targetUrl}
         counts={sessionFindings.counts}
         authenticationContext={authenticationContext.metadata}
+        authenticatedSitemapStatus={targetSitemap.authenticatedStatus}
       />
       <box flexDirection="row" height={layout.contentHeight}>
         <LeftDashboardPanel

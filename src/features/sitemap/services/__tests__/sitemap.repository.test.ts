@@ -397,6 +397,16 @@ describe("SitemapRepository", () => {
       entryId: mergedEntry.id,
       httpStatus: 200,
     });
+    const unobservedEntry = repository.upsertEntry({
+      targetId: "target-1",
+      normalizedUrl: "https://example.com/settings",
+      path: "/settings",
+      method: "GET",
+      httpStatus: 200,
+      source: "html_link",
+      provenance: "authenticated",
+      depth: 2,
+    });
 
     expect(mergedEntry).toMatchObject({
       id: publicEntry.id,
@@ -419,6 +429,20 @@ describe("SitemapRepository", () => {
       }),
     ]);
     expect(repository.listAccessObservations("session-2")).toEqual([]);
+    expect(
+      repository.listEntries({
+        targetId: "target-1",
+        accessObservedBySessionId: "session-1",
+        hasAccessObservation: true,
+      }).entries.map((entry) => entry.id),
+    ).toEqual([mergedEntry.id]);
+    expect(
+      repository.listEntries({
+        targetId: "target-1",
+        accessObservedBySessionId: "session-1",
+        hasAccessObservation: false,
+      }).entries.map((entry) => entry.id),
+    ).toEqual([unobservedEntry.id]);
   });
 
   it("records authenticated crawl authentication-required state per session", async () => {

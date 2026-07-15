@@ -1,5 +1,7 @@
 export type AuthenticatedContextStorageMode = "secure" | "memory";
 
+export type AuthenticatedContextImportSource = "manual" | "curl" | "har";
+
 export type AuthCheckStatus =
   | "not_checked"
   | "verified"
@@ -37,12 +39,14 @@ export interface AuthenticatedRequestContextInput {
   origin: string;
   cookies: string;
   headers: string;
+  importSource?: AuthenticatedContextImportSource;
 }
 
 export interface AuthenticatedRequestContext {
   origin: string;
   cookies: string;
   headers: string;
+  importSource?: AuthenticatedContextImportSource;
   updatedAt: string;
 }
 
@@ -51,6 +55,7 @@ export interface AuthenticatedRequestContextMetadata {
   cookieCount: number;
   headerNames: string[];
   storageMode: AuthenticatedContextStorageMode;
+  importSource: AuthenticatedContextImportSource;
   updatedAt: string;
   authCheck: AuthCheckMetadata;
 }

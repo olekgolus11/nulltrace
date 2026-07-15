@@ -2,7 +2,8 @@ import { theme } from "../../app/theme/theme.js";
 import { FindingCounts } from "../../features/finding/components/FindingCounts.js";
 import { FindingSummaryProps } from "../../features/finding/model/finding-summary.types.js";
 import { AuthenticatedRequestContextMetadata } from "../../features/authentication/model/authenticated-request-context.types.js";
-import { getAuthCheckPresentation } from "../../features/authentication/components/auth-check-presentation.js";
+import { getAuthenticationHeaderPresentation } from "../../features/authentication/components/auth-check-presentation.js";
+import { AuthenticatedSitemapCrawlStatusRecord } from "../../features/sitemap/model/sitemap.types.js";
 
 interface HeaderProps {
   title?: string;
@@ -10,6 +11,7 @@ interface HeaderProps {
   targetUrl?: string;
   counts?: FindingSummaryProps;
   authenticationContext?: AuthenticatedRequestContextMetadata | null;
+  authenticatedSitemapStatus?: AuthenticatedSitemapCrawlStatusRecord | null;
 }
 
 const emptyCounts: FindingSummaryProps = {
@@ -27,10 +29,12 @@ export function Header({
   targetUrl,
   counts = emptyCounts,
   authenticationContext,
+  authenticatedSitemapStatus,
 }: HeaderProps) {
-  const authenticationPosture = authenticationContext
-    ? getAuthCheckPresentation(authenticationContext.authCheck)
-    : null;
+  const authenticationPosture = getAuthenticationHeaderPresentation(
+    authenticationContext ?? null,
+    authenticatedSitemapStatus?.status === "authentication_required",
+  );
 
   return (
     <box

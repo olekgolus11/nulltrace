@@ -12,6 +12,7 @@ function renderModal(
   width: number,
   callbacks: {
     onSave?: (input: AuthenticatedRequestContextInput) => Promise<boolean>;
+    onClear?: () => Promise<void>;
     onRunAuthCheck?: (verificationUrl: string) => Promise<boolean>;
   } = {},
 ) {
@@ -30,7 +31,7 @@ function renderModal(
       isChecking={false}
       error="Save an authentication context before running Auth Check."
       onSave={callbacks.onSave ?? (async () => false)}
-      onClear={async () => {}}
+      onClear={callbacks.onClear ?? (async () => {})}
       onRunAuthCheck={callbacks.onRunAuthCheck ?? (async () => false)}
       onAcknowledgeInconclusive={() => false}
       onClose={() => {}}
@@ -154,6 +155,13 @@ describe("AuthenticationContextModal layout", () => {
       await Promise.resolve();
     });
     expect(checkedUrl).toBe("http://localhost:4280/account");
+
+    await act(async () => {
+      testSetup!.mockInput.pressKey("d", { ctrl: true });
+      await Promise.resolve();
+    });
+    await testSetup.renderOnce();
+    expect(testSetup.captureCharFrame()).toContain("Active: manual");
   });
 
   test("uses the selected HAR request URL for verification", async () => {

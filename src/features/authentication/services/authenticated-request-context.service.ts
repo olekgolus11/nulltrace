@@ -8,6 +8,10 @@ import {
   splitAuthenticatedHeaderEntries,
 } from "./authenticated-request-context-redaction";
 import { platformSecretStore, SecretStore } from "./platform-secret-store";
+import {
+  AuthenticationContextMetadataRepository,
+  authenticationContextMetadataRepository,
+} from "./authentication-context-metadata.repository";
 
 interface StoredAuthenticatedRequestContext extends AuthenticatedRequestContext {
   version: 1;
@@ -43,7 +47,13 @@ function parseStoredContext(value: string): StoredAuthenticatedRequestContext | 
     ) {
       return null;
     }
-    return context;
+    return {
+      ...context,
+      importSource:
+        context.importSource === "curl" || context.importSource === "har"
+          ? context.importSource
+          : "manual",
+    };
   } catch {
     return null;
   }
@@ -88,7 +98,11 @@ export class AuthenticatedRequestContextService {
   >();
   private readonly versions = new Map<string, number>();
 
-  constructor(private readonly secretStore: SecretStore = platformSecretStore) {}
+  constructor(
+    private readonly secretStore: SecretStore = platformSecretStore,
+    private readonly metadataRepository: AuthenticationContextMetadataRepository =
+      authenticationContextMetadataRepository,
+  ) {}
 
   subscribeToInvalidation(
     listener: (invalidation: AuthenticatedContextInvalidation) => void,
@@ -111,14 +125,22 @@ export class AuthenticatedRequestContextService {
   }
 
   async getMetadata(sessionId: string) {
+    const activeMetadata = this.metadataRepository.findBySessionId(sessionId);
+    if (activeMetadata) {
+      return activeMetadata;
+    }
     const stored = await this.secretStore.load(getSecretStoreKey(sessionId));
     if (!stored) {
       return null;
     }
     const context = parseStoredContext(stored.value);
-    return context
-      ? createAuthenticatedRequestContextMetadata(context, stored.storageMode)
-      : null;
+    if (!context) {
+      return null;
+    }
+    return this.metadataRepository.upsert(
+      sessionId,
+      createAuthenticatedRequestContextMetadata(context, stored.storageMode),
+    );
   }
 
   async loadProtectedContext(
@@ -150,18 +172,24 @@ export class AuthenticatedRequestContextService {
       origin,
       cookies,
       headers,
+      importSource: input.importSource ?? "manual",
       updatedAt: new Date().toISOString(),
     };
     const storageMode = await this.secretStore.save(
       getSecretStoreKey(sessionId),
       JSON.stringify(context),
     );
+    this.metadataRepository.clear(sessionId);
     this.invalidate(sessionId, "replaced");
-    return createAuthenticatedRequestContextMetadata(context, storageMode);
+    return this.metadataRepository.upsert(
+      sessionId,
+      createAuthenticatedRequestContextMetadata(context, storageMode),
+    );
   }
 
   async clear(sessionId: string) {
     await this.secretStore.clear(getSecretStoreKey(sessionId));
+    this.metadataRepository.clear(sessionId);
     this.invalidate(sessionId, "cleared");
   }
 }
