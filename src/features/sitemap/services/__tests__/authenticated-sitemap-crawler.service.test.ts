@@ -287,13 +287,27 @@ describe("AuthenticatedSitemapCrawler", () => {
       repository: persistence,
       fetch: async (url: string, init?: RequestInit) => {
         requests.push(`${init?.method ?? "GET"} ${url}`);
+        const cookies = new Headers(init?.headers).get("cookie") ?? "";
         if (url.endsWith("/")) {
           return html('<a href="/one">one</a><a href="/two">two</a>');
         }
         if (url.endsWith("/verify")) {
-          return html("authenticated account");
+          return cookies === "session=valid"
+            ? new Response("", {
+                status: 302,
+                headers: { location: "/signin" },
+              })
+            : new Response("sign in", { status: 401 });
         }
-        return new Response("forbidden", { status: 403 });
+        if (url.endsWith("/signin")) {
+          return cookies === "session=valid"
+            ? html("authenticated account")
+            : new Response("sign in", { status: 401 });
+        }
+        return new Response("forbidden", {
+          status: 403,
+          headers: { "set-cookie": "session=; Max-Age=0" },
+        });
       },
       limits: { maxDepth: 1, maxPages: 5 },
     });
@@ -317,8 +331,10 @@ describe("AuthenticatedSitemapCrawler", () => {
       "GET https://example.com/",
       "GET https://example.com/one",
       "GET https://example.com/verify",
+      "GET https://example.com/signin",
       "GET https://example.com/two",
       "GET https://example.com/verify",
+      "GET https://example.com/signin",
     ]);
   });
 

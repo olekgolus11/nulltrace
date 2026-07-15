@@ -111,6 +111,17 @@ class TemporaryCookieJar {
     values.forEach((value) => this.setPair(value.split(";", 1)[0] ?? ""));
   }
 
+  clone() {
+    const clone = new TemporaryCookieJar("");
+    this.cookies.forEach((value, name) => clone.cookies.set(name, value));
+    return clone;
+  }
+
+  replaceWith(source: TemporaryCookieJar) {
+    this.cookies.clear();
+    source.cookies.forEach((value, name) => this.cookies.set(name, value));
+  }
+
   clear() {
     this.cookies.clear();
   }
@@ -166,16 +177,12 @@ function isAuthenticationSignal(
 
 function isVerificationAuthenticationFailure(
   response: Response,
-  initialUrl: URL,
-  finalUrl: URL,
   body: string,
   crossOriginRedirectUrl: URL | null,
 ) {
   return (
-    response.status === 401 ||
-    response.status === 403 ||
-    (crossOriginRedirectUrl !== null && isLoginLikeUrl(crossOriginRedirectUrl)) ||
-    (finalUrl.toString() !== initialUrl.toString() && isLoginLikeUrl(finalUrl)) ||
+    response.status >= 400 ||
+    crossOriginRedirectUrl !== null ||
     hasLoginForm(body)
   );
 }
@@ -268,13 +275,14 @@ export class AuthenticatedSitemapCrawler {
           continue;
         }
         visited.add(next.url.toString());
+        const requestCookieJar = cookieJar.clone();
         let fetched: Awaited<ReturnType<AuthenticatedSitemapCrawler["fetchSameOrigin"]>>;
         try {
           fetched = await this.fetchSameOrigin(
             next.url,
             contextOrigin,
             input.context.headers,
-            cookieJar,
+            requestCookieJar,
             limits.requestTimeoutMs,
           );
         } catch (error) {
@@ -294,7 +302,7 @@ export class AuthenticatedSitemapCrawler {
           throw error;
         }
         const { response, url } = fetched;
-        cookieJar.accept(response);
+        requestCookieJar.accept(response);
         const record = this.repository.upsertEntry({
           targetId: input.targetId,
           normalizedUrl: url.toString(),
@@ -354,7 +362,7 @@ export class AuthenticatedSitemapCrawler {
             input.verificationUrl,
             contextOrigin,
             input.context.headers,
-            cookieJar,
+            input.context.cookies,
             limits.requestTimeoutMs,
             limits.maxResponseBytes,
           );
@@ -376,6 +384,9 @@ export class AuthenticatedSitemapCrawler {
               errorMessage,
             };
           }
+        }
+        if (response.ok && !hasAuthenticationSignal) {
+          cookieJar.replaceWith(requestCookieJar);
         }
 
         if (!response.ok || !isHtml(response)) {
@@ -566,7 +577,7 @@ export class AuthenticatedSitemapCrawler {
     verificationUrl: string | null | undefined,
     origin: string,
     contextHeaders: string,
-    cookieJar: TemporaryCookieJar,
+    contextCookies: string,
     timeoutMs: number,
     maxResponseBytes: number,
   ) {
@@ -584,6 +595,7 @@ export class AuthenticatedSitemapCrawler {
       return false;
     }
 
+    const cookieJar = new TemporaryCookieJar(contextCookies);
     try {
       const verification = await this.fetchSameOrigin(
         initialUrl,
@@ -598,13 +610,13 @@ export class AuthenticatedSitemapCrawler {
         : "";
       return isVerificationAuthenticationFailure(
         verification.response,
-        initialUrl,
-        verification.url,
         body,
         verification.crossOriginRedirectUrl,
       );
     } catch {
       return false;
+    } finally {
+      cookieJar.clear();
     }
   }
 }
