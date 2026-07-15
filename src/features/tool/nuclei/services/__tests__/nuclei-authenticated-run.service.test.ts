@@ -39,18 +39,12 @@ describe("buildNucleiSecretFile", () => {
       }),
     ).toBe(`# nulltrace-exact-origin: "https://example.com:8443"
 static:
-  - type: cookie
-    domains-regex:
-      - "^example\\\\.com:8443$"
-    cookies:
-      - key: "session"
-        value: "abc"
-      - key: "preference"
-        value: "compact"
   - type: header
     domains-regex:
       - "^example\\\\.com:8443$"
     headers:
+      - key: "Cookie"
+        value: "session=abc; preference=compact"
       - key: "Authorization"
         value: "Bearer secret"
       - key: "X-Tenant"

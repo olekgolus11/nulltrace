@@ -90,31 +90,33 @@ export function buildNucleiSecretFile(
   const exactDomainPattern = `^${escapeRegex(domain)}$`;
   const cookies = parseCookieEntries(context.cookies);
   const headers = parseHeaderEntries(context.headers);
+  const secretHeaders = [
+    ...(cookies.length > 0
+      ? [
+          {
+            key: "Cookie",
+            value: cookies
+              .map((cookie) => `${cookie.key}=${cookie.value}`)
+              .join("; "),
+          },
+        ]
+      : []),
+    ...headers.filter(
+      (header) => cookies.length === 0 || header.key.toLowerCase() !== "cookie",
+    ),
+  ];
   const lines = [
     `# nulltrace-exact-origin: ${quoteYaml(exactOrigin)}`,
     "static:",
   ];
 
-  if (cookies.length > 0) {
-    lines.push(
-      "  - type: cookie",
-      "    domains-regex:",
-      `      - ${quoteYaml(exactDomainPattern)}`,
-      "    cookies:",
-      ...cookies.flatMap((cookie) => [
-        `      - key: ${quoteYaml(cookie.key)}`,
-        `        value: ${quoteYaml(cookie.value)}`,
-      ]),
-    );
-  }
-
-  if (headers.length > 0) {
+  if (secretHeaders.length > 0) {
     lines.push(
       "  - type: header",
       "    domains-regex:",
       `      - ${quoteYaml(exactDomainPattern)}`,
       "    headers:",
-      ...headers.flatMap((header) => [
+      ...secretHeaders.flatMap((header) => [
         `      - key: ${quoteYaml(header.key)}`,
         `        value: ${quoteYaml(header.value)}`,
       ]),
