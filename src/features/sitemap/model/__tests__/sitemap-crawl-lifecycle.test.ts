@@ -103,7 +103,7 @@ describe("sitemap crawl lifecycle", () => {
     ).toMatchObject({
       scope: "public",
       status: "paused",
-      hint: "Space resume · r retry failures · R restart",
+      hint: "Public · Space resume · r retry failures · R restart",
     });
     expect(
       getSitemapCrawlControlPresentation(
@@ -116,13 +116,14 @@ describe("sitemap crawl lifecycle", () => {
     ).toMatchObject({
       scope: "authenticated",
       status: "authentication_required",
-      hint: "Ctrl+A renew context and run Auth Check",
+      hint: "Authenticated · Ctrl+A renew context and run Auth Check",
     });
     expect(
       getSitemapCrawlControlPresentation("all", "running", "paused", 0, 0),
     ).toMatchObject({
-      scope: null,
-      hint: "Choose public or authenticated scope for crawl controls",
+      scope: "public",
+      status: "running",
+      hint: "Public · Space pause · R restart",
     });
   });
 });

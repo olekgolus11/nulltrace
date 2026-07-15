@@ -60,15 +60,9 @@ export function getSitemapCrawlControlPresentation(
   publicTransientFailureCount: number,
   authenticatedTransientFailureCount: number,
 ): SitemapCrawlControlPresentation {
-  if (provenance !== "public" && provenance !== "authenticated") {
-    return {
-      scope: null,
-      status: null,
-      hint: "Choose public or authenticated scope for crawl controls",
-      actions: null,
-    };
-  }
   const isAuthenticated = provenance === "authenticated";
+  const scope = isAuthenticated ? "authenticated" : "public";
+  const scopeLabel = isAuthenticated ? "Authenticated" : "Public";
   const status = isAuthenticated ? authenticatedStatus : publicStatus;
   const actions = getCrawlLifecycleActionState(
     status,
@@ -79,9 +73,9 @@ export function getSitemapCrawlControlPresentation(
   );
   if (actions.requiresAuthCheck) {
     return {
-      scope: provenance,
+      scope,
       status,
-      hint: "Ctrl+A renew context and run Auth Check",
+      hint: `${scopeLabel} · Ctrl+A renew context and run Auth Check`,
       actions,
     };
   }
@@ -98,9 +92,9 @@ export function getSitemapCrawlControlPresentation(
     hints.push("R restart");
   }
   return {
-    scope: provenance,
+    scope,
     status,
-    hint: hints.join(" · ") || "No lifecycle actions available",
+    hint: `${scopeLabel} · ${hints.join(" · ") || "No lifecycle actions available"}`,
     actions,
   };
 }
