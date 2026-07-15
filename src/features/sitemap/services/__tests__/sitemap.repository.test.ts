@@ -75,6 +75,20 @@ function createTestDatabase() {
       error_message TEXT,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE sitemap_crawl_checkpoints (
+      crawler_type TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      root_url TEXT NOT NULL,
+      frontier_json TEXT NOT NULL,
+      visited_urls_json TEXT NOT NULL,
+      failures_json TEXT NOT NULL,
+      pages_fetched INTEGER NOT NULL,
+      entries_discovered INTEGER NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (crawler_type, owner_id)
+    );
   `);
 
   database
@@ -435,6 +449,7 @@ describe("SitemapRepository", () => {
     const repository = await createRepository(createTestDatabase());
 
     repository.markAuthenticatedCrawlRunning("session-1", "target-1");
+    repository.markAuthenticatedCrawlPaused("session-1", "target-1");
     const paused = repository.markAuthenticatedCrawlAuthenticationRequired(
       "session-1",
       "target-1",
@@ -451,5 +466,66 @@ describe("SitemapRepository", () => {
     expect(paused.pausedAt).toBeString();
     expect(repository.getAuthenticatedCrawlStatus("session-2", "target-1"))
       .toMatchObject({ status: "idle", sessionId: "session-2" });
+  });
+
+  it("round-trips non-secret crawl checkpoints", async () => {
+    const repository = await createRepository(createTestDatabase());
+
+    repository.saveCrawlCheckpoint({
+      crawlerType: "authenticated",
+      ownerId: "session-1",
+      targetId: "target-1",
+      rootUrl: "https://example.com",
+      frontier: [
+        {
+          url: "https://example.com/account",
+          depth: 1,
+          source: "html_link",
+        },
+      ],
+      visitedUrls: ["https://example.com/"],
+      failures: [],
+      discoveredEntryKeys: ["GET https://example.com/"],
+      pagesFetched: 1,
+      entriesDiscovered: 2,
+    });
+
+    const recovered = repository.getCrawlCheckpoint(
+      "authenticated",
+      "session-1",
+    );
+    expect(recovered).toMatchObject({
+      crawlerType: "authenticated",
+      ownerId: "session-1",
+      frontier: [
+        {
+          url: "https://example.com/account",
+          depth: 1,
+          source: "html_link",
+        },
+      ],
+      visitedUrls: ["https://example.com/"],
+      discoveredEntryKeys: ["GET https://example.com/"],
+      pagesFetched: 1,
+    });
+    expect(JSON.stringify(recovered)).not.toContain("cookie");
+    expect(JSON.stringify(recovered)).not.toContain("Authorization");
+  });
+
+  it("recovers interrupted public and authenticated crawls safely", async () => {
+    const repository = await createRepository(createTestDatabase());
+    repository.markCrawlRunning("target-1");
+    repository.markAuthenticatedCrawlRunning("session-1", "target-1");
+    repository.markAuthenticatedCrawlPaused("session-1", "target-1");
+
+    repository.recoverInterruptedCrawls();
+
+    expect(repository.getCrawlStatus("target-1").status).toBe("paused");
+    expect(
+      repository.getAuthenticatedCrawlStatus("session-1", "target-1"),
+    ).toMatchObject({
+      status: "authentication_required",
+      errorMessage: "Run Auth Check again to resume after application restart.",
+    });
   });
 });

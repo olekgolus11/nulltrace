@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   AuthenticatedSitemapAccessObservationInput,
   AuthenticatedSitemapCrawlStatus,
+  SitemapCrawlCheckpoint,
   UpsertTargetSitemapEntryInput,
 } from "../../model/sitemap.types";
 
@@ -18,6 +19,7 @@ class FakePersistence {
   entries: UpsertTargetSitemapEntryInput[] = [];
   observations: AuthenticatedSitemapAccessObservationInput[] = [];
   status: AuthenticatedSitemapCrawlStatus = "idle";
+  checkpoint: SitemapCrawlCheckpoint | null = null;
 
   upsertEntry(input: UpsertTargetSitemapEntryInput) {
     this.entries.push(input);
@@ -36,12 +38,31 @@ class FakePersistence {
     this.status = "completed";
   }
 
+  markAuthenticatedCrawlPaused() {
+    this.status = "paused";
+  }
+
   markAuthenticatedCrawlAuthenticationRequired() {
     this.status = "authentication_required";
   }
 
   markAuthenticatedCrawlFailed() {
     this.status = "failed";
+  }
+
+  saveCrawlCheckpoint(input: Omit<SitemapCrawlCheckpoint, "updatedAt">) {
+    this.checkpoint = {
+      ...input,
+      updatedAt: "2026-07-15T10:00:00.000Z",
+    };
+  }
+
+  getCrawlCheckpoint() {
+    return this.checkpoint;
+  }
+
+  deleteCrawlCheckpoint() {
+    this.checkpoint = null;
   }
 }
 
@@ -54,6 +75,93 @@ function html(body: string, init: ResponseInit = {}) {
 }
 
 describe("AuthenticatedSitemapCrawler", () => {
+  it("pauses after in-flight work and resumes retained non-secret frontier", async () => {
+    const persistence = new FakePersistence();
+    let resolveRoot!: (response: Response) => void;
+    const rootResponse = new Promise<Response>((resolve) => {
+      resolveRoot = resolve;
+    });
+    const requests: string[] = [];
+    const crawler = await createCrawler({
+      repository: persistence,
+      fetch: async (url: string) => {
+        requests.push(url);
+        return url.endsWith("/") ? rootResponse : html("done");
+      },
+    });
+    const input = {
+      sessionId: "session-1",
+      targetId: "target-1",
+      rootUrl: "https://example.com",
+      context: {
+        origin: "https://example.com",
+        cookies: "session=secret",
+        headers: "Authorization: Bearer secret",
+        updatedAt: "2026-07-15T10:00:00.000Z",
+      },
+    };
+
+    const pausedCrawl = crawler.crawl(input);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    crawler.requestPause("session-1");
+    resolveRoot(html('<a href="/account">account</a>'));
+
+    expect(await pausedCrawl).toMatchObject({ status: "paused" });
+    expect(requests).not.toContain("https://example.com/account");
+    expect(persistence.checkpoint?.frontier).toEqual([
+      {
+        url: "https://example.com/account",
+        depth: 1,
+        source: "html_link",
+      },
+    ]);
+    expect(JSON.stringify(persistence.checkpoint)).not.toContain("secret");
+
+    expect(await crawler.crawl({ ...input, mode: "resume" })).toMatchObject({
+      status: "completed",
+      entriesDiscovered: 2,
+    });
+    expect(requests).toContain("https://example.com/account");
+  });
+
+  it("does not schedule authentication confirmation after pause", async () => {
+    const persistence = new FakePersistence();
+    let resolveProtected!: (response: Response) => void;
+    const protectedResponse = new Promise<Response>((resolve) => {
+      resolveProtected = resolve;
+    });
+    const requests: string[] = [];
+    const crawler = await createCrawler({
+      repository: persistence,
+      fetch: async (url: string, init?: RequestInit) => {
+        requests.push(`${init?.method ?? "GET"} ${url}`);
+        if (url.endsWith("/")) {
+          return html('<a href="/protected">protected</a>');
+        }
+        return protectedResponse;
+      },
+    });
+    const crawl = crawler.crawl({
+      sessionId: "session-1",
+      targetId: "target-1",
+      rootUrl: "https://example.com",
+      context: {
+        origin: "https://example.com",
+        cookies: "session=secret",
+        headers: "",
+        updatedAt: "2026-07-15T10:00:00.000Z",
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    crawler.requestPause("session-1");
+    resolveProtected(new Response("sign in", { status: 401 }));
+
+    expect(await crawl).toMatchObject({ status: "paused" });
+    expect(requests).toEqual([
+      "GET https://example.com/",
+      "GET https://example.com/protected",
+    ]);
+  });
   it("uses only safe same-origin retrieval and refuses cross-origin redirects", async () => {
     const persistence = new FakePersistence();
     const requests: Array<{ url: string; method: string }> = [];
@@ -206,6 +314,67 @@ describe("AuthenticatedSitemapCrawler", () => {
       "GET https://example.com/one",
       "HEAD https://example.com/one",
     ]);
+  });
+
+  it("retries the auth-required page after context renewal", async () => {
+    const persistence = new FakePersistence();
+    const requests: string[] = [];
+    const crawler = await createCrawler({
+      repository: persistence,
+      fetch: async (url: string, init?: RequestInit) => {
+        const cookies = new Headers(init?.headers).get("cookie") ?? "";
+        requests.push(`${cookies} ${url}`);
+        if (url.endsWith("/")) {
+          return html('<a href="/protected">protected</a>');
+        }
+        if (cookies === "session=fresh" && url.endsWith("/protected")) {
+          return html('<a href="/behind-auth">behind auth</a>');
+        }
+        if (cookies === "session=fresh") {
+          return html("done");
+        }
+        return new Response("sign in", { status: 401 });
+      },
+      limits: { maxDepth: 2, maxPages: 5 },
+    });
+    const input = {
+      sessionId: "session-1",
+      targetId: "target-1",
+      rootUrl: "https://example.com",
+      context: {
+        origin: "https://example.com",
+        cookies: "session=expired",
+        headers: "",
+        updatedAt: "2026-07-13T10:00:00.000Z",
+      },
+    };
+
+    expect(await crawler.crawl(input)).toMatchObject({
+      status: "authentication_required",
+    });
+    expect(persistence.checkpoint?.frontier[0]?.url).toBe(
+      "https://example.com/protected",
+    );
+    expect(persistence.checkpoint?.visitedUrls).not.toContain(
+      "https://example.com/protected",
+    );
+
+    expect(
+      await crawler.crawl({
+        ...input,
+        mode: "resume",
+        context: {
+          ...input.context,
+          cookies: "session=fresh",
+        },
+      }),
+    ).toMatchObject({ status: "completed" });
+    expect(requests).toContain(
+      "session=fresh https://example.com/protected",
+    );
+    expect(requests).toContain(
+      "session=fresh https://example.com/behind-auth",
+    );
   });
 
   it("pauses when repeated same-origin redirects remain login-like", async () => {

@@ -23,6 +23,7 @@ export type TargetSitemapProvenanceFilter =
 export type TargetSitemapCrawlStatus =
   | "idle"
   | "running"
+  | "paused"
   | "completed"
   | "failed";
 
@@ -95,9 +96,42 @@ export interface TargetSitemapCrawlStatusRecord {
 export type AuthenticatedSitemapCrawlStatus =
   | "idle"
   | "running"
+  | "paused"
   | "completed"
   | "authentication_required"
   | "failed";
+
+export type SitemapCrawlerType = "public" | "authenticated";
+
+export type SitemapCrawlFailureKind = "timeout" | "http" | "network";
+
+export interface SitemapCrawlFrontierEntry {
+  url: string;
+  depth: number;
+  source: TargetSitemapEntrySource;
+}
+
+export interface SitemapCrawlFailure extends SitemapCrawlFrontierEntry {
+  kind: SitemapCrawlFailureKind;
+  httpStatus: number | null;
+  errorMessage: string;
+}
+
+export interface SitemapCrawlCheckpoint {
+  crawlerType: SitemapCrawlerType;
+  ownerId: string;
+  targetId: string;
+  rootUrl: string;
+  frontier: SitemapCrawlFrontierEntry[];
+  visitedUrls: string[];
+  failures: SitemapCrawlFailure[];
+  discoveredEntryKeys: string[];
+  pagesFetched: number;
+  entriesDiscovered: number;
+  updatedAt: string;
+}
+
+export type SitemapCrawlRunMode = "fresh" | "resume" | "retry_failures";
 
 export interface AuthenticatedSitemapCrawlStatusRecord {
   sessionId: string;

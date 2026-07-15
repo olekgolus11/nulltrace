@@ -37,16 +37,30 @@ class FakeStatusRepository {
 }
 
 class FakeCrawler {
-  calls: Array<{ targetId: string; rootUrl: string }> = [];
+  calls: Array<{
+    targetId: string;
+    rootUrl: string;
+    mode?: "fresh" | "resume" | "retry_failures";
+  }> = [];
+  pauseCalls: string[] = [];
   private readonly crawlResult: Promise<unknown>;
 
   constructor(crawlResult: Promise<unknown> = Promise.resolve()) {
     this.crawlResult = crawlResult;
   }
 
-  crawl(input: { targetId: string; rootUrl: string }) {
+  crawl(input: {
+    targetId: string;
+    rootUrl: string;
+    mode?: "fresh" | "resume" | "retry_failures";
+  }) {
     this.calls.push(input);
     return this.crawlResult;
+  }
+
+  requestPause(targetId: string) {
+    this.pauseCalls.push(targetId);
+    return true;
   }
 }
 
@@ -68,6 +82,7 @@ describe("SitemapCrawlCoordinator", () => {
       {
         targetId: "target-1",
         rootUrl: "https://example.com",
+        mode: "fresh",
       },
     ]);
     expect(coordinator.getRunningCrawlCount()).toBe(1);
@@ -111,7 +126,48 @@ describe("SitemapCrawlCoordinator", () => {
 
     expect(result).toEqual({ state: "started" });
     expect(crawler.calls).toHaveLength(1);
+    expect(crawler.calls[0]?.mode).toBe("resume");
     expect(coordinator.getRunningCrawlCount()).toBe(1);
+  });
+
+  it("resumes a durable paused frontier", () => {
+    const crawler = new FakeCrawler();
+    const coordinator = new SitemapCrawlCoordinator(
+      new FakeStatusRepository({ "target-1": "paused" }),
+      crawler,
+    );
+
+    expect(
+      coordinator.ensureTargetCrawl({
+        targetId: "target-1",
+        rootUrl: "https://example.com",
+      }),
+    ).toEqual({ state: "paused" });
+    expect(crawler.calls).toHaveLength(0);
+
+    expect(
+      coordinator.resumeTargetCrawl({
+        targetId: "target-1",
+        rootUrl: "https://example.com",
+      }),
+    ).toBe("started");
+    expect(crawler.calls[0]?.mode).toBe("resume");
+  });
+
+  it("restarts from a fresh seed instead of retained frontier", () => {
+    const crawler = new FakeCrawler();
+    const coordinator = new SitemapCrawlCoordinator(
+      new FakeStatusRepository({ "target-1": "completed" }),
+      crawler,
+    );
+
+    expect(
+      coordinator.restartTargetCrawl({
+        targetId: "target-1",
+        rootUrl: "https://example.com",
+      }),
+    ).toBe("started");
+    expect(crawler.calls[0]?.mode).toBe("fresh");
   });
 
   it("reuses completed sitemap data for later sessions", () => {

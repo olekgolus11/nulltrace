@@ -8,14 +8,23 @@ interface PublicSitemapCrawlerRunner {
   crawl(input: {
     targetId: string;
     rootUrl: string;
+    mode?: "fresh" | "resume" | "retry_failures";
   }): Promise<unknown>;
+  requestPause(targetId: string): boolean;
 }
 
 export type SitemapCrawlStartState =
   | "started"
   | "already_running"
+  | "paused"
   | "completed"
   | "failed";
+
+export type SitemapCrawlControlState =
+  | "started"
+  | "pause_requested"
+  | "already_running"
+  | "unavailable";
 
 export interface EnsureSitemapCrawlInput {
   targetId: string;
@@ -58,21 +67,72 @@ export class SitemapCrawlCoordinator {
       };
     }
 
+    if (crawlStatus.status === "paused") {
+      return {
+        state: "paused",
+      };
+    }
+
+    const mode = crawlStatus.status === "running"
+      ? "resume"
+      : "fresh";
+    this.startCrawl({ targetId, rootUrl }, mode);
+
+    return {
+      state: "started",
+    };
+  }
+
+  pauseTargetCrawl(targetId: string): SitemapCrawlControlState {
+    return this.crawler.requestPause(targetId)
+      ? "pause_requested"
+      : "unavailable";
+  }
+
+  resumeTargetCrawl(input: EnsureSitemapCrawlInput): SitemapCrawlControlState {
+    if (this.runningCrawlsByTargetId.has(input.targetId)) {
+      return "already_running";
+    }
+    if (this.repository.getCrawlStatus(input.targetId).status !== "paused") {
+      return "unavailable";
+    }
+    this.startCrawl(input, "resume");
+    return "started";
+  }
+
+  retryTargetFailures(input: EnsureSitemapCrawlInput): SitemapCrawlControlState {
+    if (this.runningCrawlsByTargetId.has(input.targetId)) {
+      return "already_running";
+    }
+    this.startCrawl(input, "retry_failures");
+    return "started";
+  }
+
+  restartTargetCrawl(input: EnsureSitemapCrawlInput): SitemapCrawlControlState {
+    const running = this.runningCrawlsByTargetId.get(input.targetId);
+    if (running) {
+      this.crawler.requestPause(input.targetId);
+      void running.finally(() => {
+        this.startCrawl(input, "fresh");
+      });
+      return "pause_requested";
+    }
+    this.startCrawl(input, "fresh");
+    return "started";
+  }
+
+  private startCrawl(
+    { targetId, rootUrl }: EnsureSitemapCrawlInput,
+    mode: "fresh" | "resume" | "retry_failures",
+  ) {
     const crawlPromise = this.crawler
-      .crawl({
-        targetId,
-        rootUrl,
-      })
+      .crawl({ targetId, rootUrl, mode })
       .catch(() => undefined)
       .finally(() => {
         this.runningCrawlsByTargetId.delete(targetId);
       });
 
     this.runningCrawlsByTargetId.set(targetId, crawlPromise);
-
-    return {
-      state: "started",
-    };
   }
 
   getRunningCrawlCount() {
