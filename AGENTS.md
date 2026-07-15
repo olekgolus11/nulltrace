@@ -9,6 +9,17 @@ This file is for coding agents working in this repository.
 - Prefer small, targeted edits over broad refactors.
 - Follow Bun-first workflows; do not switch the repo to Node-specific tooling.
 - Keep changes compatible with strict TypeScript.
+- Before changing code, read and follow `CODING_STANDARDS.md`. Its module organization, type placement, export, and naming rules are mandatory for new code.
+
+## Guidance Precedence
+
+When guidance conflicts, follow it in this order:
+
+1. Explicit user instructions.
+2. Architecture decisions in `docs/adr/`.
+3. Domain vocabulary and definitions in `CONTEXT.md`.
+4. Code organization rules in `CODING_STANDARDS.md`.
+5. This file's workflow and project guidance.
 
 ## Project Snapshot
 
@@ -26,19 +37,11 @@ This file is for coding agents working in this repository.
 - `.github/copilot-instructions.md`: not present.
 - Because no Cursor/Copilot rule files exist, this document is the effective agent guidance for the repo.
 
-## Current Planning Source
+## Planning Source
 
-- Current product planning lives in GitHub Issues.
-- Active milestone: [Finding Review Workflow](https://github.com/olekgolus11/nulltrace/milestone/2).
-- The milestone description contains the PRD for the current operator review slice.
-- Previous milestone: [Real Scan Findings Pipeline](https://github.com/olekgolus11/nulltrace/milestone/1).
-- Relevant implementation issues:
-  - [#25 Rename vulnerability surfaces to findings](https://github.com/olekgolus11/nulltrace/issues/25)
-  - [#26 Add finding review persistence model](https://github.com/olekgolus11/nulltrace/issues/26)
-  - [#27 Render review status markers in findings list](https://github.com/olekgolus11/nulltrace/issues/27)
-  - [#28 Add finding detail modal with source context](https://github.com/olekgolus11/nulltrace/issues/28)
-  - [#29 Add review status keyboard actions in finding detail modal](https://github.com/olekgolus11/nulltrace/issues/29)
-- Write GitHub issues and pull requests in English.
+- Product planning lives in [GitHub Issues](https://github.com/olekgolus11/nulltrace/issues) and [GitHub Milestones](https://github.com/olekgolus11/nulltrace/milestones). Consult them for the current scope; do not treat this file as a live planning record.
+- The milestone description is the PRD when an issue belongs to a milestone.
+- Must write GitHub issues and pull requests in English.
 
 ## Build, Run, and Test Commands
 
@@ -61,7 +64,7 @@ bunx tsc --noEmit
 bun test
 
 # Run a single test file
-bun test src/features/tool/shared/store/tool-workspace.store.test.ts
+bun test src/features/action-draft/services/__tests__/action-draft-workspace.mapper.test.ts
 
 # Run tests by name
 bun test --filter "command state"
@@ -82,6 +85,8 @@ src/
   main/                # Entry point, app shell, route state
   features/
     chat/              # Chat UI
+    authentication/    # Session authentication context and secret handling
+    action-draft/      # AI-proposed scanner actions
     dashboard/         # Main analysis workspace
     entry/             # Landing / target input flow
     session/           # Session list UI
@@ -124,7 +129,7 @@ config/
 - `command-runner.service.ts` is the execution boundary. Keep shell behavior changes here deliberate because it affects every tool workspace.
 - Prefer extending the existing tool shell and registry before adding new one-off tool logic elsewhere.
 
-## Finding Review Workflow Notes
+## Finding Review Domain Rules
 
 - Use Finding as the operator-facing term; do not reintroduce Vulnerability or Vuln labels unless historical data requires it.
 - Keep `session_findings` as the scanner-derived observation layer.
@@ -133,7 +138,6 @@ config/
 - A finding without an explicit review record is effectively `needs_review`.
 - Dismissed findings remain visible in normal findings lists.
 - Severity counts stay based on all session findings and must not be adjusted by review status.
-- Review status filters, notes, accepted-risk, resolved/fixed lifecycle states, reporting, and AI enrichment are out of scope for the current milestone.
 
 ## Code Style
 
@@ -211,22 +215,18 @@ config/
 
 ## Testing Guidance
 
-- Always place test files inside a `__tests__/` directory near the code they cover. Never put `*.test.ts` or `*.test.tsx` files directly beside production files.
-- Do not add unit tests unless the user explicitly asks for them.
-- If a change needs verification, prefer `bunx tsc --noEmit` and manual app checks over test creation.
-- Existing `.test.ts` files may still be run if they help validate a change, but new routine coverage is not expected.
-- For the Real Scan Findings Pipeline milestone, focused Bun tests are expected for parser, mapper, fingerprint, severity normalization, and session finding upsert behavior.
-- For the Finding Review Workflow milestone, focused Bun tests are expected for finding review persistence, effective review status behavior, and extracted pure read-model helpers.
-- TUI component unit tests are still optional unless a change extracts pure read-model logic that is useful to test.
+- Must place test files inside a `__tests__/` directory near the code they cover. Never put `*.test.ts` or `*.test.tsx` files directly beside production files.
+- Must add focused Bun tests when adding or changing parsing, mapping, persistence, fingerprints, severity normalization, or extracted pure read-model logic.
+- TUI component unit tests are optional unless a change extracts pure read-model logic that is useful to test.
+- Should verify impacted code with `bunx tsc --noEmit` and manual app checks when practical.
+- Should run existing tests when they cover the changed path and are genuinely useful.
+- Example: `bun test src/features/action-draft/services/__tests__/action-draft-workspace.mapper.test.ts`
 
-## Agent Workflow Suggestions
+## Agent Workflow
 
-- Read nearby feature files before editing to match local patterns.
-- Check whether a feature already has a hook, store, service, config, or registry entry before adding a new one.
-- Prefer extending existing mock/config data and the current tool shell instead of inventing parallel structures.
-- Use GitHub Issues as the default task-tracking system for this repository when work should be recorded or planned.
-- For work related to the current finding review workflow, attach or reference the active GitHub milestone.
-- If an AI agent finds a bug during implementation, review, or verification, it should create or update a GitHub issue and apply an appropriate bug label when available.
-- Verify impacted code with `bunx tsc --noEmit` and manual app checks when practical.
-- Run existing tests only when they already cover the changed path and are genuinely useful for validation.
-- If you cannot run verification, say so clearly in your handoff.
+- Must read nearby feature files before editing to match local patterns.
+- Must check whether a feature already has a hook, store, service, config, or registry entry before adding a new one.
+- Should extend existing mock/config data and the current tool shell instead of inventing parallel structures.
+- Should use GitHub Issues as the task-tracking system when work needs to be recorded or planned.
+- Should report a bug found during implementation, review, or verification. Create or update a GitHub issue, with an appropriate bug label when available, only when the task authorizes that external change.
+- Must state clearly in the handoff when verification could not be run.
