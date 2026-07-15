@@ -10,14 +10,23 @@ import {
   TargetSitemapCrawlStatusRecord,
   TargetSitemapEntryRecord,
   TargetSitemapProvenanceFilter,
+  SitemapCrawlCheckpoint,
 } from "../model/sitemap.types";
 import { sitemapRepository } from "../services/sitemap.repository";
+import {
+  getSitemapCrawlControlPresentation,
+  selectTransientCrawlFailures,
+} from "../model/sitemap-crawl-lifecycle";
+import { sitemapCrawlCoordinator } from "../services/sitemap-crawl-coordinator.instance";
+import { authenticatedSitemapCrawlCoordinator } from "../services/authenticated-sitemap-crawl-coordinator.instance";
 
 interface TargetSitemapState {
   entries: TargetSitemapEntryRecord[];
   status: TargetSitemapCrawlStatusRecord | null;
   authenticatedStatus: AuthenticatedSitemapCrawlStatusRecord | null;
   accessObservations: AuthenticatedSitemapAccessObservationRecord[];
+  publicCheckpoint: SitemapCrawlCheckpoint | null;
+  authenticatedCheckpoint: SitemapCrawlCheckpoint | null;
 }
 
 function readTargetSitemap(
@@ -38,6 +47,10 @@ function readTargetSitemap(
     accessObservations: sessionId
       ? sitemapRepository.listAccessObservations(sessionId)
       : [],
+    publicCheckpoint: sitemapRepository.getCrawlCheckpoint("public", targetId),
+    authenticatedCheckpoint: sessionId
+      ? sitemapRepository.getCrawlCheckpoint("authenticated", sessionId)
+      : null,
   };
 }
 
@@ -51,6 +64,7 @@ const provenanceFilters: TargetSitemapProvenanceFilter[] = [
 export function useTargetSitemap(
   targetId: string | null,
   sessionId: string | null,
+  targetUrl: string,
 ) {
   const [maxDepth, setMaxDepth] = useState<number | null>(null);
   const [provenanceFilter, setProvenanceFilter] =
@@ -60,6 +74,8 @@ export function useTargetSitemap(
     status: null,
     authenticatedStatus: null,
     accessObservations: [],
+    publicCheckpoint: null,
+    authenticatedCheckpoint: null,
   });
 
   useEffect(() => {
@@ -72,6 +88,8 @@ export function useTargetSitemap(
         status: null,
         authenticatedStatus: null,
         accessObservations: [],
+        publicCheckpoint: null,
+        authenticatedCheckpoint: null,
       });
       return;
     }
@@ -157,6 +175,72 @@ export function useTargetSitemap(
     });
   };
 
+  const controlPresentation = getSitemapCrawlControlPresentation(
+    provenanceFilter,
+    state.status?.status ?? "idle",
+    state.authenticatedStatus?.status ?? "idle",
+    selectTransientCrawlFailures(state.publicCheckpoint?.failures ?? []).length,
+    selectTransientCrawlFailures(
+      state.authenticatedCheckpoint?.failures ?? [],
+    ).length,
+  );
+
+  const pauseOrResume = () => {
+    if (!targetId || !controlPresentation.scope) {
+      return;
+    }
+    if (controlPresentation.scope === "public") {
+      if (controlPresentation.actions?.canPause) {
+        sitemapCrawlCoordinator.pauseTargetCrawl(targetId);
+      } else if (controlPresentation.actions?.canResume) {
+        sitemapCrawlCoordinator.resumeTargetCrawl({ targetId, rootUrl: targetUrl });
+      }
+      return;
+    }
+    if (!sessionId) {
+      return;
+    }
+    if (controlPresentation.actions?.canPause) {
+      authenticatedSitemapCrawlCoordinator.pauseSessionCrawl(sessionId);
+    } else if (controlPresentation.actions?.canResume) {
+      void authenticatedSitemapCrawlCoordinator.resumePausedCrawl({
+        sessionId,
+        targetId,
+        rootUrl: targetUrl,
+      });
+    }
+  };
+
+  const retryFailures = () => {
+    if (!targetId || !controlPresentation.actions?.canRetryFailures) {
+      return;
+    }
+    if (controlPresentation.scope === "public") {
+      sitemapCrawlCoordinator.retryTargetFailures({ targetId, rootUrl: targetUrl });
+    } else if (controlPresentation.scope === "authenticated" && sessionId) {
+      void authenticatedSitemapCrawlCoordinator.retrySessionFailures({
+        sessionId,
+        targetId,
+        rootUrl: targetUrl,
+      });
+    }
+  };
+
+  const restart = () => {
+    if (!targetId || !controlPresentation.actions?.canRestart) {
+      return;
+    }
+    if (controlPresentation.scope === "public") {
+      sitemapCrawlCoordinator.restartTargetCrawl({ targetId, rootUrl: targetUrl });
+    } else if (controlPresentation.scope === "authenticated" && sessionId) {
+      void authenticatedSitemapCrawlCoordinator.restartSessionCrawl({
+        sessionId,
+        targetId,
+        rootUrl: targetUrl,
+      });
+    }
+  };
+
   return {
     entries: state.entries,
     visibleEntries,
@@ -169,5 +253,9 @@ export function useTargetSitemap(
     provenanceFilter,
     cycleMaxDepth,
     cycleProvenance,
+    controlPresentation,
+    pauseOrResume,
+    retryFailures,
+    restart,
   };
 }

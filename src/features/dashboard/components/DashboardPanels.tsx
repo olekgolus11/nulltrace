@@ -24,6 +24,7 @@ import { UseDashboardLayoutResult } from "../model/dashboard.types";
 import { DashboardPanel } from "./DashboardPanel";
 import { ToolList } from "./ToolList";
 import { getPanelDisplayNumber } from "../../../shared/model/panel-navigation";
+import { SitemapCrawlControlPresentation } from "../../sitemap/model/sitemap-crawl-lifecycle";
 
 const dashboardScrollbarTrackOptions = {
   backgroundColor: theme.border.muted,
@@ -39,6 +40,7 @@ export const LeftDashboardPanel = ({
   sitemapProvenanceFilter,
   sitemapStatus,
   authenticatedSitemapStatus,
+  sitemapCrawlControls,
   findings,
   layout,
   sitemapScrollRef,
@@ -54,6 +56,7 @@ export const LeftDashboardPanel = ({
   sitemapProvenanceFilter: TargetSitemapProvenanceFilter;
   sitemapStatus: TargetSitemapCrawlStatusRecord | null;
   authenticatedSitemapStatus: AuthenticatedSitemapCrawlStatusRecord | null;
+  sitemapCrawlControls: SitemapCrawlControlPresentation;
   findings: SessionFindingRecord[];
   layout: UseDashboardLayoutResult;
   sitemapScrollRef: React.RefObject<ScrollBoxRenderable | null>;
@@ -65,15 +68,18 @@ export const LeftDashboardPanel = ({
   const hasFilterSummary = sitemapEntryCount > 0;
   const hasAuthenticatedStatus =
     authenticatedSitemapStatus?.status === "running" ||
+    authenticatedSitemapStatus?.status === "paused" ||
     authenticatedSitemapStatus?.status === "authentication_required";
   const sitemapHeaderHeight =
-    2 + (hasFilterSummary ? 1 : 0) + (hasAuthenticatedStatus ? 1 : 0);
+    3 + (hasFilterSummary ? 1 : 0) + (hasAuthenticatedStatus ? 1 : 0);
   const sitemapLedgerHeight = Math.max(
     1,
     layout.sitemapScrollHeight - sitemapHeaderHeight,
   );
   const sitemapStatusSummary = sitemapStatus?.status === "running"
-    ? `${sitemapEntryCount} routes \u00b7 scanning`
+    ? `${sitemapEntryCount} routes \u00b7 public crawl running`
+    : sitemapStatus?.status === "paused"
+      ? `${sitemapEntryCount} routes \u00b7 public crawl paused`
     : sitemapStatus?.status === "failed"
       ? `${sitemapEntryCount} routes \u00b7 incomplete`
       : sitemapStatus?.status === "completed"
@@ -113,9 +119,20 @@ export const LeftDashboardPanel = ({
           ) : null}
           {authenticatedSitemapStatus?.status === "running" ? (
             <text fg={theme.accent.primary}>authenticated crawl running</text>
+          ) : authenticatedSitemapStatus?.status === "paused" ? (
+            <text fg={theme.text.secondary}>authenticated crawl paused</text>
           ) : authenticatedSitemapStatus?.status === "authentication_required" ? (
             <text fg={theme.accent.warning}>{"auth required \u00b7 crawl paused"}</text>
           ) : null}
+          <text
+            fg={
+              sitemapCrawlControls.actions?.requiresAuthCheck
+                ? theme.accent.warning
+                : theme.text.dim
+            }
+          >
+            {sitemapCrawlControls.hint}
+          </text>
           <SitemapLedgerHeader availableWidth={sitemapLedgerWidth} />
         </box>
         <scrollbox

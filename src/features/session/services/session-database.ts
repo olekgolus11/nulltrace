@@ -175,7 +175,23 @@ function createTargetSitemapTables() {
       FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
       FOREIGN KEY (target_id) REFERENCES targets(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS sitemap_crawl_checkpoints (
+      crawler_type TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      root_url TEXT NOT NULL,
+      frontier_json TEXT NOT NULL,
+      visited_urls_json TEXT NOT NULL,
+      failures_json TEXT NOT NULL,
+      pages_fetched INTEGER NOT NULL,
+      entries_discovered INTEGER NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (crawler_type, owner_id),
+      FOREIGN KEY (target_id) REFERENCES targets(id) ON DELETE CASCADE
+    );
   `);
+
 }
 
 sessionDatabase.exec(`
