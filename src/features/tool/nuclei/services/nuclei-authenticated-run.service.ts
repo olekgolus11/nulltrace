@@ -194,7 +194,7 @@ export class NucleiAuthenticatedRunService {
       chmodSync(secretFilePath, 0o600);
 
       return {
-        command: `${command} -sf ${shellQuote(secretFilePath)}`,
+        command: `${command} -exclude-tags default-login -sf ${shellQuote(secretFilePath)}`,
         secretFilePath,
         cleanup,
       };

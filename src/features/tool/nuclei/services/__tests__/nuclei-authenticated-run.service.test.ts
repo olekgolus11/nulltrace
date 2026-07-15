@@ -82,7 +82,9 @@ describe("NucleiAuthenticatedRunService", () => {
     });
     const secretPath = prepared.secretFilePath;
 
-    expect(prepared.command).toContain(` -sf '${secretPath}'`);
+    expect(prepared.command).toContain(
+      ` -exclude-tags default-login -sf '${secretPath}'`,
+    );
     expect(statSync(rootDirectory).mode & 0o777).toBe(0o700);
     expect(statSync(dirname(secretPath)).mode & 0o777).toBe(0o700);
     expect(statSync(secretPath).mode & 0o777).toBe(0o600);
