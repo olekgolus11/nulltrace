@@ -366,6 +366,8 @@ export class AuthenticatedSitemapCrawler {
         if (authenticationSignals >= authenticationSignalThreshold) {
           const errorMessage =
             "Repeated authentication-required responses paused the authenticated crawl.";
+          visited.delete(next.url.toString());
+          queue.unshift(next);
           this.repository.markAuthenticatedCrawlAuthenticationRequired(
             input.sessionId,
             input.targetId,

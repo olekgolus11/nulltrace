@@ -316,6 +316,67 @@ describe("AuthenticatedSitemapCrawler", () => {
     ]);
   });
 
+  it("retries the auth-required page after context renewal", async () => {
+    const persistence = new FakePersistence();
+    const requests: string[] = [];
+    const crawler = await createCrawler({
+      repository: persistence,
+      fetch: async (url: string, init?: RequestInit) => {
+        const cookies = new Headers(init?.headers).get("cookie") ?? "";
+        requests.push(`${cookies} ${url}`);
+        if (url.endsWith("/")) {
+          return html('<a href="/protected">protected</a>');
+        }
+        if (cookies === "session=fresh" && url.endsWith("/protected")) {
+          return html('<a href="/behind-auth">behind auth</a>');
+        }
+        if (cookies === "session=fresh") {
+          return html("done");
+        }
+        return new Response("sign in", { status: 401 });
+      },
+      limits: { maxDepth: 2, maxPages: 5 },
+    });
+    const input = {
+      sessionId: "session-1",
+      targetId: "target-1",
+      rootUrl: "https://example.com",
+      context: {
+        origin: "https://example.com",
+        cookies: "session=expired",
+        headers: "",
+        updatedAt: "2026-07-13T10:00:00.000Z",
+      },
+    };
+
+    expect(await crawler.crawl(input)).toMatchObject({
+      status: "authentication_required",
+    });
+    expect(persistence.checkpoint?.frontier[0]?.url).toBe(
+      "https://example.com/protected",
+    );
+    expect(persistence.checkpoint?.visitedUrls).not.toContain(
+      "https://example.com/protected",
+    );
+
+    expect(
+      await crawler.crawl({
+        ...input,
+        mode: "resume",
+        context: {
+          ...input.context,
+          cookies: "session=fresh",
+        },
+      }),
+    ).toMatchObject({ status: "completed" });
+    expect(requests).toContain(
+      "session=fresh https://example.com/protected",
+    );
+    expect(requests).toContain(
+      "session=fresh https://example.com/behind-auth",
+    );
+  });
+
   it("pauses when repeated same-origin redirects remain login-like", async () => {
     const persistence = new FakePersistence();
     const requests: string[] = [];

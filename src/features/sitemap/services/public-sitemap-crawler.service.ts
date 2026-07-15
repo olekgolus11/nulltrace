@@ -82,6 +82,18 @@ interface PublicSitemapCrawlerOptions {
   limits?: Partial<PublicSitemapCrawlerLimits>;
 }
 
+interface EnqueueSitemapXmlDiscoveriesInput {
+  body: string;
+  baseUrl: URL;
+  targetId: string;
+  depth: number;
+  origin: string;
+  limits: PublicSitemapCrawlerLimits;
+  queue: QueuedUrl[];
+  queuedUrls: Set<string>;
+  discoveredEntries: Set<string>;
+}
+
 export const defaultPublicSitemapCrawlerLimits = {
   maxDepth: 3,
   maxPages: 50,
@@ -434,6 +446,37 @@ export class PublicSitemapCrawler {
           });
         }
 
+        if (
+          response.ok &&
+          isXmlResponse(response) &&
+          (next.source === "robots_sitemap" || next.source === "sitemap_xml")
+        ) {
+          const body = await readResponseText(response, limits.maxResponseBytes);
+          this.enqueueSitemapXmlDiscoveries({
+            body,
+            baseUrl: pageUrl,
+            targetId: input.targetId,
+            depth: next.depth + 1,
+            origin,
+            limits,
+            queue,
+            queuedUrls,
+            discoveredEntries,
+          });
+          const pausedResult = this.checkpointAndPauseIfRequested(
+            input,
+            queue,
+            visitedUrls,
+            failures,
+            pagesFetched,
+            discoveredEntries,
+          );
+          if (pausedResult) {
+            return pausedResult;
+          }
+          continue;
+        }
+
         if (!response.ok || !isHtmlResponse(response)) {
           const pausedResult = this.checkpointAndPauseIfRequested(
             input,
@@ -612,16 +655,23 @@ export class PublicSitemapCrawler {
       // Optional discovery source; the page crawl can still continue.
     }
 
-    if (this.pauseRequestedTargetIds.has(targetId)) {
-      return;
-    }
-
     sitemapUrls.set(defaultSitemapUrl.toString(), "sitemap_xml");
+    const pendingSitemaps = [...sitemapUrls.entries()];
 
-    for (const [sitemapUrlValue, source] of sitemapUrls) {
+    for (let index = 0; index < pendingSitemaps.length; index += 1) {
       if (this.pauseRequestedTargetIds.has(targetId)) {
+        pendingSitemaps.slice(index).forEach(([urlValue, pendingSource]) => {
+          this.enqueueUrl(
+            queue,
+            queuedUrls,
+            new URL(urlValue),
+            0,
+            pendingSource,
+          );
+        });
         return;
       }
+      const [sitemapUrlValue, source] = pendingSitemaps[index]!;
       const sitemapUrl = new URL(sitemapUrlValue);
       if (!isSameOrigin(sitemapUrl, origin)) {
         continue;
@@ -647,19 +697,43 @@ export class PublicSitemapCrawler {
         }
 
         const body = await readResponseText(response, limits.maxResponseBytes);
-        extractSitemapXmlUrls(body, sitemapFetch.url).forEach((url) => {
-          if (!isSameOrigin(url, origin) || 1 > limits.maxDepth) {
-            return;
-          }
-
-          this.persistEntry(targetId, url, "GET", null, "sitemap_xml", 1);
-          discoveredEntries.add(`GET ${url.toString()}`);
-          this.enqueueUrl(queue, queuedUrls, url, 1, "sitemap_xml");
+        this.enqueueSitemapXmlDiscoveries({
+          body,
+          baseUrl: sitemapFetch.url,
+          targetId,
+          depth: 1,
+          origin,
+          limits,
+          queue,
+          queuedUrls,
+          discoveredEntries,
         });
       } catch {
         // Optional discovery source; the page crawl can still continue.
       }
     }
+  }
+
+  private enqueueSitemapXmlDiscoveries({
+    body,
+    baseUrl,
+    targetId,
+    depth,
+    origin,
+    limits,
+    queue,
+    queuedUrls,
+    discoveredEntries,
+  }: EnqueueSitemapXmlDiscoveriesInput) {
+    extractSitemapXmlUrls(body, baseUrl).forEach((url) => {
+      if (!isSameOrigin(url, origin) || depth > limits.maxDepth) {
+        return;
+      }
+
+      this.persistEntry(targetId, url, "GET", null, "sitemap_xml", depth);
+      discoveredEntries.add(`GET ${url.toString()}`);
+      this.enqueueUrl(queue, queuedUrls, url, depth, "sitemap_xml");
+    });
   }
 
   private enqueueDiscoveredUrl({

@@ -175,6 +175,58 @@ describe("PublicSitemapCrawler", () => {
     expect(requestedUrls).toContain("https://example.com/next");
   });
 
+  it("retains pending sitemap discovery when paused after robots", async () => {
+    const repository = new FakeSitemapRepository();
+    const {
+      promise: robotsResponse,
+      resolve: resolveRobots,
+    } = Promise.withResolvers<Response>();
+    const requestedUrls: string[] = [];
+    const crawler = new PublicSitemapCrawler({
+      repository,
+      fetch: async (url: string) => {
+        requestedUrls.push(url);
+        if (url.endsWith("/robots.txt")) {
+          return robotsResponse;
+        }
+        if (url.endsWith("/private-sitemap.xml")) {
+          return createResponse(
+            "<urlset><url><loc>https://example.com/from-sitemap</loc></url></urlset>",
+            { contentType: "application/xml" },
+          );
+        }
+        return createResponse("<html></html>");
+      },
+    });
+    const input = {
+      targetId: "target-1",
+      rootUrl: "https://example.com",
+    };
+
+    const pausedCrawl = crawler.crawl(input);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    crawler.requestPause("target-1");
+    resolveRobots(
+      createResponse(
+        "Sitemap: https://example.com/private-sitemap.xml",
+        { contentType: "text/plain" },
+      ),
+    );
+
+    expect(await pausedCrawl).toMatchObject({ status: "paused" });
+    expect(repository.checkpoint?.frontier.map((entry) => entry.url)).toContain(
+      "https://example.com/private-sitemap.xml",
+    );
+
+    expect(await crawler.crawl({ ...input, mode: "resume" })).toMatchObject({
+      status: "completed",
+    });
+    expect(requestedUrls).toContain(
+      "https://example.com/private-sitemap.xml",
+    );
+    expect(requestedUrls).toContain("https://example.com/from-sitemap");
+  });
+
   it("retries only timeout, 429, and 5xx checkpoint failures", async () => {
     const repository = new FakeSitemapRepository();
     repository.checkpoint = {
