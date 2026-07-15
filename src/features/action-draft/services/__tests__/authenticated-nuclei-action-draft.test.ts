@@ -8,6 +8,7 @@ const acceptedAuthenticationContext = {
   cookieCount: 1,
   headerNames: ["Authorization"],
   storageMode: "secure" as const,
+  importSource: "manual" as const,
   updatedAt: "2026-05-10T10:00:00.000Z",
   authCheck: {
     status: "verified" as const,

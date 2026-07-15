@@ -1,5 +1,9 @@
 import { theme } from "../../../app/theme/theme";
-import { AuthCheckMetadata } from "../model/authenticated-request-context.types";
+import {
+  AuthCheckMetadata,
+  AuthenticatedRequestContextMetadata,
+} from "../model/authenticated-request-context.types";
+import { getAuthenticationPosture } from "../model/authentication-posture";
 
 export interface AuthCheckPresentation {
   headerLabel: string;
@@ -42,4 +46,22 @@ export function getAuthCheckPresentation(
         color: theme.text.muted,
       };
   }
+}
+
+export function getAuthenticationHeaderPresentation(
+  metadata: AuthenticatedRequestContextMetadata | null,
+  isAuthenticationRequired: boolean,
+): AuthCheckPresentation | null {
+  const posture = getAuthenticationPosture(metadata, isAuthenticationRequired);
+  if (posture === "absent") {
+    return null;
+  }
+  if (posture === "authentication_required") {
+    return {
+      headerLabel: "authentication required",
+      modalLabel: "AUTHENTICATION REQUIRED",
+      color: theme.accent.critical,
+    };
+  }
+  return metadata ? getAuthCheckPresentation(metadata.authCheck) : null;
 }

@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAppDataDirectory } from "../../session/services/session-database";
+import { getAuthenticationRuntimeId } from "../../authentication/services/authentication-runtime";
 import {
   chatContextToolRegistry,
   createOpenCodeToolSource,
@@ -37,6 +38,7 @@ const openCodeConfig = {
   permission: {
     "*": "deny",
     get_session_context: "allow",
+    get_authentication_context: "allow",
     get_finding: "allow",
     list_findings: "allow",
     list_tool_runs: "allow",
@@ -128,6 +130,7 @@ export function getOpenCodeRuntimeEnvironment() {
     ...inheritedEnvironment,
     HOME: runtimeHome,
     NULLTRACE_APP_DATA_DIR: getAppDataDirectory(),
+    NULLTRACE_RUNTIME_ID: getAuthenticationRuntimeId(),
     OPENCODE_CONFIG_CONTENT: JSON.stringify(openCodeConfig),
     OPENCODE_CONFIG_DIR: join(runtimeConfig, "opencode"),
     XDG_CACHE_HOME: runtimeCache,

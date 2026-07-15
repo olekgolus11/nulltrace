@@ -9,11 +9,14 @@ import {
   AuthenticatedRequestContextService,
   normalizeExactOrigin,
 } from "./authenticated-request-context.service";
-import { authenticatedContextAcceptanceService } from "./authenticated-context-acceptance.service";
 import {
   createUncheckedAuthCheckMetadata,
   splitAuthenticatedHeaderEntries,
 } from "./authenticated-request-context-redaction";
+import {
+  AuthenticationContextMetadataRepository,
+  authenticationContextMetadataRepository,
+} from "./authentication-context-metadata.repository";
 
 type FetchFunction = (
   input: string,
@@ -43,6 +46,7 @@ export interface AuthCheckComparisonResult {
 
 export interface AuthCheckServiceOptions {
   contextService?: AuthenticatedRequestContextService;
+  metadataRepository?: AuthenticationContextMetadataRepository;
   fetch?: FetchFunction;
   requestTimeoutMs?: number;
   maxResponseBytes?: number;
@@ -297,29 +301,30 @@ function inspectResponse(
 
 export class AuthCheckService {
   private readonly contextService: AuthenticatedRequestContextService;
+  private readonly metadataRepository: AuthenticationContextMetadataRepository;
   private readonly fetch: FetchFunction;
   private readonly requestTimeoutMs: number;
   private readonly maxResponseBytes: number;
   private readonly maxRedirects: number;
-  private readonly states = new Map<string, AuthCheckMetadata>();
 
   constructor(options: AuthCheckServiceOptions = {}) {
     this.contextService =
       options.contextService ?? authenticatedRequestContextService;
+    this.metadataRepository =
+      options.metadataRepository ?? authenticationContextMetadataRepository;
     this.fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.requestTimeoutMs =
       options.requestTimeoutMs ?? defaultLimits.requestTimeoutMs;
     this.maxResponseBytes =
       options.maxResponseBytes ?? defaultLimits.maxResponseBytes;
     this.maxRedirects = options.maxRedirects ?? defaultLimits.maxRedirects;
-    this.contextService.subscribeToInvalidation(({ sessionId }) => {
-      this.states.delete(sessionId);
-      authenticatedContextAcceptanceService.clear(sessionId);
-    });
   }
 
   getMetadata(sessionId: string): AuthCheckMetadata {
-    return this.states.get(sessionId) ?? createUncheckedAuthCheckMetadata();
+    return (
+      this.metadataRepository.findBySessionId(sessionId)?.authCheck ??
+      createUncheckedAuthCheckMetadata()
+    );
   }
 
   async getAuthContextMetadata(
@@ -351,8 +356,7 @@ export class AuthCheckService {
       summary:
         "The operator acknowledged an inconclusive Auth Check. Authorization scope is not established.",
     };
-    this.states.set(sessionId, acknowledged);
-    authenticatedContextAcceptanceService.setProceedAllowed(sessionId, true);
+    this.metadataRepository.updateAuthCheck(sessionId, acknowledged);
     return acknowledged;
   }
 
@@ -410,23 +414,17 @@ export class AuthCheckService {
         checkedAt,
         acknowledgedAt: null,
       };
-      this.states.set(sessionId, metadata);
-      authenticatedContextAcceptanceService.setProceedAllowed(
-        sessionId,
-        metadata.isProceedAllowed,
-      );
+      this.metadataRepository.updateAuthCheck(sessionId, metadata);
       return metadata;
     } catch {
       if (
         this.contextService.getAuthStateVersion(sessionId) !== contextVersion
       ) {
-        this.states.delete(sessionId);
-        authenticatedContextAcceptanceService.clear(sessionId);
         throw new Error(
           "Authentication context changed during Auth Check. Run it again.",
         );
       }
-      this.states.set(sessionId, {
+      this.metadataRepository.updateAuthCheck(sessionId, {
         status: "failed",
         verificationUrl: createMetadataVerificationUrl(
           normalizedVerificationUrl,
@@ -438,7 +436,6 @@ export class AuthCheckService {
           "Auth Check could not compare bounded responses. Authorization scope is not established.",
         signals: null,
       });
-      authenticatedContextAcceptanceService.clear(sessionId);
       throw new Error(
         "Auth Check could not compare the selected same-origin URL.",
       );

@@ -5,6 +5,10 @@ import {
   AuthenticatedSitemapAccessObservationRecord,
   AuthenticatedSitemapCrawlStatus,
   AuthenticatedSitemapCrawlStatusRecord,
+  SitemapCrawlCheckpoint,
+  SitemapCrawlFailure,
+  SitemapCrawlFrontierEntry,
+  SitemapCrawlerType,
   TargetSitemapCrawlStatus,
   TargetSitemapCrawlStatusRecord,
   TargetSitemapDiscoveryProvenance,
@@ -60,9 +64,28 @@ interface AuthenticatedSitemapCrawlStatusRow {
   updatedAt: string;
 }
 
+interface SitemapCrawlCheckpointRow {
+  crawlerType: string;
+  ownerId: string;
+  targetId: string;
+  rootUrl: string;
+  frontierJson: string;
+  visitedUrlsJson: string;
+  failuresJson: string;
+  pagesFetched: number;
+  entriesDiscovered: number;
+  updatedAt: string;
+}
+
+export type SaveSitemapCrawlCheckpointInput = Omit<
+  SitemapCrawlCheckpoint,
+  "updatedAt"
+>;
+
 const crawlStatuses: TargetSitemapCrawlStatus[] = [
   "idle",
   "running",
+  "paused",
   "completed",
   "failed",
 ];
@@ -85,6 +108,7 @@ const discoveryProvenances: TargetSitemapDiscoveryProvenance[] = [
 const authenticatedCrawlStatuses: AuthenticatedSitemapCrawlStatus[] = [
   "idle",
   "running",
+  "paused",
   "completed",
   "authentication_required",
   "failed",
@@ -142,6 +166,70 @@ function normalizeProvenance(value: string): TargetSitemapDiscoveryProvenance {
   return discoveryProvenances.includes(value as TargetSitemapDiscoveryProvenance)
     ? (value as TargetSitemapDiscoveryProvenance)
     : "public";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isCheckpointFrontierEntry(
+  value: unknown,
+): value is SitemapCrawlFrontierEntry {
+  return isRecord(value) &&
+    typeof value.url === "string" &&
+    typeof value.depth === "number" &&
+    typeof value.source === "string" &&
+    entrySources.some((source) => source === value.source);
+}
+
+function isCheckpointFailure(value: unknown): value is SitemapCrawlFailure {
+  return isRecord(value) &&
+    isCheckpointFrontierEntry(value) &&
+    (value.kind === "timeout" ||
+      value.kind === "http" ||
+      value.kind === "network") &&
+    (value.httpStatus === null || typeof value.httpStatus === "number") &&
+    typeof value.errorMessage === "string";
+}
+
+function parseCheckpointArray<T>(
+  value: string,
+  isItem: (item: unknown) => item is T,
+): T[] | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) && parsed.every(isItem) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseCheckpointFrontier(value: string) {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (Array.isArray(parsed) && parsed.every(isCheckpointFrontierEntry)) {
+      return {
+        frontier: parsed,
+        discoveredEntryKeys: [],
+      };
+    }
+    if (!isRecord(parsed)) {
+      return null;
+    }
+    const frontier = parsed.frontier;
+    const discoveredEntryKeys = parsed.discoveredEntryKeys;
+    if (
+      !Array.isArray(frontier) ||
+      !frontier.every(isCheckpointFrontierEntry) ||
+      !Array.isArray(discoveredEntryKeys) ||
+      !discoveredEntryKeys.every((entry) => typeof entry === "string")
+    ) {
+      return null;
+    }
+    return { frontier, discoveredEntryKeys };
+  } catch {
+    return null;
+  }
 }
 
 function mergeProvenance(
@@ -337,6 +425,21 @@ export class SitemapRepository {
       clauses.push(`provenance = ?${params.length}`);
     }
 
+    if (
+      filters.hasAccessObservation !== undefined &&
+      filters.accessObservedBySessionId
+    ) {
+      params.push(filters.accessObservedBySessionId);
+      clauses.push(
+        `${filters.hasAccessObservation ? "" : "NOT "}EXISTS (
+          SELECT 1
+          FROM authenticated_sitemap_access_observations AS access_observation
+          WHERE access_observation.entry_id = target_sitemap_entries.id
+            AND access_observation.session_id = ?${params.length}
+        )`,
+      );
+    }
+
     const whereClause = clauses.join(" AND ");
     const total = this.database
       .query<{ count: number }, Array<string | number>>(
@@ -474,6 +577,19 @@ export class SitemapRepository {
     return this.getCrawlStatus(targetId);
   }
 
+  markCrawlPaused(targetId: string) {
+    const timestamp = createTimestamp();
+    this.database
+      .query(
+        `UPDATE target_sitemap_crawl_statuses
+         SET status = 'paused', completed_at = NULL, failed_at = NULL,
+             error_message = NULL, updated_at = ?2
+         WHERE target_id = ?1`,
+      )
+      .run(targetId, timestamp);
+    return this.getCrawlStatus(targetId);
+  }
+
   markCrawlFailed(targetId: string, errorMessage: string) {
     const timestamp = createTimestamp();
 
@@ -588,6 +704,128 @@ export class SitemapRepository {
     );
   }
 
+  markAuthenticatedCrawlPaused(sessionId: string, targetId: string) {
+    return this.writeAuthenticatedCrawlStatus(
+      sessionId,
+      targetId,
+      "paused",
+      null,
+    );
+  }
+
+  saveCrawlCheckpoint(input: SaveSitemapCrawlCheckpointInput) {
+    const updatedAt = createTimestamp();
+    this.database
+      .query(
+        `INSERT INTO sitemap_crawl_checkpoints (
+          crawler_type, owner_id, target_id, root_url, frontier_json,
+          visited_urls_json, failures_json, pages_fetched,
+          entries_discovered, updated_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+        ON CONFLICT(crawler_type, owner_id) DO UPDATE SET
+          target_id = excluded.target_id,
+          root_url = excluded.root_url,
+          frontier_json = excluded.frontier_json,
+          visited_urls_json = excluded.visited_urls_json,
+          failures_json = excluded.failures_json,
+          pages_fetched = excluded.pages_fetched,
+          entries_discovered = excluded.entries_discovered,
+          updated_at = excluded.updated_at`,
+      )
+      .run(
+        input.crawlerType,
+        input.ownerId,
+        input.targetId,
+        input.rootUrl,
+        JSON.stringify({
+          frontier: input.frontier,
+          discoveredEntryKeys: input.discoveredEntryKeys,
+        }),
+        JSON.stringify(input.visitedUrls),
+        JSON.stringify(input.failures),
+        input.pagesFetched,
+        input.entriesDiscovered,
+        updatedAt,
+      );
+    return this.getCrawlCheckpoint(input.crawlerType, input.ownerId);
+  }
+
+  getCrawlCheckpoint(
+    crawlerType: SitemapCrawlerType,
+    ownerId: string,
+  ): SitemapCrawlCheckpoint | null {
+    const row = this.database
+      .query<SitemapCrawlCheckpointRow, [string, string]>(
+        `SELECT crawler_type AS crawlerType, owner_id AS ownerId,
+          target_id AS targetId, root_url AS rootUrl,
+          frontier_json AS frontierJson, visited_urls_json AS visitedUrlsJson,
+          failures_json AS failuresJson, pages_fetched AS pagesFetched,
+          entries_discovered AS entriesDiscovered, updated_at AS updatedAt
+         FROM sitemap_crawl_checkpoints
+         WHERE crawler_type = ?1 AND owner_id = ?2`,
+      )
+      .get(crawlerType, ownerId);
+    if (!row) {
+      return null;
+    }
+    const checkpointFrontier = parseCheckpointFrontier(row.frontierJson);
+    const visitedUrls = parseCheckpointArray(
+      row.visitedUrlsJson,
+      (value): value is string => typeof value === "string",
+    );
+    const failures = parseCheckpointArray(
+      row.failuresJson,
+      isCheckpointFailure,
+    );
+    if (!checkpointFrontier || !visitedUrls || !failures) {
+      return null;
+    }
+    return {
+      crawlerType,
+      ownerId: row.ownerId,
+      targetId: row.targetId,
+      rootUrl: row.rootUrl,
+      frontier: checkpointFrontier.frontier,
+      visitedUrls,
+      failures,
+      discoveredEntryKeys: checkpointFrontier.discoveredEntryKeys,
+      pagesFetched: row.pagesFetched,
+      entriesDiscovered: row.entriesDiscovered,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  deleteCrawlCheckpoint(crawlerType: SitemapCrawlerType, ownerId: string) {
+    this.database
+      .query(
+        `DELETE FROM sitemap_crawl_checkpoints
+         WHERE crawler_type = ?1 AND owner_id = ?2`,
+      )
+      .run(crawlerType, ownerId);
+  }
+
+  recoverInterruptedCrawls() {
+    const timestamp = createTimestamp();
+    this.database
+      .query(
+        `UPDATE target_sitemap_crawl_statuses
+         SET status = 'paused', updated_at = ?1
+         WHERE status IN ('running', 'paused')`,
+      )
+      .run(timestamp);
+    this.database
+      .query(
+        `UPDATE authenticated_sitemap_crawl_statuses
+         SET status = 'authentication_required', paused_at = ?1,
+             error_message = ?2, updated_at = ?1
+         WHERE status IN ('running', 'paused')`,
+      )
+      .run(
+        timestamp,
+        "Run Auth Check again to resume after application restart.",
+      );
+  }
+
   markAuthenticatedCrawlAuthenticationRequired(
     sessionId: string,
     targetId: string,
@@ -622,7 +860,10 @@ export class SitemapRepository {
   ) {
     const timestamp = createTimestamp();
     const completedAt = status === "completed" ? timestamp : null;
-    const pausedAt = status === "authentication_required" ? timestamp : null;
+    const pausedAt =
+      status === "authentication_required" || status === "paused"
+        ? timestamp
+        : null;
     const failedAt = status === "failed" ? timestamp : null;
     this.database
       .query(

@@ -12,7 +12,7 @@ import {
   authenticatedRequestContextService,
 } from "../../../authentication/services/authenticated-request-context.service";
 import { splitAuthenticatedHeaderEntries } from "../../../authentication/services/authenticated-request-context-redaction";
-import { authenticatedContextAcceptanceService } from "../../../authentication/services/authenticated-context-acceptance.service";
+import { authCheckService } from "../../../authentication/services/auth-check.service";
 import { getAppDataDirectory } from "../../../session/services/session-database";
 import { shellQuote } from "./nuclei-shell";
 
@@ -138,7 +138,7 @@ export class NucleiAuthenticatedRunService {
     this.isProceedAllowed =
       options.isProceedAllowed ??
       ((sessionId) =>
-        authenticatedContextAcceptanceService.isProceedAllowed(sessionId));
+        authCheckService.isProceedAllowed(sessionId));
     this.writeSecretFile =
       options.writeSecretFile ??
       ((path, content) => {

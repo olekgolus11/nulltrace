@@ -78,7 +78,7 @@ export function DashboardScreen({
     },
   });
   const sessionFindings = useSessionFindings(sessionId);
-  const targetSitemap = useTargetSitemap(targetId, sessionId);
+  const targetSitemap = useTargetSitemap(targetId, sessionId, targetUrl);
   const verificationUrlSuggestions = createAuthCheckUrlSuggestions(
     targetUrl,
     targetSitemap.entries
@@ -103,6 +103,11 @@ export function DashboardScreen({
     sitemapCount: targetSitemap.entryNodes.length,
     onCycleSitemapDepth: targetSitemap.cycleMaxDepth,
     onCycleSitemapProvenance: targetSitemap.cycleProvenance,
+    onPauseOrResumeSitemapCrawl: targetSitemap.pauseOrResume,
+    onRetrySitemapFailures: targetSitemap.retryFailures,
+    onRestartSitemapCrawl: targetSitemap.restart,
+    isSitemapAuthRenewalRequired:
+      targetSitemap.controlPresentation.actions?.requiresAuthCheck ?? false,
     findings: sessionFindings.findings,
     onSetFindingReviewStatus: sessionFindings.setReviewStatus,
     conversations,
@@ -139,6 +144,7 @@ export function DashboardScreen({
         targetUrl={targetUrl}
         counts={sessionFindings.counts}
         authenticationContext={authenticationContext.metadata}
+        authenticatedSitemapStatus={targetSitemap.authenticatedStatus}
       />
       <box flexDirection="row" height={layout.contentHeight}>
         <LeftDashboardPanel
@@ -151,6 +157,7 @@ export function DashboardScreen({
           sitemapProvenanceFilter={targetSitemap.provenanceFilter}
           sitemapStatus={targetSitemap.status}
           authenticatedSitemapStatus={targetSitemap.authenticatedStatus}
+          sitemapCrawlControls={targetSitemap.controlPresentation}
           findings={sessionFindings.findings}
           sitemapScrollRef={sitemapScrollRef}
           findingsScrollRef={findingsScrollRef}
@@ -214,6 +221,8 @@ export function DashboardScreen({
                         { key: "Up/Down", label: "navigate" },
                         { key: "Left/Right", label: "depth" },
                         { key: "P/Shift+P", label: "provenance" },
+                        { key: "Space", label: "pause/resume crawl" },
+                        { key: "r/R", label: "retry/restart crawl" },
                       ]
                     : [{ key: "Enter", label: "select" }]),
                 { key: "ESC", label: "back" },

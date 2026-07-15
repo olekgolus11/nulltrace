@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { theme } from "../../../app/theme/theme";
 import {
   AuthCheckMetadata,
+  AuthenticatedContextImportSource,
   AuthenticatedRequestContextInput,
   AuthenticatedRequestContextMetadata,
 } from "../model/authenticated-request-context.types";
@@ -105,6 +106,8 @@ export function AuthenticationContextModal({
   onClose,
 }: AuthenticationContextModalProps) {
   const [mode, setMode] = useState<AuthenticationMode>("manual");
+  const [importSource, setImportSource] =
+    useState<AuthenticatedContextImportSource>("manual");
   const [cookies, setCookies] = useState("");
   const [headers, setHeaders] = useState("");
   const [verificationUrl, setVerificationUrl] = useState(
@@ -140,6 +143,7 @@ export function AuthenticationContextModal({
 
   useEffect(() => {
     setMode("manual");
+    setImportSource("manual");
     setCookies("");
     setHeaders("");
     setVerificationUrl(verificationUrlSuggestions[0] ?? targetUrl);
@@ -155,6 +159,7 @@ export function AuthenticationContextModal({
 
   const selectMode = (nextMode: Exclude<AuthenticationMode, "review">) => {
     setMode(nextMode);
+    setImportSource(nextMode);
     setCookies("");
     setHeaders("");
     setCurlSource("");
@@ -181,6 +186,7 @@ export function AuthenticationContextModal({
       setVerificationUrl(importedVerificationUrl);
     }
     setMode("review");
+    setImportSource(source === "curl" ? "curl" : "har");
     setSelectedField("verification_url");
     setImportError(null);
     setNotice(
@@ -278,7 +284,12 @@ export function AuthenticationContextModal({
     if (isBusy || (mode !== "manual" && mode !== "review")) {
       return;
     }
-    const saved = await onSave({ origin: targetUrl, cookies, headers });
+    const saved = await onSave({
+      origin: targetUrl,
+      cookies,
+      headers,
+      importSource,
+    });
     if (saved) {
       setCookies("");
       setHeaders("");
@@ -293,6 +304,8 @@ export function AuthenticationContextModal({
       return;
     }
     await onClear();
+    setMode("manual");
+    setImportSource("manual");
     setCookies("");
     setHeaders("");
     setSelectedField("cookies");

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { Database } from "bun:sqlite";
 import {
   AuthenticatedRequestContextService,
   validateAuthenticatedRequestContextOrigin,
@@ -12,6 +13,8 @@ import {
   SecretStore,
   SecretStoreValue,
 } from "../platform-secret-store";
+import { AuthenticationContextMetadataRepository } from "../authentication-context-metadata.repository";
+import { createAuthenticationContextMetadataTable } from "../authentication-context-metadata.schema";
 
 class TestSecretStore implements SecretStore {
   private readonly values = new Map<string, string>();
@@ -33,14 +36,27 @@ class TestSecretStore implements SecretStore {
   }
 }
 
+function createMetadataRepository() {
+  const database = new Database(":memory:", { create: true, strict: true });
+  database.exec("CREATE TABLE sessions (id TEXT PRIMARY KEY);");
+  database.exec("INSERT INTO sessions (id) VALUES ('session-1');");
+  createAuthenticationContextMetadataTable(database);
+  return new AuthenticationContextMetadataRepository(database, "runtime-1");
+}
+
 describe("AuthenticatedRequestContextService", () => {
   test("stores only redacted metadata outside the secure-store payload", async () => {
-    const service = new AuthenticatedRequestContextService(new TestSecretStore());
+    const metadataRepository = createMetadataRepository();
+    const service = new AuthenticatedRequestContextService(
+      new TestSecretStore(),
+      metadataRepository,
+    );
 
     const metadata = await service.save("session-1", "https://app.example.test/login", {
       origin: "https://app.example.test",
       cookies: "session=very-secret; csrf=also-secret",
       headers: "Authorization: Bearer never-show | X-CSRF-Token: hidden",
+      importSource: "curl",
     });
 
     expect(metadata).toEqual({
@@ -48,6 +64,7 @@ describe("AuthenticatedRequestContextService", () => {
       cookieCount: 2,
       headerNames: ["Authorization", "X-CSRF-Token"],
       storageMode: "secure",
+      importSource: "curl",
       updatedAt: expect.any(String),
       authCheck: {
         status: "not_checked",
@@ -59,10 +76,15 @@ describe("AuthenticatedRequestContextService", () => {
         signals: null,
       },
     });
+    expect(metadataRepository.findBySessionId("session-1")).toEqual(metadata);
   });
 
   test("replacement and clearing invalidate dependent auth state", async () => {
-    const service = new AuthenticatedRequestContextService(new TestSecretStore());
+    const metadataRepository = createMetadataRepository();
+    const service = new AuthenticatedRequestContextService(
+      new TestSecretStore(),
+      metadataRepository,
+    );
     const invalidations: string[] = [];
     service.subscribeToInvalidation((invalidation) => {
       invalidations.push(`${invalidation.reason}:${invalidation.version}`);
@@ -83,6 +105,7 @@ describe("AuthenticatedRequestContextService", () => {
     expect(invalidations).toEqual(["replaced:1", "replaced:2", "cleared:3"]);
     expect(service.getAuthStateVersion("session-1")).toBe(3);
     expect(await service.getMetadata("session-1")).toBeNull();
+    expect(metadataRepository.findBySessionId("session-1")).toBeNull();
   });
 
   test("rejects a different scheme, port, or origin", () => {

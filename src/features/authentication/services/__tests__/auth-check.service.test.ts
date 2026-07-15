@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { Database } from "bun:sqlite";
 import {
   AuthCheckService,
   compareAuthCheckSignals,
@@ -10,6 +11,8 @@ import {
   SecretStore,
   SecretStoreValue,
 } from "../platform-secret-store";
+import { AuthenticationContextMetadataRepository } from "../authentication-context-metadata.repository";
+import { createAuthenticationContextMetadataTable } from "../authentication-context-metadata.schema";
 
 class TestSecretStore implements SecretStore {
   private readonly values = new Map<string, string>();
@@ -27,6 +30,14 @@ class TestSecretStore implements SecretStore {
   async clear(key: string) {
     this.values.delete(key);
   }
+}
+
+function createMetadataRepository() {
+  const database = new Database(":memory:", { create: true, strict: true });
+  database.exec("CREATE TABLE sessions (id TEXT PRIMARY KEY);");
+  database.exec("INSERT INTO sessions (id) VALUES ('session-1');");
+  createAuthenticationContextMetadataTable(database);
+  return new AuthenticationContextMetadataRepository(database, "runtime-1");
 }
 
 function createSignals(overrides: {
@@ -184,8 +195,10 @@ describe("Auth Check URL selection", () => {
 
 describe("Auth Check state", () => {
   test("never forwards context across an off-origin redirect", async () => {
+    const metadataRepository = createMetadataRepository();
     const contextService = new AuthenticatedRequestContextService(
       new TestSecretStore(),
+      metadataRepository,
     );
     await contextService.save("session-1", "https://app.example.test", {
       origin: "https://app.example.test",
@@ -195,6 +208,7 @@ describe("Auth Check state", () => {
     const requestedUrls: string[] = [];
     const authCheckService = new AuthCheckService({
       contextService,
+      metadataRepository,
       fetch: async (url) => {
         requestedUrls.push(url);
         return new Response("", {
@@ -219,8 +233,10 @@ describe("Auth Check state", () => {
   });
 
   test("requires explicit acknowledgement before an inconclusive context may proceed", async () => {
+    const metadataRepository = createMetadataRepository();
     const contextService = new AuthenticatedRequestContextService(
       new TestSecretStore(),
+      metadataRepository,
     );
     await contextService.save("session-1", "https://app.example.test", {
       origin: "https://app.example.test",
@@ -230,6 +246,7 @@ describe("Auth Check state", () => {
     const requests: Array<{ url: string; headers: Headers }> = [];
     const authCheckService = new AuthCheckService({
       contextService,
+      metadataRepository,
       fetch: async (url, init) => {
         requests.push({
           url,
@@ -274,11 +291,19 @@ describe("Auth Check state", () => {
     expect(acknowledged.acknowledgedAt).toEqual(expect.any(String));
     expect(acknowledged.isProceedAllowed).toBe(true);
     expect(authCheckService.isProceedAllowed("session-1")).toBe(true);
+    expect(
+      new AuthCheckService({
+        contextService,
+        metadataRepository,
+      }).getMetadata("session-1"),
+    ).toEqual(acknowledged);
   });
 
   test("invalidates check state when the protected context is replaced", async () => {
+    const metadataRepository = createMetadataRepository();
     const contextService = new AuthenticatedRequestContextService(
       new TestSecretStore(),
+      metadataRepository,
     );
     await contextService.save("session-1", "https://app.example.test", {
       origin: "https://app.example.test",
@@ -287,6 +312,7 @@ describe("Auth Check state", () => {
     });
     const authCheckService = new AuthCheckService({
       contextService,
+      metadataRepository,
       fetch: async () =>
         new Response("<html><title>Same</title></html>", {
           headers: { "content-type": "text/html" },
@@ -317,8 +343,10 @@ describe("Auth Check state", () => {
   });
 
   test("discards an in-flight result when the protected context changes", async () => {
+    const metadataRepository = createMetadataRepository();
     const contextService = new AuthenticatedRequestContextService(
       new TestSecretStore(),
+      metadataRepository,
     );
     await contextService.save("session-1", "https://app.example.test", {
       origin: "https://app.example.test",
@@ -328,6 +356,7 @@ describe("Auth Check state", () => {
     let requestCount = 0;
     const authCheckService = new AuthCheckService({
       contextService,
+      metadataRepository,
       fetch: async () => {
         requestCount += 1;
         if (requestCount === 1) {

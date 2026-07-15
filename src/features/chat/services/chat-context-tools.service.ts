@@ -1,5 +1,14 @@
 import { ConversationAttachmentRecord } from "../model/conversation-attachment.types";
 import {
+  AuthCheckMetadata,
+  AuthenticatedRequestContextMetadata,
+} from "../../authentication/model/authenticated-request-context.types";
+import { authenticationContextMetadataRepository } from "../../authentication/services/authentication-context-metadata.repository";
+import {
+  AuthenticationPosture,
+  getAuthenticationPosture,
+} from "../../authentication/model/authentication-posture";
+import {
   ChatContextToolArgs,
   ChatContextToolDefinition,
   ChatContextToolSchema,
@@ -9,7 +18,7 @@ import {
   ActionDraftRecord,
 } from "../../action-draft/model/action-draft.types";
 import { actionDraftRepository } from "../../action-draft/services/action-draft.repository.instance";
-import { authenticatedContextAcceptanceService } from "../../authentication/services/authenticated-context-acceptance.service";
+import { authCheckService } from "../../authentication/services/auth-check.service";
 import {
   ScannerCatalogContext,
   ScannerCatalogTool,
@@ -31,11 +40,14 @@ import {
 } from "../../session/model/session.repository.types";
 import { sessionRepository } from "../../session/services/session.repository";
 import {
+  AuthenticatedSitemapAccessObservationRecord,
+  AuthenticatedSitemapCrawlStatusRecord,
   TargetSitemapCrawlStatusRecord,
   TargetSitemapEntryListFilters,
   TargetSitemapEntryListResult,
   TargetSitemapEntryRecord,
   TargetSitemapEntrySource,
+  TargetSitemapDiscoveryProvenance,
 } from "../../sitemap/model/sitemap.types";
 import { sitemapRepository } from "../../sitemap/services/sitemap.repository";
 import {
@@ -116,11 +128,43 @@ type SearchSitemapEntriesArgs = ListSitemapEntriesArgs & {
   method?: string;
   httpStatus?: number;
   source?: TargetSitemapEntrySource;
+  provenance?: TargetSitemapDiscoveryProvenance;
+  hasCurrentSessionAccess?: boolean;
 };
 
 type GetSitemapEntryArgs = {
   entryId: string;
 };
+
+export type ChatAuthenticationPosture = AuthenticationPosture;
+
+export type ChatAuthenticationCredentialType = "cookies" | "headers";
+
+export interface ChatAuthenticationMetadata {
+  posture: ChatAuthenticationPosture;
+  origin: string | null;
+  importSource: AuthenticatedRequestContextMetadata["importSource"] | null;
+  credentialTypes: ChatAuthenticationCredentialType[];
+  cookieCount: number;
+  persistenceMode: AuthenticatedRequestContextMetadata["storageMode"] | null;
+  updatedAt: string | null;
+  authCheck: AuthCheckMetadata | null;
+  operatorGuidance: string | null;
+}
+
+export interface ChatAuthenticatedSitemapCoverage {
+  authenticatedOnlyEntryCount: number;
+  sharedEntryCount: number;
+  accessObservationCount: number;
+  httpStatusCounts: Record<string, number>;
+}
+
+export interface GetAuthenticationContextResult {
+  authentication: ChatAuthenticationMetadata;
+  authenticatedCrawl: AuthenticatedSitemapCrawlStatusRecord & {
+    coverage: ChatAuthenticatedSitemapCoverage;
+  };
+}
 
 export interface ChatFindingListItem {
   id: string;
@@ -249,6 +293,11 @@ export interface ChatSitemapEntry {
   method: string | null;
   httpStatus: number | null;
   source: TargetSitemapEntrySource;
+  provenance: TargetSitemapDiscoveryProvenance;
+  accessObservation: {
+    httpStatus: number;
+    observedAt: string;
+  } | null;
   depth: number;
   firstSeenAt: string;
   lastSeenAt: string;
@@ -326,6 +375,28 @@ interface SitemapReadRepository {
     targetId: string,
     entryId: string,
   ) => TargetSitemapEntryRecord | null;
+  listAccessObservations: (
+    sessionId: string,
+  ) => AuthenticatedSitemapAccessObservationRecord[];
+}
+
+interface AuthenticationSitemapReadRepository {
+  listEntries: (
+    filters: TargetSitemapEntryListFilters,
+  ) => TargetSitemapEntryListResult;
+  listAccessObservations: (
+    sessionId: string,
+  ) => AuthenticatedSitemapAccessObservationRecord[];
+  getAuthenticatedCrawlStatus: (
+    sessionId: string,
+    targetId: string,
+  ) => AuthenticatedSitemapCrawlStatusRecord;
+}
+
+interface AuthenticationMetadataReadRepository {
+  findBySessionId: (
+    sessionId: string,
+  ) => AuthenticatedRequestContextMetadata | null;
 }
 
 function assertGetFindingArgs(args: ChatContextToolArgs): GetFindingArgs {
@@ -958,6 +1029,29 @@ function normalizeSitemapSearchArgs(
       "search_sitemap_entries source must be seed, html_link, html_form, sitemap_xml, robots_sitemap, or manual.",
     );
   }
+  const provenance = normalizeOptionalToolString(
+    args.provenance,
+    "search_sitemap_entries",
+    "provenance",
+  ) as TargetSitemapDiscoveryProvenance | undefined;
+  const allowedProvenance = [
+    "public",
+    "authenticated",
+    "both",
+  ] as const;
+  if (provenance && !allowedProvenance.includes(provenance)) {
+    throw new Error(
+      "search_sitemap_entries provenance must be public, authenticated, or both.",
+    );
+  }
+  if (
+    args.hasCurrentSessionAccess !== undefined &&
+    typeof args.hasCurrentSessionAccess !== "boolean"
+  ) {
+    throw new Error(
+      "search_sitemap_entries hasCurrentSessionAccess must be a boolean.",
+    );
+  }
 
   return {
     ...listArgs,
@@ -981,6 +1075,8 @@ function normalizeSitemapSearchArgs(
       "search_sitemap_entries httpStatus",
     ),
     source,
+    provenance,
+    hasCurrentSessionAccess: args.hasCurrentSessionAccess,
   };
 }
 
@@ -998,6 +1094,7 @@ function assertGetSitemapEntryArgs(
 
 function toChatSitemapEntry(
   entry: TargetSitemapEntryRecord,
+  observation?: AuthenticatedSitemapAccessObservationRecord,
 ): ChatSitemapEntry {
   return {
     id: entry.id,
@@ -1006,6 +1103,13 @@ function toChatSitemapEntry(
     method: entry.method,
     httpStatus: entry.httpStatus,
     source: entry.source,
+    provenance: entry.provenance,
+    accessObservation: observation
+      ? {
+          httpStatus: observation.httpStatus,
+          observedAt: observation.observedAt,
+        }
+      : null,
     depth: entry.depth,
     firstSeenAt: entry.firstSeenAt,
     lastSeenAt: entry.lastSeenAt,
@@ -1015,13 +1119,19 @@ function toChatSitemapEntry(
 
 function toSitemapListResult(
   result: TargetSitemapEntryListResult,
+  observations: AuthenticatedSitemapAccessObservationRecord[],
 ): ListSitemapEntriesResult {
   const nextOffset =
     result.offset + result.entries.length < result.total
       ? result.offset + result.entries.length
       : null;
   return {
-    entries: result.entries.map(toChatSitemapEntry),
+    entries: result.entries.map((entry) =>
+      toChatSitemapEntry(
+        entry,
+        observations.find((observation) => observation.entryId === entry.id),
+      ),
+    ),
     pagination: {
       limit: result.limit,
       offset: result.offset,
@@ -1039,7 +1149,7 @@ export class SitemapChatContextToolsService {
     private readonly sitemap: SitemapReadRepository = sitemapRepository,
   ) {}
 
-  private getTargetId(opencodeConversationId: string) {
+  private getSessionScope(opencodeConversationId: string) {
     const attachment = requireActiveAttachment(
       this.attachments,
       opencodeConversationId,
@@ -1048,11 +1158,14 @@ export class SitemapChatContextToolsService {
     if (!session) {
       throw new Error("The attached NullTrace session no longer exists.");
     }
-    return session.targetId;
+    return {
+      sessionId: attachment.sessionId,
+      targetId: session.targetId,
+    };
   }
 
   getStatus(opencodeConversationId: string): GetSitemapStatusResult {
-    const targetId = this.getTargetId(opencodeConversationId);
+    const { targetId } = this.getSessionScope(opencodeConversationId);
     return {
       crawl: {
         ...this.sitemap.getCrawlStatus(targetId),
@@ -1065,9 +1178,10 @@ export class SitemapChatContextToolsService {
     opencodeConversationId: string,
     args: ListSitemapEntriesArgs = {},
   ) {
-    const targetId = this.getTargetId(opencodeConversationId);
+    const { sessionId, targetId } = this.getSessionScope(opencodeConversationId);
     return toSitemapListResult(
       this.sitemap.listEntries({ targetId, ...normalizeSitemapListArgs(args) }),
+      this.sitemap.listAccessObservations(sessionId),
     );
   }
 
@@ -1075,9 +1189,19 @@ export class SitemapChatContextToolsService {
     opencodeConversationId: string,
     args: SearchSitemapEntriesArgs,
   ) {
-    const targetId = this.getTargetId(opencodeConversationId);
+    const { sessionId, targetId } = this.getSessionScope(opencodeConversationId);
+    const normalizedArgs = normalizeSitemapSearchArgs(args);
     return toSitemapListResult(
-      this.sitemap.listEntries({ targetId, ...normalizeSitemapSearchArgs(args) }),
+      this.sitemap.listEntries({
+        targetId,
+        ...normalizedArgs,
+        accessObservedBySessionId:
+          normalizedArgs.hasCurrentSessionAccess === undefined
+            ? undefined
+            : sessionId,
+        hasAccessObservation: normalizedArgs.hasCurrentSessionAccess,
+      }),
+      this.sitemap.listAccessObservations(sessionId),
     );
   }
 
@@ -1085,12 +1209,15 @@ export class SitemapChatContextToolsService {
     opencodeConversationId: string,
     args: GetSitemapEntryArgs,
   ): GetSitemapEntryResult {
-    const targetId = this.getTargetId(opencodeConversationId);
+    const { sessionId, targetId } = this.getSessionScope(opencodeConversationId);
     const entry = this.sitemap.findEntryByIdForTarget(targetId, args.entryId);
+    const observation = this.sitemap
+      .listAccessObservations(sessionId)
+      .find((candidate) => candidate.entryId === args.entryId);
     return {
       entry: entry
         ? {
-            ...toChatSitemapEntry(entry),
+            ...toChatSitemapEntry(entry, observation),
             discoveryContext:
               entry.source === "html_form"
                 ? "Discovered from an HTML form. The persisted sitemap model retains the form action and method, but not form fields or the referring page."
@@ -1127,7 +1254,7 @@ export class SitemapChatContextToolsService {
       },
       {
         name: "search_sitemap_entries",
-        description: "Search sitemap entries for the active conversation's session target by path, method, HTTP status, discovery source, and optional depth filters. Omit depth and maxDepth unless the operator explicitly asks for a depth-filtered search.",
+        description: "Search sitemap entries for the active conversation's session target by path, method, HTTP status, discovery source, discovery provenance, current-session authenticated access observation, and optional depth filters. Omit depth and maxDepth unless the operator explicitly asks for a depth-filtered search.",
         args: {
           ...paginationArgs,
           ...depthFilterArgs,
@@ -1135,8 +1262,24 @@ export class SitemapChatContextToolsService {
           method: { type: "string", description: "Optional exact HTTP method.", isOptional: true },
           httpStatus: { type: "number", description: "Optional exact HTTP status.", isOptional: true },
           source: { type: "string", description: "Optional exact discovery source.", isOptional: true },
+          provenance: {
+            type: "string",
+            description:
+              "Optional exact discovery provenance: public, authenticated, or both.",
+            isOptional: true,
+          },
+          hasCurrentSessionAccess: {
+            type: "boolean",
+            description:
+              "Optional filter for presence or absence of a current-session authenticated access observation.",
+            isOptional: true,
+          },
         },
-        execute: ({ opencodeConversationId, args }) => this.searchEntries(opencodeConversationId, normalizeSitemapSearchArgs(args)),
+        execute: ({ opencodeConversationId, args }) =>
+          this.searchEntries(
+            opencodeConversationId,
+            normalizeSitemapSearchArgs(args),
+          ),
       },
       {
         name: "get_sitemap_entry",
@@ -1150,6 +1293,145 @@ export class SitemapChatContextToolsService {
 
 export const sitemapChatContextToolsService =
   new SitemapChatContextToolsService();
+
+function getAuthenticationOperatorGuidance(
+  posture: ChatAuthenticationPosture,
+): string | null {
+  if (posture === "absent") {
+    return "Open the Authentication Context Modal from the dashboard to import authentication when logged-in coverage would help.";
+  }
+  if (posture === "awaiting_verification") {
+    return "Open the Authentication Context Modal and run Auth Check before authenticated investigation.";
+  }
+  if (posture === "requires_action") {
+    return "Open the Authentication Context Modal to review or replace the context, then run Auth Check again.";
+  }
+  if (posture === "authentication_required") {
+    return "Open the Authentication Context Modal to renew the context and complete a new Auth Check.";
+  }
+  return null;
+}
+
+function toSafeAuthCheckMetadata(authCheck: AuthCheckMetadata) {
+  return {
+    status: authCheck.status,
+    verificationUrl: authCheck.verificationUrl,
+    checkedAt: authCheck.checkedAt,
+    acknowledgedAt: authCheck.acknowledgedAt,
+    isProceedAllowed: authCheck.isProceedAllowed,
+    summary: authCheck.summary,
+    signals: authCheck.signals,
+  };
+}
+
+export class AuthenticationChatContextToolsService {
+  constructor(
+    private readonly attachments: ConversationAttachmentScope = conversationAttachmentService,
+    private readonly sessions: SessionContextReadRepository = sessionRepository,
+    private readonly authentication: AuthenticationMetadataReadRepository =
+      authenticationContextMetadataRepository,
+    private readonly sitemap: AuthenticationSitemapReadRepository = sitemapRepository,
+  ) {}
+
+  async getContext(
+    opencodeConversationId: string,
+  ): Promise<GetAuthenticationContextResult> {
+    const attachment = requireActiveAttachment(
+      this.attachments,
+      opencodeConversationId,
+    );
+    const session = this.sessions.getSessionById(attachment.sessionId);
+    if (!session) {
+      throw new Error("The attached NullTrace session no longer exists.");
+    }
+
+    const metadata = this.authentication.findBySessionId(attachment.sessionId);
+    const crawl = this.sitemap.getAuthenticatedCrawlStatus(
+      attachment.sessionId,
+      session.targetId,
+    );
+    const observations = this.sitemap.listAccessObservations(
+      attachment.sessionId,
+    );
+    const posture = getAuthenticationPosture(
+      metadata,
+      crawl.status === "authentication_required",
+    );
+    const httpStatusCounts = observations.reduce<Record<string, number>>(
+      (counts, observation) => {
+        const status = String(observation.httpStatus);
+        counts[status] = (counts[status] ?? 0) + 1;
+        return counts;
+      },
+      {},
+    );
+
+    return {
+      authentication: metadata
+        ? {
+            posture,
+            origin: metadata.origin,
+            importSource: metadata.importSource,
+            credentialTypes: [
+              ...(metadata.cookieCount > 0 ? (["cookies"] as const) : []),
+              ...(metadata.headerNames.length > 0 ? (["headers"] as const) : []),
+            ],
+            cookieCount: metadata.cookieCount,
+            persistenceMode: metadata.storageMode,
+            updatedAt: metadata.updatedAt,
+            authCheck: toSafeAuthCheckMetadata(metadata.authCheck),
+            operatorGuidance: getAuthenticationOperatorGuidance(posture),
+          }
+        : {
+            posture,
+            origin: null,
+            importSource: null,
+            credentialTypes: [],
+            cookieCount: 0,
+            persistenceMode: null,
+            updatedAt: null,
+            authCheck: null,
+            operatorGuidance: getAuthenticationOperatorGuidance(posture),
+          },
+      authenticatedCrawl: {
+        ...crawl,
+        coverage: {
+          authenticatedOnlyEntryCount: this.sitemap.listEntries({
+            targetId: session.targetId,
+            provenance: "authenticated",
+            limit: 1,
+          }).total,
+          sharedEntryCount: this.sitemap.listEntries({
+            targetId: session.targetId,
+            provenance: "both",
+            limit: 1,
+          }).total,
+          accessObservationCount: observations.length,
+          httpStatusCounts,
+        },
+      },
+    };
+  }
+
+  createToolDefinitions(): ChatContextToolDefinition<
+    ChatContextToolArgs,
+    unknown
+  >[] {
+    return [
+      {
+        name: "get_authentication_context",
+        description:
+          "Read non-secret authentication posture, import and persistence metadata, Auth Check state, authenticated crawl state, and bounded coverage for the active session. This tool cannot reveal protected values or mutate authentication or crawler state.",
+        args: {},
+        execute: ({ opencodeConversationId }) =>
+          this.getContext(opencodeConversationId),
+      },
+    ];
+  }
+}
+
+export const authenticationChatContextToolsService =
+  new AuthenticationChatContextToolsService();
 
 export class SessionContextChatContextToolsService {
   constructor(
@@ -1499,7 +1781,7 @@ export class ActionDraftChatContextToolsService {
     private readonly drafts: ActionDraftWriteRepository = actionDraftRepository,
     private readonly sessions: SessionContextReadRepository = sessionRepository,
     private readonly authenticationAcceptance: AuthenticatedContextAcceptanceContract =
-      authenticatedContextAcceptanceService,
+      authCheckService,
   ) {}
 
   createActionDraft(
@@ -1602,6 +1884,7 @@ export const actionDraftChatContextToolsService =
 
 export const chatContextToolRegistry = new ChatContextToolRegistry([
   ...sessionContextChatContextToolsService.createToolDefinitions(),
+  ...authenticationChatContextToolsService.createToolDefinitions(),
   ...sitemapChatContextToolsService.createToolDefinitions(),
   ...findingChatContextToolsService.createToolDefinitions(),
   ...toolRunArtifactChatContextToolsService.createToolDefinitions(),
