@@ -39,6 +39,7 @@ interface UseDashboardShortcutsProps {
   onPauseOrResumeSitemapCrawl: () => void;
   onRetrySitemapFailures: () => void;
   onRestartSitemapCrawl: () => void;
+  isSitemapAuthRenewalRequired: boolean;
   findings: SessionFindingRecord[];
   onSetFindingReviewStatus: (
     findingId: string,
@@ -165,6 +166,7 @@ export function useDashboardShortcuts({
   onPauseOrResumeSitemapCrawl,
   onRetrySitemapFailures,
   onRestartSitemapCrawl,
+  isSitemapAuthRenewalRequired,
   findings,
   onSetFindingReviewStatus,
   conversations,
@@ -315,6 +317,13 @@ export function useDashboardShortcuts({
         break;
 
       case "sitemap":
+        if (
+          isSitemapAuthRenewalRequired &&
+          (key.name === "space" || key.name === "r")
+        ) {
+          dispatch({ type: "OPEN_AUTHENTICATION_CONTEXT" });
+          return;
+        }
         if (key.name === "space") {
           onPauseOrResumeSitemapCrawl();
           return;

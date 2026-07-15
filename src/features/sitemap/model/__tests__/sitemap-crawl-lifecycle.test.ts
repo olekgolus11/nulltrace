@@ -116,7 +116,7 @@ describe("sitemap crawl lifecycle", () => {
     ).toMatchObject({
       scope: "authenticated",
       status: "authentication_required",
-      hint: "Authenticated · Ctrl+A renew context and run Auth Check",
+      hint: "Authenticated locked · lifecycle keys open auth renewal",
     });
     expect(
       getSitemapCrawlControlPresentation("all", "running", "paused", 0, 0),

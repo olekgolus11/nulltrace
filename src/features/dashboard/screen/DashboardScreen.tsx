@@ -106,6 +106,8 @@ export function DashboardScreen({
     onPauseOrResumeSitemapCrawl: targetSitemap.pauseOrResume,
     onRetrySitemapFailures: targetSitemap.retryFailures,
     onRestartSitemapCrawl: targetSitemap.restart,
+    isSitemapAuthRenewalRequired:
+      targetSitemap.controlPresentation.actions?.requiresAuthCheck ?? false,
     findings: sessionFindings.findings,
     onSetFindingReviewStatus: sessionFindings.setReviewStatus,
     conversations,

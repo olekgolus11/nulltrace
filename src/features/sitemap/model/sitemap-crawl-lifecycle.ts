@@ -75,7 +75,7 @@ export function getSitemapCrawlControlPresentation(
     return {
       scope,
       status,
-      hint: `${scopeLabel} · Ctrl+A renew context and run Auth Check`,
+      hint: `${scopeLabel} locked · lifecycle keys open auth renewal`,
       actions,
     };
   }
