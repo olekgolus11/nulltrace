@@ -104,7 +104,6 @@ export function DashboardScreen({
     onCycleSitemapDepth: targetSitemap.cycleMaxDepth,
     onCycleSitemapProvenance: targetSitemap.cycleProvenance,
     onPauseOrResumeSitemapCrawl: targetSitemap.pauseOrResume,
-    onRetrySitemapFailures: targetSitemap.retryFailures,
     onRestartSitemapCrawl: targetSitemap.restart,
     isSitemapAuthRenewalRequired:
       targetSitemap.controlPresentation.actions?.requiresAuthCheck ?? false,
@@ -218,11 +217,11 @@ export function DashboardScreen({
                     ]
                   : dashboardState.activePanel === "sitemap"
                     ? [
-                        { key: "Up/Down", label: "navigate" },
-                        { key: "Left/Right", label: "depth" },
+                        { key: "↑↓", label: "navigate" },
+                        { key: "←→", label: "depth" },
                         { key: "P/Shift+P", label: "provenance" },
-                        { key: "Space", label: "pause/resume crawl" },
-                        { key: "r/R", label: "retry/restart crawl" },
+                        { key: "Space", label: "pause crawl" },
+                        { key: "Ctrl+R", label: "restart crawl" },
                       ]
                     : [{ key: "Enter", label: "select" }]),
                 { key: "ESC", label: "back" },
