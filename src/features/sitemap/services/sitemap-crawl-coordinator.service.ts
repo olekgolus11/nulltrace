@@ -1,4 +1,9 @@
 import { TargetSitemapCrawlStatusRecord } from "../model/sitemap.types";
+import {
+  EnsureSitemapCrawlInput,
+  EnsureSitemapCrawlResult,
+  SitemapCrawlControlState,
+} from "./sitemap-crawl-coordinator.types";
 
 interface SitemapCrawlStatusReader {
   getCrawlStatus(targetId: string): TargetSitemapCrawlStatusRecord;
@@ -11,28 +16,6 @@ interface PublicSitemapCrawlerRunner {
     mode?: "fresh" | "resume" | "retry_failures";
   }): Promise<unknown>;
   requestPause(targetId: string): boolean;
-}
-
-export type SitemapCrawlStartState =
-  | "started"
-  | "already_running"
-  | "paused"
-  | "completed"
-  | "failed";
-
-export type SitemapCrawlControlState =
-  | "started"
-  | "pause_requested"
-  | "already_running"
-  | "unavailable";
-
-export interface EnsureSitemapCrawlInput {
-  targetId: string;
-  rootUrl: string;
-}
-
-export interface EnsureSitemapCrawlResult {
-  state: SitemapCrawlStartState;
 }
 
 export class SitemapCrawlCoordinator {
@@ -73,9 +56,7 @@ export class SitemapCrawlCoordinator {
       };
     }
 
-    const mode = crawlStatus.status === "running"
-      ? "resume"
-      : "fresh";
+    const mode = crawlStatus.status === "running" ? "resume" : "fresh";
     this.startCrawl({ targetId, rootUrl }, mode);
 
     return {

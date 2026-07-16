@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8">
+    <title>Lekcja 1 — prześledź jedną ścieżkę użytkownika</title>
+    <link rel="stylesheet" href="../assets/course.css">
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">Lekcja 0001 · 10–15 min</p>
+      <h1>Nie czytaj repo linearnie — prześledź jedną ścieżkę</h1>
+      <p>Twoim celem nie jest dziś „zrozumieć App.tsx”. Masz wyćwiczyć pierwszą umiejętność potrzebną do bezpiecznych refaktorów: znalezienie miejsca, w którym decyzja użytkownika zmienia stan aplikacji.</p>
+      <p class="callout"><strong>Misja:</strong> odzyskujesz kontrolę nad kodem przez małe, uzasadnione kroki — nie przez kolejną porcję wygenerowanych zmian.</p>
+
+      <h2>Minimalna mapa</h2>
+      <p><code>src/main/App.tsx</code> przełącza trzy warianty ekranu: entry, dashboard i tool. Nie wykonuje pracy feature’a; przekazuje zdarzenia do odpowiednich ekranów. To jest kandydat na moduł startowy dla <em>routingu aplikacji</em>.</p>
+      <p>Standard mówi: nietrywialny koncept ma mieć jasno nazwany moduł startowy. Pytanie podczas czytania brzmi więc: „jaki koncept opisuje ten plik i gdzie prowadzą jego granice?”</p>
+
+      <h2>Ćwiczenie: start testu dla nowego targetu</h2>
+      <div class="task">
+        <ol>
+          <li>Otwórz <code>src/main/App.tsx</code> i znajdź callback przekazany jako <code>onStartPentestForNewTarget</code>.</li>
+          <li>Zapisz własnymi słowami: co dostaje callback, jaką operację wywołuje i jaki stan ekranu ustawia później?</li>
+          <li>Przejdź do definicji wywołanej operacji w <code>session-context.store.ts</code>. Zatrzymaj się, gdy znajdziesz pierwszą funkcję, której odpowiedzialności nie umiesz nazwać.</li>
+        </ol>
+      </div>
+      <p><strong>Odpowiedz mi trzema krótkimi zdaniami:</strong> (1) co inicjuje tę ścieżkę, (2) co jest jej skutkiem dla routingu, (3) gdzie zaczyna się niejasność. Nie szukaj jeszcze rozwiązania.</p>
+
+      <details>
+        <summary>Samokontrola po wykonaniu</summary>
+        <p>Dobra odpowiedź rozdziela trzy rzeczy: obsługę zdarzenia w <code>App.tsx</code>, operację tworzenia sesji w store oraz zmianę lokalnego <code>currentScreen</code>. Jeśli mieszasz je w jednym zdaniu, wróć do nazw funkcji — one są wskazówką dotyczącą odpowiedzialności.</p>
+      </details>
+
+      <h2>Jedna rzecz do zapamiętania</h2>
+      <p>Nie oceniaj pliku po długości. Najpierw nazwij koncept, którego jest wejściem; dopiero potem sprawdzaj, czy role i eksporty nie zaciemniają tej ścieżki.</p>
+      <p>Źródło główne: <a href="../CODING_STANDARDS.md">CODING_STANDARDS.md</a>, sekcje „Give Every Concept a Clear Starting Point” i „File Order”. Zobacz też <a href="../reference/nulltrace-architecture-glossary.html">mapę pojęć</a>.</p>
+      <p class="small">Gdy coś jest niejasne, zapytaj mnie o konkretną linię lub nazwę. Dostaniesz wskazówkę, nie gotowy kod.</p>
+    </main>
+  </body>
+</html>

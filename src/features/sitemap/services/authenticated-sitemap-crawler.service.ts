@@ -12,14 +12,13 @@ import {
 import { selectTransientCrawlFailures } from "../model/sitemap-crawl-lifecycle";
 import {
   defaultPublicSitemapCrawlerLimits,
-  PublicSitemapCrawlerLimits,
-  readResponseText,
 } from "./public-sitemap-crawler.service";
 import { sitemapRepository } from "./sitemap.repository";
 import {
   createAbsoluteCrawlUrl,
-  normalizeCrawlUrl,
 } from "./sitemap-crawler-url";
+import { readResponseText } from "./public-sitemap-crawler.helpers";
+import { PublicSitemapCrawlerLimits } from "./public-sitemap-crawler.types";
 
 type FetchFunction = (input: string, init?: RequestInit) => Promise<Response>;
 

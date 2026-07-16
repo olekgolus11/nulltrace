@@ -1,8 +1,5 @@
-import { load } from "cheerio";
-import { XMLParser } from "fast-xml-parser";
 import {
   SitemapCrawlCheckpoint,
-  SitemapCrawlRunMode,
   TargetSitemapEntrySource,
   UpsertTargetSitemapEntryInput,
 } from "../model/sitemap.types";
@@ -12,6 +9,26 @@ import {
   createAbsoluteCrawlUrl,
   normalizeCrawlUrl,
 } from "./sitemap-crawler-url";
+import {
+  PublicSitemapCrawlerLimits,
+  PublicSitemapCrawlerInput,
+  PublicSitemapCrawlerResult,
+  DiscoveredUrl,
+} from "./public-sitemap-crawler.types";
+import {
+  extractHtmlDiscoveries,
+  extractRobotsSitemapUrls,
+  extractSitemapXmlUrls,
+  getOrigin,
+  getPath,
+  isHtmlResponse,
+  isSameOrigin,
+  isXmlResponse,
+  mergeLimits,
+  normalizeRootUrl,
+  readResponseText,
+  toErrorMessage,
+} from "./public-sitemap-crawler.helpers";
 
 interface PublicSitemapCrawlerPersistence {
   upsertEntry(input: UpsertTargetSitemapEntryInput): unknown;
@@ -29,10 +46,7 @@ interface PublicSitemapCrawlerPersistence {
   deleteCrawlCheckpoint?(crawlerType: "public", ownerId: string): unknown;
 }
 
-type FetchFunction = (
-  input: string,
-  init?: RequestInit,
-) => Promise<Response>;
+type FetchFunction = (input: string, init?: RequestInit) => Promise<Response>;
 
 interface FetchedResponse {
   response: Response;
@@ -43,37 +57,6 @@ interface QueuedUrl {
   url: URL;
   depth: number;
   source: TargetSitemapEntrySource;
-}
-
-interface DiscoveredUrl {
-  url: URL;
-  source: TargetSitemapEntrySource;
-}
-
-interface DiscoveredForm {
-  url: URL;
-  method: string;
-}
-
-export interface PublicSitemapCrawlerLimits {
-  maxDepth: number;
-  maxPages: number;
-  requestTimeoutMs: number;
-  maxResponseBytes: number;
-}
-
-export interface PublicSitemapCrawlerInput {
-  targetId: string;
-  rootUrl: string;
-  limits?: Partial<PublicSitemapCrawlerLimits>;
-  mode?: SitemapCrawlRunMode;
-}
-
-export interface PublicSitemapCrawlerResult {
-  status: "completed" | "paused" | "failed";
-  pagesFetched: number;
-  entriesDiscovered: number;
-  errorMessage?: string;
 }
 
 interface PublicSitemapCrawlerOptions {
@@ -100,184 +83,6 @@ export const defaultPublicSitemapCrawlerLimits = {
   requestTimeoutMs: 10_000,
   maxResponseBytes: 1_000_000,
 } as const satisfies PublicSitemapCrawlerLimits;
-
-const sitemapXmlParser = new XMLParser({
-  ignoreAttributes: false,
-  isArray: (name) => ["url", "sitemap"].includes(name),
-});
-
-function mergeLimits(
-  baseLimits: Partial<PublicSitemapCrawlerLimits> | undefined,
-  inputLimits: Partial<PublicSitemapCrawlerLimits> | undefined,
-): PublicSitemapCrawlerLimits {
-  return {
-    ...defaultPublicSitemapCrawlerLimits,
-    ...baseLimits,
-    ...inputLimits,
-  };
-}
-
-function normalizeRootUrl(value: string) {
-  const url = new URL(value);
-
-  return new URL("/", url.origin);
-}
-
-function getOrigin(value: URL) {
-  return value.origin;
-}
-
-function isSameOrigin(url: URL, origin: string) {
-  return url.origin === origin;
-}
-
-function getPath(value: URL) {
-  return `${value.pathname}${value.search}`;
-}
-
-function getContentType(response: Response) {
-  return response.headers.get("content-type")?.toLowerCase() ?? "";
-}
-
-function isHtmlResponse(response: Response) {
-  const contentType = getContentType(response);
-
-  return (
-    contentType.includes("text/html") ||
-    contentType.includes("application/xhtml+xml")
-  );
-}
-
-function isXmlResponse(response: Response) {
-  const contentType = getContentType(response);
-
-  return contentType.includes("xml") || contentType.includes("text/plain");
-}
-
-function toErrorMessage(error: unknown) {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return "Public sitemap crawl failed.";
-}
-
-function getFormMethod(value: string | undefined) {
-  return value?.trim().toUpperCase() || "GET";
-}
-
-function extractRobotsSitemapUrls(body: string, rootUrl: URL) {
-  return body
-    .split(/\r?\n/)
-    .map((line) => line.match(/^\s*sitemap:\s*(.+?)\s*$/i)?.[1])
-    .filter((value): value is string => Boolean(value))
-    .map((value) => createAbsoluteCrawlUrl(value, rootUrl))
-    .filter((url): url is URL => Boolean(url));
-}
-
-function collectXmlValues(value: unknown, key: string, results: string[]) {
-  if (!value || typeof value !== "object") {
-    return;
-  }
-
-  if (Array.isArray(value)) {
-    value.forEach((item) => collectXmlValues(item, key, results));
-    return;
-  }
-
-  Object.entries(value).forEach(([entryKey, entryValue]) => {
-    if (entryKey === key && typeof entryValue === "string") {
-      results.push(entryValue);
-      return;
-    }
-
-    collectXmlValues(entryValue, key, results);
-  });
-}
-
-function extractSitemapXmlUrls(body: string, rootUrl: URL) {
-  const parsed = sitemapXmlParser.parse(body);
-  const locValues: string[] = [];
-  collectXmlValues(parsed, "loc", locValues);
-
-  return locValues
-    .map((value) => createAbsoluteCrawlUrl(value, rootUrl))
-    .filter((url): url is URL => Boolean(url));
-}
-
-function extractHtmlDiscoveries(body: string, pageUrl: URL) {
-  const $ = load(body);
-  const links: DiscoveredUrl[] = [];
-  const forms: DiscoveredForm[] = [];
-
-  $("a[href]").each((_, element) => {
-    const url = createAbsoluteCrawlUrl($(element).attr("href"), pageUrl);
-    if (url) {
-      links.push({
-        url,
-        source: "html_link",
-      });
-    }
-  });
-
-  $("form").each((_, element) => {
-    const method = getFormMethod($(element).attr("method"));
-    const action = $(element).attr("action")?.trim();
-    const url = action
-      ? createAbsoluteCrawlUrl(action, pageUrl)
-      : normalizeCrawlUrl(pageUrl);
-    if (url) {
-      forms.push({
-        url,
-        method,
-      });
-    }
-  });
-
-  return {
-    links,
-    forms,
-  };
-}
-
-export async function readResponseText(response: Response, maxBytes: number) {
-  if (!response.body) {
-    const text = await response.text();
-    if (new TextEncoder().encode(text).byteLength > maxBytes) {
-      throw new Error(`Response body exceeded ${maxBytes} bytes.`);
-    }
-
-    return text;
-  }
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
-
-    totalBytes += value.byteLength;
-    if (totalBytes > maxBytes) {
-      await reader.cancel();
-      throw new Error(`Response body exceeded ${maxBytes} bytes.`);
-    }
-
-    chunks.push(value);
-  }
-
-  const body = new Uint8Array(totalBytes);
-  let offset = 0;
-  chunks.forEach((chunk) => {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  });
-
-  return new TextDecoder().decode(body);
-}
 
 export class PublicSitemapCrawler {
   private readonly repository: PublicSitemapCrawlerPersistence;
@@ -307,12 +112,15 @@ export class PublicSitemapCrawler {
     const rootUrl = normalizeRootUrl(input.rootUrl);
     const origin = getOrigin(rootUrl);
     const mode = input.mode ?? "fresh";
-    const checkpoint = mode === "fresh"
-      ? null
-      : this.repository.getCrawlCheckpoint?.("public", input.targetId) ?? null;
-    const recoveredFrontier = mode === "retry_failures"
-      ? selectTransientCrawlFailures(checkpoint?.failures ?? [])
-      : checkpoint?.frontier ?? null;
+    const checkpoint =
+      mode === "fresh"
+        ? null
+        : (this.repository.getCrawlCheckpoint?.("public", input.targetId) ??
+          null);
+    const recoveredFrontier =
+      mode === "retry_failures"
+        ? selectTransientCrawlFailures(checkpoint?.failures ?? [])
+        : (checkpoint?.frontier ?? null);
     const queue: QueuedUrl[] = recoveredFrontier
       ? recoveredFrontier.map((entry) => ({
           url: new URL(entry.url),
@@ -328,15 +136,14 @@ export class PublicSitemapCrawler {
       ...visitedUrls,
       ...queue.map((entry) => entry.url.toString()),
     ]);
-    const discoveredEntries = new Set(
-      checkpoint?.discoveredEntryKeys ?? [],
-    );
+    const discoveredEntries = new Set(checkpoint?.discoveredEntryKeys ?? []);
     let pagesFetched = checkpoint?.pagesFetched ?? 0;
-    const failures = mode === "retry_failures"
-      ? (checkpoint?.failures ?? []).filter(
-          (failure) => !selectTransientCrawlFailures([failure]).length,
-        )
-      : [...(checkpoint?.failures ?? [])];
+    const failures =
+      mode === "retry_failures"
+        ? (checkpoint?.failures ?? []).filter(
+            (failure) => !selectTransientCrawlFailures([failure]).length,
+          )
+        : [...(checkpoint?.failures ?? [])];
     let pageRequests = 0;
 
     if (mode === "fresh") {
@@ -400,7 +207,7 @@ export class PublicSitemapCrawler {
             source: next.source,
             kind:
               error instanceof Error &&
-                (error.name === "TimeoutError" || error.name === "AbortError")
+              (error.name === "TimeoutError" || error.name === "AbortError")
                 ? "timeout"
                 : "network",
             httpStatus: null,
@@ -451,7 +258,10 @@ export class PublicSitemapCrawler {
           isXmlResponse(response) &&
           (next.source === "robots_sitemap" || next.source === "sitemap_xml")
         ) {
-          const body = await readResponseText(response, limits.maxResponseBytes);
+          const body = await readResponseText(
+            response,
+            limits.maxResponseBytes,
+          );
           this.enqueueSitemapXmlDiscoveries({
             body,
             baseUrl: pageUrl,
@@ -526,7 +336,13 @@ export class PublicSitemapCrawler {
           discoveredEntries.add(`${form.method} ${form.url.toString()}`);
 
           if (form.method === "GET") {
-            this.enqueueUrl(queue, queuedUrls, form.url, formDepth, "html_form");
+            this.enqueueUrl(
+              queue,
+              queuedUrls,
+              form.url,
+              formDepth,
+              "html_form",
+            );
           }
         });
 
@@ -768,7 +584,13 @@ export class PublicSitemapCrawler {
       depth,
     );
     discoveredEntries.add(`GET ${discovered.url.toString()}`);
-    this.enqueueUrl(queue, queuedUrls, discovered.url, depth, discovered.source);
+    this.enqueueUrl(
+      queue,
+      queuedUrls,
+      discovered.url,
+      depth,
+      discovered.source,
+    );
   }
 
   private enqueueUrl(

@@ -17,6 +17,7 @@
       "devDependencies": {
         "@types/bun": "latest",
         "@types/react": "^19.2.7",
+        "prettier": "3.9.5",
         "react-devtools-core": "7",
       },
       "peerDependencies": {
@@ -268,6 +269,8 @@
     "planck": ["planck@1.4.2", "", { "peerDependencies": { "stage-js": "^1.0.0-alpha.12" } }, "sha512-mNbhnV3g8X2rwGxzcesjmN8BDA6qfXgQxXVMkWau9MCRlQY0RLNEkyHlVp6yFy/X6qrzAXyNONCnZ1cGDLrNew=="],
 
     "pngjs": ["pngjs@7.0.0", "", {}, "sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow=="],
+
+    "prettier": ["prettier@3.9.5", "", { "bin": { "prettier": "bin/prettier.cjs" } }, "sha512-/FVl766LpUfB5vXgCYOYa0MeV/441Ia99AeICQIQFTY/Nw0roZwULcXpku5i1/m5kt/baz+s4Zogspd839HSMg=="],
 
     "process": ["process@0.11.10", "", {}, "sha512-cdGef/drWFoydD1JsMzuFf8100nZl+GT+yacc2bEced5f9Rjk4z+WtFUTBu9PhOi9j/jfmBPu0mMEY4wIdAF8A=="],
 
