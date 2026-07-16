@@ -137,14 +137,7 @@ function Modal({ children, visible }) {
       alignItems="center"
       backgroundColor="rgba(0,0,0,0.5)"
     >
-      <box
-        width={50}
-        height={15}
-        border
-        borderStyle="double"
-        backgroundColor="#1a1a2e"
-        padding={2}
-      >
+      <box width={50} height={15} border borderStyle="double" backgroundColor="#1a1a2e" padding={2}>
         {children}
       </box>
     </box>

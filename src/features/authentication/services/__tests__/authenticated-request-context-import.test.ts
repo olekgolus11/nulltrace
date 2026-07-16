@@ -19,8 +19,7 @@ describe("curl authentication context import", () => {
     expect(context).toEqual({
       origin: "https://app.example.test",
       cookies: "session=cookie-secret; csrf=cookie-csrf",
-      headers:
-        "Authorization: Bearer header-secret | X-CSRF-Token: header-csrf",
+      headers: "Authorization: Bearer header-secret | X-CSRF-Token: header-csrf",
     });
   });
 
@@ -160,9 +159,7 @@ const harWithMixedOrigins = JSON.stringify({
         request: {
           method: "POST",
           url: "https://other.example.test/admin?secret=cross-origin-secret",
-          headers: [
-            { name: "Authorization", value: "Bearer other-secret" },
-          ],
+          headers: [{ name: "Authorization", value: "Bearer other-secret" }],
           cookies: [],
         },
       },
@@ -181,10 +178,7 @@ const harWithMixedOrigins = JSON.stringify({
 describe("HAR authentication context import", () => {
   test("lists only same-origin requests without exposing query values", () => {
     expect(
-      listHarAuthenticationRequests(
-        harWithMixedOrigins,
-        "https://app.example.test/dashboard",
-      ),
+      listHarAuthenticationRequests(harWithMixedOrigins, "https://app.example.test/dashboard"),
     ).toEqual([
       { entryIndex: 0, method: "GET", path: "/account" },
       { entryIndex: 2, method: "HEAD", path: "/status" },
@@ -214,21 +208,14 @@ describe("HAR authentication context import", () => {
 
   test("returns the selected same-origin request URL for verification", () => {
     expect(
-      parseHarAuthenticationContextImport(
-        harWithMixedOrigins,
-        "https://app.example.test",
-        0,
-      ).verificationUrl,
+      parseHarAuthenticationContextImport(harWithMixedOrigins, "https://app.example.test", 0)
+        .verificationUrl,
     ).toBe("https://app.example.test/account?token=query-secret");
   });
 
   test("rejects cross-origin choices and malformed input without echoing secrets", () => {
     expect(() =>
-      parseHarAuthenticationContext(
-        harWithMixedOrigins,
-        "https://app.example.test",
-        1,
-      ),
+      parseHarAuthenticationContext(harWithMixedOrigins, "https://app.example.test", 1),
     ).toThrow("exact origin");
 
     const protectedValue = "malformed-secret-value";

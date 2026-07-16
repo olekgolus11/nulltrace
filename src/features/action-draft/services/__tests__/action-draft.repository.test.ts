@@ -73,8 +73,8 @@ function createTestDatabase() {
 
 function countToolRuns(database: Database) {
   return (
-    database.query<{ count: number }, []>("SELECT COUNT(*) AS count FROM tool_runs")
-      .get()?.count ?? 0
+    database.query<{ count: number }, []>("SELECT COUNT(*) AS count FROM tool_runs").get()?.count ??
+    0
   );
 }
 
@@ -214,9 +214,7 @@ describe("ActionDraftRepository", () => {
         summary: "This should not be attributed across sessions.",
         payload: {},
       }),
-    ).toThrow(
-      "Action draft conversation attribution must belong to the same session.",
-    );
+    ).toThrow("Action draft conversation attribution must belong to the same session.");
   });
 
   it("transitions draft lifecycle status", () => {

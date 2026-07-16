@@ -34,20 +34,13 @@ function createLocalUserMessage(prompt: string): ChatMessageData {
   };
 }
 
-function upsertMessage(
-  messages: ChatMessageData[],
-  nextMessage: ChatMessageData,
-) {
-  const existingIndex = messages.findIndex(
-    (message) => message.id === nextMessage.id,
-  );
+function upsertMessage(messages: ChatMessageData[], nextMessage: ChatMessageData) {
+  const existingIndex = messages.findIndex((message) => message.id === nextMessage.id);
   if (existingIndex === -1) {
     return [...messages, nextMessage];
   }
 
-  return messages.map((message, index) =>
-    index === existingIndex ? nextMessage : message,
-  );
+  return messages.map((message, index) => (index === existingIndex ? nextMessage : message));
 }
 
 export function useSessionChat(
@@ -78,10 +71,7 @@ export function useSessionChat(
       setError(null);
 
       try {
-        const loadedMessages = await runtime.listMessages(
-          sessionId,
-          conversationId,
-        );
+        const loadedMessages = await runtime.listMessages(sessionId, conversationId);
         if (isCurrentRequest) {
           setMessages(loadedMessages);
         }
@@ -112,10 +102,7 @@ export function useSessionChat(
 
       setIsGenerating(true);
       setError(null);
-      setMessages((currentMessages) => [
-        ...currentMessages,
-        createLocalUserMessage(prompt),
-      ]);
+      setMessages((currentMessages) => [...currentMessages, createLocalUserMessage(prompt)]);
 
       try {
         const assistantMessages = await runtime.sendPrompt(
@@ -123,23 +110,15 @@ export function useSessionChat(
           conversationId,
           prompt,
           (message) => {
-            setMessages((currentMessages) =>
-              upsertMessage(currentMessages, message),
-            );
+            setMessages((currentMessages) => upsertMessage(currentMessages, message));
           },
         );
-        const loadedMessages = await runtime.listMessages(
-          sessionId,
-          conversationId,
-        );
+        const loadedMessages = await runtime.listMessages(sessionId, conversationId);
 
         if (loadedMessages.length > 0) {
           setMessages(loadedMessages);
         } else {
-          setMessages((currentMessages) => [
-            ...currentMessages,
-            ...assistantMessages,
-          ]);
+          setMessages((currentMessages) => [...currentMessages, ...assistantMessages]);
         }
         options.onPromptComplete?.();
       } catch (submitError) {

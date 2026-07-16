@@ -7,11 +7,7 @@ interface FindingBadgeProps {
   width?: number;
 }
 
-export function FindingBadge({
-  severity,
-  count,
-  width,
-}: FindingBadgeProps) {
+export function FindingBadge({ severity, count, width }: FindingBadgeProps) {
   const config = severityConfig[severity];
 
   return (

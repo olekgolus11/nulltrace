@@ -109,10 +109,7 @@ const ignoredCurlFlagOptions = [
   "-sS",
 ] as const;
 
-function includesOption(
-  options: readonly string[],
-  candidate: string,
-) {
+function includesOption(options: readonly string[], candidate: string) {
   return options.some((option) => option === candidate);
 }
 
@@ -165,9 +162,7 @@ function tokenizeCurlCommand(input: string) {
   }
 
   if (quote || isEscaped) {
-    throw new Error(
-      "Could not parse the curl command. Check its quoting and try again.",
-    );
+    throw new Error("Could not parse the curl command. Check its quoting and try again.");
   }
   if (token) {
     tokens.push(token);
@@ -185,11 +180,7 @@ function parseHeader(value: string): ParsedHeader | null {
   return name && headerValue ? { name, value: headerValue } : null;
 }
 
-function collectImportedHeader(
-  value: string,
-  headers: ParsedHeader[],
-  cookies: string[],
-) {
+function collectImportedHeader(value: string, headers: ParsedHeader[], cookies: string[]) {
   const header = parseHeader(value);
   if (header?.name.toLowerCase() === "cookie") {
     cookies.push(header.value);
@@ -204,9 +195,7 @@ function collectCurlCookie(value: string, cookies: string[]) {
     return;
   }
   if (!cookie.includes("=")) {
-    throw new Error(
-      "Cookie file imports are unsupported. Paste ready-to-use cookies instead.",
-    );
+    throw new Error("Cookie file imports are unsupported. Paste ready-to-use cookies instead.");
   }
   cookies.push(cookie);
 }
@@ -223,12 +212,7 @@ function parseHarRequests(input: string) {
     throw new Error("Unsupported HAR data. Expected a HAR request log.");
   }
   const log = parsed.log;
-  if (
-    !log ||
-    typeof log !== "object" ||
-    !("entries" in log) ||
-    !Array.isArray(log.entries)
-  ) {
+  if (!log || typeof log !== "object" || !("entries" in log) || !Array.isArray(log.entries)) {
     throw new Error("Unsupported HAR data. Expected a HAR request log.");
   }
   if (log.entries.length === 0) {
@@ -269,22 +253,20 @@ function parseHarRequests(input: string) {
       const value = header.value.trim();
       return name && value ? [{ name, value }] : [];
     });
-    const cookies = rawCookies.flatMap(
-      (cookie: unknown): HarCookie[] => {
-        if (
-          !cookie ||
-          typeof cookie !== "object" ||
-          !("name" in cookie) ||
-          !("value" in cookie) ||
-          typeof cookie.name !== "string" ||
-          typeof cookie.value !== "string"
-        ) {
-          return [];
-        }
-        const name = cookie.name.trim();
-        return name ? [{ name, value: cookie.value }] : [];
-      },
-    );
+    const cookies = rawCookies.flatMap((cookie: unknown): HarCookie[] => {
+      if (
+        !cookie ||
+        typeof cookie !== "object" ||
+        !("name" in cookie) ||
+        !("value" in cookie) ||
+        typeof cookie.name !== "string" ||
+        typeof cookie.value !== "string"
+      ) {
+        return [];
+      }
+      const name = cookie.name.trim();
+      return name ? [{ name, value: cookie.value }] : [];
+    });
     return { method: request.method, url: request.url, headers, cookies };
   });
 }
@@ -363,26 +345,20 @@ export function parseHarAuthenticationContextImport(
     throw new Error("The selected HAR request must use the session target's exact origin.");
   }
 
-  const { cookies: headerCookies, supportedHeaders } = splitImportedHeaders(
-    request.headers,
-  );
+  const { cookies: headerCookies, supportedHeaders } = splitImportedHeaders(request.headers);
   const cookies = joinCookies([
     ...headerCookies,
     ...request.cookies.map(({ name, value }) => `${name}=${value}`),
   ]);
   if (!cookies && supportedHeaders.length === 0) {
-    throw new Error(
-      "The selected HAR request does not contain supported authentication material.",
-    );
+    throw new Error("The selected HAR request does not contain supported authentication material.");
   }
   requestUrl.hash = "";
   return {
     context: {
       origin: targetOrigin,
       cookies,
-      headers: supportedHeaders
-        .map(({ name, value }) => `${name}: ${value}`)
-        .join(" | "),
+      headers: supportedHeaders.map(({ name, value }) => `${name}: ${value}`).join(" | "),
     },
     verificationUrl: requestUrl.toString(),
   };
@@ -435,11 +411,7 @@ export function parseCurlAuthenticationContextImport(
       continue;
     }
     if (token.startsWith("--header=")) {
-      collectImportedHeader(
-        token.slice("--header=".length),
-        headers,
-        cookies,
-      );
+      collectImportedHeader(token.slice("--header=".length), headers, cookies);
       continue;
     }
     if (token === "-b" || token === "--cookie") {
@@ -480,10 +452,7 @@ export function parseCurlAuthenticationContextImport(
       continue;
     }
     const optionName = token.split("=", 1)[0]!;
-    if (
-      token.includes("=") &&
-      includesOption(ignoredCurlOptionsWithValues, optionName)
-    ) {
+    if (token.includes("=") && includesOption(ignoredCurlOptionsWithValues, optionName)) {
       continue;
     }
     if (includesOption(ignoredCurlFlagOptions, token)) {
@@ -506,9 +475,7 @@ export function parseCurlAuthenticationContextImport(
       verificationUrl.hash = "";
       requestOrigin = normalizeExactOrigin(requestUrl);
     } catch {
-      throw new Error(
-        "The curl request must use a valid HTTP or HTTPS URL.",
-      );
+      throw new Error("The curl request must use a valid HTTP or HTTPS URL.");
     }
   }
   if (!requestOrigin || !verificationUrl || requestOrigin !== targetOrigin) {
@@ -522,9 +489,7 @@ export function parseCurlAuthenticationContextImport(
     context: {
       origin: targetOrigin,
       cookies: joinCookies(cookies),
-      headers: headers
-        .map(({ name, value }) => `${name}: ${value}`)
-        .join(" | "),
+      headers: headers.map(({ name, value }) => `${name}: ${value}`).join(" | "),
     },
     verificationUrl: verificationUrl.toString(),
   };

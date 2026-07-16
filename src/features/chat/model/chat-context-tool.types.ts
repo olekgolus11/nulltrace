@@ -22,14 +22,9 @@ export interface ChatContextToolExecution<TArgs extends ChatContextToolArgs> {
   args: TArgs;
 }
 
-export interface ChatContextToolDefinition<
-  TArgs extends ChatContextToolArgs,
-  TResult,
-> {
+export interface ChatContextToolDefinition<TArgs extends ChatContextToolArgs, TResult> {
   name: string;
   description: string;
   args: Record<keyof TArgs & string, ChatContextToolSchema>;
-  execute: (
-    input: ChatContextToolExecution<TArgs>,
-  ) => TResult | Promise<TResult>;
+  execute: (input: ChatContextToolExecution<TArgs>) => TResult | Promise<TResult>;
 }

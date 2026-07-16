@@ -3,9 +3,8 @@ import { authenticatedSitemapCrawler } from "./authenticated-sitemap-crawler.ser
 import { AuthenticatedSitemapCrawlCoordinator } from "./authenticated-sitemap-crawl-coordinator.service";
 import { sitemapRepository } from "./sitemap.repository";
 
-export const authenticatedSitemapCrawlCoordinator =
-  new AuthenticatedSitemapCrawlCoordinator(
-    authenticatedRequestContextService,
-    authenticatedSitemapCrawler,
-    sitemapRepository,
-  );
+export const authenticatedSitemapCrawlCoordinator = new AuthenticatedSitemapCrawlCoordinator(
+  authenticatedRequestContextService,
+  authenticatedSitemapCrawler,
+  sitemapRepository,
+);

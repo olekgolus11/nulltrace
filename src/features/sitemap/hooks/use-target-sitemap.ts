@@ -29,10 +29,7 @@ interface TargetSitemapState {
   authenticatedCheckpoint: SitemapCrawlCheckpoint | null;
 }
 
-function readTargetSitemap(
-  targetId: string,
-  sessionId: string | null,
-): TargetSitemapState {
+function readTargetSitemap(targetId: string, sessionId: string | null): TargetSitemapState {
   const result = sitemapRepository.listEntries({
     targetId,
     limit: 500,
@@ -44,9 +41,7 @@ function readTargetSitemap(
     authenticatedStatus: sessionId
       ? sitemapRepository.getAuthenticatedCrawlStatus(sessionId, targetId)
       : null,
-    accessObservations: sessionId
-      ? sitemapRepository.listAccessObservations(sessionId)
-      : [],
+    accessObservations: sessionId ? sitemapRepository.listAccessObservations(sessionId) : [],
     publicCheckpoint: sitemapRepository.getCrawlCheckpoint("public", targetId),
     authenticatedCheckpoint: sessionId
       ? sitemapRepository.getCrawlCheckpoint("authenticated", sessionId)
@@ -67,8 +62,7 @@ export function useTargetSitemap(
   targetUrl: string,
 ) {
   const [maxDepth, setMaxDepth] = useState<number | null>(null);
-  const [provenanceFilter, setProvenanceFilter] =
-    useState<TargetSitemapProvenanceFilter>("all");
+  const [provenanceFilter, setProvenanceFilter] = useState<TargetSitemapProvenanceFilter>("all");
   const [state, setState] = useState<TargetSitemapState>({
     entries: [],
     status: null,
@@ -115,12 +109,7 @@ export function useTargetSitemap(
 
   const observationByEntryId = useMemo(
     () =>
-      new Map(
-        state.accessObservations.map((observation) => [
-          observation.entryId,
-          observation,
-        ]),
-      ),
+      new Map(state.accessObservations.map((observation) => [observation.entryId, observation])),
     [state.accessObservations],
   );
 
@@ -131,10 +120,7 @@ export function useTargetSitemap(
           const accessObservation = observationByEntryId.get(entry.id);
           return {
             path: entry.path,
-            status: getTargetSitemapEntryDisplayStatus(
-              entry,
-              accessObservation,
-            ),
+            status: getTargetSitemapEntryDisplayStatus(entry, accessObservation),
             method: entry.method ?? undefined,
             entryId: entry.id,
             normalizedUrl: entry.normalizedUrl,
@@ -147,19 +133,12 @@ export function useTargetSitemap(
     [observationByEntryId, visibleEntries],
   );
   const flatNodes = useMemo(() => flattenTree(nodes), [nodes]);
-  const entryNodes = useMemo(
-    () => flatNodes.filter((node) => node.entryId),
-    [flatNodes],
-  );
+  const entryNodes = useMemo(() => flatNodes.filter((node) => node.entryId), [flatNodes]);
 
   const cycleMaxDepth = (direction: -1 | 1) => {
     setMaxDepth((currentDepth) => {
-      const currentIndex =
-        currentDepth === null ? availableMaxDepth + 1 : currentDepth;
-      const nextIndex = Math.max(
-        0,
-        Math.min(availableMaxDepth + 1, currentIndex + direction),
-      );
+      const currentIndex = currentDepth === null ? availableMaxDepth + 1 : currentDepth;
+      const nextIndex = Math.max(0, Math.min(availableMaxDepth + 1, currentIndex + direction));
 
       return nextIndex > availableMaxDepth ? null : nextIndex;
     });
@@ -169,8 +148,7 @@ export function useTargetSitemap(
     setProvenanceFilter((current) => {
       const currentIndex = provenanceFilters.indexOf(current);
       const nextIndex =
-        (currentIndex + direction + provenanceFilters.length) %
-        provenanceFilters.length;
+        (currentIndex + direction + provenanceFilters.length) % provenanceFilters.length;
       return provenanceFilters[nextIndex]!;
     });
   };
@@ -180,9 +158,7 @@ export function useTargetSitemap(
     state.status?.status ?? "idle",
     state.authenticatedStatus?.status ?? "idle",
     selectTransientCrawlFailures(state.publicCheckpoint?.failures ?? []).length,
-    selectTransientCrawlFailures(
-      state.authenticatedCheckpoint?.failures ?? [],
-    ).length,
+    selectTransientCrawlFailures(state.authenticatedCheckpoint?.failures ?? []).length,
   );
 
   const pauseOrResume = () => {

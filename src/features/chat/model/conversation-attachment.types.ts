@@ -3,8 +3,7 @@ export interface ConversationAttachmentInput {
   opencodeConversationId: string;
 }
 
-export interface ConversationAttachmentRecord
-  extends ConversationAttachmentInput {
+export interface ConversationAttachmentRecord extends ConversationAttachmentInput {
   isDefault: boolean;
   archivedAt: string | null;
   createdAt: string;

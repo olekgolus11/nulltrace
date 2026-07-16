@@ -46,14 +46,10 @@ export function SitemapTreeItem({
         <text fg={theme.text.dim}>{branch} </text>
         {showMethod ? (
           <>
-            <text
-              fg={isSelected ? theme.accent.primary : methodColor(node.method!)}
-            >
+            <text fg={isSelected ? theme.accent.primary : methodColor(node.method!)}>
               {isSelected ? <strong>{node.method}</strong> : node.method}
             </text>
-            <text
-              fg={isSelected ? theme.accent.primary : theme.accent.secondary}
-            >
+            <text fg={isSelected ? theme.accent.primary : theme.accent.secondary}>
               {" "}
               {node.path}
             </text>

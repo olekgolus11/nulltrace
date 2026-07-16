@@ -54,9 +54,7 @@ export function ToolRunHistoryPanel({
     >
       <box flexDirection="column" flexGrow={1}>
         {runs.length === 0 ? (
-          <text fg={theme.text.dim}>
-            No previous runs for this tool in this session.
-          </text>
+          <text fg={theme.text.dim}>No previous runs for this tool in this session.</text>
         ) : (
           <scrollbox ref={scrollRef} flexGrow={1} stickyScroll={false}>
             <box flexDirection="column">
@@ -68,40 +66,22 @@ export function ToolRunHistoryPanel({
                     flexDirection="column"
                     paddingLeft={1}
                     paddingRight={1}
-                    backgroundColor={
-                      isSelected && focused ? theme.bg.elevated : undefined
-                    }
+                    backgroundColor={isSelected && focused ? theme.bg.elevated : undefined}
                     borderColor={
-                      isSelected && focused
-                        ? theme.accent.primary
-                        : theme.border.default
+                      isSelected && focused ? theme.accent.primary : theme.border.default
                     }
                   >
                     <box flexDirection="row">
                       <box flexGrow={1}>
-                        <text
-                          fg={
-                            isSelected
-                              ? theme.text.primary
-                              : theme.text.secondary
-                          }
-                        >
+                        <text fg={isSelected ? theme.text.primary : theme.text.secondary}>
                           {formatRunTime(run.startedAt)}
                         </text>
                       </box>
                       <text fg={getStatusColor(run.status)}>
-                        {run.exitCode === null
-                          ? run.status
-                          : `${run.status} (${run.exitCode})`}
+                        {run.exitCode === null ? run.status : `${run.status} (${run.exitCode})`}
                       </text>
                     </box>
-                    <text
-                      fg={
-                        isSelected && focused
-                          ? theme.accent.primary
-                          : theme.text.primary
-                      }
-                    >
+                    <text fg={isSelected && focused ? theme.accent.primary : theme.text.primary}>
                       {formatCommand(run.command)}
                     </text>
                   </box>

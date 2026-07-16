@@ -10,23 +10,17 @@ import {
   UpsertTargetSitemapEntryInput,
 } from "../model/sitemap.types";
 import { selectTransientCrawlFailures } from "../model/sitemap-crawl-lifecycle";
-import {
-  defaultPublicSitemapCrawlerLimits,
-} from "./public-sitemap-crawler.service";
 import { sitemapRepository } from "./sitemap.repository";
-import {
-  createAbsoluteCrawlUrl,
-} from "./sitemap-crawler-url";
+import { createAbsoluteCrawlUrl } from "./sitemap-crawler-url";
 import { readResponseText } from "./public-sitemap-crawler.helpers";
 import { PublicSitemapCrawlerLimits } from "./public-sitemap-crawler.types";
+import { defaultPublicSitemapCrawlerLimits } from "./public-sitemap-crawler.config";
 
 type FetchFunction = (input: string, init?: RequestInit) => Promise<Response>;
 
 export interface AuthenticatedSitemapCrawlerPersistence {
   upsertEntry(input: UpsertTargetSitemapEntryInput): { id: string };
-  upsertAccessObservation(
-    input: AuthenticatedSitemapAccessObservationInput,
-  ): unknown;
+  upsertAccessObservation(input: AuthenticatedSitemapAccessObservationInput): unknown;
   markAuthenticatedCrawlRunning(sessionId: string, targetId: string): unknown;
   markAuthenticatedCrawlCompleted(sessionId: string, targetId: string): unknown;
   markAuthenticatedCrawlAuthenticationRequired(
@@ -34,23 +28,11 @@ export interface AuthenticatedSitemapCrawlerPersistence {
     targetId: string,
     errorMessage: string,
   ): unknown;
-  markAuthenticatedCrawlFailed(
-    sessionId: string,
-    targetId: string,
-    errorMessage: string,
-  ): unknown;
+  markAuthenticatedCrawlFailed(sessionId: string, targetId: string, errorMessage: string): unknown;
   markAuthenticatedCrawlPaused?(sessionId: string, targetId: string): unknown;
-  saveCrawlCheckpoint?(
-    input: Omit<SitemapCrawlCheckpoint, "updatedAt">,
-  ): unknown;
-  getCrawlCheckpoint?(
-    crawlerType: "authenticated",
-    ownerId: string,
-  ): SitemapCrawlCheckpoint | null;
-  deleteCrawlCheckpoint?(
-    crawlerType: "authenticated",
-    ownerId: string,
-  ): unknown;
+  saveCrawlCheckpoint?(input: Omit<SitemapCrawlCheckpoint, "updatedAt">): unknown;
+  getCrawlCheckpoint?(crawlerType: "authenticated", ownerId: string): SitemapCrawlCheckpoint | null;
+  deleteCrawlCheckpoint?(crawlerType: "authenticated", ownerId: string): unknown;
 }
 
 export interface AuthenticatedSitemapCrawlerInput {
@@ -94,9 +76,7 @@ class TemporaryCookieJar {
   }
 
   getHeader() {
-    return [...this.cookies.entries()]
-      .map(([name, value]) => `${name}=${value}`)
-      .join("; ");
+    return [...this.cookies.entries()].map(([name, value]) => `${name}=${value}`).join("; ");
   }
 
   accept(response: Response) {
@@ -144,9 +124,7 @@ function hasLoginForm(body: string) {
 }
 
 function isLoginLikeUrl(url: URL) {
-  return /(?:^|\/)(?:login|log-in|signin|sign-in|sso|oauth|authorize)(?:\/|$)/i.test(
-    url.pathname,
-  );
+  return /(?:^|\/)(?:login|log-in|signin|sign-in|sso|oauth|authorize)(?:\/|$)/i.test(url.pathname);
 }
 
 function isAuthenticationSignal(
@@ -191,9 +169,7 @@ export class AuthenticatedSitemapCrawler {
     return true;
   }
 
-  async crawl(
-    input: AuthenticatedSitemapCrawlerInput,
-  ): Promise<AuthenticatedSitemapCrawlerResult> {
+  async crawl(input: AuthenticatedSitemapCrawlerInput): Promise<AuthenticatedSitemapCrawlerResult> {
     const limits = {
       ...defaultPublicSitemapCrawlerLimits,
       ...this.limits,
@@ -207,15 +183,14 @@ export class AuthenticatedSitemapCrawler {
 
     const rootUrl = new URL("/", rootOrigin);
     const mode = input.mode ?? "fresh";
-    const checkpoint = mode === "fresh"
-      ? null
-      : this.repository.getCrawlCheckpoint?.(
-          "authenticated",
-          input.sessionId,
-        ) ?? null;
-    const recoveredFrontier = mode === "retry_failures"
-      ? selectTransientCrawlFailures(checkpoint?.failures ?? [])
-      : checkpoint?.frontier ?? null;
+    const checkpoint =
+      mode === "fresh"
+        ? null
+        : (this.repository.getCrawlCheckpoint?.("authenticated", input.sessionId) ?? null);
+    const recoveredFrontier =
+      mode === "retry_failures"
+        ? selectTransientCrawlFailures(checkpoint?.failures ?? [])
+        : (checkpoint?.frontier ?? null);
     const queue: QueuedUrl[] = recoveredFrontier
       ? recoveredFrontier.map((entry) => ({
           url: new URL(entry.url),
@@ -227,18 +202,16 @@ export class AuthenticatedSitemapCrawler {
     if (mode === "retry_failures") {
       queue.forEach((entry) => visited.delete(entry.url.toString()));
     }
-    const queued = new Set([
-      ...visited,
-      ...queue.map((entry) => entry.url.toString()),
-    ]);
+    const queued = new Set([...visited, ...queue.map((entry) => entry.url.toString())]);
     const entries = new Set(checkpoint?.discoveredEntryKeys ?? []);
     const cookieJar = new TemporaryCookieJar(input.context.cookies);
     let pagesFetched = checkpoint?.pagesFetched ?? 0;
-    const failures = mode === "retry_failures"
-      ? (checkpoint?.failures ?? []).filter(
-          (failure) => !selectTransientCrawlFailures([failure]).length,
-        )
-      : [...(checkpoint?.failures ?? [])];
+    const failures =
+      mode === "retry_failures"
+        ? (checkpoint?.failures ?? []).filter(
+            (failure) => !selectTransientCrawlFailures([failure]).length,
+          )
+        : [...(checkpoint?.failures ?? [])];
     let authenticationSignals = 0;
 
     if (mode === "fresh") {
@@ -270,7 +243,7 @@ export class AuthenticatedSitemapCrawler {
             source: next.source,
             kind:
               error instanceof Error &&
-                (error.name === "TimeoutError" || error.name === "AbortError")
+              (error.name === "TimeoutError" || error.name === "AbortError")
                 ? "timeout"
                 : "network",
             httpStatus: null,
@@ -298,9 +271,7 @@ export class AuthenticatedSitemapCrawler {
           entryId: record.id,
           httpStatus: response.status,
         });
-        const failureIndex = failures.findIndex(
-          (failure) => failure.url === next.url.toString(),
-        );
+        const failureIndex = failures.findIndex((failure) => failure.url === next.url.toString());
         if (failureIndex >= 0) {
           failures.splice(failureIndex, 1);
         }
@@ -324,13 +295,8 @@ export class AuthenticatedSitemapCrawler {
           body,
           fetched.crossOriginRedirectUrl,
         );
-        authenticationSignals = hasAuthenticationSignal
-          ? authenticationSignals + 1
-          : 0;
-        if (
-          hasAuthenticationSignal &&
-          authenticationSignals < authenticationSignalThreshold
-        ) {
+        authenticationSignals = hasAuthenticationSignal ? authenticationSignals + 1 : 0;
+        if (hasAuthenticationSignal && authenticationSignals < authenticationSignalThreshold) {
           const pausedResult = this.checkpointAndPauseIfRequested(
             input,
             queue,
@@ -397,7 +363,7 @@ export class AuthenticatedSitemapCrawler {
         }
         pagesFetched += 1;
         const $ = load(body);
-        $('a[href]').each((_, element) => {
+        $("a[href]").each((_, element) => {
           this.enqueue(
             $(element).attr("href"),
             url,
@@ -430,11 +396,7 @@ export class AuthenticatedSitemapCrawler {
       };
     } catch (error) {
       const errorMessage = toErrorMessage(error);
-      this.repository.markAuthenticatedCrawlFailed(
-        input.sessionId,
-        input.targetId,
-        errorMessage,
-      );
+      this.repository.markAuthenticatedCrawlFailed(input.sessionId, input.targetId, errorMessage);
       return {
         status: "failed",
         pagesFetched,
@@ -482,21 +444,11 @@ export class AuthenticatedSitemapCrawler {
     pagesFetched: number,
     entries: Set<string>,
   ): AuthenticatedSitemapCrawlerResult | null {
-    this.saveCheckpoint(
-      input,
-      queue,
-      visited,
-      failures,
-      pagesFetched,
-      entries,
-    );
+    this.saveCheckpoint(input, queue, visited, failures, pagesFetched, entries);
     if (!this.pauseRequestedSessionIds.has(input.sessionId)) {
       return null;
     }
-    this.repository.markAuthenticatedCrawlPaused?.(
-      input.sessionId,
-      input.targetId,
-    );
+    this.repository.markAuthenticatedCrawlPaused?.(input.sessionId, input.targetId);
     return {
       status: "paused",
       pagesFetched,

@@ -50,18 +50,9 @@ const verifiedMetadata = {
 describe("AuthenticationContextMetadataRepository", () => {
   test("shares non-secret auth posture only within the active app runtime", () => {
     const database = createDatabase();
-    const appWriter = new AuthenticationContextMetadataRepository(
-      database,
-      "runtime-1",
-    );
-    const chatReader = new AuthenticationContextMetadataRepository(
-      database,
-      "runtime-1",
-    );
-    const restartedApp = new AuthenticationContextMetadataRepository(
-      database,
-      "runtime-2",
-    );
+    const appWriter = new AuthenticationContextMetadataRepository(database, "runtime-1");
+    const chatReader = new AuthenticationContextMetadataRepository(database, "runtime-1");
+    const restartedApp = new AuthenticationContextMetadataRepository(database, "runtime-2");
 
     appWriter.upsert("session-1", verifiedMetadata);
 

@@ -1,9 +1,6 @@
 import { theme } from "../../../app/theme/theme";
 import { SessionFindingRecord } from "../model/finding.types";
-import {
-  severityConfig,
-  severityLabels,
-} from "../model/finding-summary.constants";
+import { severityConfig, severityLabels } from "../model/finding-summary.constants";
 
 interface FindingListProps {
   findings: SessionFindingRecord[];
@@ -34,9 +31,7 @@ export function FindingList({
   if (findings.length === 0) {
     return (
       <box flexDirection="column">
-        <text fg={theme.text.secondary}>
-          No findings recorded for this session yet.
-        </text>
+        <text fg={theme.text.secondary}>No findings recorded for this session yet.</text>
       </box>
     );
   }
@@ -53,8 +48,7 @@ export function FindingList({
       reviewStatusLabel,
       title,
       summary,
-      titleLineWidth:
-        severityLabel.length + 1 + reviewStatusLabel.length + 1 + title.length,
+      titleLineWidth: severityLabel.length + 1 + reviewStatusLabel.length + 1 + title.length,
       summaryLineWidth: summary.length,
     };
   });
@@ -66,8 +60,7 @@ export function FindingList({
   return (
     <box flexDirection="column" width={listWidth}>
       {rows.map((row, idx) => {
-        const { finding, severityLabel, reviewStatusLabel, title, summary } =
-          row;
+        const { finding, severityLabel, reviewStatusLabel, title, summary } = row;
         const isSelected = focused && idx === selectedIndex;
         const reviewStatus = reviewStatusConfig[finding.reviewStatus];
 

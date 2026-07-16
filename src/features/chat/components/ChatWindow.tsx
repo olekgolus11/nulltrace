@@ -41,9 +41,7 @@ export function ChatWindow({
 
   const submitInput = (value: unknown) => {
     const inputSubmitValue = typeof value === "string" ? value : "";
-    const submittedValue = inputSubmitValue.trim()
-      ? inputSubmitValue
-      : inputValue;
+    const submittedValue = inputSubmitValue.trim() ? inputSubmitValue : inputValue;
     const prompt = submittedValue.trim();
 
     if (!prompt || isDisabled) {
@@ -57,8 +55,7 @@ export function ChatWindow({
     onSubmit(prompt);
   };
 
-  const shouldShowSpinner =
-    isGenerating && messages[messages.length - 1]?.sender === "user";
+  const shouldShowSpinner = isGenerating && messages[messages.length - 1]?.sender === "user";
 
   return (
     <box flexDirection="column" flexGrow={1}>
@@ -82,15 +79,8 @@ export function ChatWindow({
         }}
       >
         {messages.length === 0 ? (
-          <box
-            flexDirection="column"
-            alignItems="center"
-            justifyContent="center"
-            flexGrow={1}
-          >
-            <text fg={theme.text.dim}>
-              No messages yet. Start a conversation!
-            </text>
+          <box flexDirection="column" alignItems="center" justifyContent="center" flexGrow={1}>
+            <text fg={theme.text.dim}>No messages yet. Start a conversation!</text>
           </box>
         ) : (
           messages.map((msg) => (

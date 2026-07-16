@@ -21,20 +21,13 @@ interface AuthenticationContextMetadataRow {
   authCheckJson: string;
 }
 
-const authCheckStatuses = [
-  "not_checked",
-  "verified",
-  "inconclusive",
-  "failed",
-] as const;
+const authCheckStatuses = ["not_checked", "verified", "inconclusive", "failed"] as const;
 
 function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
 }
 
-function isAuthCheckSignals(
-  value: unknown,
-): value is AuthCheckSignalMetadata | null {
+function isAuthCheckSignals(value: unknown): value is AuthCheckSignalMetadata | null {
   if (value === null) {
     return true;
   }
@@ -96,26 +89,18 @@ function parseAuthCheckMetadata(value: string): AuthCheckMetadata | null {
 function parseHeaderNames(value: string) {
   try {
     const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) && parsed.every((name) => typeof name === "string")
-      ? parsed
-      : [];
+    return Array.isArray(parsed) && parsed.every((name) => typeof name === "string") ? parsed : [];
   } catch {
     return [];
   }
 }
 
-function normalizeStorageMode(
-  value: string,
-): AuthenticatedContextStorageMode | null {
+function normalizeStorageMode(value: string): AuthenticatedContextStorageMode | null {
   return value === "memory" || value === "secure" ? value : null;
 }
 
-function normalizeImportSource(
-  value: string,
-): AuthenticatedContextImportSource | null {
-  return value === "manual" || value === "curl" || value === "har"
-    ? value
-    : null;
+function normalizeImportSource(value: string): AuthenticatedContextImportSource | null {
+  return value === "manual" || value === "curl" || value === "har" ? value : null;
 }
 
 function mapMetadataRow(
@@ -124,12 +109,7 @@ function mapMetadataRow(
   const authCheck = parseAuthCheckMetadata(row.authCheckJson);
   const storageMode = normalizeStorageMode(row.storageMode);
   const importSource = normalizeImportSource(row.importSource);
-  if (
-    !authCheck ||
-    !storageMode ||
-    !importSource ||
-    row.cookieCount < 0
-  ) {
+  if (!authCheck || !storageMode || !importSource || row.cookieCount < 0) {
     return null;
   }
   return {
@@ -149,9 +129,7 @@ export class AuthenticationContextMetadataRepository {
     private readonly runtimeId: string = getAuthenticationRuntimeId(),
   ) {}
 
-  findBySessionId(
-    sessionId: string,
-  ): AuthenticatedRequestContextMetadata | null {
+  findBySessionId(sessionId: string): AuthenticatedRequestContextMetadata | null {
     const row = this.database
       .query<AuthenticationContextMetadataRow, [string, string]>(
         `SELECT
@@ -203,9 +181,7 @@ export class AuthenticationContextMetadataRepository {
 
   updateAuthCheck(sessionId: string, authCheck: AuthCheckMetadata) {
     const metadata = this.findBySessionId(sessionId);
-    return metadata
-      ? this.upsert(sessionId, { ...metadata, authCheck })
-      : null;
+    return metadata ? this.upsert(sessionId, { ...metadata, authCheck }) : null;
   }
 
   clear(sessionId: string) {

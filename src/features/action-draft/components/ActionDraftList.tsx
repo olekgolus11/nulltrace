@@ -51,24 +51,12 @@ export function ActionDraftList({
           >
             <box flexDirection="row">
               <box width={4}>
-                <text
-                  fg={
-                    focused && isSelected
-                      ? theme.accent.primary
-                      : theme.text.dim
-                  }
-                >
+                <text fg={focused && isSelected ? theme.accent.primary : theme.text.dim}>
                   {focused && isSelected ? ">" : `${index + 1}.`}
                 </text>
               </box>
               <box flexGrow={1}>
-                <text
-                  fg={
-                    focused && isSelected
-                      ? theme.accent.primary
-                      : theme.text.primary
-                  }
-                >
+                <text fg={focused && isSelected ? theme.accent.primary : theme.text.primary}>
                   {draft.title}
                 </text>
               </box>

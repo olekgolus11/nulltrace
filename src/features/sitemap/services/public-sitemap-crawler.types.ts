@@ -1,7 +1,4 @@
-import {
-  SitemapCrawlRunMode,
-  TargetSitemapEntrySource,
-} from "../model/sitemap.types";
+import { SitemapCrawlRunMode, TargetSitemapEntrySource } from "../model/sitemap.types";
 
 export interface PublicSitemapCrawlerLimits {
   maxDepth: number;

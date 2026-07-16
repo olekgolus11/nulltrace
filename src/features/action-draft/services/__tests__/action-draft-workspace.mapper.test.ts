@@ -4,9 +4,7 @@ import { mapActionDraftToWorkspaceState } from "../action-draft-workspace.mapper
 import { nmapCommandService } from "../../../tool/nmap/services/nmap-command.service";
 import { nucleiCommandService } from "../../../tool/nuclei/services/nuclei-command.service";
 
-function createDraft(
-  overrides: Partial<ActionDraftRecord> = {},
-): ActionDraftRecord {
+function createDraft(overrides: Partial<ActionDraftRecord> = {}): ActionDraftRecord {
   return {
     id: "draft-1",
     sessionId: "session-1",
@@ -24,8 +22,7 @@ function createDraft(
 
 describe("mapActionDraftToWorkspaceState", () => {
   it("maps nmap form and command payloads into editable workspace state", () => {
-    const currentToolData =
-      nmapCommandService.createInitialToolData("https://example.com");
+    const currentToolData = nmapCommandService.createInitialToolData("https://example.com");
     const result = mapActionDraftToWorkspaceState({
       draft: createDraft({
         payload: {
@@ -68,8 +65,7 @@ describe("mapActionDraftToWorkspaceState", () => {
   });
 
   it("maps nuclei form state and uses generated command when no command is supplied", () => {
-    const currentToolData =
-      nucleiCommandService.createInitialToolData("https://example.com");
+    const currentToolData = nucleiCommandService.createInitialToolData("https://example.com");
     const result = mapActionDraftToWorkspaceState({
       draft: createDraft({
         targetTool: "nuclei",
@@ -101,8 +97,7 @@ describe("mapActionDraftToWorkspaceState", () => {
   });
 
   it("rejects mismatched tool and unusable payloads", () => {
-    const currentToolData =
-      nmapCommandService.createInitialToolData("https://example.com");
+    const currentToolData = nmapCommandService.createInitialToolData("https://example.com");
 
     expect(
       mapActionDraftToWorkspaceState({
@@ -135,8 +130,7 @@ describe("mapActionDraftToWorkspaceState", () => {
       }),
     ).toEqual({
       ok: false,
-      reason:
-        "This draft has no usable command or form state for the current workspace.",
+      reason: "This draft has no usable command or form state for the current workspace.",
     });
   });
 });

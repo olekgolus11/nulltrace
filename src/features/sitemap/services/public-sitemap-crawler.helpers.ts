@@ -1,15 +1,12 @@
 import { load } from "cheerio";
-import { defaultPublicSitemapCrawlerLimits } from "./public-sitemap-crawler.service";
 import {
   DiscoveredForm,
   DiscoveredUrl,
   PublicSitemapCrawlerLimits,
 } from "./public-sitemap-crawler.types";
-import {
-  createAbsoluteCrawlUrl,
-  normalizeCrawlUrl,
-} from "./sitemap-crawler-url";
+import { createAbsoluteCrawlUrl, normalizeCrawlUrl } from "./sitemap-crawler-url";
 import { XMLParser } from "fast-xml-parser";
+import { defaultPublicSitemapCrawlerLimits } from "./public-sitemap-crawler.config";
 
 export function mergeLimits(
   baseLimits: Partial<PublicSitemapCrawlerLimits> | undefined,
@@ -47,10 +44,7 @@ export function getContentType(response: Response) {
 export function isHtmlResponse(response: Response) {
   const contentType = getContentType(response);
 
-  return (
-    contentType.includes("text/html") ||
-    contentType.includes("application/xhtml+xml")
-  );
+  return contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
 }
 
 export function isXmlResponse(response: Response) {
@@ -80,11 +74,7 @@ export function extractRobotsSitemapUrls(body: string, rootUrl: URL) {
     .filter((url): url is URL => Boolean(url));
 }
 
-export function collectXmlValues(
-  value: unknown,
-  key: string,
-  results: string[],
-) {
+export function collectXmlValues(value: unknown, key: string, results: string[]) {
   if (!value || typeof value !== "object") {
     return;
   }
@@ -137,9 +127,7 @@ export function extractHtmlDiscoveries(body: string, pageUrl: URL) {
   $("form").each((_, element) => {
     const method = getFormMethod($(element).attr("method"));
     const action = $(element).attr("action")?.trim();
-    const url = action
-      ? createAbsoluteCrawlUrl(action, pageUrl)
-      : normalizeCrawlUrl(pageUrl);
+    const url = action ? createAbsoluteCrawlUrl(action, pageUrl) : normalizeCrawlUrl(pageUrl);
     if (url) {
       forms.push({
         url,

@@ -2,11 +2,7 @@ export type AuthenticatedContextStorageMode = "secure" | "memory";
 
 export type AuthenticatedContextImportSource = "manual" | "curl" | "har";
 
-export type AuthCheckStatus =
-  | "not_checked"
-  | "verified"
-  | "inconclusive"
-  | "failed";
+export type AuthCheckStatus = "not_checked" | "verified" | "inconclusive" | "failed";
 
 export interface AuthCheckSignalMetadata {
   unauthenticatedStatus: number;

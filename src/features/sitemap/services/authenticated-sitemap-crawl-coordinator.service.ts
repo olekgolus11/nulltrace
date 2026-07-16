@@ -51,15 +51,10 @@ export class AuthenticatedSitemapCrawlCoordinator {
     targetId,
     rootUrl,
   }: StartAuthenticatedSitemapCrawlInput): Promise<StartAuthenticatedSitemapCrawlResult> {
-    const status = this.repository?.getAuthenticatedCrawlStatus(
-      sessionId,
-      targetId,
-    ).status;
+    const status = this.repository?.getAuthenticatedCrawlStatus(sessionId, targetId).status;
     return this.startWithContext(
       { sessionId, targetId, rootUrl },
-      status === "paused" || status === "authentication_required"
-        ? "resume"
-        : "fresh",
+      status === "paused" || status === "authentication_required" ? "resume" : "fresh",
     );
   }
 

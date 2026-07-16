@@ -1,7 +1,4 @@
-import {
-  PanelDefinition,
-  PanelDirection,
-} from "./panel-navigation.types";
+import { PanelDefinition, PanelDirection } from "./panel-navigation.types";
 
 export function cyclePanel<TPanel extends string>(
   panels: Array<PanelDefinition<TPanel>>,

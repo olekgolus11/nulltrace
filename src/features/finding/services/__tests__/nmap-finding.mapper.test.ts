@@ -223,12 +223,9 @@ describe("nmapFindingMapper", () => {
         scriptId: "ssl-cert",
       },
     });
-    expect(
-      (findings[2].payload as { outputHash: string }).outputHash,
-    ).toHaveLength(64);
+    expect((findings[2].payload as { outputHash: string }).outputHash).toHaveLength(64);
     expect(findings[3]).toMatchObject({
-      title:
-        "Nmap script closed-port-script reported output on example.com:444",
+      title: "Nmap script closed-port-script reported output on example.com:444",
       target: "example.com:444",
       payload: {
         artifactItemPath: "$.hosts[0].ports[1].scripts[0]",
@@ -262,10 +259,8 @@ describe("nmapFindingMapper", () => {
       dedupeKeyParts: ["unknown-host", "tcp", "unknown"],
     });
     expect(first[1]).toMatchObject({
-      title:
-        "Nmap script unknown-script reported output on unknown-host:unknown",
-      summary:
-        "Nmap script unknown-script reported output on unknown-host:unknown.",
+      title: "Nmap script unknown-script reported output on unknown-host:unknown",
+      summary: "Nmap script unknown-script reported output on unknown-host:unknown.",
     });
     expect(second.map((finding) => finding.dedupeKeyParts)).toEqual(
       first.map((finding) => finding.dedupeKeyParts),

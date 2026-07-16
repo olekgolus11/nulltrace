@@ -9,11 +9,7 @@ interface StatusBarProps {
   panels: Array<PanelDefinition<string>>;
 }
 
-export function StatusBar({
-  activePanel,
-  hints,
-  panels,
-}: StatusBarProps) {
+export function StatusBar({ activePanel, hints, panels }: StatusBarProps) {
   return (
     <box
       height={1}
@@ -32,10 +28,7 @@ export function StatusBar({
         {panels.map((panel, index) => {
           const isActive = panel.id === activePanel;
           return (
-            <text
-              key={panel.id}
-              fg={isActive ? theme.accent.primary : theme.text.dim}
-            >
+            <text key={panel.id} fg={isActive ? theme.accent.primary : theme.text.dim}>
               {isActive ? (
                 <strong>
                   [{index + 1} {panel.label}]

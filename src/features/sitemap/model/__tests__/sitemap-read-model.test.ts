@@ -35,12 +35,15 @@ describe("filterTargetSitemapEntries", () => {
       entry("deep", 3, "authenticated"),
     ];
 
-    expect(filterTargetSitemapEntries(entries, 2, "authenticated").map((item) => item.id))
-      .toEqual(["authenticated"]);
-    expect(filterTargetSitemapEntries(entries, null, "both").map((item) => item.id))
-      .toEqual(["both"]);
-    expect(filterTargetSitemapEntries(entries, 1, "all").map((item) => item.id))
-      .toEqual(["public"]);
+    expect(filterTargetSitemapEntries(entries, 2, "authenticated").map((item) => item.id)).toEqual([
+      "authenticated",
+    ]);
+    expect(filterTargetSitemapEntries(entries, null, "both").map((item) => item.id)).toEqual([
+      "both",
+    ]);
+    expect(filterTargetSitemapEntries(entries, 1, "all").map((item) => item.id)).toEqual([
+      "public",
+    ]);
   });
 });
 
@@ -58,14 +61,9 @@ describe("getTargetSitemapEntryDisplayStatus", () => {
       observedAt: "2026-07-14T10:00:00.000Z",
     };
 
+    expect(getTargetSitemapEntryDisplayStatus(authenticatedEntry, observation)).toBe(403);
     expect(
-      getTargetSitemapEntryDisplayStatus(authenticatedEntry, observation),
-    ).toBe(403);
-    expect(
-      getTargetSitemapEntryDisplayStatus(
-        { ...authenticatedEntry, httpStatus: 200 },
-        observation,
-      ),
+      getTargetSitemapEntryDisplayStatus({ ...authenticatedEntry, httpStatus: 200 }, observation),
     ).toBe(200);
     expect(getTargetSitemapEntryDisplayStatus(authenticatedEntry)).toBe(0);
   });

@@ -77,10 +77,7 @@ interface SitemapCrawlCheckpointRow {
   updatedAt: string;
 }
 
-export type SaveSitemapCrawlCheckpointInput = Omit<
-  SitemapCrawlCheckpoint,
-  "updatedAt"
->;
+export type SaveSitemapCrawlCheckpointInput = Omit<SitemapCrawlCheckpoint, "updatedAt">;
 
 const crawlStatuses: TargetSitemapCrawlStatus[] = [
   "idle",
@@ -172,30 +169,27 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isCheckpointFrontierEntry(
-  value: unknown,
-): value is SitemapCrawlFrontierEntry {
-  return isRecord(value) &&
+function isCheckpointFrontierEntry(value: unknown): value is SitemapCrawlFrontierEntry {
+  return (
+    isRecord(value) &&
     typeof value.url === "string" &&
     typeof value.depth === "number" &&
     typeof value.source === "string" &&
-    entrySources.some((source) => source === value.source);
+    entrySources.some((source) => source === value.source)
+  );
 }
 
 function isCheckpointFailure(value: unknown): value is SitemapCrawlFailure {
-  return isRecord(value) &&
+  return (
+    isRecord(value) &&
     isCheckpointFrontierEntry(value) &&
-    (value.kind === "timeout" ||
-      value.kind === "http" ||
-      value.kind === "network") &&
+    (value.kind === "timeout" || value.kind === "http" || value.kind === "network") &&
     (value.httpStatus === null || typeof value.httpStatus === "number") &&
-    typeof value.errorMessage === "string";
+    typeof value.errorMessage === "string"
+  );
 }
 
-function parseCheckpointArray<T>(
-  value: string,
-  isItem: (item: unknown) => item is T,
-): T[] | null {
+function parseCheckpointArray<T>(value: string, isItem: (item: unknown) => item is T): T[] | null {
   try {
     const parsed: unknown = JSON.parse(value);
     return Array.isArray(parsed) && parsed.every(isItem) ? parsed : null;
@@ -256,9 +250,7 @@ function mapEntryRow(row: TargetSitemapEntryRow): TargetSitemapEntryRecord {
   };
 }
 
-function mapCrawlStatusRow(
-  row: TargetSitemapCrawlStatusRow,
-): TargetSitemapCrawlStatusRecord {
+function mapCrawlStatusRow(row: TargetSitemapCrawlStatusRow): TargetSitemapCrawlStatusRecord {
   return {
     targetId: row.targetId,
     status: normalizeCrawlStatus(row.status),
@@ -287,11 +279,7 @@ export class SitemapRepository {
 
   upsertEntry(input: UpsertTargetSitemapEntryInput) {
     const method = normalizeMethod(input.method);
-    const existing = this.findEntryByNormalizedUrl(
-      input.targetId,
-      input.normalizedUrl,
-      method,
-    );
+    const existing = this.findEntryByNormalizedUrl(input.targetId, input.normalizedUrl, method);
     const timestamp = createTimestamp();
 
     if (!existing) {
@@ -347,10 +335,7 @@ export class SitemapRepository {
 
     const nextDepth = Math.min(existing.depth, input.depth);
     const nextHttpStatus = input.httpStatus ?? existing.httpStatus;
-    const nextProvenance = mergeProvenance(
-      existing.provenance,
-      input.provenance ?? "public",
-    );
+    const nextProvenance = mergeProvenance(existing.provenance, input.provenance ?? "public");
 
     this.database
       .query(
@@ -425,10 +410,7 @@ export class SitemapRepository {
       clauses.push(`provenance = ?${params.length}`);
     }
 
-    if (
-      filters.hasAccessObservation !== undefined &&
-      filters.accessObservedBySessionId
-    ) {
+    if (filters.hasAccessObservation !== undefined && filters.accessObservedBySessionId) {
       params.push(filters.accessObservedBySessionId);
       clauses.push(
         `${filters.hasAccessObservation ? "" : "NOT "}EXISTS (
@@ -441,13 +423,14 @@ export class SitemapRepository {
     }
 
     const whereClause = clauses.join(" AND ");
-    const total = this.database
-      .query<{ count: number }, Array<string | number>>(
-        `SELECT COUNT(*) AS count
+    const total =
+      this.database
+        .query<{ count: number }, Array<string | number>>(
+          `SELECT COUNT(*) AS count
          FROM target_sitemap_entries
          WHERE ${whereClause}`,
-      )
-      .get(...params)?.count ?? 0;
+        )
+        .get(...params)?.count ?? 0;
 
     const entries = this.database
       .query<TargetSitemapEntryRow, Array<string | number>>(
@@ -627,19 +610,11 @@ export class SitemapRepository {
           http_status = excluded.http_status,
           observed_at = excluded.observed_at`,
       )
-      .run(
-        input.sessionId,
-        input.targetId,
-        input.entryId,
-        input.httpStatus,
-        observedAt,
-      );
+      .run(input.sessionId, input.targetId, input.entryId, input.httpStatus, observedAt);
     return { ...input, observedAt };
   }
 
-  listAccessObservations(
-    sessionId: string,
-  ): AuthenticatedSitemapAccessObservationRecord[] {
+  listAccessObservations(sessionId: string): AuthenticatedSitemapAccessObservationRecord[] {
     return this.database
       .query<AuthenticatedSitemapAccessObservationRow, [string]>(
         `SELECT session_id AS sessionId, target_id AS targetId,
@@ -678,39 +653,22 @@ export class SitemapRepository {
     }
     return {
       ...row,
-      status: authenticatedCrawlStatuses.includes(
-        row.status as AuthenticatedSitemapCrawlStatus,
-      )
+      status: authenticatedCrawlStatuses.includes(row.status as AuthenticatedSitemapCrawlStatus)
         ? (row.status as AuthenticatedSitemapCrawlStatus)
         : "idle",
     };
   }
 
   markAuthenticatedCrawlRunning(sessionId: string, targetId: string) {
-    return this.writeAuthenticatedCrawlStatus(
-      sessionId,
-      targetId,
-      "running",
-      null,
-    );
+    return this.writeAuthenticatedCrawlStatus(sessionId, targetId, "running", null);
   }
 
   markAuthenticatedCrawlCompleted(sessionId: string, targetId: string) {
-    return this.writeAuthenticatedCrawlStatus(
-      sessionId,
-      targetId,
-      "completed",
-      null,
-    );
+    return this.writeAuthenticatedCrawlStatus(sessionId, targetId, "completed", null);
   }
 
   markAuthenticatedCrawlPaused(sessionId: string, targetId: string) {
-    return this.writeAuthenticatedCrawlStatus(
-      sessionId,
-      targetId,
-      "paused",
-      null,
-    );
+    return this.writeAuthenticatedCrawlStatus(sessionId, targetId, "paused", null);
   }
 
   saveCrawlCheckpoint(input: SaveSitemapCrawlCheckpointInput) {
@@ -773,10 +731,7 @@ export class SitemapRepository {
       row.visitedUrlsJson,
       (value): value is string => typeof value === "string",
     );
-    const failures = parseCheckpointArray(
-      row.failuresJson,
-      isCheckpointFailure,
-    );
+    const failures = parseCheckpointArray(row.failuresJson, isCheckpointFailure);
     if (!checkpointFrontier || !visitedUrls || !failures) {
       return null;
     }
@@ -820,10 +775,7 @@ export class SitemapRepository {
              error_message = ?2, updated_at = ?1
          WHERE status IN ('running', 'paused')`,
       )
-      .run(
-        timestamp,
-        "Run Auth Check again to resume after application restart.",
-      );
+      .run(timestamp, "Run Auth Check again to resume after application restart.");
   }
 
   markAuthenticatedCrawlAuthenticationRequired(
@@ -839,17 +791,8 @@ export class SitemapRepository {
     );
   }
 
-  markAuthenticatedCrawlFailed(
-    sessionId: string,
-    targetId: string,
-    errorMessage: string,
-  ) {
-    return this.writeAuthenticatedCrawlStatus(
-      sessionId,
-      targetId,
-      "failed",
-      errorMessage,
-    );
+  markAuthenticatedCrawlFailed(sessionId: string, targetId: string, errorMessage: string) {
+    return this.writeAuthenticatedCrawlStatus(sessionId, targetId, "failed", errorMessage);
   }
 
   private writeAuthenticatedCrawlStatus(
@@ -860,10 +803,7 @@ export class SitemapRepository {
   ) {
     const timestamp = createTimestamp();
     const completedAt = status === "completed" ? timestamp : null;
-    const pausedAt =
-      status === "authentication_required" || status === "paused"
-        ? timestamp
-        : null;
+    const pausedAt = status === "authentication_required" || status === "paused" ? timestamp : null;
     const failedAt = status === "failed" ? timestamp : null;
     this.database
       .query(
@@ -884,24 +824,11 @@ export class SitemapRepository {
           error_message = excluded.error_message,
           updated_at = excluded.updated_at`,
       )
-      .run(
-        sessionId,
-        targetId,
-        status,
-        timestamp,
-        completedAt,
-        pausedAt,
-        failedAt,
-        errorMessage,
-      );
+      .run(sessionId, targetId, status, timestamp, completedAt, pausedAt, failedAt, errorMessage);
     return this.getAuthenticatedCrawlStatus(sessionId, targetId);
   }
 
-  private findEntryByNormalizedUrl(
-    targetId: string,
-    normalizedUrl: string,
-    method: string | null,
-  ) {
+  private findEntryByNormalizedUrl(targetId: string, normalizedUrl: string, method: string | null) {
     const row = this.database
       .query<TargetSitemapEntryRow, [string, string, string]>(
         `SELECT

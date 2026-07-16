@@ -1,30 +1,18 @@
 import { describe, expect, it } from "bun:test";
-import {
-  maxFindingSeverity,
-  normalizeFindingSeverity,
-} from "../finding-severity";
+import { maxFindingSeverity, normalizeFindingSeverity } from "../finding-severity";
 import { createFindingFingerprint } from "../finding-fingerprint";
 
 describe("createFindingFingerprint", () => {
   it("returns the same hash for the same input", () => {
-    const first = createFindingFingerprint("nmap", "open_port", [
-      "scanme.nmap.org",
-      "443/tcp",
-    ]);
-    const second = createFindingFingerprint("nmap", "open_port", [
-      "scanme.nmap.org",
-      "443/tcp",
-    ]);
+    const first = createFindingFingerprint("nmap", "open_port", ["scanme.nmap.org", "443/tcp"]);
+    const second = createFindingFingerprint("nmap", "open_port", ["scanme.nmap.org", "443/tcp"]);
 
     expect(first).toBe(second);
     expect(first).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it("returns a different hash when source tool, kind, or key parts change", () => {
-    const base = createFindingFingerprint("nmap", "open_port", [
-      "scanme.nmap.org",
-      "443/tcp",
-    ]);
+    const base = createFindingFingerprint("nmap", "open_port", ["scanme.nmap.org", "443/tcp"]);
     const differentTool = createFindingFingerprint("nuclei", "open_port", [
       "scanme.nmap.org",
       "443/tcp",

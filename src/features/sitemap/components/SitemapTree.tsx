@@ -9,11 +9,7 @@ interface SitemapTreeProps {
   focused: boolean;
 }
 
-export function SitemapTree({
-  nodes,
-  selectedIndex,
-  focused,
-}: SitemapTreeProps) {
+export function SitemapTree({ nodes, selectedIndex, focused }: SitemapTreeProps) {
   const flat = flattenTree(nodes);
   const selectedNode = flat[selectedIndex];
   const selectedId = selectedNode ? selectedNode.id : null;

@@ -59,9 +59,7 @@ const failures: SitemapCrawlFailure[] = [
 
 describe("sitemap crawl lifecycle", () => {
   it("only selects timeout, 429, and 5xx failures for retry", () => {
-    expect(
-      selectTransientCrawlFailures(failures).map((failure) => failure.url),
-    ).toEqual([
+    expect(selectTransientCrawlFailures(failures).map((failure) => failure.url)).toEqual([
       "https://example.com/timeout",
       "https://example.com/rate-limited",
       "https://example.com/server-error",
@@ -86,9 +84,7 @@ describe("sitemap crawl lifecycle", () => {
   });
 
   it("keeps ordinary resume unavailable when authentication is required", () => {
-    expect(
-      getCrawlLifecycleActionState("authentication_required", 2, true),
-    ).toEqual({
+    expect(getCrawlLifecycleActionState("authentication_required", 2, true)).toEqual({
       canPause: false,
       canResume: false,
       canRetryFailures: false,
@@ -98,9 +94,7 @@ describe("sitemap crawl lifecycle", () => {
   });
 
   it("keeps public and authenticated controls visibly scoped", () => {
-    expect(
-      getSitemapCrawlControlPresentation("public", "paused", "idle", 1, 0),
-    ).toMatchObject({
+    expect(getSitemapCrawlControlPresentation("public", "paused", "idle", 1, 0)).toMatchObject({
       scope: "public",
       status: "paused",
       hint: "Public · Space resume · Ctrl+R restart",
@@ -118,9 +112,7 @@ describe("sitemap crawl lifecycle", () => {
       status: "authentication_required",
       hint: "Authenticated locked · Ctrl+R opens auth renewal",
     });
-    expect(
-      getSitemapCrawlControlPresentation("all", "running", "paused", 0, 0),
-    ).toMatchObject({
+    expect(getSitemapCrawlControlPresentation("all", "running", "paused", 0, 0)).toMatchObject({
       scope: "public",
       status: "running",
       hint: "Public · Space pause · Ctrl+R restart",

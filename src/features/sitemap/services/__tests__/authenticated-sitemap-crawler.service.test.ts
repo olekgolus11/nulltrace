@@ -9,9 +9,7 @@ import {
 process.env.NULLTRACE_APP_DATA_DIR = `/tmp/nulltrace-authenticated-sitemap-crawler-test-${crypto.randomUUID()}`;
 
 async function createCrawler(options: object) {
-  const { AuthenticatedSitemapCrawler } = await import(
-    "../authenticated-sitemap-crawler.service"
-  );
+  const { AuthenticatedSitemapCrawler } = await import("../authenticated-sitemap-crawler.service");
   return new AuthenticatedSitemapCrawler(options);
 }
 
@@ -157,10 +155,7 @@ describe("AuthenticatedSitemapCrawler", () => {
     resolveProtected(new Response("sign in", { status: 401 }));
 
     expect(await crawl).toMatchObject({ status: "paused" });
-    expect(requests).toEqual([
-      "GET https://example.com/",
-      "GET https://example.com/protected",
-    ]);
+    expect(requests).toEqual(["GET https://example.com/", "GET https://example.com/protected"]);
   });
   it("uses only safe same-origin retrieval and refuses cross-origin redirects", async () => {
     const persistence = new FakePersistence();
@@ -352,12 +347,8 @@ describe("AuthenticatedSitemapCrawler", () => {
     expect(await crawler.crawl(input)).toMatchObject({
       status: "authentication_required",
     });
-    expect(persistence.checkpoint?.frontier[0]?.url).toBe(
-      "https://example.com/protected",
-    );
-    expect(persistence.checkpoint?.visitedUrls).not.toContain(
-      "https://example.com/protected",
-    );
+    expect(persistence.checkpoint?.frontier[0]?.url).toBe("https://example.com/protected");
+    expect(persistence.checkpoint?.visitedUrls).not.toContain("https://example.com/protected");
 
     expect(
       await crawler.crawl({
@@ -369,12 +360,8 @@ describe("AuthenticatedSitemapCrawler", () => {
         },
       }),
     ).toMatchObject({ status: "completed" });
-    expect(requests).toContain(
-      "session=fresh https://example.com/protected",
-    );
-    expect(requests).toContain(
-      "session=fresh https://example.com/behind-auth",
-    );
+    expect(requests).toContain("session=fresh https://example.com/protected");
+    expect(requests).toContain("session=fresh https://example.com/behind-auth");
   });
 
   it("pauses when repeated same-origin redirects remain login-like", async () => {
@@ -427,8 +414,7 @@ describe("AuthenticatedSitemapCrawler", () => {
     });
     const crawler = await createCrawler({
       repository: new FakePersistence(),
-      fetch: async () =>
-        new Response(body, { headers: { "content-type": "text/html" } }),
+      fetch: async () => new Response(body, { headers: { "content-type": "text/html" } }),
       limits: { maxResponseBytes: 4 },
     });
 

@@ -37,28 +37,14 @@ export function DashboardScreen({
   const sessionId = useSessionContextStore((state) => state.sessionId);
   const targetId = useSessionContextStore((state) => state.targetId);
   const targetUrl = useSessionContextStore((state) => state.targetUrl);
-  const activeConversationId = useSessionContextStore(
-    (state) => state.activeConversationId,
-  );
-  const conversationError = useSessionContextStore(
-    (state) => state.conversationError,
-  );
+  const activeConversationId = useSessionContextStore((state) => state.activeConversationId);
+  const conversationError = useSessionContextStore((state) => state.conversationError);
   const conversations = useSessionContextStore((state) => state.conversations);
-  const isLoadingConversations = useSessionContextStore(
-    (state) => state.isLoadingConversations,
-  );
-  const isCreatingConversation = useSessionContextStore(
-    (state) => state.isCreatingConversation,
-  );
-  const isArchivingConversation = useSessionContextStore(
-    (state) => state.isArchivingConversation,
-  );
-  const selectConversation = useSessionContextStore(
-    (state) => state.selectConversation,
-  );
-  const createConversation = useSessionContextStore(
-    (state) => state.createConversation,
-  );
+  const isLoadingConversations = useSessionContextStore((state) => state.isLoadingConversations);
+  const isCreatingConversation = useSessionContextStore((state) => state.isCreatingConversation);
+  const isArchivingConversation = useSessionContextStore((state) => state.isArchivingConversation);
+  const selectConversation = useSessionContextStore((state) => state.selectConversation);
+  const createConversation = useSessionContextStore((state) => state.createConversation);
   const archiveActiveConversation = useSessionContextStore(
     (state) => state.archiveActiveConversation,
   );
@@ -133,12 +119,7 @@ export function DashboardScreen({
   const modalHeight = Math.max(1, Math.min(30, height - 6));
 
   return (
-    <box
-      flexDirection="column"
-      width={width}
-      height={height}
-      backgroundColor={theme.bg.primary}
-    >
+    <box flexDirection="column" width={width} height={height} backgroundColor={theme.bg.primary}>
       <Header
         targetUrl={targetUrl}
         counts={sessionFindings.counts}
@@ -250,9 +231,7 @@ export function DashboardScreen({
           onSave={authenticationContext.save}
           onClear={authenticationContext.clear}
           onRunAuthCheck={authenticationContext.runAuthCheck}
-          onAcknowledgeInconclusive={
-            authenticationContext.acknowledgeInconclusive
-          }
+          onAcknowledgeInconclusive={authenticationContext.acknowledgeInconclusive}
           onClose={closeAuthenticationContext}
         />
       ) : null}

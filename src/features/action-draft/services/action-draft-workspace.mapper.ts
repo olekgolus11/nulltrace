@@ -1,11 +1,7 @@
 import { ActionDraftRecord } from "../model/action-draft.types";
-import {
-  nmapTimingOptions,
-} from "../../tool/nmap/config/nmap.config";
+import { nmapTimingOptions } from "../../tool/nmap/config/nmap.config";
 import { NmapToolData } from "../../tool/nmap/types/nmap.types";
-import {
-  nucleiSeverityOptions,
-} from "../../tool/nuclei/config/nuclei.config";
+import { nucleiSeverityOptions } from "../../tool/nuclei/config/nuclei.config";
 import { NucleiToolData } from "../../tool/nuclei/types/nuclei.types";
 import { CommandSource } from "../../tool/shared/types/tool-screen.types";
 
@@ -67,10 +63,7 @@ function getBooleanField(formState: Record<string, unknown>, field: string) {
   return typeof value === "boolean" ? value : undefined;
 }
 
-function applyNmapFormState(
-  toolData: NmapToolData,
-  formState: Record<string, unknown> | null,
-) {
+function applyNmapFormState(toolData: NmapToolData, formState: Record<string, unknown> | null) {
   if (!formState) {
     return {
       toolData,
@@ -97,20 +90,15 @@ function applyNmapFormState(
     didApply = true;
   }
 
-  (
-    [
-      "serviceDetection",
-      "osDetection",
-      "defaultScripts",
-      "aggressive",
-    ] as const
-  ).forEach((field) => {
-    const value = getBooleanField(formState, field);
-    if (value !== undefined) {
-      form[field] = value;
-      didApply = true;
-    }
-  });
+  (["serviceDetection", "osDetection", "defaultScripts", "aggressive"] as const).forEach(
+    (field) => {
+      const value = getBooleanField(formState, field);
+      if (value !== undefined) {
+        form[field] = value;
+        didApply = true;
+      }
+    },
+  );
 
   return {
     toolData: {
@@ -122,10 +110,7 @@ function applyNmapFormState(
   };
 }
 
-function applyNucleiFormState(
-  toolData: NucleiToolData,
-  formState: Record<string, unknown> | null,
-) {
+function applyNucleiFormState(toolData: NucleiToolData, formState: Record<string, unknown> | null) {
   if (!formState) {
     return {
       toolData,
@@ -138,15 +123,13 @@ function applyNucleiFormState(
     ...toolData.form,
   };
 
-  (["target", "tags", "templatesPath", "extraArgs"] as const).forEach(
-    (field) => {
-      const value = getStringField(formState, field);
-      if (value !== undefined) {
-        form[field] = value;
-        didApply = true;
-      }
-    },
-  );
+  (["target", "tags", "templatesPath", "extraArgs"] as const).forEach((field) => {
+    const value = getStringField(formState, field);
+    if (value !== undefined) {
+      form[field] = value;
+      didApply = true;
+    }
+  });
 
   const severityPreset = getStringField(formState, "severityPreset");
   if (
@@ -217,8 +200,7 @@ export function mapActionDraftToWorkspaceState({
   if (!command && !didApply) {
     return {
       ok: false,
-      reason:
-        "This draft has no usable command or form state for the current workspace.",
+      reason: "This draft has no usable command or form state for the current workspace.",
     };
   }
 
@@ -231,8 +213,7 @@ export function mapActionDraftToWorkspaceState({
       toolData,
       generatedCommand,
       commandInput,
-      commandSource:
-        command && command !== generatedCommand ? "manual" : "generated",
+      commandSource: command && command !== generatedCommand ? "manual" : "generated",
       message: `Applied action draft: ${draft.title}`,
     },
   };

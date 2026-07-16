@@ -18,9 +18,7 @@ function normalizeText(value: unknown) {
 }
 
 function normalizeNumber(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value)
-    ? String(value)
-    : null;
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : null;
 }
 
 function truncate(value: string, limit: number) {
@@ -52,9 +50,7 @@ function getStringArray(value: unknown) {
     return [];
   }
 
-  return value
-    .map((item) => getString(item))
-    .filter((item): item is string => Boolean(item));
+  return value.map((item) => getString(item)).filter((item): item is string => Boolean(item));
 }
 
 function addField(
@@ -93,10 +89,7 @@ function addArrayField(
   });
 }
 
-function addReferenceField(
-  fields: FindingSourceContextField[],
-  value: unknown,
-) {
+function addReferenceField(fields: FindingSourceContextField[], value: unknown) {
   const references = getStringArray(value);
 
   if (references.length === 0) {
@@ -109,10 +102,7 @@ function addReferenceField(
 
   fields.push({
     label: "References",
-    value: truncate(
-      `${visibleReferences.join(", ")}${suffix}`,
-      FIELD_PREVIEW_LIMIT,
-    ),
+    value: truncate(`${visibleReferences.join(", ")}${suffix}`, FIELD_PREVIEW_LIMIT),
   });
 }
 
@@ -189,7 +179,5 @@ export function createFindingSourceContextFields(
         ? createNucleiSourceContext(finding.payload)
         : [];
 
-  return fields.length > 0
-    ? fields
-    : createFallbackSourceContext(finding.payload);
+  return fields.length > 0 ? fields : createFallbackSourceContext(finding.payload);
 }

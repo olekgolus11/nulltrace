@@ -1,13 +1,7 @@
 import { ScrollBoxRenderable } from "@opentui/core";
 import { theme } from "../../../app/theme/theme";
-import {
-  FindingReviewStatus,
-  SessionFindingRecord,
-} from "../model/finding.types";
-import {
-  severityConfig,
-  severityLabels,
-} from "../model/finding-summary.constants";
+import { FindingReviewStatus, SessionFindingRecord } from "../model/finding.types";
+import { severityConfig, severityLabels } from "../model/finding-summary.constants";
 import {
   createFindingSourceContextFields,
   FindingSourceContextField,
@@ -106,11 +100,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ReviewActionBar({
-  reviewStatus,
-}: {
-  reviewStatus: FindingReviewStatus;
-}) {
+function ReviewActionBar({ reviewStatus }: { reviewStatus: FindingReviewStatus }) {
   const currentStatus = reviewStatusConfig[reviewStatus];
 
   return (
@@ -153,12 +143,7 @@ function ReviewActionBar({
   );
 }
 
-export function FindingDetailModal({
-  finding,
-  width,
-  height,
-  scrollRef,
-}: FindingDetailModalProps) {
+export function FindingDetailModal({ finding, width, height, scrollRef }: FindingDetailModalProps) {
   const reviewStatus = reviewStatusConfig[finding.reviewStatus];
   const sourceContext = createFindingSourceContextFields(finding);
   const metadata: FindingSourceContextField[] = [
@@ -264,11 +249,7 @@ export function FindingDetailModal({
 
             <SectionTitle>Metadata</SectionTitle>
             {metadata.map((field) => (
-              <MetadataRow
-                key={field.label}
-                label={field.label}
-                value={field.value}
-              />
+              <MetadataRow key={field.label} label={field.label} value={field.value} />
             ))}
 
             <SectionTitle>Source Context</SectionTitle>

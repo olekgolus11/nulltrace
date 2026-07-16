@@ -38,9 +38,7 @@ function createTestDatabase() {
 
 describe("ConversationAttachmentRepository", () => {
   it("creates a default conversation attachment for a session", () => {
-    const repository = new ConversationAttachmentRepository(
-      createTestDatabase(),
-    );
+    const repository = new ConversationAttachmentRepository(createTestDatabase());
 
     const attachment = repository.createDefaultAttachment({
       sessionId: "session-1",
@@ -57,9 +55,7 @@ describe("ConversationAttachmentRepository", () => {
   });
 
   it("creates additional conversation attachments for the same session", () => {
-    const repository = new ConversationAttachmentRepository(
-      createTestDatabase(),
-    );
+    const repository = new ConversationAttachmentRepository(createTestDatabase());
 
     const first = repository.createDefaultAttachment({
       sessionId: "session-1",
@@ -76,15 +72,11 @@ describe("ConversationAttachmentRepository", () => {
       isDefault: false,
       archivedAt: null,
     });
-    expect(second.opencodeConversationId).not.toBe(
-      first.opencodeConversationId,
-    );
+    expect(second.opencodeConversationId).not.toBe(first.opencodeConversationId);
   });
 
   it("lists active conversation attachments for a session", () => {
-    const repository = new ConversationAttachmentRepository(
-      createTestDatabase(),
-    );
+    const repository = new ConversationAttachmentRepository(createTestDatabase());
     const first = repository.createDefaultAttachment({
       sessionId: "session-1",
       opencodeConversationId: "opencode-1",
@@ -96,15 +88,14 @@ describe("ConversationAttachmentRepository", () => {
 
     const attachments = repository.listActiveBySessionId("session-1");
 
-    expect(
-      attachments.map((attachment) => attachment.opencodeConversationId),
-    ).toEqual([first.opencodeConversationId, second.opencodeConversationId]);
+    expect(attachments.map((attachment) => attachment.opencodeConversationId)).toEqual([
+      first.opencodeConversationId,
+      second.opencodeConversationId,
+    ]);
   });
 
   it("excludes archived conversation attachments from the active list", () => {
-    const repository = new ConversationAttachmentRepository(
-      createTestDatabase(),
-    );
+    const repository = new ConversationAttachmentRepository(createTestDatabase());
     const first = repository.createDefaultAttachment({
       sessionId: "session-1",
       opencodeConversationId: "opencode-1",
@@ -121,15 +112,13 @@ describe("ConversationAttachmentRepository", () => {
       opencodeConversationId: "opencode-1",
     });
     expect(archived?.archivedAt).toBeString();
-    expect(
-      activeAttachments.map((attachment) => attachment.opencodeConversationId),
-    ).toEqual([second.opencodeConversationId]);
+    expect(activeAttachments.map((attachment) => attachment.opencodeConversationId)).toEqual([
+      second.opencodeConversationId,
+    ]);
   });
 
   it("finds only active attachments by OpenCode conversation id", () => {
-    const repository = new ConversationAttachmentRepository(
-      createTestDatabase(),
-    );
+    const repository = new ConversationAttachmentRepository(createTestDatabase());
     const first = repository.createDefaultAttachment({
       sessionId: "session-1",
       opencodeConversationId: "opencode-1",
@@ -142,32 +131,22 @@ describe("ConversationAttachmentRepository", () => {
     repository.archiveAttachment(second.opencodeConversationId);
 
     expect(
-      repository.findActiveByOpenCodeConversationId(
-        first.opencodeConversationId,
-      ),
+      repository.findActiveByOpenCodeConversationId(first.opencodeConversationId),
     ).toMatchObject({
       sessionId: "session-1",
       opencodeConversationId: "opencode-1",
     });
-    expect(
-      repository.findActiveByOpenCodeConversationId(
-        second.opencodeConversationId,
-      ),
-    ).toBeNull();
+    expect(repository.findActiveByOpenCodeConversationId(second.opencodeConversationId)).toBeNull();
   });
 
   it("archives only NullTrace metadata and keeps the OpenCode conversation id", () => {
-    const repository = new ConversationAttachmentRepository(
-      createTestDatabase(),
-    );
+    const repository = new ConversationAttachmentRepository(createTestDatabase());
     const attachment = repository.createDefaultAttachment({
       sessionId: "session-1",
       opencodeConversationId: "opencode-1",
     });
 
-    const archived = repository.archiveAttachment(
-      attachment.opencodeConversationId,
-    );
+    const archived = repository.archiveAttachment(attachment.opencodeConversationId);
 
     expect(archived).toMatchObject({
       sessionId: "session-1",
@@ -178,9 +157,7 @@ describe("ConversationAttachmentRepository", () => {
   });
 
   it("detects when no active conversation attachment remains", () => {
-    const repository = new ConversationAttachmentRepository(
-      createTestDatabase(),
-    );
+    const repository = new ConversationAttachmentRepository(createTestDatabase());
     const attachment = repository.createDefaultAttachment({
       sessionId: "session-1",
       opencodeConversationId: "opencode-1",
@@ -196,9 +173,7 @@ describe("ConversationAttachmentRepository", () => {
 
 describe("ConversationAttachmentService", () => {
   it("creates a new default attachment when no active attachment remains", () => {
-    const repository = new ConversationAttachmentRepository(
-      createTestDatabase(),
-    );
+    const repository = new ConversationAttachmentRepository(createTestDatabase());
     const service = new ConversationAttachmentService(repository);
     const first = service.createDefaultAttachment({
       sessionId: "session-1",
@@ -221,9 +196,7 @@ describe("ConversationAttachmentService", () => {
   });
 
   it("does not create a new default attachment while any active attachment exists", () => {
-    const repository = new ConversationAttachmentRepository(
-      createTestDatabase(),
-    );
+    const repository = new ConversationAttachmentRepository(createTestDatabase());
     const service = new ConversationAttachmentService(repository);
     service.createDefaultAttachment({
       sessionId: "session-1",

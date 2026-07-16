@@ -33,14 +33,8 @@ try {
 
     const config = await client.config.get();
     const serializedConfig = JSON.stringify(config.data);
-    assert(
-      serializedConfig.includes('"bash":"deny"'),
-      "Shell permission is not denied.",
-    );
-    assert(
-      serializedConfig.includes('"webfetch":"allow"'),
-      "Web access is not enabled.",
-    );
+    assert(serializedConfig.includes('"bash":"deny"'), "Shell permission is not denied.");
+    assert(serializedConfig.includes('"webfetch":"allow"'), "Web access is not enabled.");
 
     const conversation = await client.session.create();
     assert(conversation.data?.id, "Could not create a smoke conversation.");

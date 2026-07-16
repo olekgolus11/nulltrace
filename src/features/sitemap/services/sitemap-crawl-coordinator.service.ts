@@ -26,10 +26,7 @@ export class SitemapCrawlCoordinator {
     private readonly crawler: PublicSitemapCrawlerRunner,
   ) {}
 
-  ensureTargetCrawl({
-    targetId,
-    rootUrl,
-  }: EnsureSitemapCrawlInput): EnsureSitemapCrawlResult {
+  ensureTargetCrawl({ targetId, rootUrl }: EnsureSitemapCrawlInput): EnsureSitemapCrawlResult {
     if (this.runningCrawlsByTargetId.has(targetId)) {
       return {
         state: "already_running",
@@ -65,9 +62,7 @@ export class SitemapCrawlCoordinator {
   }
 
   pauseTargetCrawl(targetId: string): SitemapCrawlControlState {
-    return this.crawler.requestPause(targetId)
-      ? "pause_requested"
-      : "unavailable";
+    return this.crawler.requestPause(targetId) ? "pause_requested" : "unavailable";
   }
 
   resumeTargetCrawl(input: EnsureSitemapCrawlInput): SitemapCrawlControlState {

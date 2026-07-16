@@ -23,35 +23,28 @@ import {
 import { ToolWorkspaceContextSnapshot } from "../../../tool/shared/services/tool-workspace-context.service";
 import { ScannerToolId } from "../../../tool/shared/registry/scanner-catalog";
 
-const chatContextToolsImportPath = new URL(
-  "../chat-context-tools.service.ts",
-  import.meta.url,
-).pathname;
+const chatContextToolsImportPath = new URL("../chat-context-tools.service.ts", import.meta.url)
+  .pathname;
 const openCodePluginImportPath = new URL(
   "../../../../../node_modules/@opencode-ai/plugin/dist/index.js",
   import.meta.url,
 ).pathname;
 
 class FakeConversationAttachments {
-  constructor(
-    private readonly attachments: ConversationAttachmentRecord[],
-  ) {}
+  constructor(private readonly attachments: ConversationAttachmentRecord[]) {}
 
   findActiveAttachmentByOpenCodeConversationId(opencodeConversationId: string) {
     return (
       this.attachments.find(
         (attachment) =>
-          attachment.opencodeConversationId === opencodeConversationId &&
-          !attachment.archivedAt,
+          attachment.opencodeConversationId === opencodeConversationId && !attachment.archivedAt,
       ) ?? null
     );
   }
 }
 
 class FakeFindingRepository {
-  constructor(
-    private readonly findings: SessionFindingRecord[],
-  ) {}
+  constructor(private readonly findings: SessionFindingRecord[]) {}
 
   listBySessionId(sessionId: string) {
     return this.findings.filter((finding) => finding.sessionId === sessionId);
@@ -61,9 +54,7 @@ class FakeFindingRepository {
 class FakeToolRepository {
   constructor(
     private readonly toolRuns: Array<ToolRunSummary & { sessionId: string }>,
-    private readonly artifacts: Array<
-      ToolRunArtifactRecord & { sessionId: string }
-    >,
+    private readonly artifacts: Array<ToolRunArtifactRecord & { sessionId: string }>,
   ) {}
 
   listToolRunsBySessionId(sessionId: string) {
@@ -73,23 +64,17 @@ class FakeToolRepository {
   findToolRunArtifactByIdForSession(sessionId: string, artifactId: string) {
     return (
       this.artifacts.find(
-        (artifact) =>
-          artifact.sessionId === sessionId && artifact.id === artifactId,
+        (artifact) => artifact.sessionId === sessionId && artifact.id === artifactId,
       ) ?? null
     );
   }
 }
 
 class FakeToolWorkspaceContextRepository {
-  constructor(
-    private readonly snapshots: ToolWorkspaceContextSnapshot[],
-  ) {}
+  constructor(private readonly snapshots: ToolWorkspaceContextSnapshot[]) {}
 
   getActiveWorkspace(sessionId: string) {
-    return (
-      this.snapshots.find((snapshot) => snapshot.sessionId === sessionId) ??
-      null
-    );
+    return this.snapshots.find((snapshot) => snapshot.sessionId === sessionId) ?? null;
   }
 }
 
@@ -234,11 +219,7 @@ function createFindingService() {
     new FakeConversationAttachments([
       createAttachment("session-1", "opencode-1"),
       createAttachment("session-2", "opencode-2"),
-      createAttachment(
-        "session-archived",
-        "opencode-archived",
-        "2026-05-10T10:03:00.000Z",
-      ),
+      createAttachment("session-archived", "opencode-archived", "2026-05-10T10:03:00.000Z"),
     ]),
     new FakeFindingRepository([
       createFinding("finding-1", "session-1", "Session one finding"),
@@ -260,11 +241,7 @@ function createFindingService() {
         lastSeenAt: "2026-05-10T10:04:00.000Z",
       }),
       createFinding("finding-2", "session-2", "Session two finding"),
-      createFinding(
-        "finding-archived",
-        "session-archived",
-        "Archived finding",
-      ),
+      createFinding("finding-archived", "session-archived", "Archived finding"),
     ]),
   );
 }
@@ -274,11 +251,7 @@ function createToolRunArtifactService() {
     new FakeConversationAttachments([
       createAttachment("session-1", "opencode-1"),
       createAttachment("session-2", "opencode-2"),
-      createAttachment(
-        "session-archived",
-        "opencode-archived",
-        "2026-05-10T10:03:00.000Z",
-      ),
+      createAttachment("session-archived", "opencode-archived", "2026-05-10T10:03:00.000Z"),
     ]),
     new FakeToolRepository(
       [
@@ -345,11 +318,7 @@ function createActiveToolWorkspaceService(
     new FakeConversationAttachments([
       createAttachment("session-1", "opencode-1"),
       createAttachment("session-2", "opencode-2"),
-      createAttachment(
-        "session-archived",
-        "opencode-archived",
-        "2026-05-10T10:03:00.000Z",
-      ),
+      createAttachment("session-archived", "opencode-archived", "2026-05-10T10:03:00.000Z"),
     ]),
     new FakeToolWorkspaceContextRepository(snapshots),
     new FakeToolRepository(
@@ -368,30 +337,20 @@ function createSessionContextService() {
     new FakeConversationAttachments([
       createAttachment("session-1", "opencode-1"),
       createAttachment("session-2", "opencode-2"),
-      createAttachment(
-        "session-archived",
-        "opencode-archived",
-        "2026-05-10T10:03:00.000Z",
-      ),
+      createAttachment("session-archived", "opencode-archived", "2026-05-10T10:03:00.000Z"),
     ]),
     new FakeSessionRepository(),
   );
 }
 
-function createActionDraftService(
-  drafts = new FakeActionDraftRepository(),
-) {
+function createActionDraftService(drafts = new FakeActionDraftRepository()) {
   return {
     drafts,
     service: new ActionDraftChatContextToolsService(
       new FakeConversationAttachments([
         createAttachment("session-1", "opencode-1"),
         createAttachment("session-2", "opencode-2"),
-        createAttachment(
-          "session-archived",
-          "opencode-archived",
-          "2026-05-10T10:03:00.000Z",
-        ),
+        createAttachment("session-archived", "opencode-archived", "2026-05-10T10:03:00.000Z"),
       ]),
       drafts,
       new FakeSessionRepository(),
@@ -483,10 +442,7 @@ describe("FindingChatContextToolsService", () => {
       offset: 0,
     });
 
-    expect(firstPage.findings.map((finding) => finding.id)).toEqual([
-      "finding-1",
-      "finding-3",
-    ]);
+    expect(firstPage.findings.map((finding) => finding.id)).toEqual(["finding-1", "finding-3"]);
     expect(firstPage.pagination).toEqual({
       limit: 2,
       offset: 0,
@@ -494,9 +450,7 @@ describe("FindingChatContextToolsService", () => {
       total: 3,
       hasMore: true,
     });
-    expect(secondPage.findings.map((finding) => finding.id)).toEqual([
-      "finding-4",
-    ]);
+    expect(secondPage.findings.map((finding) => finding.id)).toEqual(["finding-4"]);
     expect(secondPage.pagination).toEqual({
       limit: 2,
       offset: 2,
@@ -527,18 +481,10 @@ describe("FindingChatContextToolsService", () => {
       reviewStatus: "dismissed",
     });
 
-    expect(queryResult.findings.map((finding) => finding.id)).toEqual([
-      "finding-3",
-    ]);
-    expect(sourceToolResult.findings.map((finding) => finding.id)).toEqual([
-      "finding-3",
-    ]);
-    expect(reviewResult.findings.map((finding) => finding.id)).toEqual([
-      "finding-4",
-    ]);
-    expect(JSON.stringify(queryResult)).not.toContain(
-      "not exposed by chat context tools",
-    );
+    expect(queryResult.findings.map((finding) => finding.id)).toEqual(["finding-3"]);
+    expect(sourceToolResult.findings.map((finding) => finding.id)).toEqual(["finding-3"]);
+    expect(reviewResult.findings.map((finding) => finding.id)).toEqual(["finding-4"]);
+    expect(JSON.stringify(queryResult)).not.toContain("not exposed by chat context tools");
   });
 
   it("gets finding detail only inside the attached session", () => {
@@ -561,15 +507,12 @@ describe("FindingChatContextToolsService", () => {
         { label: "Template ID", value: "cves/2026/example" },
         {
           label: "References",
-          value:
-            "https://one.test, https://two.test, https://three.test, +1 more",
+          value: "https://one.test, https://two.test, https://three.test, +1 more",
         },
       ]),
     });
     expect(ownFinding.finding).not.toHaveProperty("payload");
-    expect(JSON.stringify(ownFinding)).not.toContain(
-      "not exposed by chat context tools",
-    );
+    expect(JSON.stringify(ownFinding)).not.toContain("not exposed by chat context tools");
     expect(otherSessionFinding.finding).toBeNull();
   });
 
@@ -586,13 +529,9 @@ describe("FindingChatContextToolsService", () => {
 
   it("executes through the shared registry without accepting session ids", async () => {
     const service = createFindingService();
-    const registry = new ChatContextToolRegistry(
-      service.createToolDefinitions(),
-    );
+    const registry = new ChatContextToolRegistry(service.createToolDefinitions());
     const definitions = registry.listDefinitions();
-    const getFinding = definitions.find(
-      (definition) => definition.name === "get_finding",
-    );
+    const getFinding = definitions.find((definition) => definition.name === "get_finding");
 
     const listResult = await registry.execute("list_findings", "opencode-1", {
       sessionId: "session-2",
@@ -607,8 +546,7 @@ describe("FindingChatContextToolsService", () => {
     expect(getFinding?.args).toEqual({
       findingId: {
         type: "string",
-        description:
-          "Finding ID from list_findings. Do not provide a NullTrace session ID.",
+        description: "Finding ID from list_findings. Do not provide a NullTrace session ID.",
       },
     });
     expect(listResult).toMatchObject({
@@ -637,8 +575,8 @@ describe("FindingChatContextToolsService", () => {
     );
 
     expect(source).toContain("context.sessionID");
-    expect(source).toContain("\"get_finding\"");
-    expect(source).toContain("\"findingId\"");
+    expect(source).toContain('"get_finding"');
+    expect(source).toContain('"findingId"');
     expect(source).not.toContain("sessionId");
   });
 
@@ -650,13 +588,13 @@ describe("FindingChatContextToolsService", () => {
     );
 
     expect(source).toContain("context.sessionID");
-    expect(source).toContain("\"list_findings\"");
-    expect(source).toContain("\"limit\"");
-    expect(source).toContain("\"offset\"");
-    expect(source).toContain("\"query\"");
-    expect(source).toContain("\"severity\"");
-    expect(source).toContain("\"reviewStatus\"");
-    expect(source).toContain("\"sourceTool\"");
+    expect(source).toContain('"list_findings"');
+    expect(source).toContain('"limit"');
+    expect(source).toContain('"offset"');
+    expect(source).toContain('"query"');
+    expect(source).toContain('"severity"');
+    expect(source).toContain('"reviewStatus"');
+    expect(source).toContain('"sourceTool"');
     expect(source).not.toContain("sessionId");
   });
 });
@@ -748,13 +686,9 @@ describe("ToolRunArtifactChatContextToolsService", () => {
 
   it("executes through the shared registry without accepting session ids", async () => {
     const service = createToolRunArtifactService();
-    const registry = new ChatContextToolRegistry(
-      service.createToolDefinitions(),
-    );
+    const registry = new ChatContextToolRegistry(service.createToolDefinitions());
     const definitions = registry.listDefinitions();
-    const getArtifact = definitions.find(
-      (definition) => definition.name === "get_artifact",
-    );
+    const getArtifact = definitions.find((definition) => definition.name === "get_artifact");
 
     const result = await registry.execute("get_artifact", "opencode-1", {
       artifactId: "artifact-1",
@@ -770,8 +704,7 @@ describe("ToolRunArtifactChatContextToolsService", () => {
       },
       maxCharacters: {
         type: "number",
-        description:
-          "Optional maximum preview characters. The preview is always bounded.",
+        description: "Optional maximum preview characters. The preview is always bounded.",
         isOptional: true,
       },
     });
@@ -791,11 +724,11 @@ describe("ToolRunArtifactChatContextToolsService", () => {
     );
 
     expect(source).toContain("context.sessionID");
-    expect(source).toContain("\"get_artifact\"");
-    expect(source).toContain("\"artifactId\"");
-    expect(source).toContain("\"maxCharacters\"");
+    expect(source).toContain('"get_artifact"');
+    expect(source).toContain('"artifactId"');
+    expect(source).toContain('"maxCharacters"');
     expect(source).toContain(
-      "\"maxCharacters\": tool.schema.number().describe(\"Optional maximum preview characters. The preview is always bounded.\").optional()",
+      '"maxCharacters": tool.schema.number().describe("Optional maximum preview characters. The preview is always bounded.").optional()',
     );
     expect(source).not.toContain("sessionId");
   });
@@ -803,8 +736,7 @@ describe("ToolRunArtifactChatContextToolsService", () => {
 
 describe("ActiveToolWorkspaceChatContextToolsService", () => {
   it("returns active scanner workspace context for the attached session", () => {
-    const result =
-      createActiveToolWorkspaceService().getActiveToolWorkspace("opencode-1");
+    const result = createActiveToolWorkspaceService().getActiveToolWorkspace("opencode-1");
 
     expect(result).toEqual({
       workspace: {
@@ -856,8 +788,7 @@ describe("ActiveToolWorkspaceChatContextToolsService", () => {
   });
 
   it("returns null when no scanner workspace is active for the session", () => {
-    const result =
-      createActiveToolWorkspaceService([]).getActiveToolWorkspace("opencode-1");
+    const result = createActiveToolWorkspaceService([]).getActiveToolWorkspace("opencode-1");
 
     expect(result).toEqual({
       workspace: null,
@@ -877,17 +808,11 @@ describe("ActiveToolWorkspaceChatContextToolsService", () => {
 
   it("executes through the shared registry without accepting session ids", async () => {
     const service = createActiveToolWorkspaceService();
-    const registry = new ChatContextToolRegistry(
-      service.createToolDefinitions(),
-    );
+    const registry = new ChatContextToolRegistry(service.createToolDefinitions());
 
-    const result = await registry.execute(
-      "get_active_tool_workspace",
-      "opencode-1",
-      {
-        sessionId: "session-2",
-      },
-    );
+    const result = await registry.execute("get_active_tool_workspace", "opencode-1", {
+      sessionId: "session-2",
+    });
 
     expect(registry.listDefinitions()).toMatchObject([
       {
@@ -911,7 +836,7 @@ describe("ActiveToolWorkspaceChatContextToolsService", () => {
     );
 
     expect(source).toContain("context.sessionID");
-    expect(source).toContain("\"get_active_tool_workspace\"");
+    expect(source).toContain('"get_active_tool_workspace"');
     expect(source).toContain("args: {}");
     expect(source).not.toContain("sessionId");
   });
@@ -1021,12 +946,12 @@ describe("ActionDraftChatContextToolsService", () => {
       title: "Probe web ports",
     };
 
-    expect(() =>
-      service.createActionDraft("opencode-archived", args),
-    ).toThrow("No active NullTrace session attachment exists");
-    expect(() =>
-      service.createActionDraft("unknown-opencode", args),
-    ).toThrow("No active NullTrace session attachment exists");
+    expect(() => service.createActionDraft("opencode-archived", args)).toThrow(
+      "No active NullTrace session attachment exists",
+    );
+    expect(() => service.createActionDraft("unknown-opencode", args)).toThrow(
+      "No active NullTrace session attachment exists",
+    );
   });
 
   it("rejects catalog-only scanner tools before persistence", () => {
@@ -1037,17 +962,13 @@ describe("ActionDraftChatContextToolsService", () => {
         targetTool: "ffuf",
         title: "Discover directories",
       }),
-    ).toThrow(
-      "create_action_draft targetTool must be an implemented scanner tool: ffuf",
-    );
+    ).toThrow("create_action_draft targetTool must be an implemented scanner tool: ffuf");
     expect(() =>
       service.createActionDraft("opencode-1", {
         targetTool: "sqlmap",
         title: "SQL injection probe",
       }),
-    ).toThrow(
-      "create_action_draft targetTool must be an implemented scanner tool: sqlmap",
-    );
+    ).toThrow("create_action_draft targetTool must be an implemented scanner tool: sqlmap");
     expect(drafts.drafts).toHaveLength(0);
   });
 
@@ -1055,9 +976,7 @@ describe("ActionDraftChatContextToolsService", () => {
     const toolRepository = new FakeToolRepository([], []);
     const drafts = new FakeActionDraftRepository();
     const service = new ActionDraftChatContextToolsService(
-      new FakeConversationAttachments([
-        createAttachment("session-1", "opencode-1"),
-      ]),
+      new FakeConversationAttachments([createAttachment("session-1", "opencode-1")]),
       drafts,
     );
 
@@ -1073,13 +992,9 @@ describe("ActionDraftChatContextToolsService", () => {
 
   it("executes through the shared registry without accepting session ids", async () => {
     const { service } = createActionDraftService();
-    const registry = new ChatContextToolRegistry(
-      service.createToolDefinitions(),
-    );
+    const registry = new ChatContextToolRegistry(service.createToolDefinitions());
     const definitions = registry.listDefinitions();
-    const createDraft = definitions.find(
-      (definition) => definition.name === "create_action_draft",
-    );
+    const createDraft = definitions.find((definition) => definition.name === "create_action_draft");
 
     const result = await registry.execute("create_action_draft", "opencode-1", {
       sessionId: "session-2",
@@ -1118,9 +1033,9 @@ describe("ActionDraftChatContextToolsService", () => {
     );
 
     expect(source).toContain("context.sessionID");
-    expect(source).toContain("\"create_action_draft\"");
-    expect(source).toContain("\"targetTool\"");
-    expect(source).toContain("\"command\"");
+    expect(source).toContain('"create_action_draft"');
+    expect(source).toContain('"targetTool"');
+    expect(source).toContain('"command"');
     expect(source).not.toContain("sessionId");
   });
 });

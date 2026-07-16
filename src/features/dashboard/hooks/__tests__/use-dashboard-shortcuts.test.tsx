@@ -34,9 +34,8 @@ function DashboardShortcutHarness({ isLocked = true }: { isLocked?: boolean }) {
 
   return (
     <text>
-      {dashboardState.activePanel}:{dashboardState.isAuthenticationContextOpen
-        ? "auth-open"
-        : "auth-closed"}
+      {dashboardState.activePanel}:
+      {dashboardState.isAuthenticationContextOpen ? "auth-open" : "auth-closed"}
     </text>
   );
 }
@@ -53,37 +52,31 @@ describe("useDashboardShortcuts", () => {
   test.each([
     ["pause/resume", " "],
     ["restart", "CTRL_R"],
-  ])(
-    "opens authentication renewal for a locked crawl's %s key",
-    async (_, key) => {
-      testSetup = await testRender(<DashboardShortcutHarness />, {
-        width: 60,
-        height: 10,
-      });
+  ])("opens authentication renewal for a locked crawl's %s key", async (_, key) => {
+    testSetup = await testRender(<DashboardShortcutHarness />, {
+      width: 60,
+      height: 10,
+    });
 
-      await testSetup.renderOnce();
-      expect(testSetup.captureCharFrame()).toContain("sitemap:auth-closed");
+    await testSetup.renderOnce();
+    expect(testSetup.captureCharFrame()).toContain("sitemap:auth-closed");
 
-      await act(async () => {
-        if (key === "CTRL_R") {
-          testSetup!.mockInput.pressKey("r", { ctrl: true });
-        } else {
-          testSetup!.mockInput.pressKey(key);
-        }
-      });
-      await testSetup.renderOnce();
-      expect(testSetup.captureCharFrame()).toContain("sitemap:auth-open");
-    },
-  );
+    await act(async () => {
+      if (key === "CTRL_R") {
+        testSetup!.mockInput.pressKey("r", { ctrl: true });
+      } else {
+        testSetup!.mockInput.pressKey(key);
+      }
+    });
+    await testSetup.renderOnce();
+    expect(testSetup.captureCharFrame()).toContain("sitemap:auth-open");
+  });
 
   test("uses Ctrl+R for restart and leaves plain r unbound", async () => {
-    testSetup = await testRender(
-      <DashboardShortcutHarness isLocked={false} />,
-      {
-        width: 60,
-        height: 10,
-      },
-    );
+    testSetup = await testRender(<DashboardShortcutHarness isLocked={false} />, {
+      width: 60,
+      height: 10,
+    });
 
     await testSetup.renderOnce();
     await act(async () => {

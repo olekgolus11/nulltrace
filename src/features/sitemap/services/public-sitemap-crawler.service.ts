@@ -5,10 +5,7 @@ import {
 } from "../model/sitemap.types";
 import { selectTransientCrawlFailures } from "../model/sitemap-crawl-lifecycle";
 import { sitemapRepository } from "./sitemap.repository";
-import {
-  createAbsoluteCrawlUrl,
-  normalizeCrawlUrl,
-} from "./sitemap-crawler-url";
+import { createAbsoluteCrawlUrl, normalizeCrawlUrl } from "./sitemap-crawler-url";
 import {
   PublicSitemapCrawlerLimits,
   PublicSitemapCrawlerInput,
@@ -36,13 +33,8 @@ interface PublicSitemapCrawlerPersistence {
   markCrawlCompleted(targetId: string): unknown;
   markCrawlFailed(targetId: string, errorMessage: string): unknown;
   markCrawlPaused?(targetId: string): unknown;
-  saveCrawlCheckpoint?(
-    input: Omit<SitemapCrawlCheckpoint, "updatedAt">,
-  ): unknown;
-  getCrawlCheckpoint?(
-    crawlerType: "public",
-    ownerId: string,
-  ): SitemapCrawlCheckpoint | null;
+  saveCrawlCheckpoint?(input: Omit<SitemapCrawlCheckpoint, "updatedAt">): unknown;
+  getCrawlCheckpoint?(crawlerType: "public", ownerId: string): SitemapCrawlCheckpoint | null;
   deleteCrawlCheckpoint?(crawlerType: "public", ownerId: string): unknown;
 }
 
@@ -77,13 +69,6 @@ interface EnqueueSitemapXmlDiscoveriesInput {
   discoveredEntries: Set<string>;
 }
 
-export const defaultPublicSitemapCrawlerLimits = {
-  maxDepth: 3,
-  maxPages: 50,
-  requestTimeoutMs: 10_000,
-  maxResponseBytes: 1_000_000,
-} as const satisfies PublicSitemapCrawlerLimits;
-
 export class PublicSitemapCrawler {
   private readonly repository: PublicSitemapCrawlerPersistence;
   private readonly fetch: FetchFunction;
@@ -105,9 +90,7 @@ export class PublicSitemapCrawler {
     return true;
   }
 
-  async crawl(
-    input: PublicSitemapCrawlerInput,
-  ): Promise<PublicSitemapCrawlerResult> {
+  async crawl(input: PublicSitemapCrawlerInput): Promise<PublicSitemapCrawlerResult> {
     const limits = mergeLimits(this.limits, input.limits);
     const rootUrl = normalizeRootUrl(input.rootUrl);
     const origin = getOrigin(rootUrl);
@@ -115,8 +98,7 @@ export class PublicSitemapCrawler {
     const checkpoint =
       mode === "fresh"
         ? null
-        : (this.repository.getCrawlCheckpoint?.("public", input.targetId) ??
-          null);
+        : (this.repository.getCrawlCheckpoint?.("public", input.targetId) ?? null);
     const recoveredFrontier =
       mode === "retry_failures"
         ? selectTransientCrawlFailures(checkpoint?.failures ?? [])
@@ -132,10 +114,7 @@ export class PublicSitemapCrawler {
     if (mode === "retry_failures") {
       queue.forEach((entry) => visitedUrls.delete(entry.url.toString()));
     }
-    const queuedUrls = new Set([
-      ...visitedUrls,
-      ...queue.map((entry) => entry.url.toString()),
-    ]);
+    const queuedUrls = new Set([...visitedUrls, ...queue.map((entry) => entry.url.toString())]);
     const discoveredEntries = new Set(checkpoint?.discoveredEntryKeys ?? []);
     let pagesFetched = checkpoint?.pagesFetched ?? 0;
     const failures =
@@ -196,10 +175,7 @@ export class PublicSitemapCrawler {
 
         let fetchedResponse: FetchedResponse;
         try {
-          fetchedResponse = await this.fetchWithTimeout(
-            normalizedUrl,
-            limits.requestTimeoutMs,
-          );
+          fetchedResponse = await this.fetchWithTimeout(normalizedUrl, limits.requestTimeoutMs);
         } catch (error) {
           failures.push({
             url: normalizedUrlValue,
@@ -213,27 +189,13 @@ export class PublicSitemapCrawler {
             httpStatus: null,
             errorMessage: toErrorMessage(error),
           });
-          this.saveCheckpoint(
-            input,
-            queue,
-            visitedUrls,
-            failures,
-            pagesFetched,
-            discoveredEntries,
-          );
+          this.saveCheckpoint(input, queue, visitedUrls, failures, pagesFetched, discoveredEntries);
           throw error;
         }
         const response = fetchedResponse.response;
         const pageUrl = fetchedResponse.url;
         visitedUrls.add(pageUrl.toString());
-        this.persistEntry(
-          input.targetId,
-          pageUrl,
-          "GET",
-          response.status,
-          next.source,
-          next.depth,
-        );
+        this.persistEntry(input.targetId, pageUrl, "GET", response.status, next.source, next.depth);
         discoveredEntries.add(`GET ${pageUrl.toString()}`);
 
         const previousFailureIndex = failures.findIndex(
@@ -258,10 +220,7 @@ export class PublicSitemapCrawler {
           isXmlResponse(response) &&
           (next.source === "robots_sitemap" || next.source === "sitemap_xml")
         ) {
-          const body = await readResponseText(
-            response,
-            limits.maxResponseBytes,
-          );
+          const body = await readResponseText(response, limits.maxResponseBytes);
           this.enqueueSitemapXmlDiscoveries({
             body,
             baseUrl: pageUrl,
@@ -325,24 +284,11 @@ export class PublicSitemapCrawler {
             return;
           }
 
-          this.persistEntry(
-            input.targetId,
-            form.url,
-            form.method,
-            null,
-            "html_form",
-            formDepth,
-          );
+          this.persistEntry(input.targetId, form.url, form.method, null, "html_form", formDepth);
           discoveredEntries.add(`${form.method} ${form.url.toString()}`);
 
           if (form.method === "GET") {
-            this.enqueueUrl(
-              queue,
-              queuedUrls,
-              form.url,
-              formDepth,
-              "html_form",
-            );
+            this.enqueueUrl(queue, queuedUrls, form.url, formDepth, "html_form");
           }
         });
 
@@ -416,14 +362,7 @@ export class PublicSitemapCrawler {
     pagesFetched: number,
     discoveredEntries: Set<string>,
   ): PublicSitemapCrawlerResult | null {
-    this.saveCheckpoint(
-      input,
-      queue,
-      visitedUrls,
-      failures,
-      pagesFetched,
-      discoveredEntries,
-    );
+    this.saveCheckpoint(input, queue, visitedUrls, failures, pagesFetched, discoveredEntries);
     if (!this.pauseRequestedTargetIds.has(input.targetId)) {
       return null;
     }
@@ -449,16 +388,10 @@ export class PublicSitemapCrawler {
     const defaultSitemapUrl = new URL("/sitemap.xml", rootUrl.origin);
 
     try {
-      const robotsFetch = await this.fetchWithTimeout(
-        robotsUrl,
-        limits.requestTimeoutMs,
-      );
+      const robotsFetch = await this.fetchWithTimeout(robotsUrl, limits.requestTimeoutMs);
       const robotsResponse = robotsFetch.response;
       if (robotsResponse.ok) {
-        const body = await readResponseText(
-          robotsResponse,
-          limits.maxResponseBytes,
-        );
+        const body = await readResponseText(robotsResponse, limits.maxResponseBytes);
         extractRobotsSitemapUrls(body, robotsFetch.url).forEach((url) => {
           if (isSameOrigin(url, origin)) {
             sitemapUrls.set(url.toString(), "robots_sitemap");
@@ -477,13 +410,7 @@ export class PublicSitemapCrawler {
     for (let index = 0; index < pendingSitemaps.length; index += 1) {
       if (this.pauseRequestedTargetIds.has(targetId)) {
         pendingSitemaps.slice(index).forEach(([urlValue, pendingSource]) => {
-          this.enqueueUrl(
-            queue,
-            queuedUrls,
-            new URL(urlValue),
-            0,
-            pendingSource,
-          );
+          this.enqueueUrl(queue, queuedUrls, new URL(urlValue), 0, pendingSource);
         });
         return;
       }
@@ -494,19 +421,9 @@ export class PublicSitemapCrawler {
       }
 
       try {
-        const sitemapFetch = await this.fetchWithTimeout(
-          sitemapUrl,
-          limits.requestTimeoutMs,
-        );
+        const sitemapFetch = await this.fetchWithTimeout(sitemapUrl, limits.requestTimeoutMs);
         const response = sitemapFetch.response;
-        this.persistEntry(
-          targetId,
-          sitemapFetch.url,
-          "GET",
-          response.status,
-          source,
-          0,
-        );
+        this.persistEntry(targetId, sitemapFetch.url, "GET", response.status, source, 0);
         discoveredEntries.add(`GET ${sitemapFetch.url.toString()}`);
         if (!response.ok || !isXmlResponse(response)) {
           continue;
@@ -575,22 +492,9 @@ export class PublicSitemapCrawler {
       return;
     }
 
-    this.persistEntry(
-      targetId,
-      discovered.url,
-      "GET",
-      null,
-      discovered.source,
-      depth,
-    );
+    this.persistEntry(targetId, discovered.url, "GET", null, discovered.source, depth);
     discoveredEntries.add(`GET ${discovered.url.toString()}`);
-    this.enqueueUrl(
-      queue,
-      queuedUrls,
-      discovered.url,
-      depth,
-      discovered.source,
-    );
+    this.enqueueUrl(queue, queuedUrls, discovered.url, depth, discovered.source);
   }
 
   private enqueueUrl(
@@ -613,10 +517,7 @@ export class PublicSitemapCrawler {
     });
   }
 
-  private async fetchWithTimeout(
-    url: URL,
-    requestTimeoutMs: number,
-  ): Promise<FetchedResponse> {
+  private async fetchWithTimeout(url: URL, requestTimeoutMs: number): Promise<FetchedResponse> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
     let requestUrl = url;

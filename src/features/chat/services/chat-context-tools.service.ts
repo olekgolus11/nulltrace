@@ -13,10 +13,7 @@ import {
   ChatContextToolDefinition,
   ChatContextToolSchema,
 } from "../model/chat-context-tool.types";
-import {
-  ActionDraftInput,
-  ActionDraftRecord,
-} from "../../action-draft/model/action-draft.types";
+import { ActionDraftInput, ActionDraftRecord } from "../../action-draft/model/action-draft.types";
 import { actionDraftRepository } from "../../action-draft/services/action-draft.repository.instance";
 import {
   ScannerCatalogContext,
@@ -69,10 +66,7 @@ const findingSeverityRanks: Record<SessionFindingRecord["severity"], number> = {
   info: 1,
 };
 
-const findingReviewStatusLabels: Record<
-  SessionFindingRecord["reviewStatus"],
-  true
-> = {
+const findingReviewStatusLabels: Record<SessionFindingRecord["reviewStatus"], true> = {
   needs_review: true,
   confirmed: true,
   dismissed: true,
@@ -361,25 +355,14 @@ interface ActionDraftWriteRepository {
 
 interface SitemapReadRepository {
   getCrawlStatus: (targetId: string) => TargetSitemapCrawlStatusRecord;
-  listEntries: (
-    filters: TargetSitemapEntryListFilters,
-  ) => TargetSitemapEntryListResult;
-  findEntryByIdForTarget: (
-    targetId: string,
-    entryId: string,
-  ) => TargetSitemapEntryRecord | null;
-  listAccessObservations: (
-    sessionId: string,
-  ) => AuthenticatedSitemapAccessObservationRecord[];
+  listEntries: (filters: TargetSitemapEntryListFilters) => TargetSitemapEntryListResult;
+  findEntryByIdForTarget: (targetId: string, entryId: string) => TargetSitemapEntryRecord | null;
+  listAccessObservations: (sessionId: string) => AuthenticatedSitemapAccessObservationRecord[];
 }
 
 interface AuthenticationSitemapReadRepository {
-  listEntries: (
-    filters: TargetSitemapEntryListFilters,
-  ) => TargetSitemapEntryListResult;
-  listAccessObservations: (
-    sessionId: string,
-  ) => AuthenticatedSitemapAccessObservationRecord[];
+  listEntries: (filters: TargetSitemapEntryListFilters) => TargetSitemapEntryListResult;
+  listAccessObservations: (sessionId: string) => AuthenticatedSitemapAccessObservationRecord[];
   getAuthenticatedCrawlStatus: (
     sessionId: string,
     targetId: string,
@@ -387,9 +370,7 @@ interface AuthenticationSitemapReadRepository {
 }
 
 interface AuthenticationMetadataReadRepository {
-  findBySessionId: (
-    sessionId: string,
-  ) => AuthenticatedRequestContextMetadata | null;
+  findBySessionId: (sessionId: string) => AuthenticatedRequestContextMetadata | null;
 }
 
 function assertGetFindingArgs(args: ChatContextToolArgs): GetFindingArgs {
@@ -416,15 +397,11 @@ function normalizeOptionalString(value: unknown, argumentName: string) {
   return trimmed ? trimmed : undefined;
 }
 
-function isFindingSeverity(
-  value: string,
-): value is SessionFindingRecord["severity"] {
+function isFindingSeverity(value: string): value is SessionFindingRecord["severity"] {
   return value in findingSeverityRanks;
 }
 
-function isFindingReviewStatus(
-  value: string,
-): value is SessionFindingRecord["reviewStatus"] {
+function isFindingReviewStatus(value: string): value is SessionFindingRecord["reviewStatus"] {
   return value in findingReviewStatusLabels;
 }
 
@@ -435,9 +412,7 @@ function normalizeSeverity(value: unknown) {
   }
 
   if (!isFindingSeverity(severity)) {
-    throw new Error(
-      "list_findings severity must be critical, high, medium, low, or info.",
-    );
+    throw new Error("list_findings severity must be critical, high, medium, low, or info.");
   }
 
   return severity;
@@ -450,9 +425,7 @@ function normalizeReviewStatus(value: unknown) {
   }
 
   if (!isFindingReviewStatus(reviewStatus)) {
-    throw new Error(
-      "list_findings reviewStatus must be needs_review, confirmed, or dismissed.",
-    );
+    throw new Error("list_findings reviewStatus must be needs_review, confirmed, or dismissed.");
   }
 
   return reviewStatus;
@@ -478,10 +451,7 @@ function assertListFindingsArgs(
   return {
     limit: Math.min(
       MAX_FINDING_LIST_LIMIT,
-      Math.max(
-        1,
-        Math.floor(limit ?? DEFAULT_FINDING_LIST_LIMIT),
-      ),
+      Math.max(1, Math.floor(limit ?? DEFAULT_FINDING_LIST_LIMIT)),
     ),
     offset: Math.max(0, Math.floor(offset ?? 0)),
     query: normalizeOptionalString(args.query, "query"),
@@ -510,11 +480,7 @@ function assertGetArtifactArgs(args: ChatContextToolArgs): GetArtifactArgs {
   };
 }
 
-function normalizeRequiredString(
-  value: unknown,
-  toolName: string,
-  argumentName: string,
-) {
+function normalizeRequiredString(value: unknown, toolName: string, argumentName: string) {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error(`${toolName} requires a ${argumentName} string.`);
   }
@@ -522,11 +488,7 @@ function normalizeRequiredString(
   return value.trim();
 }
 
-function normalizeOptionalToolString(
-  value: unknown,
-  toolName: string,
-  argumentName: string,
-) {
+function normalizeOptionalToolString(value: unknown, toolName: string, argumentName: string) {
   if (value === undefined) {
     return undefined;
   }
@@ -552,18 +514,11 @@ function parseOptionalJson(value: string | undefined, argumentName: string) {
 }
 
 function normalizeOptionalCommand(value: unknown) {
-  const command = normalizeOptionalToolString(
-    value,
-    "create_action_draft",
-    "command",
-  );
+  const command = normalizeOptionalToolString(value, "create_action_draft", "command");
   return command;
 }
 
-function getScannerTargetForDraft(
-  targetTool: ScannerToolId,
-  session: SessionContextRecord | null,
-) {
+function getScannerTargetForDraft(targetTool: ScannerToolId, session: SessionContextRecord | null) {
   const target = session?.normalizedUrl.trim() || session?.displayUrl.trim();
   if (!target) {
     return "";
@@ -603,15 +558,10 @@ function toCreateActionDraftPayload(
           ...formState,
           ...(typeof formState.target === "string"
             ? {
-                target: replaceTargetPlaceholders(
-                  formState.target,
-                  scannerTarget,
-                ),
+                target: replaceTargetPlaceholders(formState.target, scannerTarget),
               }
             : {}),
-          ...(!("target" in formState) && scannerTarget
-            ? { target: scannerTarget }
-            : {}),
+          ...(!("target" in formState) && scannerTarget ? { target: scannerTarget } : {}),
         }
       : formState;
 
@@ -630,12 +580,8 @@ function toCreateActionDraftPayload(
           command: replaceTargetPlaceholders(args.command, scannerTarget),
         }
       : {}),
-    ...(args.intentJson
-      ? { intent: parseOptionalJson(args.intentJson, "intentJson") }
-      : {}),
-    ...(normalizedFormState !== undefined
-      ? { formState: normalizedFormState }
-      : {}),
+    ...(args.intentJson ? { intent: parseOptionalJson(args.intentJson, "intentJson") } : {}),
+    ...(normalizedFormState !== undefined ? { formState: normalizedFormState } : {}),
   };
 }
 
@@ -656,22 +602,12 @@ function normalizeActionDraftTargetTool(value: unknown) {
   return targetTool;
 }
 
-function assertCreateActionDraftArgs(
-  args: ChatContextToolArgs,
-): CreateActionDraftArgs {
+function assertCreateActionDraftArgs(args: ChatContextToolArgs): CreateActionDraftArgs {
   return {
     targetTool: normalizeActionDraftTargetTool(args.targetTool),
-    title: normalizeRequiredString(
-      args.title,
-      "create_action_draft",
-      "title",
-    ),
+    title: normalizeRequiredString(args.title, "create_action_draft", "title"),
     command: normalizeOptionalCommand(args.command),
-    intentJson: normalizeOptionalToolString(
-      args.intentJson,
-      "create_action_draft",
-      "intentJson",
-    ),
+    intentJson: normalizeOptionalToolString(args.intentJson, "create_action_draft", "intentJson"),
     formStateJson: normalizeOptionalToolString(
       args.formStateJson,
       "create_action_draft",
@@ -684,9 +620,8 @@ function requireActiveAttachment(
   attachments: ConversationAttachmentScope,
   opencodeConversationId: string,
 ) {
-  const attachment = attachments.findActiveAttachmentByOpenCodeConversationId(
-    opencodeConversationId,
-  );
+  const attachment =
+    attachments.findActiveAttachmentByOpenCodeConversationId(opencodeConversationId);
   if (!attachment) {
     throw new Error(
       "No active NullTrace session attachment exists for this OpenCode conversation.",
@@ -722,10 +657,7 @@ function toFindingDetail(finding: SessionFindingRecord): ChatFindingDetail {
   };
 }
 
-function matchesFindingQuery(
-  finding: SessionFindingRecord,
-  normalizedQuery: string,
-) {
+function matchesFindingQuery(finding: SessionFindingRecord, normalizedQuery: string) {
   const haystack = [
     finding.title,
     finding.summary,
@@ -740,10 +672,7 @@ function matchesFindingQuery(
   return haystack.includes(normalizedQuery);
 }
 
-function filterFindings(
-  findings: SessionFindingRecord[],
-  args: NormalizedListFindingsArgs,
-) {
+function filterFindings(findings: SessionFindingRecord[], args: NormalizedListFindingsArgs) {
   const normalizedQuery = args.query?.toLowerCase();
   const normalizedSourceTool = args.sourceTool?.toLowerCase();
 
@@ -756,10 +685,7 @@ function filterFindings(
       return false;
     }
 
-    if (
-      normalizedSourceTool &&
-      finding.sourceTool.toLowerCase() !== normalizedSourceTool
-    ) {
+    if (normalizedSourceTool && finding.sourceTool.toLowerCase() !== normalizedSourceTool) {
       return false;
     }
 
@@ -779,8 +705,7 @@ function sortFindingsForDiscovery(findings: SessionFindingRecord[]) {
       return severityDelta;
     }
 
-    const lastSeenDelta =
-      Date.parse(right.lastSeenAt) - Date.parse(left.lastSeenAt);
+    const lastSeenDelta = Date.parse(right.lastSeenAt) - Date.parse(left.lastSeenAt);
     if (lastSeenDelta !== 0) {
       return lastSeenDelta;
     }
@@ -823,9 +748,7 @@ export function createArtifactPayloadPreview(
   const isTruncated = serialized.content.length > limit;
 
   return {
-    content: isTruncated
-      ? serialized.content.slice(0, limit)
-      : serialized.content,
+    content: isTruncated ? serialized.content.slice(0, limit) : serialized.content,
     format: serialized.format,
     isTruncated,
     maxCharacters: limit,
@@ -855,10 +778,7 @@ function toArtifactDetail(
     label: artifact.label,
     source: artifact.source,
     createdAt: artifact.createdAt,
-    payloadPreview: createArtifactPayloadPreview(
-      artifact.payload,
-      maxCharacters,
-    ),
+    payloadPreview: createArtifactPayloadPreview(artifact.payload, maxCharacters),
   };
 }
 
@@ -866,13 +786,9 @@ function toActiveToolWorkspaceContext(
   snapshot: ToolWorkspaceContextSnapshot,
   toolRuns: ToolRunSummary[],
 ): ChatActiveToolWorkspaceContext {
-  const relevantToolRuns = toolRuns.filter(
-    (run) => run.toolName === snapshot.toolName,
-  );
+  const relevantToolRuns = toolRuns.filter((run) => run.toolName === snapshot.toolName);
   const selectedHistoricalRun =
-    relevantToolRuns.find(
-      (run) => run.id === snapshot.selectedHistoryRunId,
-    ) ?? null;
+    relevantToolRuns.find((run) => run.id === snapshot.selectedHistoryRunId) ?? null;
 
   return {
     sessionId: snapshot.sessionId,
@@ -889,18 +805,14 @@ function toActiveToolWorkspaceContext(
     },
     form: snapshot.toolData.form,
     selectedField: snapshot.toolData.selectedField,
-    selectedHistoricalRun: selectedHistoricalRun
-      ? toToolRunListItem(selectedHistoricalRun)
-      : null,
+    selectedHistoricalRun: selectedHistoricalRun ? toToolRunListItem(selectedHistoricalRun) : null,
     recentToolRuns: relevantToolRuns
       .slice(0, DEFAULT_ACTIVE_TOOL_HISTORY_LIMIT)
       .map(toToolRunListItem),
   };
 }
 
-function toCreateActionDraftResult(
-  draft: ActionDraftRecord,
-): CreateActionDraftResult {
+function toCreateActionDraftResult(draft: ActionDraftRecord): CreateActionDraftResult {
   return {
     actionDraft: {
       id: draft.id,
@@ -915,11 +827,7 @@ function toCreateActionDraftResult(
   };
 }
 
-function normalizeSitemapNumber(
-  value: unknown,
-  argumentName: string,
-  defaultValue?: number,
-) {
+function normalizeSitemapNumber(value: unknown, argumentName: string, defaultValue?: number) {
   if (value === undefined) {
     return defaultValue;
   }
@@ -949,10 +857,7 @@ function normalizeSitemapListArgs(
 ): Required<ListSitemapEntriesArgs> {
   const limit = normalizeSitemapNumber(args.limit, "sitemap limit");
   return {
-    limit: Math.max(
-      1,
-      Math.min(limit ?? DEFAULT_SITEMAP_LIST_LIMIT, MAX_SITEMAP_LIST_LIMIT),
-    ),
+    limit: Math.max(1, Math.min(limit ?? DEFAULT_SITEMAP_LIST_LIMIT, MAX_SITEMAP_LIST_LIMIT)),
     offset: normalizeSitemapNumber(args.offset, "sitemap offset", 0) ?? 0,
   };
 }
@@ -961,11 +866,8 @@ function normalizeSitemapSearchArgs(
   args: ChatContextToolArgs | SearchSitemapEntriesArgs,
 ): SearchSitemapEntriesArgs & { limit: number; offset: number } {
   const listArgs = normalizeSitemapListArgs(args);
-  const source = normalizeOptionalToolString(
-    args.source,
-    "search_sitemap_entries",
-    "source",
-  ) as TargetSitemapEntrySource | undefined;
+  const source = normalizeOptionalToolString(args.source, "search_sitemap_entries", "source") as
+    TargetSitemapEntrySource | undefined;
   const allowedSources: TargetSitemapEntrySource[] = [
     "seed",
     "html_link",
@@ -984,61 +886,37 @@ function normalizeSitemapSearchArgs(
     "search_sitemap_entries",
     "provenance",
   ) as TargetSitemapDiscoveryProvenance | undefined;
-  const allowedProvenance = [
-    "public",
-    "authenticated",
-    "both",
-  ] as const;
+  const allowedProvenance = ["public", "authenticated", "both"] as const;
   if (provenance && !allowedProvenance.includes(provenance)) {
-    throw new Error(
-      "search_sitemap_entries provenance must be public, authenticated, or both.",
-    );
+    throw new Error("search_sitemap_entries provenance must be public, authenticated, or both.");
   }
   if (
     args.hasCurrentSessionAccess !== undefined &&
     typeof args.hasCurrentSessionAccess !== "boolean"
   ) {
-    throw new Error(
-      "search_sitemap_entries hasCurrentSessionAccess must be a boolean.",
-    );
+    throw new Error("search_sitemap_entries hasCurrentSessionAccess must be a boolean.");
   }
 
   return {
     ...listArgs,
     depth: normalizeOptionalSitemapDepth(args.depth, "sitemap depth"),
-    maxDepth: normalizeOptionalSitemapDepth(
-      args.maxDepth,
-      "sitemap maxDepth",
-    ),
-    path: normalizeOptionalToolString(
-      args.path,
-      "search_sitemap_entries",
-      "path",
-    ),
+    maxDepth: normalizeOptionalSitemapDepth(args.maxDepth, "sitemap maxDepth"),
+    path: normalizeOptionalToolString(args.path, "search_sitemap_entries", "path"),
     method: normalizeOptionalToolString(
       args.method,
       "search_sitemap_entries",
       "method",
     )?.toUpperCase(),
-    httpStatus: normalizeSitemapNumber(
-      args.httpStatus,
-      "search_sitemap_entries httpStatus",
-    ),
+    httpStatus: normalizeSitemapNumber(args.httpStatus, "search_sitemap_entries httpStatus"),
     source,
     provenance,
     hasCurrentSessionAccess: args.hasCurrentSessionAccess,
   };
 }
 
-function assertGetSitemapEntryArgs(
-  args: ChatContextToolArgs,
-): GetSitemapEntryArgs {
+function assertGetSitemapEntryArgs(args: ChatContextToolArgs): GetSitemapEntryArgs {
   return {
-    entryId: normalizeRequiredString(
-      args.entryId,
-      "get_sitemap_entry",
-      "entryId",
-    ),
+    entryId: normalizeRequiredString(args.entryId, "get_sitemap_entry", "entryId"),
   };
 }
 
@@ -1100,10 +978,7 @@ export class SitemapChatContextToolsService {
   ) {}
 
   private getSessionScope(opencodeConversationId: string) {
-    const attachment = requireActiveAttachment(
-      this.attachments,
-      opencodeConversationId,
-    );
+    const attachment = requireActiveAttachment(this.attachments, opencodeConversationId);
     const session = this.sessions.getSessionById(attachment.sessionId);
     if (!session) {
       throw new Error("The attached NullTrace session no longer exists.");
@@ -1124,10 +999,7 @@ export class SitemapChatContextToolsService {
     };
   }
 
-  listEntries(
-    opencodeConversationId: string,
-    args: ListSitemapEntriesArgs = {},
-  ) {
+  listEntries(opencodeConversationId: string, args: ListSitemapEntriesArgs = {}) {
     const { sessionId, targetId } = this.getSessionScope(opencodeConversationId);
     return toSitemapListResult(
       this.sitemap.listEntries({ targetId, ...normalizeSitemapListArgs(args) }),
@@ -1135,10 +1007,7 @@ export class SitemapChatContextToolsService {
     );
   }
 
-  searchEntries(
-    opencodeConversationId: string,
-    args: SearchSitemapEntriesArgs,
-  ) {
+  searchEntries(opencodeConversationId: string, args: SearchSitemapEntriesArgs) {
     const { sessionId, targetId } = this.getSessionScope(opencodeConversationId);
     const normalizedArgs = normalizeSitemapSearchArgs(args);
     return toSitemapListResult(
@@ -1146,19 +1015,14 @@ export class SitemapChatContextToolsService {
         targetId,
         ...normalizedArgs,
         accessObservedBySessionId:
-          normalizedArgs.hasCurrentSessionAccess === undefined
-            ? undefined
-            : sessionId,
+          normalizedArgs.hasCurrentSessionAccess === undefined ? undefined : sessionId,
         hasAccessObservation: normalizedArgs.hasCurrentSessionAccess,
       }),
       this.sitemap.listAccessObservations(sessionId),
     );
   }
 
-  getEntry(
-    opencodeConversationId: string,
-    args: GetSitemapEntryArgs,
-  ): GetSitemapEntryResult {
+  getEntry(opencodeConversationId: string, args: GetSitemapEntryArgs): GetSitemapEntryResult {
     const { sessionId, targetId } = this.getSessionScope(opencodeConversationId);
     const entry = this.sitemap.findEntryByIdForTarget(targetId, args.entryId);
     const observation = this.sitemap
@@ -1177,45 +1041,71 @@ export class SitemapChatContextToolsService {
     };
   }
 
-  createToolDefinitions(): ChatContextToolDefinition<
-    ChatContextToolArgs,
-    unknown
-  >[] {
+  createToolDefinitions(): ChatContextToolDefinition<ChatContextToolArgs, unknown>[] {
     const paginationArgs = {
-      limit: { type: "number", description: "Optional page size, capped at 100.", isOptional: true },
+      limit: {
+        type: "number",
+        description: "Optional page size, capped at 100.",
+        isOptional: true,
+      },
       offset: { type: "number", description: "Optional zero-based page offset.", isOptional: true },
     } as const;
     const depthFilterArgs = {
-      depth: { type: "number", description: "Optional exact crawl depth. Omit unless the operator explicitly requests a depth-filtered result; zero is a real root-level filter.", isOptional: true },
-      maxDepth: { type: "number", description: "Optional maximum crawl depth. Omit unless the operator explicitly requests a depth-filtered result; zero is a real root-level filter.", isOptional: true },
+      depth: {
+        type: "number",
+        description:
+          "Optional exact crawl depth. Omit unless the operator explicitly requests a depth-filtered result; zero is a real root-level filter.",
+        isOptional: true,
+      },
+      maxDepth: {
+        type: "number",
+        description:
+          "Optional maximum crawl depth. Omit unless the operator explicitly requests a depth-filtered result; zero is a real root-level filter.",
+        isOptional: true,
+      },
     } as const;
     return [
       {
         name: "get_sitemap_status",
-        description: "Read crawl state, entry count, timestamps, and failure detail for the active conversation's session target.",
+        description:
+          "Read crawl state, entry count, timestamps, and failure detail for the active conversation's session target.",
         args: {},
         execute: ({ opencodeConversationId }) => this.getStatus(opencodeConversationId),
       },
       {
         name: "list_sitemap_entries",
-        description: "List a bounded page of all sitemap entries for the active conversation's session target. This tool does not filter by crawl depth; use search_sitemap_entries only when the operator explicitly requests filtered results.",
+        description:
+          "List a bounded page of all sitemap entries for the active conversation's session target. This tool does not filter by crawl depth; use search_sitemap_entries only when the operator explicitly requests filtered results.",
         args: paginationArgs,
-        execute: ({ opencodeConversationId, args }) => this.listEntries(opencodeConversationId, normalizeSitemapListArgs(args)),
+        execute: ({ opencodeConversationId, args }) =>
+          this.listEntries(opencodeConversationId, normalizeSitemapListArgs(args)),
       },
       {
         name: "search_sitemap_entries",
-        description: "Search sitemap entries for the active conversation's session target by path, method, HTTP status, discovery source, discovery provenance, current-session authenticated access observation, and optional depth filters. Omit depth and maxDepth unless the operator explicitly asks for a depth-filtered search.",
+        description:
+          "Search sitemap entries for the active conversation's session target by path, method, HTTP status, discovery source, discovery provenance, current-session authenticated access observation, and optional depth filters. Omit depth and maxDepth unless the operator explicitly asks for a depth-filtered search.",
         args: {
           ...paginationArgs,
           ...depthFilterArgs,
-          path: { type: "string", description: "Optional case-insensitive path substring.", isOptional: true },
+          path: {
+            type: "string",
+            description: "Optional case-insensitive path substring.",
+            isOptional: true,
+          },
           method: { type: "string", description: "Optional exact HTTP method.", isOptional: true },
-          httpStatus: { type: "number", description: "Optional exact HTTP status.", isOptional: true },
-          source: { type: "string", description: "Optional exact discovery source.", isOptional: true },
+          httpStatus: {
+            type: "number",
+            description: "Optional exact HTTP status.",
+            isOptional: true,
+          },
+          source: {
+            type: "string",
+            description: "Optional exact discovery source.",
+            isOptional: true,
+          },
           provenance: {
             type: "string",
-            description:
-              "Optional exact discovery provenance: public, authenticated, or both.",
+            description: "Optional exact discovery provenance: public, authenticated, or both.",
             isOptional: true,
           },
           hasCurrentSessionAccess: {
@@ -1226,27 +1116,28 @@ export class SitemapChatContextToolsService {
           },
         },
         execute: ({ opencodeConversationId, args }) =>
-          this.searchEntries(
-            opencodeConversationId,
-            normalizeSitemapSearchArgs(args),
-          ),
+          this.searchEntries(opencodeConversationId, normalizeSitemapSearchArgs(args)),
       },
       {
         name: "get_sitemap_entry",
-        description: "Get one sitemap entry and its persisted form or discovery context for the active conversation's session target.",
-        args: { entryId: { type: "string", description: "Entry ID returned by a sitemap list or search tool." } },
-        execute: ({ opencodeConversationId, args }) => this.getEntry(opencodeConversationId, assertGetSitemapEntryArgs(args)),
+        description:
+          "Get one sitemap entry and its persisted form or discovery context for the active conversation's session target.",
+        args: {
+          entryId: {
+            type: "string",
+            description: "Entry ID returned by a sitemap list or search tool.",
+          },
+        },
+        execute: ({ opencodeConversationId, args }) =>
+          this.getEntry(opencodeConversationId, assertGetSitemapEntryArgs(args)),
       },
     ];
   }
 }
 
-export const sitemapChatContextToolsService =
-  new SitemapChatContextToolsService();
+export const sitemapChatContextToolsService = new SitemapChatContextToolsService();
 
-function getAuthenticationOperatorGuidance(
-  posture: ChatAuthenticationPosture,
-): string | null {
+function getAuthenticationOperatorGuidance(posture: ChatAuthenticationPosture): string | null {
   if (posture === "absent") {
     return "Open the Authentication Context Modal from the dashboard to import authentication when logged-in coverage would help.";
   }
@@ -1278,43 +1169,26 @@ export class AuthenticationChatContextToolsService {
   constructor(
     private readonly attachments: ConversationAttachmentScope = conversationAttachmentService,
     private readonly sessions: SessionContextReadRepository = sessionRepository,
-    private readonly authentication: AuthenticationMetadataReadRepository =
-      authenticationContextMetadataRepository,
+    private readonly authentication: AuthenticationMetadataReadRepository = authenticationContextMetadataRepository,
     private readonly sitemap: AuthenticationSitemapReadRepository = sitemapRepository,
   ) {}
 
-  async getContext(
-    opencodeConversationId: string,
-  ): Promise<GetAuthenticationContextResult> {
-    const attachment = requireActiveAttachment(
-      this.attachments,
-      opencodeConversationId,
-    );
+  async getContext(opencodeConversationId: string): Promise<GetAuthenticationContextResult> {
+    const attachment = requireActiveAttachment(this.attachments, opencodeConversationId);
     const session = this.sessions.getSessionById(attachment.sessionId);
     if (!session) {
       throw new Error("The attached NullTrace session no longer exists.");
     }
 
     const metadata = this.authentication.findBySessionId(attachment.sessionId);
-    const crawl = this.sitemap.getAuthenticatedCrawlStatus(
-      attachment.sessionId,
-      session.targetId,
-    );
-    const observations = this.sitemap.listAccessObservations(
-      attachment.sessionId,
-    );
-    const posture = getAuthenticationPosture(
-      metadata,
-      crawl.status === "authentication_required",
-    );
-    const httpStatusCounts = observations.reduce<Record<string, number>>(
-      (counts, observation) => {
-        const status = String(observation.httpStatus);
-        counts[status] = (counts[status] ?? 0) + 1;
-        return counts;
-      },
-      {},
-    );
+    const crawl = this.sitemap.getAuthenticatedCrawlStatus(attachment.sessionId, session.targetId);
+    const observations = this.sitemap.listAccessObservations(attachment.sessionId);
+    const posture = getAuthenticationPosture(metadata, crawl.status === "authentication_required");
+    const httpStatusCounts = observations.reduce<Record<string, number>>((counts, observation) => {
+      const status = String(observation.httpStatus);
+      counts[status] = (counts[status] ?? 0) + 1;
+      return counts;
+    }, {});
 
     return {
       authentication: metadata
@@ -1363,25 +1237,20 @@ export class AuthenticationChatContextToolsService {
     };
   }
 
-  createToolDefinitions(): ChatContextToolDefinition<
-    ChatContextToolArgs,
-    unknown
-  >[] {
+  createToolDefinitions(): ChatContextToolDefinition<ChatContextToolArgs, unknown>[] {
     return [
       {
         name: "get_authentication_context",
         description:
           "Read non-secret authentication posture, import and persistence metadata, Auth Check state, authenticated crawl state, and bounded coverage for the active session. This tool cannot reveal protected values or mutate authentication or crawler state.",
         args: {},
-        execute: ({ opencodeConversationId }) =>
-          this.getContext(opencodeConversationId),
+        execute: ({ opencodeConversationId }) => this.getContext(opencodeConversationId),
       },
     ];
   }
 }
 
-export const authenticationChatContextToolsService =
-  new AuthenticationChatContextToolsService();
+export const authenticationChatContextToolsService = new AuthenticationChatContextToolsService();
 
 export class SessionContextChatContextToolsService {
   constructor(
@@ -1390,10 +1259,7 @@ export class SessionContextChatContextToolsService {
   ) {}
 
   getSessionContext(opencodeConversationId: string): GetSessionContextResult {
-    const attachment = requireActiveAttachment(
-      this.attachments,
-      opencodeConversationId,
-    );
+    const attachment = requireActiveAttachment(this.attachments, opencodeConversationId);
     const session = this.sessions.getSessionById(attachment.sessionId);
 
     return {
@@ -1408,25 +1274,20 @@ export class SessionContextChatContextToolsService {
     };
   }
 
-  createToolDefinitions(): ChatContextToolDefinition<
-    ChatContextToolArgs,
-    unknown
-  >[] {
+  createToolDefinitions(): ChatContextToolDefinition<ChatContextToolArgs, unknown>[] {
     return [
       {
         name: "get_session_context",
         description:
           "Get the active NullTrace session target attached to this OpenCode conversation. Use this before drafting scanner commands so commands contain the real target instead of placeholders.",
         args: {},
-        execute: ({ opencodeConversationId }) =>
-          this.getSessionContext(opencodeConversationId),
+        execute: ({ opencodeConversationId }) => this.getSessionContext(opencodeConversationId),
       },
     ];
   }
 }
 
-export const sessionContextChatContextToolsService =
-  new SessionContextChatContextToolsService();
+export const sessionContextChatContextToolsService = new SessionContextChatContextToolsService();
 
 export class FindingChatContextToolsService {
   constructor(
@@ -1434,20 +1295,11 @@ export class FindingChatContextToolsService {
     private readonly findings: FindingReadRepository = findingRepository,
   ) {}
 
-  listFindings(
-    opencodeConversationId: string,
-    args: ListFindingsArgs = {},
-  ): ListFindingsResult {
-    const attachment = requireActiveAttachment(
-      this.attachments,
-      opencodeConversationId,
-    );
+  listFindings(opencodeConversationId: string, args: ListFindingsArgs = {}): ListFindingsResult {
+    const attachment = requireActiveAttachment(this.attachments, opencodeConversationId);
     const normalizedArgs = assertListFindingsArgs(args);
     const findings = sortFindingsForDiscovery(
-      filterFindings(
-        this.findings.listBySessionId(attachment.sessionId),
-        normalizedArgs,
-      ),
+      filterFindings(this.findings.listBySessionId(attachment.sessionId), normalizedArgs),
     );
     const page = findings.slice(
       normalizedArgs.offset,
@@ -1470,14 +1322,8 @@ export class FindingChatContextToolsService {
     };
   }
 
-  getFinding(
-    opencodeConversationId: string,
-    args: GetFindingArgs,
-  ): GetFindingResult {
-    const attachment = requireActiveAttachment(
-      this.attachments,
-      opencodeConversationId,
-    );
+  getFinding(opencodeConversationId: string, args: GetFindingArgs): GetFindingResult {
+    const attachment = requireActiveAttachment(this.attachments, opencodeConversationId);
     const finding =
       this.findings
         .listBySessionId(attachment.sessionId)
@@ -1488,10 +1334,7 @@ export class FindingChatContextToolsService {
     };
   }
 
-  createToolDefinitions(): ChatContextToolDefinition<
-    ChatContextToolArgs,
-    unknown
-  >[] {
+  createToolDefinitions(): ChatContextToolDefinition<ChatContextToolArgs, unknown>[] {
     return [
       {
         name: "list_findings",
@@ -1500,14 +1343,12 @@ export class FindingChatContextToolsService {
         args: {
           limit: {
             type: "number",
-            description:
-              "Optional page size. Defaults to 25 and is capped at 100.",
+            description: "Optional page size. Defaults to 25 and is capped at 100.",
             isOptional: true,
           },
           offset: {
             type: "number",
-            description:
-              "Optional zero-based offset from a previous list_findings response.",
+            description: "Optional zero-based offset from a previous list_findings response.",
             isOptional: true,
           },
           query: {
@@ -1518,8 +1359,7 @@ export class FindingChatContextToolsService {
           },
           severity: {
             type: "string",
-            description:
-              "Optional exact severity filter: critical, high, medium, low, or info.",
+            description: "Optional exact severity filter: critical, high, medium, low, or info.",
             isOptional: true,
           },
           reviewStatus: {
@@ -1530,16 +1370,12 @@ export class FindingChatContextToolsService {
           },
           sourceTool: {
             type: "string",
-            description:
-              "Optional exact source tool filter, such as nmap or nuclei.",
+            description: "Optional exact source tool filter, such as nmap or nuclei.",
             isOptional: true,
           },
         },
         execute: ({ opencodeConversationId, args }) =>
-          this.listFindings(
-            opencodeConversationId,
-            assertListFindingsArgs(args),
-          ),
+          this.listFindings(opencodeConversationId, assertListFindingsArgs(args)),
       },
       {
         name: "get_finding",
@@ -1548,8 +1384,7 @@ export class FindingChatContextToolsService {
         args: {
           findingId: {
             type: "string",
-            description:
-              "Finding ID from list_findings. Do not provide a NullTrace session ID.",
+            description: "Finding ID from list_findings. Do not provide a NullTrace session ID.",
           },
         },
         execute: ({ opencodeConversationId, args }) =>
@@ -1559,8 +1394,7 @@ export class FindingChatContextToolsService {
   }
 }
 
-export const findingChatContextToolsService =
-  new FindingChatContextToolsService();
+export const findingChatContextToolsService = new FindingChatContextToolsService();
 
 export class ToolRunArtifactChatContextToolsService {
   constructor(
@@ -1569,50 +1403,33 @@ export class ToolRunArtifactChatContextToolsService {
   ) {}
 
   listToolRuns(opencodeConversationId: string): ListToolRunsResult {
-    const attachment = requireActiveAttachment(
-      this.attachments,
-      opencodeConversationId,
-    );
+    const attachment = requireActiveAttachment(this.attachments, opencodeConversationId);
 
     return {
-      toolRuns: this.tools
-        .listToolRunsBySessionId(attachment.sessionId)
-        .map(toToolRunListItem),
+      toolRuns: this.tools.listToolRunsBySessionId(attachment.sessionId).map(toToolRunListItem),
     };
   }
 
-  getArtifact(
-    opencodeConversationId: string,
-    args: GetArtifactArgs,
-  ): GetArtifactResult {
-    const attachment = requireActiveAttachment(
-      this.attachments,
-      opencodeConversationId,
-    );
+  getArtifact(opencodeConversationId: string, args: GetArtifactArgs): GetArtifactResult {
+    const attachment = requireActiveAttachment(this.attachments, opencodeConversationId);
     const artifact = this.tools.findToolRunArtifactByIdForSession(
       attachment.sessionId,
       args.artifactId,
     );
 
     return {
-      artifact: artifact
-        ? toArtifactDetail(artifact, args.maxCharacters)
-        : null,
+      artifact: artifact ? toArtifactDetail(artifact, args.maxCharacters) : null,
     };
   }
 
-  createToolDefinitions(): ChatContextToolDefinition<
-    ChatContextToolArgs,
-    unknown
-  >[] {
+  createToolDefinitions(): ChatContextToolDefinition<ChatContextToolArgs, unknown>[] {
     return [
       {
         name: "list_tool_runs",
         description:
           "List tool run history for the active NullTrace testing session attached to this OpenCode conversation.",
         args: {},
-        execute: ({ opencodeConversationId }) =>
-          this.listToolRuns(opencodeConversationId),
+        execute: ({ opencodeConversationId }) => this.listToolRuns(opencodeConversationId),
       },
       {
         name: "get_artifact",
@@ -1626,8 +1443,7 @@ export class ToolRunArtifactChatContextToolsService {
           },
           maxCharacters: {
             type: "number",
-            description:
-              "Optional maximum preview characters. The preview is always bounded.",
+            description: "Optional maximum preview characters. The preview is always bounded.",
             isOptional: true,
           },
         },
@@ -1638,29 +1454,18 @@ export class ToolRunArtifactChatContextToolsService {
   }
 }
 
-export const toolRunArtifactChatContextToolsService =
-  new ToolRunArtifactChatContextToolsService();
+export const toolRunArtifactChatContextToolsService = new ToolRunArtifactChatContextToolsService();
 
 export class ActiveToolWorkspaceChatContextToolsService {
   constructor(
     private readonly attachments: ConversationAttachmentScope = conversationAttachmentService,
     private readonly workspaceContext: ToolWorkspaceContextReadRepository = toolWorkspaceContextService,
-    private readonly tools: Pick<
-      ToolReadRepository,
-      "listToolRunsBySessionId"
-    > = sessionRepository,
+    private readonly tools: Pick<ToolReadRepository, "listToolRunsBySessionId"> = sessionRepository,
   ) {}
 
-  getActiveToolWorkspace(
-    opencodeConversationId: string,
-  ): GetActiveToolWorkspaceResult {
-    const attachment = requireActiveAttachment(
-      this.attachments,
-      opencodeConversationId,
-    );
-    const workspace = this.workspaceContext.getActiveWorkspace(
-      attachment.sessionId,
-    );
+  getActiveToolWorkspace(opencodeConversationId: string): GetActiveToolWorkspaceResult {
+    const attachment = requireActiveAttachment(this.attachments, opencodeConversationId);
+    const workspace = this.workspaceContext.getActiveWorkspace(attachment.sessionId);
 
     if (!workspace) {
       return {
@@ -1676,10 +1481,7 @@ export class ActiveToolWorkspaceChatContextToolsService {
     };
   }
 
-  createToolDefinitions(): ChatContextToolDefinition<
-    ChatContextToolArgs,
-    unknown
-  >[] {
+  createToolDefinitions(): ChatContextToolDefinition<ChatContextToolArgs, unknown>[] {
     return [
       {
         name: "get_active_tool_workspace",
@@ -1698,18 +1500,14 @@ export const activeToolWorkspaceChatContextToolsService =
 
 export class ScannerCatalogChatContextToolsService {
   constructor(
-    private readonly catalog: Record<ScannerToolId, ScannerCatalogTool> =
-      scannerCatalog,
+    private readonly catalog: Record<ScannerToolId, ScannerCatalogTool> = scannerCatalog,
   ) {}
 
   listAvailableScannerTools(): ScannerCatalogContext {
     return listAvailableScannerToolsFromCatalog(this.catalog);
   }
 
-  createToolDefinitions(): ChatContextToolDefinition<
-    ChatContextToolArgs,
-    unknown
-  >[] {
+  createToolDefinitions(): ChatContextToolDefinition<ChatContextToolArgs, unknown>[] {
     return [
       {
         name: "list_available_scanner_tools",
@@ -1722,8 +1520,7 @@ export class ScannerCatalogChatContextToolsService {
   }
 }
 
-export const scannerCatalogChatContextToolsService =
-  new ScannerCatalogChatContextToolsService();
+export const scannerCatalogChatContextToolsService = new ScannerCatalogChatContextToolsService();
 
 export class ActionDraftChatContextToolsService {
   constructor(
@@ -1737,10 +1534,7 @@ export class ActionDraftChatContextToolsService {
     args: CreateActionDraftArgs,
   ): CreateActionDraftResult {
     const targetTool = normalizeActionDraftTargetTool(args.targetTool);
-    const attachment = requireActiveAttachment(
-      this.attachments,
-      opencodeConversationId,
-    );
+    const attachment = requireActiveAttachment(this.attachments, opencodeConversationId);
     const session = this.sessions.getSessionById(attachment.sessionId);
     const draft = this.drafts.createDraft({
       sessionId: attachment.sessionId,
@@ -1754,10 +1548,7 @@ export class ActionDraftChatContextToolsService {
     return toCreateActionDraftResult(draft);
   }
 
-  createToolDefinitions(): ChatContextToolDefinition<
-    ChatContextToolArgs,
-    unknown
-  >[] {
+  createToolDefinitions(): ChatContextToolDefinition<ChatContextToolArgs, unknown>[] {
     return [
       {
         name: "create_action_draft",
@@ -1771,8 +1562,7 @@ export class ActionDraftChatContextToolsService {
           },
           title: {
             type: "string",
-            description:
-              "Short human-readable title for the proposed scanner action.",
+            description: "Short human-readable title for the proposed scanner action.",
           },
           command: {
             type: "string",
@@ -1782,29 +1572,23 @@ export class ActionDraftChatContextToolsService {
           },
           intentJson: {
             type: "string",
-            description:
-              "Optional JSON object or value describing the scanner intent.",
+            description: "Optional JSON object or value describing the scanner intent.",
             isOptional: true,
           },
           formStateJson: {
             type: "string",
-            description:
-              "Optional JSON object or value with scanner form state to apply later.",
+            description: "Optional JSON object or value with scanner form state to apply later.",
             isOptional: true,
           },
         },
         execute: ({ opencodeConversationId, args }) =>
-          this.createActionDraft(
-            opencodeConversationId,
-            assertCreateActionDraftArgs(args),
-          ),
+          this.createActionDraft(opencodeConversationId, assertCreateActionDraftArgs(args)),
       },
     ];
   }
 }
 
-export const actionDraftChatContextToolsService =
-  new ActionDraftChatContextToolsService();
+export const actionDraftChatContextToolsService = new ActionDraftChatContextToolsService();
 
 export const chatContextToolRegistry = new ChatContextToolRegistry([
   ...sessionContextChatContextToolsService.createToolDefinitions(),
@@ -1840,10 +1624,7 @@ function createToolArgsSource(args: Record<string, ChatContextToolSchema>) {
 
   return `{
 ${entries
-  .map(
-    ([name, schema]) =>
-      `    ${JSON.stringify(name)}: ${toOpenCodeSchemaSource(schema)},`,
-  )
+  .map(([name, schema]) => `    ${JSON.stringify(name)}: ${toOpenCodeSchemaSource(schema)},`)
   .join("\n")}
   }`;
 }
