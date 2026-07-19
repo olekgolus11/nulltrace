@@ -80,6 +80,8 @@ const authenticatedIncompatibleFlags = new Set([
   "resume",
   "t",
   "templates",
+  "it",
+  "include-templates",
   "turl",
   "template-url",
   "w",

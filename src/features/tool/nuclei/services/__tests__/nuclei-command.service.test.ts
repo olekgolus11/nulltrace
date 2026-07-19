@@ -179,6 +179,8 @@ describe("nucleiCommandService", () => {
       "nuclei -u https://example.com -*",
       "/tmp/helper -u https://example.com",
       "nuclei -u https://example.com -t /tmp/custom-template.yaml",
+      "nuclei -u https://example.com -it /tmp/custom-template.yaml",
+      "nuclei -u https://example.com -include-templates /tmp/custom-template.yaml",
     ]) {
       await expect(
         nucleiCommandService.prepareCommandForRun({
@@ -204,6 +206,13 @@ describe("nucleiCommandService", () => {
         "nuclei -u=https://example.com -header='Authorization: Bearer inline-secret'",
       ),
     ).toBe("nuclei -u=https://example.com -header '[redacted]'");
+    expect(
+      nucleiCommandService.redactCommandForPersistence(
+        "nuclei -u https://example.com -H Authorization: Bearer unquoted-secret -stats",
+      ),
+    ).toBe(
+      "nuclei -u https://example.com -H '[redacted]' -stats",
+    );
   });
 
   test("parses valid JSONL findings with normalized convenience fields and raw preservation", () => {
