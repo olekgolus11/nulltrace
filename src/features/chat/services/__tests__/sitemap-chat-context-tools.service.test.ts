@@ -194,6 +194,28 @@ describe("sitemap chat context tools", () => {
     expect(service.listEntries("conversation-1", { limit: 1000 }).pagination.limit).toBe(100);
   });
 
+  it("ignores negative depth sentinels when listing sitemap entries", async () => {
+    const { service, repository } = createService();
+    const registry = new ChatContextToolRegistry(service.createToolDefinitions());
+    const status = service.getStatus("conversation-1");
+
+    const result = await registry.execute("list_sitemap_entries", "conversation-1", {
+      limit: 100,
+      depth: -1,
+      maxDepth: -1,
+    });
+
+    expect(result).toMatchObject({
+      entries: [
+        expect.objectContaining({ id: "entry-root" }),
+        expect.objectContaining({ id: "entry-admin" }),
+        expect.objectContaining({ id: "entry-login" }),
+      ],
+      pagination: { limit: 100, total: status.crawl.entryCount },
+    });
+    expect(repository.reads.at(-1)).toEqual({ targetId: "target-1", limit: 100, offset: 0 });
+  });
+
   it("ignores negative search depth sentinels from the chat runtime", () => {
     const { service } = createService();
 
