@@ -1,10 +1,4 @@
-import {
-  chmodSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { AuthenticatedRequestContext } from "../../../authentication/model/authenticated-request-context.types";
 import {
@@ -17,9 +11,7 @@ import { getAppDataDirectory } from "../../../session/services/session-database"
 import { shellQuote } from "./nuclei-shell";
 
 interface AuthenticatedContextLoader {
-  loadProtectedContext: (
-    sessionId: string,
-  ) => Promise<AuthenticatedRequestContext | null>;
+  loadProtectedContext: (sessionId: string) => Promise<AuthenticatedRequestContext | null>;
 }
 
 interface NucleiAuthenticatedRunServiceOptions {
@@ -57,14 +49,8 @@ function parseCookieEntries(value: string) {
     .map((entry) => {
       const separatorIndex = entry.indexOf("=");
       return {
-        key:
-          separatorIndex === -1
-            ? entry
-            : entry.slice(0, separatorIndex).trim(),
-        value:
-          separatorIndex === -1
-            ? ""
-            : entry.slice(separatorIndex + 1).trim(),
+        key: separatorIndex === -1 ? entry : entry.slice(0, separatorIndex).trim(),
+        value: separatorIndex === -1 ? "" : entry.slice(separatorIndex + 1).trim(),
       };
     })
     .filter((entry) => entry.key);
@@ -82,9 +68,7 @@ function parseHeaderEntries(value: string) {
     .filter((entry) => entry.key && entry.value);
 }
 
-export function buildNucleiSecretFile(
-  context: AuthenticatedRequestContext,
-) {
+export function buildNucleiSecretFile(context: AuthenticatedRequestContext) {
   const exactOrigin = normalizeExactOrigin(context.origin);
   const domain = new URL(exactOrigin).host;
   const exactDomainPattern = `^${escapeRegex(domain)}$`;
@@ -95,20 +79,13 @@ export function buildNucleiSecretFile(
       ? [
           {
             key: "Cookie",
-            value: cookies
-              .map((cookie) => `${cookie.key}=${cookie.value}`)
-              .join("; "),
+            value: cookies.map((cookie) => `${cookie.key}=${cookie.value}`).join("; "),
           },
         ]
       : []),
-    ...headers.filter(
-      (header) => cookies.length === 0 || header.key.toLowerCase() !== "cookie",
-    ),
+    ...headers.filter((header) => cookies.length === 0 || header.key.toLowerCase() !== "cookie"),
   ];
-  const lines = [
-    `# nulltrace-exact-origin: ${quoteYaml(exactOrigin)}`,
-    "static:",
-  ];
+  const lines = [`# nulltrace-exact-origin: ${quoteYaml(exactOrigin)}`, "static:"];
 
   if (secretHeaders.length > 0) {
     lines.push(
@@ -133,14 +110,10 @@ export class NucleiAuthenticatedRunService {
   private readonly writeSecretFile: (path: string, content: string) => void;
 
   constructor(options: NucleiAuthenticatedRunServiceOptions = {}) {
-    this.rootDirectory =
-      options.rootDirectory ?? join(getAppDataDirectory(), "run-secrets");
-    this.contextService =
-      options.contextService ?? authenticatedRequestContextService;
+    this.rootDirectory = options.rootDirectory ?? join(getAppDataDirectory(), "run-secrets");
+    this.contextService = options.contextService ?? authenticatedRequestContextService;
     this.isProceedAllowed =
-      options.isProceedAllowed ??
-      ((sessionId) =>
-        authCheckService.isProceedAllowed(sessionId));
+      options.isProceedAllowed ?? ((sessionId) => authCheckService.isProceedAllowed(sessionId));
     this.writeSecretFile =
       options.writeSecretFile ??
       ((path, content) => {
@@ -158,23 +131,17 @@ export class NucleiAuthenticatedRunService {
     command,
   }: PrepareAuthenticatedNucleiRunInput): Promise<PreparedAuthenticatedNucleiRun> {
     if (!this.isProceedAllowed(sessionId)) {
-      throw new Error(
-        "Authenticated Nuclei runs require an accepted Auth Check.",
-      );
+      throw new Error("Authenticated Nuclei runs require an accepted Auth Check.");
     }
 
     const context = await this.contextService.loadProtectedContext(sessionId);
     if (!context) {
-      throw new Error(
-        "Authenticated Nuclei runs require a saved authentication context.",
-      );
+      throw new Error("Authenticated Nuclei runs require a saved authentication context.");
     }
 
     const targetOrigin = normalizeExactOrigin(targetUrl);
     if (context.origin !== targetOrigin) {
-      throw new Error(
-        "Authentication context must match the Nuclei target's exact origin.",
-      );
+      throw new Error("Authentication context must match the Nuclei target's exact origin.");
     }
 
     let runDirectory: string | null = null;
@@ -207,5 +174,4 @@ export class NucleiAuthenticatedRunService {
   }
 }
 
-export const nucleiAuthenticatedRunService =
-  new NucleiAuthenticatedRunService();
+export const nucleiAuthenticatedRunService = new NucleiAuthenticatedRunService();

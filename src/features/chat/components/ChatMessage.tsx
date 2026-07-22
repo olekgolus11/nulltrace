@@ -22,11 +22,7 @@ export function ChatMessage({
   return (
     <box flexDirection="column" flexShrink={0} marginBottom={1}>
       <box flexDirection="row" gap={1}>
-        <text
-          fg={
-            isAI ? theme.chat.ai : isUser ? theme.chat.user : theme.chat.system
-          }
-        >
+        <text fg={isAI ? theme.chat.ai : isUser ? theme.chat.user : theme.chat.system}>
           <strong>{isAI ? "◆ AI" : isUser ? "● You" : "○ System"}</strong>
         </text>
         {timestamp && <text fg={theme.text.dim}>{timestamp}</text>}

@@ -20,11 +20,7 @@ function formatLastActivity(value: string) {
   });
 }
 
-export function SessionTargetItem({
-  target,
-  isExpanded,
-  isSelected,
-}: SessionTargetItemProps) {
+export function SessionTargetItem({ target, isExpanded, isSelected }: SessionTargetItemProps) {
   const marker = isExpanded ? "▾" : "▸";
   const summaryText = `${formatRelativeCount(target.sessionCount)} · ${formatLastActivity(target.lastActivityAt)}`;
 

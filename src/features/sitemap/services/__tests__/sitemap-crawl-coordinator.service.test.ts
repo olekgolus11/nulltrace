@@ -19,9 +19,7 @@ class DeferredPromise<T> {
 }
 
 class FakeStatusRepository {
-  constructor(
-    private readonly statuses: Record<string, TargetSitemapCrawlStatus>,
-  ) {}
+  constructor(private readonly statuses: Record<string, TargetSitemapCrawlStatus>) {}
 
   getCrawlStatus(targetId: string): TargetSitemapCrawlStatusRecord {
     return {
@@ -40,7 +38,7 @@ class FakeCrawler {
   calls: Array<{
     targetId: string;
     rootUrl: string;
-    mode?: "fresh" | "resume" | "retry_failures";
+    mode?: "fresh" | "resume";
   }> = [];
   pauseCalls: string[] = [];
   private readonly crawlResult: Promise<unknown>;
@@ -49,11 +47,7 @@ class FakeCrawler {
     this.crawlResult = crawlResult;
   }
 
-  crawl(input: {
-    targetId: string;
-    rootUrl: string;
-    mode?: "fresh" | "resume" | "retry_failures";
-  }) {
+  crawl(input: { targetId: string; rootUrl: string; mode?: "fresh" | "resume" }) {
     this.calls.push(input);
     return this.crawlResult;
   }
@@ -67,10 +61,7 @@ class FakeCrawler {
 describe("SitemapCrawlCoordinator", () => {
   it("starts a crawl when target status is idle", () => {
     const crawler = new FakeCrawler();
-    const coordinator = new SitemapCrawlCoordinator(
-      new FakeStatusRepository({}),
-      crawler,
-    );
+    const coordinator = new SitemapCrawlCoordinator(new FakeStatusRepository({}), crawler);
 
     const result = coordinator.ensureTargetCrawl({
       targetId: "target-1",
@@ -91,10 +82,7 @@ describe("SitemapCrawlCoordinator", () => {
   it("reuses an in-memory running crawl for the same target", () => {
     const deferred = new DeferredPromise<void>();
     const crawler = new FakeCrawler(deferred.promise);
-    const coordinator = new SitemapCrawlCoordinator(
-      new FakeStatusRepository({}),
-      crawler,
-    );
+    const coordinator = new SitemapCrawlCoordinator(new FakeStatusRepository({}), crawler);
 
     const first = coordinator.ensureTargetCrawl({
       targetId: "target-1",
@@ -209,10 +197,7 @@ describe("SitemapCrawlCoordinator", () => {
   it("allows a later ensure after the running crawl settles", async () => {
     const deferred = new DeferredPromise<void>();
     const crawler = new FakeCrawler(deferred.promise);
-    const coordinator = new SitemapCrawlCoordinator(
-      new FakeStatusRepository({}),
-      crawler,
-    );
+    const coordinator = new SitemapCrawlCoordinator(new FakeStatusRepository({}), crawler);
 
     expect(
       coordinator.ensureTargetCrawl({

@@ -21,24 +21,18 @@ export function EntryScreen({
 }: EntryScreenProps) {
   const { width, height } = useTerminalDimensions();
   const [targets] = useState(() => sessionRepository.listTargetsWithSessions());
-  const { entryState, rows, setUrlInput, submitUrlInput, setActivePanel } =
-    useEntryShortcuts({
-      targets,
-      onStartPentestForNewTarget,
-      onStartPentestForExistingTarget,
-      onOpenSession,
-    });
+  const { entryState, rows, setUrlInput, submitUrlInput, setActivePanel } = useEntryShortcuts({
+    targets,
+    onStartPentestForNewTarget,
+    onStartPentestForExistingTarget,
+    onOpenSession,
+  });
 
   const sidebarWidth = 38;
   const mainWidth = width - sidebarWidth;
 
   return (
-    <box
-      flexDirection="row"
-      width={width}
-      height={height}
-      backgroundColor={theme.bg.primary}
-    >
+    <box flexDirection="row" width={width} height={height} backgroundColor={theme.bg.primary}>
       <box
         width={mainWidth}
         height={height}

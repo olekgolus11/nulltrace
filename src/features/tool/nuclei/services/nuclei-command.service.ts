@@ -104,8 +104,7 @@ function parseCommandFlag(token: string) {
   const rawName = separatorIndex === -1 ? token : token.slice(0, separatorIndex);
   return {
     name: rawName.replace(/^-+/, ""),
-    inlineValue:
-      separatorIndex === -1 ? null : token.slice(separatorIndex + 1),
+    inlineValue: separatorIndex === -1 ? null : token.slice(separatorIndex + 1),
   };
 }
 
@@ -263,15 +262,10 @@ class NucleiCommandService {
     return cmd.join(" ").trim();
   }
 
-  setAuthenticationAvailability(
-    toolData: NucleiToolData,
-    origin: string | null,
-  ): NucleiToolData {
+  setAuthenticationAvailability(toolData: NucleiToolData, origin: string | null): NucleiToolData {
     let isAvailable = false;
     try {
-      isAvailable = Boolean(
-        origin && normalizeExactOrigin(toolData.form.target) === origin,
-      );
+      isAvailable = Boolean(origin && normalizeExactOrigin(toolData.form.target) === origin);
     } catch {
       isAvailable = false;
     }
@@ -282,15 +276,10 @@ class NucleiCommandService {
         : Math.min(toolData.selectedField, nucleiFieldOrder.length - 2),
       form: {
         ...toolData.form,
-        useAuthenticatedContext: isAvailable
-          ? toolData.form.useAuthenticatedContext
-          : false,
+        useAuthenticatedContext: isAvailable ? toolData.form.useAuthenticatedContext : false,
       },
       authentication: {
-        strategy:
-          isAvailable && toolData.form.useAuthenticatedContext
-            ? "session"
-            : "none",
+        strategy: isAvailable && toolData.form.useAuthenticatedContext ? "session" : "none",
         isAvailable,
         origin,
       },
@@ -328,18 +317,11 @@ class NucleiCommandService {
       },
     };
     return field === "target"
-      ? this.setAuthenticationAvailability(
-          updated,
-          toolData.authentication.origin,
-        )
+      ? this.setAuthenticationAvailability(updated, toolData.authentication.origin)
       : updated;
   }
 
-  moveSelection(
-    toolData: NucleiToolData,
-    delta: -1 | 1,
-    max: number,
-  ): NucleiToolData {
+  moveSelection(toolData: NucleiToolData, delta: -1 | 1, max: number): NucleiToolData {
     return {
       ...toolData,
       selectedField: Math.max(0, Math.min(toolData.selectedField + delta, max)),
@@ -347,12 +329,9 @@ class NucleiCommandService {
   }
 
   cycleSeverity(toolData: NucleiToolData, delta: -1 | 1): NucleiToolData {
-    const currentIndex = nucleiSeverityOptions.indexOf(
-      toolData.form.severityPreset,
-    );
+    const currentIndex = nucleiSeverityOptions.indexOf(toolData.form.severityPreset);
     const nextIndex =
-      (currentIndex + delta + nucleiSeverityOptions.length) %
-      nucleiSeverityOptions.length;
+      (currentIndex + delta + nucleiSeverityOptions.length) % nucleiSeverityOptions.length;
 
     return {
       ...toolData,
@@ -384,9 +363,7 @@ class NucleiCommandService {
     const targets: string[] = [];
 
     if (tokens[0] !== "nuclei") {
-      throw new Error(
-        "Authenticated Nuclei runs require the nuclei executable directly.",
-      );
+      throw new Error("Authenticated Nuclei runs require the nuclei executable directly.");
     }
 
     tokens.forEach((token, index) => {
@@ -415,11 +392,7 @@ class NucleiCommandService {
       }
     });
 
-    if (
-      targets.length !== 1 ||
-      targets[0]?.includes(",") ||
-      targets[0]?.includes("\n")
-    ) {
+    if (targets.length !== 1 || targets[0]?.includes(",") || targets[0]?.includes("\n")) {
       throw new Error(
         "Authenticated Nuclei runs require exactly one explicit HTTP or HTTPS target.",
       );
@@ -427,9 +400,7 @@ class NucleiCommandService {
     return targets[0]!;
   }
 
-  async prepareCommandForRun(
-    options: ToolPrepareCommand,
-  ): Promise<string | ToolPreparedCommand> {
+  async prepareCommandForRun(options: ToolPrepareCommand): Promise<string | ToolPreparedCommand> {
     const { command, sessionId, toolRunId } = options;
 
     if (!sessionId || !toolRunId) {
@@ -463,9 +434,7 @@ class NucleiCommandService {
     };
   }
 
-  async collectArtifacts(
-    options: ToolRunCompleted,
-  ): Promise<ToolRunArtifactInput[]> {
+  async collectArtifacts(options: ToolRunCompleted): Promise<ToolRunArtifactInput[]> {
     const { sessionId, toolRunId, status, exitCode } = options;
 
     if (!sessionId || !toolRunId || status === "cancelled") {

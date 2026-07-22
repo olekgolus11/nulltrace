@@ -1,8 +1,4 @@
-import {
-  SessionSidebarRow,
-  SessionSummary,
-  TargetSummary,
-} from "./session.types";
+import { SessionSidebarRow, SessionSummary, TargetSummary } from "./session.types";
 
 export function getInitialExpandedTargetId(targets: TargetSummary[]) {
   return targets[0]?.id ?? null;

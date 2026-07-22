@@ -67,9 +67,7 @@ export function Header({
           <span fg={theme.text.primary}>Auth: </span>
           <span fg={authenticationPosture?.color ?? theme.text.muted}>
             {authenticationPosture?.headerLabel ?? "none"}
-            {authenticationContext?.storageMode === "memory"
-              ? " / memory-only"
-              : ""}
+            {authenticationContext?.storageMode === "memory" ? " / memory-only" : ""}
           </span>
         </text>
       </box>

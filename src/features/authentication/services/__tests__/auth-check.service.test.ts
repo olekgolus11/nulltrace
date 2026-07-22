@@ -7,10 +7,7 @@ import {
   validateAuthCheckUrl,
 } from "../auth-check.service";
 import { AuthenticatedRequestContextService } from "../authenticated-request-context.service";
-import {
-  SecretStore,
-  SecretStoreValue,
-} from "../platform-secret-store";
+import { SecretStore, SecretStoreValue } from "../platform-secret-store";
 import { AuthenticationContextMetadataRepository } from "../authentication-context-metadata.repository";
 import { createAuthenticationContextMetadataTable } from "../authentication-context-metadata.schema";
 
@@ -40,20 +37,22 @@ function createMetadataRepository() {
   return new AuthenticationContextMetadataRepository(database, "runtime-1");
 }
 
-function createSignals(overrides: {
-  unauthenticatedStatus?: number;
-  authenticatedStatus?: number;
-  unauthenticatedRedirects?: string[];
-  authenticatedRedirects?: string[];
-  unauthenticatedContentType?: string;
-  authenticatedContentType?: string;
-  unauthenticatedFingerprint?: string;
-  authenticatedFingerprint?: string;
-  unauthenticatedTitle?: string | null;
-  authenticatedTitle?: string | null;
-  unauthenticatedHasLoginForm?: boolean;
-  authenticatedHasLoginForm?: boolean;
-} = {}) {
+function createSignals(
+  overrides: {
+    unauthenticatedStatus?: number;
+    authenticatedStatus?: number;
+    unauthenticatedRedirects?: string[];
+    authenticatedRedirects?: string[];
+    unauthenticatedContentType?: string;
+    authenticatedContentType?: string;
+    unauthenticatedFingerprint?: string;
+    authenticatedFingerprint?: string;
+    unauthenticatedTitle?: string | null;
+    authenticatedTitle?: string | null;
+    unauthenticatedHasLoginForm?: boolean;
+    authenticatedHasLoginForm?: boolean;
+  } = {},
+) {
   return {
     unauthenticated: {
       status: overrides.unauthenticatedStatus ?? 200,
@@ -131,9 +130,7 @@ describe("Auth Check response comparison", () => {
   });
 
   test("fails when the authenticated response returns an error status", () => {
-    const result = compareAuthCheckSignals(
-      createSignals({ authenticatedStatus: 500 }),
-    );
+    const result = compareAuthCheckSignals(createSignals({ authenticatedStatus: 500 }));
 
     expect(result.status).toBe("failed");
     expect(result.isProceedAllowed).toBe(false);
@@ -158,22 +155,13 @@ describe("Auth Check URL selection", () => {
       ),
     ).toBe("https://app.example.test/account");
     expect(() =>
-      validateAuthCheckUrl(
-        "https://app.example.test",
-        "http://app.example.test/account",
-      ),
+      validateAuthCheckUrl("https://app.example.test", "http://app.example.test/account"),
     ).toThrow("exact origin");
     expect(() =>
-      validateAuthCheckUrl(
-        "https://app.example.test",
-        "https://app.example.test:8443/account",
-      ),
+      validateAuthCheckUrl("https://app.example.test", "https://app.example.test:8443/account"),
     ).toThrow("exact origin");
     expect(() =>
-      validateAuthCheckUrl(
-        "https://app.example.test",
-        "https://api.example.test/account",
-      ),
+      validateAuthCheckUrl("https://app.example.test", "https://api.example.test/account"),
     ).toThrow("exact origin");
   });
 
@@ -194,6 +182,56 @@ describe("Auth Check URL selection", () => {
 });
 
 describe("Auth Check state", () => {
+  test("rechecks the stored verification URL with current runtime credentials", async () => {
+    const metadataRepository = createMetadataRepository();
+    const contextService = new AuthenticatedRequestContextService(
+      new TestSecretStore(),
+      metadataRepository,
+    );
+    await contextService.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=saved",
+      headers: "",
+    });
+    const authenticatedCookies: string[] = [];
+    const authCheckService = new AuthCheckService({
+      contextService,
+      metadataRepository,
+      fetch: async (_url, init) => {
+        const cookies = new Headers(init?.headers).get("cookie") ?? "";
+        if (cookies) {
+          authenticatedCookies.push(cookies);
+        }
+        return cookies === "session=saved" || cookies === "session=rotated"
+          ? new Response("account", { status: 200 })
+          : new Response("sign in", { status: 401 });
+      },
+    });
+    await authCheckService.run(
+      "session-1",
+      "https://app.example.test",
+      "https://app.example.test/account",
+    );
+
+    await expect(
+      authCheckService.verify({
+        sessionId: "session-1",
+        targetUrl: "https://app.example.test",
+        cookies: "session=rotated",
+        headers: "",
+      }),
+    ).resolves.toBe("valid");
+    await expect(
+      authCheckService.verify({
+        sessionId: "session-1",
+        targetUrl: "https://app.example.test",
+        cookies: "session=expired",
+        headers: "",
+      }),
+    ).resolves.toBe("invalid");
+    expect(authenticatedCookies).toContain("session=rotated");
+  });
+
   test("never forwards context across an off-origin redirect", async () => {
     const metadataRepository = createMetadataRepository();
     const contextService = new AuthenticatedRequestContextService(
@@ -252,10 +290,9 @@ describe("Auth Check state", () => {
           url,
           headers: new Headers(init?.headers),
         });
-        return new Response(
-          "<html><title>Welcome</title><main>Same page</main></html>",
-          { headers: { "content-type": "text/html" } },
-        );
+        return new Response("<html><title>Welcome</title><main>Same page</main></html>", {
+          headers: { "content-type": "text/html" },
+        });
       },
     });
 
@@ -271,16 +308,13 @@ describe("Auth Check state", () => {
     expect(requests[0]!.headers.has("cookie")).toBe(false);
     expect(requests[0]!.headers.has("authorization")).toBe(false);
     expect(requests[1]!.headers.get("cookie")).toBe("session=secret-value");
-    expect(requests[1]!.headers.get("authorization")).toBe(
-      "Bearer hidden-value",
-    );
+    expect(requests[1]!.headers.get("authorization")).toBe("Bearer hidden-value");
     expect(JSON.stringify(result)).not.toContain("secret-value");
     expect(JSON.stringify(result)).not.toContain("hidden-value");
     expect(JSON.stringify(result)).not.toContain("query-secret");
     expect(result.verificationUrl).toBe("https://app.example.test/account");
 
-    const contextMetadata =
-      await authCheckService.getAuthContextMetadata("session-1");
+    const contextMetadata = await authCheckService.getAuthContextMetadata("session-1");
     expect(contextMetadata?.authCheck.status).toBe("inconclusive");
     expect(JSON.stringify(contextMetadata)).not.toContain("secret-value");
     expect(JSON.stringify(contextMetadata)).not.toContain("hidden-value");
@@ -360,15 +394,11 @@ describe("Auth Check state", () => {
       fetch: async () => {
         requestCount += 1;
         if (requestCount === 1) {
-          await contextService.save(
-            "session-1",
-            "https://app.example.test",
-            {
-              origin: "https://app.example.test",
-              cookies: "session=replacement",
-              headers: "",
-            },
-          );
+          await contextService.save("session-1", "https://app.example.test", {
+            origin: "https://app.example.test",
+            cookies: "session=replacement",
+            headers: "",
+          });
         }
         return new Response("<html><title>Same</title></html>", {
           headers: { "content-type": "text/html" },
@@ -384,9 +414,7 @@ describe("Auth Check state", () => {
       ),
     ).rejects.toThrow("context changed");
     expect(requestCount).toBe(1);
-    expect(authCheckService.getMetadata("session-1").status).toBe(
-      "not_checked",
-    );
+    expect(authCheckService.getMetadata("session-1").status).toBe("not_checked");
     expect(authCheckService.isProceedAllowed("session-1")).toBe(false);
   });
 });

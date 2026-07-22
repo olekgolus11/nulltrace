@@ -30,11 +30,7 @@ export function NucleiWorkspace() {
     runCommand,
   } = useNucleiWorkspace();
   const previewLines = selectedHistoryRun
-    ? [
-        `$ ${selectedHistoryRun.command}`,
-        "",
-        ...selectedHistoryRun.logs.map((log) => log.line),
-      ]
+    ? [`$ ${selectedHistoryRun.command}`, "", ...selectedHistoryRun.logs.map((log) => log.line)]
     : outputLines;
   const previewStatus = selectedHistoryRun?.status ?? executionStatus;
   const previewExitCode = selectedHistoryRun?.exitCode ?? lastExitCode;

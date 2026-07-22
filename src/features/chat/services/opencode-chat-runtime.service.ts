@@ -86,9 +86,7 @@ function createChatContextToolSelection() {
   return {
     ...disabledOpenCodeTools,
     ...Object.fromEntries(
-      chatContextToolRegistry
-        .listDefinitions()
-        .map((definition) => [definition.name, true]),
+      chatContextToolRegistry.listDefinitions().map((definition) => [definition.name, true]),
     ),
   };
 }
@@ -99,10 +97,7 @@ function toRuntimeError(error: unknown, action: string) {
   }
 
   const detail = error instanceof Error ? error.message : String(error);
-  return new ChatRuntimeError(
-    `Could not ${action} the OpenCode conversation: ${detail}`,
-    error,
-  );
+  return new ChatRuntimeError(`Could not ${action} the OpenCode conversation: ${detail}`, error);
 }
 
 function getErrorStatus(error: unknown): number | null {
@@ -159,8 +154,7 @@ function requireData<T>(value: T | undefined, action: string) {
 }
 
 function formatTimestamp(timestamp: number) {
-  const milliseconds =
-    timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp;
+  const milliseconds = timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp;
   return new Date(milliseconds).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
@@ -221,12 +215,7 @@ function describeStreamError(error: unknown) {
 
   if (typeof error === "object" && "data" in error) {
     const data = error.data;
-    if (
-      data &&
-      typeof data === "object" &&
-      "message" in data &&
-      typeof data.message === "string"
-    ) {
+    if (data && typeof data === "object" && "message" in data && typeof data.message === "string") {
       return data.message;
     }
   }
@@ -280,9 +269,7 @@ async function streamPrompt(
   });
   const emitProgress = (messageId: string) => {
     const messageParts = textByMessageId.get(messageId);
-    const content = messageParts
-      ? [...messageParts.values()].join("\n\n").trim()
-      : "";
+    const content = messageParts ? [...messageParts.values()].join("\n\n").trim() : "";
     const activities = activitiesByMessageId.get(messageId) ?? [];
     if (!content && activities.length === 0) {
       return;
@@ -297,13 +284,8 @@ async function streamPrompt(
     });
   };
 
-  const onMessagePartUpdated = (
-    part: EventMessagePartUpdated["properties"]["part"],
-  ) => {
-    if (
-      part.sessionID !== conversationId ||
-      !assistantMessageIds.has(part.messageID)
-    ) {
+  const onMessagePartUpdated = (part: EventMessagePartUpdated["properties"]["part"]) => {
+    if (part.sessionID !== conversationId || !assistantMessageIds.has(part.messageID)) {
       return;
     }
 
@@ -312,10 +294,7 @@ async function streamPrompt(
     if (activity) {
       activeMessageId = part.messageID;
       const activities = activitiesByMessageId.get(part.messageID) ?? [];
-      activitiesByMessageId.set(
-        part.messageID,
-        upsertChatToolActivity(activities, activity),
-      );
+      activitiesByMessageId.set(part.messageID, upsertChatToolActivity(activities, activity));
       emitProgress(part.messageID);
     }
 
@@ -324,16 +303,13 @@ async function streamPrompt(
     }
 
     activeMessageId = part.messageID;
-    const messageParts =
-      textByMessageId.get(part.messageID) ?? new Map<string, string>();
+    const messageParts = textByMessageId.get(part.messageID) ?? new Map<string, string>();
     messageParts.set(part.id, part.text);
     textByMessageId.set(part.messageID, messageParts);
     emitProgress(part.messageID);
   };
 
-  const onMessageUpdated = (
-    info: EventMessageUpdated["properties"]["info"],
-  ) => {
+  const onMessageUpdated = (info: EventMessageUpdated["properties"]["info"]) => {
     if (info.role !== "assistant") {
       return;
     }
@@ -343,9 +319,7 @@ async function streamPrompt(
     createdAt = info.time.created;
   };
 
-  const onMessagePartDelta = (
-    properties: OpenCodeMessagePartDeltaEvent["properties"],
-  ) => {
+  const onMessagePartDelta = (properties: OpenCodeMessagePartDeltaEvent["properties"]) => {
     if (
       properties.sessionID !== conversationId ||
       properties.field !== "text" ||
@@ -356,8 +330,7 @@ async function streamPrompt(
     }
 
     activeMessageId = properties.messageID;
-    const messageParts =
-      textByMessageId.get(properties.messageID) ?? new Map<string, string>();
+    const messageParts = textByMessageId.get(properties.messageID) ?? new Map<string, string>();
     const currentText = messageParts.get(properties.partID) ?? "";
     messageParts.set(properties.partID, currentText + properties.delta);
     textByMessageId.set(properties.messageID, messageParts);
@@ -395,9 +368,7 @@ async function streamPrompt(
           openCodeEvent.properties.sessionID === conversationId
         ) {
           isComplete = true;
-          rejectComplete(
-            new Error(describeStreamError(openCodeEvent.properties.error)),
-          );
+          rejectComplete(new Error(describeStreamError(openCodeEvent.properties.error)));
           break;
         }
 
@@ -444,10 +415,8 @@ async function streamPrompt(
 export class OpenCodeChatRuntimeService implements ChatRuntime {
   async createConversation(sessionId: string) {
     try {
-      const response = await openCodeServerService.run(
-        sessionId,
-        "never",
-        (client) => client.session.create(),
+      const response = await openCodeServerService.run(sessionId, "never", (client) =>
+        client.session.create(),
       );
 
       return requireConversationData(response.data, "create");
@@ -458,15 +427,12 @@ export class OpenCodeChatRuntimeService implements ChatRuntime {
 
   async getConversation(sessionId: string, conversationId: string) {
     try {
-      const response = await openCodeServerService.run(
-        sessionId,
-        "once-after-crash",
-        (client) =>
-          client.session.get({
-            path: {
-              id: conversationId,
-            },
-          }),
+      const response = await openCodeServerService.run(sessionId, "once-after-crash", (client) =>
+        client.session.get({
+          path: {
+            id: conversationId,
+          },
+        }),
       );
 
       return requireConversationData(response.data, "reopen");
@@ -483,15 +449,12 @@ export class OpenCodeChatRuntimeService implements ChatRuntime {
 
   async listMessages(sessionId: string, conversationId: string) {
     try {
-      const response = await openCodeServerService.run(
-        sessionId,
-        "once-after-crash",
-        (client) =>
-          client.session.messages({
-            path: {
-              id: conversationId,
-            },
-          }),
+      const response = await openCodeServerService.run(sessionId, "once-after-crash", (client) =>
+        client.session.messages({
+          path: {
+            id: conversationId,
+          },
+        }),
       );
 
       return toChatMessages(requireData(response.data, "load messages from"));
@@ -507,10 +470,8 @@ export class OpenCodeChatRuntimeService implements ChatRuntime {
     onProgress?: (message: ChatMessageData) => void,
   ) {
     try {
-      const response = await openCodeServerService.run(
-        sessionId,
-        "once-after-crash",
-        (client) => streamPrompt(client, conversationId, prompt, onProgress),
+      const response = await openCodeServerService.run(sessionId, "once-after-crash", (client) =>
+        streamPrompt(client, conversationId, prompt, onProgress),
       );
 
       return response;

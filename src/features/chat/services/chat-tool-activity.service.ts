@@ -1,7 +1,4 @@
-import {
-  ChatToolActivity,
-  ChatToolActivityStatus,
-} from "../model/chat-tool-activity.types";
+import { ChatToolActivity, ChatToolActivityStatus } from "../model/chat-tool-activity.types";
 
 const toolLabels: Record<string, string> = {
   get_sitemap_status: "Get sitemap status",
@@ -47,9 +44,7 @@ function isOpenCodeToolPart(part: unknown): part is OpenCodeToolPart {
   return Boolean(part && typeof part === "object" && "type" in part);
 }
 
-export function toSafeChatToolActivity(
-  part: unknown,
-): ChatToolActivity | null {
+export function toSafeChatToolActivity(part: unknown): ChatToolActivity | null {
   if (!isOpenCodeToolPart(part) || part.type !== "tool") {
     return null;
   }
@@ -75,16 +70,12 @@ export function upsertChatToolActivity(
   activities: ChatToolActivity[],
   nextActivity: ChatToolActivity,
 ) {
-  const existingIndex = activities.findIndex(
-    (activity) => activity.id === nextActivity.id,
-  );
+  const existingIndex = activities.findIndex((activity) => activity.id === nextActivity.id);
   if (existingIndex === -1) {
     return [...activities, nextActivity];
   }
 
-  return activities.map((activity, index) =>
-    index === existingIndex ? nextActivity : activity,
-  );
+  return activities.map((activity, index) => (index === existingIndex ? nextActivity : activity));
 }
 
 export function readSafeChatToolActivities(parts: unknown[]) {

@@ -2,14 +2,7 @@ import { theme } from "../../../app/theme/theme";
 import { FindingSummaryProps } from "../model/finding-summary.types";
 import { FindingBadge } from "./FindingBadge";
 
-export function FindingSummary({
-  critical,
-  high,
-  medium,
-  low,
-  info,
-  total,
-}: FindingSummaryProps) {
+export function FindingSummary({ critical, high, medium, low, info, total }: FindingSummaryProps) {
   return (
     <box flexDirection="row" gap={4}>
       <FindingBadge severity="critical" count={critical} />

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { AuthenticatedRequestContext } from "../../../authentication/model/authenticated-request-context.types";
 import { AuthenticatedSitemapCrawlCoordinator } from "../authenticated-sitemap-crawl-coordinator.service";
-import { AuthenticatedSitemapCrawlerInput } from "../authenticated-sitemap-crawler.service";
+import { AuthenticatedSitemapCrawlerInput } from "../authenticated-sitemap-crawler.types";
 
 function deferred() {
   let resolve!: () => void;
@@ -36,12 +36,6 @@ describe("AuthenticatedSitemapCrawlCoordinator", () => {
         },
         requestPause: () => true,
       },
-      undefined,
-      {
-        getMetadata: () => ({
-          verificationUrl: "https://example.com/account",
-        }),
-      },
     );
 
     const firstStart = coordinator.startAfterAcceptedAuthCheck({
@@ -64,7 +58,6 @@ describe("AuthenticatedSitemapCrawlCoordinator", () => {
         sessionId: "session-1",
         targetId: "target-1",
         rootUrl: "https://example.com/app",
-        verificationUrl: "https://example.com/account",
         context,
         mode: "fresh",
       },

@@ -231,9 +231,7 @@ function createServiceFinding(
   const serviceLabel = getServiceLabel(service) || serviceName;
   const target = getPortTarget(hostLabel, port);
   const artifactItemPath = `$.hosts[${hostIndex}].ports[${portIndex}].service`;
-  const cpes = asArray(service.cpes).filter((cpe) =>
-    Boolean(normalizeText(cpe)),
-  );
+  const cpes = asArray(service.cpes).filter((cpe) => Boolean(normalizeText(cpe)));
 
   return {
     sourceTool: "nmap",
@@ -286,10 +284,8 @@ function createScriptFinding(
   const outputHash = createStableHash(output);
   const protocol = port ? normalizeProtocol(port.protocol) : null;
   const portNumber = port ? (normalizeText(port.port) ?? "unknown") : null;
-  const target =
-    port && portNumber ? getPortTarget(hostLabel, port) : hostLabel;
-  const location =
-    port && portNumber ? `${hostLabel}:${portNumber}` : hostLabel;
+  const target = port && portNumber ? getPortTarget(hostLabel, port) : hostLabel;
+  const location = port && portNumber ? `${hostLabel}:${portNumber}` : hostLabel;
   const artifactItemPath =
     portIndex === undefined
       ? `$.hosts[${hostIndex}].scripts[${scriptIndex}]`
@@ -302,13 +298,7 @@ function createScriptFinding(
     title: `Nmap script ${scriptId} reported output on ${location}`,
     summary: `Nmap script ${scriptId} reported output on ${location}.`,
     target,
-    dedupeKeyParts: [
-      hostLabel,
-      protocol ?? "",
-      portNumber ?? "",
-      scriptId,
-      outputHash,
-    ],
+    dedupeKeyParts: [hostLabel, protocol ?? "", portNumber ?? "", scriptId, outputHash],
     payload: {
       artifactItemPath,
       host: hostLabel,
@@ -331,9 +321,8 @@ export const nmapFindingMapper: FindingMapper = {
     }
 
     return asArray(payload.hosts).flatMap((host, hostIndex) => {
-      const hostScriptFindings = asArray(host.scripts).map(
-        (script, scriptIndex) =>
-          createScriptFinding(host, script, hostIndex, scriptIndex),
+      const hostScriptFindings = asArray(host.scripts).map((script, scriptIndex) =>
+        createScriptFinding(host, script, hostIndex, scriptIndex),
       );
       const portFindings = asArray(host.ports).flatMap((port, portIndex) => {
         const findings: FindingCandidate[] = isOpenPort(port)
@@ -351,14 +340,7 @@ export const nmapFindingMapper: FindingMapper = {
         return [
           ...findings,
           ...asArray(port.scripts).map((script, scriptIndex) =>
-            createScriptFinding(
-              host,
-              script,
-              hostIndex,
-              scriptIndex,
-              port,
-              portIndex,
-            ),
+            createScriptFinding(host, script, hostIndex, scriptIndex, port, portIndex),
           ),
         ];
       });

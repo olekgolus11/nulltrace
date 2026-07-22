@@ -54,10 +54,7 @@ export function SessionChatPanel({
       : "Preparing OpenCode conversation...";
   const chatStatusMessage = chatError ? `Chat error: ${chatError}` : null;
   const isConversationBusy =
-    isLoadingConversations ||
-    isCreatingConversation ||
-    isArchivingConversation ||
-    isGenerating;
+    isLoadingConversations || isCreatingConversation || isArchivingConversation || isGenerating;
 
   return (
     <>
@@ -72,9 +69,7 @@ export function SessionChatPanel({
       />
       <box marginBottom={1}>
         {runtimeStatusMessage && (
-          <text
-            fg={conversationError ? theme.severity.high : theme.text.secondary}
-          >
+          <text fg={conversationError ? theme.severity.high : theme.text.secondary}>
             {runtimeStatusMessage}
           </text>
         )}

@@ -12,15 +12,11 @@ import { toolWorkspaceContextService } from "../features/tool/shared/services/to
 export function App() {
   const renderer = useRenderer();
   const [currentScreen, setCurrentScreen] = useState<Screen>({ type: "entry" });
-  const createSessionForTarget = useSessionContextStore(
-    (state) => state.createSessionForTarget,
-  );
+  const createSessionForTarget = useSessionContextStore((state) => state.createSessionForTarget);
   const createSessionForNewTarget = useSessionContextStore(
     (state) => state.createSessionForNewTarget,
   );
-  const openExistingSession = useSessionContextStore(
-    (state) => state.openExistingSession,
-  );
+  const openExistingSession = useSessionContextStore((state) => state.openExistingSession);
 
   useEffect(() => {
     toolWorkspaceContextService.clearAllActiveWorkspaces();

@@ -1,21 +1,12 @@
 import { theme } from "../../../../app/theme/theme";
-import {
-  nucleiFieldOrder,
-  nucleiSeverityOptions,
-} from "../config/nuclei.config";
-import {
-  NucleiFormState,
-  NucleiSeverityPreset,
-} from "../types/nuclei.types";
+import { nucleiFieldOrder, nucleiSeverityOptions } from "../config/nuclei.config";
+import { NucleiFormState, NucleiSeverityPreset } from "../types/nuclei.types";
 
 interface NucleiFormProps {
   form: NucleiFormState;
   selectedField: number;
   focused: boolean;
-  onFieldChange: (
-    field: keyof NucleiFormState,
-    value: string | NucleiSeverityPreset,
-  ) => void;
+  onFieldChange: (field: keyof NucleiFormState, value: string | NucleiSeverityPreset) => void;
   authAvailable: boolean;
   authOrigin: string | null;
   onToggleAuthenticatedContext: () => void;
@@ -36,13 +27,7 @@ export function NucleiForm({
     <box flexDirection="column">
       <box flexDirection="row" width="100%">
         <box width={20}>
-          <text
-            fg={
-              selectedId === "target"
-                ? theme.accent.primary
-                : theme.text.secondary
-            }
-          >
+          <text fg={selectedId === "target" ? theme.accent.primary : theme.text.secondary}>
             {selectedId === "target" ? "> Target" : "  Target"}
           </text>
         </box>
@@ -64,27 +49,13 @@ export function NucleiForm({
 
       <box flexDirection="row" width="100%">
         <box width={20}>
-          <text
-            fg={
-              selectedId === "severityPreset"
-                ? theme.accent.primary
-                : theme.text.secondary
-            }
-          >
+          <text fg={selectedId === "severityPreset" ? theme.accent.primary : theme.text.secondary}>
             {selectedId === "severityPreset" ? "> Severity" : "  Severity"}
           </text>
         </box>
-        <text
-          fg={
-            selectedId === "severityPreset"
-              ? theme.text.primary
-              : theme.text.secondary
-          }
-        >
+        <text fg={selectedId === "severityPreset" ? theme.text.primary : theme.text.secondary}>
           {nucleiSeverityOptions
-            .map((option) =>
-              option === form.severityPreset ? `[${option}]` : option,
-            )
+            .map((option) => (option === form.severityPreset ? `[${option}]` : option))
             .join("  ")}{" "}
         </text>
         <text fg={theme.text.dim}>use left/right</text>
@@ -92,13 +63,7 @@ export function NucleiForm({
 
       <box flexDirection="row" width="100%">
         <box width={20}>
-          <text
-            fg={
-              selectedId === "tags"
-                ? theme.accent.primary
-                : theme.text.secondary
-            }
-          >
+          <text fg={selectedId === "tags" ? theme.accent.primary : theme.text.secondary}>
             {selectedId === "tags" ? "> Tags" : "  Tags"}
           </text>
         </box>
@@ -120,13 +85,7 @@ export function NucleiForm({
 
       <box flexDirection="row" width="100%">
         <box width={20}>
-          <text
-            fg={
-              selectedId === "templatesPath"
-                ? theme.accent.primary
-                : theme.text.secondary
-            }
-          >
+          <text fg={selectedId === "templatesPath" ? theme.accent.primary : theme.text.secondary}>
             {selectedId === "templatesPath" ? "> Templates" : "  Templates"}
           </text>
         </box>
@@ -148,13 +107,7 @@ export function NucleiForm({
 
       <box flexDirection="row" width="100%" marginTop={1}>
         <box width={20}>
-          <text
-            fg={
-              selectedId === "extraArgs"
-                ? theme.accent.primary
-                : theme.text.secondary
-            }
-          >
+          <text fg={selectedId === "extraArgs" ? theme.accent.primary : theme.text.secondary}>
             {selectedId === "extraArgs" ? "> Extra args" : "  Extra args"}
           </text>
         </box>
@@ -189,15 +142,11 @@ export function NucleiForm({
                   : theme.text.secondary
               }
             >
-              {selectedId === "useAuthenticatedContext"
-                ? "> Session auth"
-                : "  Session auth"}
+              {selectedId === "useAuthenticatedContext" ? "> Session auth" : "  Session auth"}
             </text>
           </box>
           <text fg={theme.text.primary}>
-            {form.useAuthenticatedContext
-              ? "[enabled]  disabled"
-              : "enabled  [disabled]"}
+            {form.useAuthenticatedContext ? "[enabled]  disabled" : "enabled  [disabled]"}
           </text>
           <text fg={theme.text.dim}>
             {form.useAuthenticatedContext

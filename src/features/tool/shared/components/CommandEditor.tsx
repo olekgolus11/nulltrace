@@ -53,27 +53,18 @@ export function CommandEditor({
             <text fg={theme.accent.warning}>Historic preview</text>
           </box>
           <text fg={getStatusColor(executionStatus)}>
-            {lastExitCode === null
-              ? executionStatus
-              : `${executionStatus} (${lastExitCode})`}
+            {lastExitCode === null ? executionStatus : `${executionStatus} (${lastExitCode})`}
           </text>
         </box>
 
-        <scrollbox
-          height={2}
-          focused={focused}
-          scrollX={true}
-          stickyScroll={false}
-        >
+        <scrollbox height={2} focused={focused} scrollX={true} stickyScroll={false}>
           <box flexDirection="column">
             <text fg={theme.text.primary}>{`$ ${commandInput}`}</text>
           </box>
         </scrollbox>
 
         <box marginTop={1}>
-          <text fg={theme.text.dim}>
-            Ctrl+C exits preview. Use history Ctrl+R to rerun.
-          </text>
+          <text fg={theme.text.dim}>Ctrl+C exits preview. Use history Ctrl+R to rerun.</text>
         </box>
       </box>
     );
@@ -85,13 +76,7 @@ export function CommandEditor({
         <box flexGrow={1}>
           <text fg={theme.text.secondary}>
             Mode:{" "}
-            <span
-              fg={
-                commandSource === "manual"
-                  ? theme.accent.warning
-                  : theme.accent.primary
-              }
-            >
+            <span fg={commandSource === "manual" ? theme.accent.warning : theme.accent.primary}>
               {commandSource === "manual" ? "manual" : "generated"}
             </span>
           </text>
@@ -105,12 +90,7 @@ export function CommandEditor({
         </text>
       </box>
 
-      <box
-        flexDirection="row"
-        alignItems="center"
-        marginBottom={1}
-        width="100%"
-      >
+      <box flexDirection="row" alignItems="center" marginBottom={1} width="100%">
         <box width={2} flexShrink={0}>
           <text fg={theme.accent.primary}>{">"}</text>
         </box>

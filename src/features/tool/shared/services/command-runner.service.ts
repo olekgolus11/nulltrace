@@ -64,14 +64,10 @@ export function consumeTerminalText(
   pendingCarriageReturn: boolean;
 } {
   const lines: string[] = [];
-  let buffer =
-    typeof initialState === "string" ? initialState : initialState.buffer;
-  let controlSequence =
-    typeof initialState === "string" ? null : initialState.controlSequence;
+  let buffer = typeof initialState === "string" ? initialState : initialState.buffer;
+  let controlSequence = typeof initialState === "string" ? null : initialState.controlSequence;
   let pendingCarriageReturn =
-    typeof initialState === "string"
-      ? false
-      : initialState.pendingCarriageReturn;
+    typeof initialState === "string" ? false : initialState.pendingCarriageReturn;
 
   for (const character of input) {
     if (pendingCarriageReturn) {
@@ -147,10 +143,7 @@ async function readStream(
       break;
     }
 
-    const result = consumeTerminalText(
-      decoder.decode(value, { stream: true }),
-      state,
-    );
+    const result = consumeTerminalText(decoder.decode(value, { stream: true }), state);
     state = {
       buffer: result.buffer,
       controlSequence: result.controlSequence,
@@ -160,9 +153,7 @@ async function readStream(
   }
 
   const result = consumeTerminalText(decoder.decode(), state);
-  const trailing = (
-    result.pendingCarriageReturn ? "" : result.buffer
-  ).trimEnd();
+  const trailing = (result.pendingCarriageReturn ? "" : result.buffer).trimEnd();
   emitLines(result.lines, onLines);
 
   if (trailing) {

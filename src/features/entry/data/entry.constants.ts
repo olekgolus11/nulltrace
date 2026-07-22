@@ -46,10 +46,7 @@ export const titleArtRebel = [
 ];
 
 function frameSingleLineArt(lines: string[], footer: string) {
-  const innerWidth = Math.max(
-    footer.length,
-    ...lines.map((line) => line.length),
-  );
+  const innerWidth = Math.max(footer.length, ...lines.map((line) => line.length));
 
   return [
     `┌${"─".repeat(innerWidth + 2)}┐`,
@@ -61,10 +58,7 @@ function frameSingleLineArt(lines: string[], footer: string) {
 }
 
 function frameDoubleLineArt(lines: string[], footer: string) {
-  const innerWidth = Math.max(
-    footer.length,
-    ...lines.map((line) => line.length),
-  );
+  const innerWidth = Math.max(footer.length, ...lines.map((line) => line.length));
 
   return [
     `╔${"═".repeat(innerWidth + 2)}╗`,

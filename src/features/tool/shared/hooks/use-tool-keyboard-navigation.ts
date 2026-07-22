@@ -65,11 +65,7 @@ export function useToolKeyboardNavigation({
       return;
     }
 
-    if (
-      state.activePanel === "chat" &&
-      key.ctrl &&
-      !isConversationNavigationDisabled
-    ) {
+    if (state.activePanel === "chat" && key.ctrl && !isConversationNavigationDisabled) {
       if (key.name === "n") {
         onCreateConversation();
         return;
@@ -82,9 +78,7 @@ export function useToolKeyboardNavigation({
 
       if (key.name === "left" || key.name === "right") {
         const activeIndex = conversations.findIndex(
-          (conversation) =>
-            conversation.attachment.opencodeConversationId ===
-            activeConversationId,
+          (conversation) => conversation.attachment.opencodeConversationId === activeConversationId,
         );
         const nextIndex = clamp(
           activeIndex + (key.name === "left" ? -1 : 1),
@@ -93,9 +87,7 @@ export function useToolKeyboardNavigation({
         );
         const nextConversation = conversations[nextIndex];
         if (nextConversation && nextIndex !== activeIndex) {
-          onSelectConversation(
-            nextConversation.attachment.opencodeConversationId,
-          );
+          onSelectConversation(nextConversation.attachment.opencodeConversationId);
         }
         return;
       }
@@ -181,17 +173,14 @@ export function useToolKeyboardNavigation({
       return;
     }
 
-    const toolModule = state.toolName
-      ? toolRegistry[state.toolName]
-      : undefined;
+    const toolModule = state.toolName ? toolRegistry[state.toolName] : undefined;
     if (!toolModule?.handleFormKey) {
       return;
     }
 
     toolModule.handleFormKey(key, state, {
       updateToolData: (updater) => state.updateToolData(updater),
-      syncGeneratedCommand: () =>
-        useToolWorkspaceStore.getState().syncGeneratedCommand(),
+      syncGeneratedCommand: () => useToolWorkspaceStore.getState().syncGeneratedCommand(),
       toggleHelp: () => useToolWorkspaceStore.getState().toggleHelp(),
     });
   });

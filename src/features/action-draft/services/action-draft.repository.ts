@@ -5,10 +5,7 @@ import {
   ActionDraftStatus,
   SetActionDraftStatusInput,
 } from "../model/action-draft.types";
-import {
-  ScannerToolId,
-  scannerCatalog,
-} from "../../tool/shared/registry/scanner-catalog";
+import { ScannerToolId, scannerCatalog } from "../../tool/shared/registry/scanner-catalog";
 
 interface ActionDraftRow {
   id: string;
@@ -23,12 +20,7 @@ interface ActionDraftRow {
   updatedAt: string;
 }
 
-const actionDraftStatuses: ActionDraftStatus[] = [
-  "draft",
-  "applied",
-  "dismissed",
-  "superseded",
-];
+const actionDraftStatuses: ActionDraftStatus[] = ["draft", "applied", "dismissed", "superseded"];
 
 function createTimestamp() {
   return new Date().toISOString();
@@ -65,9 +57,7 @@ function assertImplementedScannerTool(targetTool: ScannerToolId) {
   const scanner = scannerCatalog[targetTool];
 
   if (!scanner?.isImplemented) {
-    throw new Error(
-      `Action drafts can only target implemented scanner tools: ${targetTool}`,
-    );
+    throw new Error(`Action drafts can only target implemented scanner tools: ${targetTool}`);
   }
 }
 
@@ -82,10 +72,7 @@ export class ActionDraftRepository {
 
   createDraft(input: ActionDraftInput) {
     assertImplementedScannerTool(input.targetTool);
-    this.assertConversationBelongsToSession(
-      input.sessionId,
-      input.opencodeConversationId ?? null,
-    );
+    this.assertConversationBelongsToSession(input.sessionId, input.opencodeConversationId ?? null);
 
     const timestamp = createTimestamp();
     const record: ActionDraftRecord = {
@@ -215,9 +202,7 @@ export class ActionDraftRepository {
       .get(opencodeConversationId);
 
     if (!attachment || attachment.sessionId !== sessionId) {
-      throw new Error(
-        "Action draft conversation attribution must belong to the same session.",
-      );
+      throw new Error("Action draft conversation attribution must belong to the same session.");
     }
   }
 

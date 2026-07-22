@@ -21,9 +21,7 @@ export function assertSimpleShellCommand(command: string) {
       if (character === quote) {
         quote = null;
       } else if (character === "$" || character === "`") {
-        throw new Error(
-          "Authenticated Nuclei runs cannot use shell expansion or control syntax.",
-        );
+        throw new Error("Authenticated Nuclei runs cannot use shell expansion or control syntax.");
       }
       continue;
     }
@@ -51,9 +49,7 @@ export function assertSimpleShellCommand(command: string) {
       character === "\n" ||
       character === "\r"
     ) {
-      throw new Error(
-        "Authenticated Nuclei runs cannot use shell expansion or control syntax.",
-      );
+      throw new Error("Authenticated Nuclei runs cannot use shell expansion or control syntax.");
     }
   }
 }

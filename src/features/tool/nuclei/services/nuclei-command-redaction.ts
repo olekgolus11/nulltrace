@@ -15,13 +15,11 @@ export function redactNucleiCommandForPersistence(command: string) {
   return command
     .replace(
       nucleiUnquotedSensitiveHeaderPattern,
-      (_match, prefix: string, flag: string) =>
-        `${prefix}${flag} '[redacted]'`,
+      (_match, prefix: string, flag: string) => `${prefix}${flag} '[redacted]'`,
     )
     .replace(
       nucleiSensitiveFlagPattern,
-      (_match, prefix: string, flag: string) =>
-        `${prefix}${flag} '[redacted]'`,
+      (_match, prefix: string, flag: string) => `${prefix}${flag} '[redacted]'`,
     )
     .replace(inlineAuthorizationPattern, "$1[redacted]");
 }

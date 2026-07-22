@@ -42,10 +42,7 @@ interface RunToolCommandInput {
   onSystemLines: (lines: string[]) => void;
   onRunFinished?: (event: {
     toolRunId: string | null;
-    status: Extract<
-      import("../types/tool-screen.types").ExecutionStatus,
-      "success" | "error"
-    >;
+    status: Extract<import("../types/tool-screen.types").ExecutionStatus, "success" | "error">;
     exitCode: number | null;
   }) => void;
   onRunCancelled?: (event: { toolRunId: string | null }) => void;
@@ -74,8 +71,7 @@ export class ToolRunnerService {
     onRunFinished,
     onRunCancelled,
   }: RunToolCommandInput) {
-    const persistedCommand =
-      toolModule?.redactCommandForPersistence?.(command) ?? command;
+    const persistedCommand = toolModule?.redactCommandForPersistence?.(command) ?? command;
     const toolRun =
       sessionId && toolName
         ? this.repository.recordToolRun(sessionId, {
@@ -108,13 +104,10 @@ export class ToolRunnerService {
           toolData,
         }) ?? command;
       const prepared =
-        typeof preparation === "object" &&
-        preparation !== null &&
-        "then" in preparation
+        typeof preparation === "object" && preparation !== null && "then" in preparation
           ? await preparation
           : preparation;
-      const preparedCommand =
-        typeof prepared === "string" ? prepared : prepared.command;
+      const preparedCommand = typeof prepared === "string" ? prepared : prepared.command;
       let hasCleanedPreparedRun = false;
       activeRun.cleanupPreparedRun =
         typeof prepared === "string" || !prepared.cleanup
@@ -184,8 +177,7 @@ export class ToolRunnerService {
         return;
       }
 
-      const message =
-        error instanceof Error ? error.message : "Unknown execution error";
+      const message = error instanceof Error ? error.message : "Unknown execution error";
       const failureMessage = `[execution failed] ${message}`;
       if (toolRunId) {
         this.repository.appendToolRunLog(toolRunId, ["", failureMessage]);
@@ -226,10 +218,7 @@ export class ToolRunnerService {
 
     const cancelMessage = "[run cancelled by operator]";
     if (this.activeRun.toolRunId) {
-      this.repository.appendToolRunLog(this.activeRun.toolRunId, [
-        "",
-        cancelMessage,
-      ]);
+      this.repository.appendToolRunLog(this.activeRun.toolRunId, ["", cancelMessage]);
       this.repository.cancelToolRun(this.activeRun.toolRunId);
     }
     this.activeRun.onSystemLines(["", cancelMessage]);

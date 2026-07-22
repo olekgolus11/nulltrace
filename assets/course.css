@@ -1,0 +1,71 @@
+:root {
+  color-scheme: light;
+  font-family: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  line-height: 1.55;
+  color: #152222;
+  background: #f4f5f0;
+}
+
+body {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 3rem 1.25rem 5rem;
+}
+
+main {
+  background: #fffefa;
+  padding: 2.5rem;
+  box-shadow: 0 1px 12px #15222218;
+}
+h1,
+h2 {
+  color: #063d3b;
+  line-height: 1.15;
+}
+h1 {
+  font-size: 2rem;
+  margin-top: 0;
+}
+h2 {
+  margin-top: 2rem;
+  font-size: 1.3rem;
+}
+a {
+  color: #056d68;
+}
+.eyebrow {
+  color: #47706b;
+  font:
+    700 0.78rem ui-sans-serif,
+    system-ui,
+    sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.callout {
+  border-left: 4px solid #0b8079;
+  background: #e9f4f0;
+  padding: 0.8rem 1rem;
+}
+.task {
+  border: 1px solid #c9dad4;
+  border-radius: 0.25rem;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+code {
+  background: #eef0ec;
+  padding: 0.1em 0.25em;
+}
+details {
+  margin-top: 0.75rem;
+}
+summary {
+  cursor: pointer;
+  color: #056d68;
+  font-weight: 600;
+}
+.small {
+  color: #52615f;
+  font-size: 0.92rem;
+}

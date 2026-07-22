@@ -1,8 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  FindingReviewStatus,
-  SessionFindingRecord,
-} from "../model/finding.types";
+import { FindingReviewStatus, SessionFindingRecord } from "../model/finding.types";
 import { findingRepository } from "../services/finding.repository";
 import { FindingSummaryProps } from "../model/finding-summary.types";
 
@@ -17,9 +14,7 @@ function createEmptyCounts(): FindingSummaryProps {
   };
 }
 
-function countFindings(
-  findings: SessionFindingRecord[],
-): FindingSummaryProps {
+function countFindings(findings: SessionFindingRecord[]): FindingSummaryProps {
   return findings.reduce<FindingSummaryProps>((counts, finding) => {
     counts[finding.severity] += 1;
     counts.total += 1;
@@ -27,10 +22,7 @@ function countFindings(
   }, createEmptyCounts());
 }
 
-export function useSessionFindings(
-  sessionId: string | null,
-  refreshKey = "",
-) {
+export function useSessionFindings(sessionId: string | null, refreshKey = "") {
   const [findings, setFindings] = useState<SessionFindingRecord[]>([]);
 
   useEffect(() => {
@@ -42,10 +34,7 @@ export function useSessionFindings(
     setFindings(findingRepository.listBySessionId(sessionId));
   }, [refreshKey, sessionId]);
 
-  const setReviewStatus = (
-    findingId: string,
-    reviewStatus: FindingReviewStatus,
-  ) => {
+  const setReviewStatus = (findingId: string, reviewStatus: FindingReviewStatus) => {
     const updatedFinding = findingRepository.setReviewStatus({
       findingId,
       reviewStatus,
@@ -56,9 +45,7 @@ export function useSessionFindings(
     }
 
     setFindings((currentFindings) =>
-      currentFindings.map((finding) =>
-        finding.id === findingId ? updatedFinding : finding,
-      ),
+      currentFindings.map((finding) => (finding.id === findingId ? updatedFinding : finding)),
     );
   };
 

@@ -1,7 +1,4 @@
-import {
-  NucleiFieldId,
-  NucleiSeverityPreset,
-} from "../types/nuclei.types";
+import { NucleiFieldId, NucleiSeverityPreset } from "../types/nuclei.types";
 
 export const nucleiSeverityOptions: NucleiSeverityPreset[] = [
   "all",
@@ -10,10 +7,7 @@ export const nucleiSeverityOptions: NucleiSeverityPreset[] = [
   "critical",
 ];
 
-export const nucleiSeverityCliValues: Record<
-  Exclude<NucleiSeverityPreset, "all">,
-  string
-> = {
+export const nucleiSeverityCliValues: Record<Exclude<NucleiSeverityPreset, "all">, string> = {
   "medium+": "medium,high,critical",
   "high+": "high,critical",
   critical: "critical",

@@ -100,9 +100,7 @@ export class ConversationAttachmentRepository {
       )
       .run(opencodeConversationId, timestamp);
 
-    const attachment = this.findByOpenCodeConversationId(
-      opencodeConversationId,
-    );
+    const attachment = this.findByOpenCodeConversationId(opencodeConversationId);
     if (attachment) {
       this.touchSessionActivity(attachment.sessionId);
     }
@@ -110,10 +108,7 @@ export class ConversationAttachmentRepository {
     return attachment;
   }
 
-  private createAttachmentRecord(
-    input: ConversationAttachmentInput,
-    isDefault: boolean,
-  ) {
+  private createAttachmentRecord(input: ConversationAttachmentInput, isDefault: boolean) {
     const record: ConversationAttachmentRecord = {
       sessionId: input.sessionId,
       opencodeConversationId: input.opencodeConversationId,
@@ -172,5 +167,4 @@ export class ConversationAttachmentRepository {
   }
 }
 
-export const conversationAttachmentRepository =
-  new ConversationAttachmentRepository();
+export const conversationAttachmentRepository = new ConversationAttachmentRepository();

@@ -49,13 +49,13 @@ The official DVWA code and PHP's documented lock behavior therefore establish th
 
 Five IDs recurred across two independent stalled resume snapshots:
 
-| Template | Protocol/shape in v10.4.5 | Relevant observation |
-| --- | --- | --- |
-| `CNVD-2022-43245` | One raw HTTP POST; body/header word matchers | Ordinary HTTP matcher; not a default-login template |
-| `CVE-2023-6329` | HTTP + JavaScript flow; three HTTP requests | Tagged `intrusive`; the only JavaScript flow among the five |
-| `CVE-2024-3234` | One raw HTTP GET; word/status matchers | Ordinary HTTP matcher |
-| `CVE-2024-6396` | Three raw HTTP requests, including an alternate port | Arbitrary-file-overwrite probe; multi-request template |
-| `CVE-2025-29925` | Two HTTP payload paths; word/status matchers | Ordinary HTTP matcher |
+| Template          | Protocol/shape in v10.4.5                            | Relevant observation                                        |
+| ----------------- | ---------------------------------------------------- | ----------------------------------------------------------- |
+| `CNVD-2022-43245` | One raw HTTP POST; body/header word matchers         | Ordinary HTTP matcher; not a default-login template         |
+| `CVE-2023-6329`   | HTTP + JavaScript flow; three HTTP requests          | Tagged `intrusive`; the only JavaScript flow among the five |
+| `CVE-2024-3234`   | One raw HTTP GET; word/status matchers               | Ordinary HTTP matcher                                       |
+| `CVE-2024-6396`   | Three raw HTTP requests, including an alternate port | Arbitrary-file-overwrite probe; multi-request template      |
+| `CVE-2025-29925`  | Two HTTP payload paths; word/status matchers         | Ordinary HTTP matcher                                       |
 
 Sources: official templates [CNVD-2022-43245](https://github.com/projectdiscovery/nuclei-templates/blob/v10.4.5/http/cnvd/2022/CNVD-2022-43245.yaml), [CVE-2023-6329](https://github.com/projectdiscovery/nuclei-templates/blob/v10.4.5/http/cves/2023/CVE-2023-6329.yaml), [CVE-2024-3234](https://github.com/projectdiscovery/nuclei-templates/blob/v10.4.5/http/cves/2024/CVE-2024-3234.yaml), [CVE-2024-6396](https://github.com/projectdiscovery/nuclei-templates/blob/v10.4.5/http/cves/2024/CVE-2024-6396.yaml), and [CVE-2025-29925](https://github.com/projectdiscovery/nuclei-templates/blob/v10.4.5/http/cves/2025/CVE-2025-29925.yaml).
 

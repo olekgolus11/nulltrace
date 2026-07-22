@@ -1,10 +1,6 @@
 import { ScannerToolId } from "../../tool/shared/registry/scanner-catalog";
 
-export type ActionDraftStatus =
-  | "draft"
-  | "applied"
-  | "dismissed"
-  | "superseded";
+export type ActionDraftStatus = "draft" | "applied" | "dismissed" | "superseded";
 
 export interface ActionDraftInput {
   sessionId: string;

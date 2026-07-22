@@ -25,9 +25,7 @@ interface ConversationAttachmentBoundary {
     sessionId: string;
     opencodeConversationId: string;
   }) => ConversationAttachmentRecord;
-  archiveAttachment: (
-    opencodeConversationId: string,
-  ) => ConversationAttachmentRecord | null;
+  archiveAttachment: (opencodeConversationId: string) => ConversationAttachmentRecord | null;
 }
 
 function toSessionConversationError(error: unknown) {
@@ -36,28 +34,20 @@ function toSessionConversationError(error: unknown) {
   }
 
   const detail = error instanceof Error ? error.message : String(error);
-  return new ChatRuntimeError(
-    `Could not prepare the session conversation: ${detail}`,
-    error,
-  );
+  return new ChatRuntimeError(`Could not prepare the session conversation: ${detail}`, error);
 }
 
 export class SessionConversationService {
   constructor(
-    private readonly attachments: ConversationAttachmentBoundary =
-      conversationAttachmentService,
+    private readonly attachments: ConversationAttachmentBoundary = conversationAttachmentService,
     private readonly runtime: ChatRuntime = openCodeChatRuntimeService,
   ) {}
 
-  async listActiveConversations(
-    sessionId: string,
-  ): Promise<ActiveSessionConversation[]> {
+  async listActiveConversations(sessionId: string): Promise<ActiveSessionConversation[]> {
     try {
       const conversations: ActiveSessionConversation[] = [];
 
-      for (const attachment of this.attachments.listActiveAttachments(
-        sessionId,
-      )) {
+      for (const attachment of this.attachments.listActiveAttachments(sessionId)) {
         try {
           const conversation = await this.runtime.getConversation(
             sessionId,
@@ -72,9 +62,7 @@ export class SessionConversationService {
             throw error;
           }
 
-          this.attachments.archiveAttachment(
-            attachment.opencodeConversationId,
-          );
+          this.attachments.archiveAttachment(attachment.opencodeConversationId);
         }
       }
 
@@ -84,9 +72,7 @@ export class SessionConversationService {
     }
   }
 
-  async prepareSessionConversations(
-    sessionId: string,
-  ): Promise<ActiveSessionConversation[]> {
+  async prepareSessionConversations(sessionId: string): Promise<ActiveSessionConversation[]> {
     try {
       const conversations = await this.listActiveConversations(sessionId);
       if (conversations.length > 0) {
@@ -105,9 +91,7 @@ export class SessionConversationService {
     }
   }
 
-  async createConversation(
-    sessionId: string,
-  ): Promise<ActiveSessionConversation> {
+  async createConversation(sessionId: string): Promise<ActiveSessionConversation> {
     try {
       const conversation = await this.runtime.createConversation(sessionId);
       const attachment = this.attachments.createAttachment({
@@ -126,12 +110,10 @@ export class SessionConversationService {
     opencodeConversationId: string,
   ): Promise<ActiveSessionConversation[]> {
     try {
-      const activeAttachments =
-        this.attachments.listActiveAttachments(sessionId);
+      const activeAttachments = this.attachments.listActiveAttachments(sessionId);
       if (
         !activeAttachments.some(
-          (attachment) =>
-            attachment.opencodeConversationId === opencodeConversationId,
+          (attachment) => attachment.opencodeConversationId === opencodeConversationId,
         )
       ) {
         return this.listActiveConversations(sessionId);
@@ -145,9 +127,7 @@ export class SessionConversationService {
     }
   }
 
-  async ensureActiveConversation(
-    sessionId: string,
-  ): Promise<ActiveSessionConversation> {
+  async ensureActiveConversation(sessionId: string): Promise<ActiveSessionConversation> {
     const [conversation] = await this.prepareSessionConversations(sessionId);
     return conversation!;
   }

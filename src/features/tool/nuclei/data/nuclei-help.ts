@@ -21,8 +21,7 @@ export const nucleiHelpContent: Record<NucleiFieldId, ToolHelpContent> = {
     title: "Tags",
     summary: "Filters templates by comma-separated Nuclei tags.",
     commandEffect: "Adds -tags followed by your comma-separated list.",
-    guidance:
-      "Examples: cve,rce or exposure,misconfig. Leave empty to avoid tag filtering.",
+    guidance: "Examples: cve,rce or exposure,misconfig. Leave empty to avoid tag filtering.",
   },
   templatesPath: {
     title: "Templates path",
@@ -40,8 +39,7 @@ export const nucleiHelpContent: Record<NucleiFieldId, ToolHelpContent> = {
   },
   useAuthenticatedContext: {
     title: "Session auth",
-    summary:
-      "Uses the session's accepted authentication context for this exact origin.",
+    summary: "Uses the session's accepted authentication context for this exact origin.",
     commandEffect:
       "Adds an owner-restricted temporary Secret File with -sf only while the run is active.",
     guidance:

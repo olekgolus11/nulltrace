@@ -60,12 +60,7 @@ describe("nucleiFindingMapper", () => {
       title: "Example exposure",
       summary: "A useful description",
       target: "https://example.com/login",
-      dedupeKeyParts: [
-        "cves/2024/test",
-        "https://example.com/login",
-        "status",
-        "version",
-      ],
+      dedupeKeyParts: ["cves/2024/test", "https://example.com/login", "status", "version"],
       payload: {
         artifactFindingIndex: 0,
         artifactItemPath: "$.findings[0]",
@@ -162,8 +157,7 @@ describe("nucleiFindingMapper", () => {
       kind: "nuclei.cve",
       severity: "info",
       target: "https://fallback.example.com",
-      summary:
-        "Nuclei reported legacy/cve-test on https://fallback.example.com.",
+      summary: "Nuclei reported legacy/cve-test on https://fallback.example.com.",
       payload: {
         sourceSeverity: "unexpected",
         tags: ["cve", "legacy"],

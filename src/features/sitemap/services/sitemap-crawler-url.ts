@@ -4,10 +4,7 @@ export function normalizeCrawlUrl(value: URL) {
   return normalized;
 }
 
-export function createAbsoluteCrawlUrl(
-  value: string | undefined,
-  baseUrl: URL,
-) {
+export function createAbsoluteCrawlUrl(value: string | undefined, baseUrl: URL) {
   if (!value || value.startsWith("javascript:") || value.startsWith("mailto:")) {
     return null;
   }

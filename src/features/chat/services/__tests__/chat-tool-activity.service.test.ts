@@ -55,10 +55,7 @@ describe("chat tool activity mapping", () => {
     expect(completed).not.toBeNull();
     expect(failed).not.toBeNull();
 
-    const activities = upsertChatToolActivity(
-      [running!, failed!],
-      completed!,
-    );
+    const activities = upsertChatToolActivity([running!, failed!], completed!);
 
     expect(activities).toEqual([
       {

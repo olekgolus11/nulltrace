@@ -43,8 +43,7 @@ function createAuthenticatedDraft(): ActionDraftRecord {
 
 describe("authenticated Nuclei action drafts", () => {
   it("applies explicit opt-in with accepted exact-origin context", () => {
-    const currentToolData =
-      nucleiCommandService.createInitialToolData("https://example.com");
+    const currentToolData = nucleiCommandService.createInitialToolData("https://example.com");
     const result = mapActionDraftToWorkspaceState({
       draft: createAuthenticatedDraft(),
       currentToolName: "nuclei",
@@ -65,8 +64,7 @@ describe("authenticated Nuclei action drafts", () => {
   });
 
   it("rejects opt-in without accepted exact-origin context", () => {
-    const currentToolData =
-      nucleiCommandService.createInitialToolData("https://example.com");
+    const currentToolData = nucleiCommandService.createInitialToolData("https://example.com");
     const buildGeneratedCommand = (toolData: unknown) =>
       nucleiCommandService.buildCommand(toolData as typeof currentToolData);
 
@@ -102,14 +100,12 @@ describe("authenticated Nuclei action drafts", () => {
   });
 
   it("does not inherit authentication opt-in when the next draft omits it", () => {
-    let currentToolData =
-      nucleiCommandService.createInitialToolData("https://example.com");
+    let currentToolData = nucleiCommandService.createInitialToolData("https://example.com");
     currentToolData = nucleiCommandService.setAuthenticationAvailability(
       currentToolData,
       "https://example.com",
     );
-    currentToolData =
-      nucleiCommandService.toggleAuthenticatedContext(currentToolData);
+    currentToolData = nucleiCommandService.toggleAuthenticatedContext(currentToolData);
     const draft = createAuthenticatedDraft();
     draft.payload = {
       formState: {

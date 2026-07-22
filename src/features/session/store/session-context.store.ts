@@ -22,10 +22,7 @@ interface SessionContextState {
   createConversation: () => Promise<void>;
   archiveActiveConversation: () => Promise<void>;
   refreshConversationTitles: () => Promise<void>;
-  createSessionForTarget: (target: {
-    id: string;
-    normalizedUrl: string;
-  }) => Promise<void>;
+  createSessionForTarget: (target: { id: string; normalizedUrl: string }) => Promise<void>;
   createSessionForNewTarget: (url: string) => Promise<void>;
   openExistingSession: (sessionId: string) => Promise<boolean>;
 }
@@ -57,13 +54,9 @@ export const useSessionContextStore = create<SessionContextState>((set, get) => 
     });
   };
 
-  const prepareActiveConversation = async (
-    requestToken: number,
-    sessionId: string,
-  ) => {
+  const prepareActiveConversation = async (requestToken: number, sessionId: string) => {
     try {
-      const conversations =
-        await sessionConversationService.prepareSessionConversations(sessionId);
+      const conversations = await sessionConversationService.prepareSessionConversations(sessionId);
 
       if (requestToken !== sessionOpenRequestToken) {
         return;
@@ -71,8 +64,7 @@ export const useSessionContextStore = create<SessionContextState>((set, get) => 
 
       const [conversation] = conversations;
       set({
-        activeConversationId:
-          conversation?.attachment.opencodeConversationId ?? null,
+        activeConversationId: conversation?.attachment.opencodeConversationId ?? null,
         activeConversationTitle: conversation?.title ?? "",
         conversations,
         isLoadingConversations: false,
@@ -98,8 +90,7 @@ export const useSessionContextStore = create<SessionContextState>((set, get) => 
 
     selectConversation: (conversationId: string) => {
       const conversation = get().conversations.find(
-        (candidate) =>
-          candidate.attachment.opencodeConversationId === conversationId,
+        (candidate) => candidate.attachment.opencodeConversationId === conversationId,
       );
       if (!conversation) {
         return;
@@ -120,16 +111,14 @@ export const useSessionContextStore = create<SessionContextState>((set, get) => 
       const requestToken = sessionOpenRequestToken;
       set({ isCreatingConversation: true, conversationError: null });
       try {
-        const conversation =
-          await sessionConversationService.createConversation(sessionId);
+        const conversation = await sessionConversationService.createConversation(sessionId);
         if (requestToken !== sessionOpenRequestToken) {
           return;
         }
 
         set((state) => ({
           conversations: [...state.conversations, conversation],
-          activeConversationId:
-            conversation.attachment.opencodeConversationId,
+          activeConversationId: conversation.attachment.opencodeConversationId,
           activeConversationTitle: conversation.title,
         }));
       } catch (error) {
@@ -144,45 +133,31 @@ export const useSessionContextStore = create<SessionContextState>((set, get) => 
     },
 
     archiveActiveConversation: async () => {
-      const {
-        conversations: currentConversations,
-        sessionId,
-        activeConversationId,
-      } = get();
-      if (
-        !sessionId ||
-        !activeConversationId ||
-        get().isArchivingConversation
-      ) {
+      const { conversations: currentConversations, sessionId, activeConversationId } = get();
+      if (!sessionId || !activeConversationId || get().isArchivingConversation) {
         return;
       }
 
       const archivedIndex = currentConversations.findIndex(
-        (conversation) =>
-          conversation.attachment.opencodeConversationId ===
-          activeConversationId,
+        (conversation) => conversation.attachment.opencodeConversationId === activeConversationId,
       );
       const requestToken = sessionOpenRequestToken;
       set({ isArchivingConversation: true, conversationError: null });
       try {
-        const conversations =
-          await sessionConversationService.archiveConversation(
-            sessionId,
-            activeConversationId,
-          );
+        const conversations = await sessionConversationService.archiveConversation(
+          sessionId,
+          activeConversationId,
+        );
         if (requestToken !== sessionOpenRequestToken) {
           return;
         }
 
         const fallbackIndex =
-          archivedIndex === -1
-            ? 0
-            : Math.min(archivedIndex, Math.max(0, conversations.length - 1));
+          archivedIndex === -1 ? 0 : Math.min(archivedIndex, Math.max(0, conversations.length - 1));
         const fallbackConversation = conversations[fallbackIndex];
         set({
           conversations,
-          activeConversationId:
-            fallbackConversation?.attachment.opencodeConversationId ?? null,
+          activeConversationId: fallbackConversation?.attachment.opencodeConversationId ?? null,
           activeConversationTitle: fallbackConversation?.title ?? "",
         });
       } catch (error) {
@@ -212,15 +187,12 @@ export const useSessionContextStore = create<SessionContextState>((set, get) => 
         }
 
         const activeConversation = conversations.find(
-          (conversation) =>
-            conversation.attachment.opencodeConversationId ===
-            activeConversationId,
+          (conversation) => conversation.attachment.opencodeConversationId === activeConversationId,
         );
         const fallbackConversation = activeConversation ?? conversations[0];
         set({
           conversations,
-          activeConversationId:
-            fallbackConversation?.attachment.opencodeConversationId ?? null,
+          activeConversationId: fallbackConversation?.attachment.opencodeConversationId ?? null,
           activeConversationTitle: fallbackConversation?.title ?? "",
           isLoadingConversations: false,
           conversationError: null,
@@ -235,10 +207,7 @@ export const useSessionContextStore = create<SessionContextState>((set, get) => 
       }
     },
 
-    createSessionForTarget: async (target: {
-      id: string;
-      normalizedUrl: string;
-    }) => {
+    createSessionForTarget: async (target: { id: string; normalizedUrl: string }) => {
       const session = sessionRepository.createSession(target.id);
       const requestToken = ++sessionOpenRequestToken;
       set({

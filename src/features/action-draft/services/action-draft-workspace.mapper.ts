@@ -67,10 +67,7 @@ function getBooleanField(formState: Record<string, unknown>, field: string) {
   return typeof value === "boolean" ? value : undefined;
 }
 
-function applyNmapFormState(
-  toolData: NmapToolData,
-  formState: Record<string, unknown> | null,
-) {
+function applyNmapFormState(toolData: NmapToolData, formState: Record<string, unknown> | null) {
   if (!formState) {
     return {
       toolData,
@@ -97,20 +94,15 @@ function applyNmapFormState(
     didApply = true;
   }
 
-  (
-    [
-      "serviceDetection",
-      "osDetection",
-      "defaultScripts",
-      "aggressive",
-    ] as const
-  ).forEach((field) => {
-    const value = getBooleanField(formState, field);
-    if (value !== undefined) {
-      form[field] = value;
-      didApply = true;
-    }
-  });
+  (["serviceDetection", "osDetection", "defaultScripts", "aggressive"] as const).forEach(
+    (field) => {
+      const value = getBooleanField(formState, field);
+      if (value !== undefined) {
+        form[field] = value;
+        didApply = true;
+      }
+    },
+  );
 
   return {
     toolData: {
@@ -149,15 +141,13 @@ function applyNucleiFormState(
     ...toolData.form,
   };
 
-  (["target", "tags", "templatesPath", "extraArgs"] as const).forEach(
-    (field) => {
-      const value = getStringField(formState, field);
-      if (value !== undefined) {
-        form[field] = value;
-        didApply = true;
-      }
-    },
-  );
+  (["target", "tags", "templatesPath", "extraArgs"] as const).forEach((field) => {
+    const value = getStringField(formState, field);
+    if (value !== undefined) {
+      form[field] = value;
+      didApply = true;
+    }
+  });
 
   const severityPreset = getStringField(formState, "severityPreset");
   if (
@@ -168,10 +158,7 @@ function applyNucleiFormState(
     didApply = true;
   }
 
-  const useAuthenticatedContext = getBooleanField(
-    formState,
-    "useAuthenticatedContext",
-  );
+  const useAuthenticatedContext = getBooleanField(formState, "useAuthenticatedContext");
   form.useAuthenticatedContext = useAuthenticatedContext ?? false;
   if (useAuthenticatedContext !== undefined) {
     didApply = true;
@@ -183,8 +170,7 @@ function applyNucleiFormState(
   let isAuthenticationAvailable = false;
   try {
     isAuthenticationAvailable = Boolean(
-      authenticatedOrigin &&
-        normalizeExactOrigin(form.target) === authenticatedOrigin,
+      authenticatedOrigin && normalizeExactOrigin(form.target) === authenticatedOrigin,
     );
   } catch {
     isAuthenticationAvailable = false;
@@ -196,10 +182,7 @@ function applyNucleiFormState(
       selectedField: 0,
       form,
       authentication: {
-        strategy:
-          form.useAuthenticatedContext && isAuthenticationAvailable
-            ? "session"
-            : "none",
+        strategy: form.useAuthenticatedContext && isAuthenticationAvailable ? "session" : "none",
         isAvailable: isAuthenticationAvailable,
         origin: authenticatedOrigin,
       },
@@ -219,11 +202,7 @@ function applyFormState(
   }
 
   if (currentToolName === "nuclei") {
-    return applyNucleiFormState(
-      currentToolData as NucleiToolData,
-      formState,
-      authenticatedContext,
-    );
+    return applyNucleiFormState(currentToolData as NucleiToolData, formState, authenticatedContext);
   }
 
   return {
@@ -267,18 +246,16 @@ export function mapActionDraftToWorkspaceState({
     if (getStringField(formState ?? {}, "templatesPath")?.trim()) {
       return {
         ok: false,
-        reason:
-          "Authenticated Nuclei drafts cannot use custom template or workflow paths.",
+        reason: "Authenticated Nuclei drafts cannot use custom template or workflow paths.",
       };
     }
     const target =
-      getStringField(formState ?? {}, "target") ??
-      (currentToolData as NucleiToolData).form.target;
+      getStringField(formState ?? {}, "target") ?? (currentToolData as NucleiToolData).form.target;
     let isExactOriginAccepted = false;
     try {
       isExactOriginAccepted = Boolean(
         authenticatedContext?.authCheck.isProceedAllowed &&
-          authenticatedContext.origin === normalizeExactOrigin(target),
+        authenticatedContext.origin === normalizeExactOrigin(target),
       );
     } catch {
       isExactOriginAccepted = false;
@@ -301,8 +278,7 @@ export function mapActionDraftToWorkspaceState({
   if (!command && !didApply) {
     return {
       ok: false,
-      reason:
-        "This draft has no usable command or form state for the current workspace.",
+      reason: "This draft has no usable command or form state for the current workspace.",
     };
   }
 
@@ -315,8 +291,7 @@ export function mapActionDraftToWorkspaceState({
       toolData,
       generatedCommand,
       commandInput,
-      commandSource:
-        command && command !== generatedCommand ? "manual" : "generated",
+      commandSource: command && command !== generatedCommand ? "manual" : "generated",
       message: `Applied action draft: ${draft.title}`,
     },
   };

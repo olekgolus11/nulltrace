@@ -2,19 +2,10 @@ import { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import { useEffect, useRef, useReducer } from "react";
 import { tools } from "../data/tool-catalog";
-import {
-  dashboardPanels,
-  initialDashboardState,
-} from "../model/dashboard.state";
+import { dashboardPanels, initialDashboardState } from "../model/dashboard.state";
 import { DashboardPanelId, DashboardState } from "../model/dashboard.types";
-import {
-  cyclePanel,
-  getPanelByShortcut,
-} from "../../../shared/model/panel-navigation";
-import {
-  FindingReviewStatus,
-  SessionFindingRecord,
-} from "../../finding/model/finding.types";
+import { cyclePanel, getPanelByShortcut } from "../../../shared/model/panel-navigation";
+import { FindingReviewStatus, SessionFindingRecord } from "../../finding/model/finding.types";
 import { ToolName } from "../../tool/shared/types/tool-screen.types";
 import { ActiveSessionConversation } from "../../chat/services/session-conversation.service";
 
@@ -40,10 +31,7 @@ interface UseDashboardShortcutsProps {
   onRestartSitemapCrawl: () => void;
   isSitemapAuthRenewalRequired: boolean;
   findings: SessionFindingRecord[];
-  onSetFindingReviewStatus: (
-    findingId: string,
-    reviewStatus: FindingReviewStatus,
-  ) => void;
+  onSetFindingReviewStatus: (findingId: string, reviewStatus: FindingReviewStatus) => void;
   conversations: ActiveSessionConversation[];
   activeConversationId: string | null;
   isConversationNavigationDisabled: boolean;
@@ -67,19 +55,12 @@ function createDashboardReducer(counts: {
   sitemapCount: number;
   findingCount: number;
 }) {
-  return function dashboardReducer(
-    state: DashboardState,
-    action: DashboardAction,
-  ): DashboardState {
+  return function dashboardReducer(state: DashboardState, action: DashboardAction): DashboardState {
     switch (action.type) {
       case "CYCLE_PANEL":
         return {
           ...state,
-          activePanel: cyclePanel(
-            dashboardPanels,
-            state.activePanel,
-            action.direction,
-          ),
+          activePanel: cyclePanel(dashboardPanels, state.activePanel, action.direction),
         };
 
       case "SET_ACTIVE_PANEL":
@@ -122,11 +103,7 @@ function createDashboardReducer(counts: {
         return {
           ...state,
           activePanel: "findings",
-          selectedFindingItem: clamp(
-            action.index,
-            0,
-            Math.max(0, counts.findingCount - 1),
-          ),
+          selectedFindingItem: clamp(action.index, 0, Math.max(0, counts.findingCount - 1)),
         };
 
       case "OPEN_FINDING_DETAIL":
@@ -190,9 +167,7 @@ export function useDashboardShortcuts({
       return;
     }
 
-    if (
-      findings.some((finding) => finding.id === state.selectedFindingDetailId)
-    ) {
+    if (findings.some((finding) => finding.id === state.selectedFindingDetailId)) {
       return;
     }
 
@@ -245,21 +220,13 @@ export function useDashboardShortcuts({
       return;
     }
 
-    const shortcutPanel = getPanelByShortcut(
-      dashboardPanels,
-      key.name,
-      key.ctrl,
-    );
+    const shortcutPanel = getPanelByShortcut(dashboardPanels, key.name, key.ctrl);
     if (shortcutPanel) {
       dispatch({ type: "SET_ACTIVE_PANEL", panel: shortcutPanel });
       return;
     }
 
-    if (
-      state.activePanel === "chat" &&
-      key.ctrl &&
-      !isConversationNavigationDisabled
-    ) {
+    if (state.activePanel === "chat" && key.ctrl && !isConversationNavigationDisabled) {
       if (key.name === "n") {
         onCreateConversation();
         return;
@@ -272,9 +239,7 @@ export function useDashboardShortcuts({
 
       if (key.name === "left" || key.name === "right") {
         const activeIndex = conversations.findIndex(
-          (conversation) =>
-            conversation.attachment.opencodeConversationId ===
-            activeConversationId,
+          (conversation) => conversation.attachment.opencodeConversationId === activeConversationId,
         );
         const nextIndex = clamp(
           activeIndex + (key.name === "left" ? -1 : 1),
@@ -283,9 +248,7 @@ export function useDashboardShortcuts({
         );
         const nextConversation = conversations[nextIndex];
         if (nextConversation && nextIndex !== activeIndex) {
-          onSelectConversation(
-            nextConversation.attachment.opencodeConversationId,
-          );
+          onSelectConversation(nextConversation.attachment.opencodeConversationId);
         }
         return;
       }
@@ -394,10 +357,7 @@ export function useDashboardShortcuts({
       return;
     }
 
-    if (
-      state.activePanel === "findings" &&
-      state.selectedFindingItem === index
-    ) {
+    if (state.activePanel === "findings" && state.selectedFindingItem === index) {
       dispatch({
         type: "OPEN_FINDING_DETAIL",
         findingId: finding.id,

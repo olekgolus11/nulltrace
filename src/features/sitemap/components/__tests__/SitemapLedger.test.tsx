@@ -36,12 +36,7 @@ describe("SitemapLedger", () => {
     ];
 
     testSetup = await testRender(
-      <SitemapLedger
-        nodes={nodes}
-        selectedIndex={0}
-        isFocused
-        availableWidth={35}
-      />,
+      <SitemapLedger nodes={nodes} selectedIndex={0} isFocused availableWidth={35} />,
       { width: 35, height: 10 },
     );
 
@@ -52,9 +47,7 @@ describe("SitemapLedger", () => {
     expect(frame).toContain("AUTH");
     expect(frame.replace(/\s/g, "")).toContain(path);
     expect(frame).toContain("source sitemap_xml");
-    expect(frame.replace(/\s+/g, " ")).toContain(
-      "access current session · HTTP 200",
-    );
+    expect(frame.replace(/\s+/g, " ")).toContain("access current session · HTTP 200");
   });
 
   it("separates branching route prefixes with explicit group rows", async () => {
@@ -88,12 +81,7 @@ describe("SitemapLedger", () => {
     ];
 
     testSetup = await testRender(
-      <SitemapLedger
-        nodes={nodes}
-        selectedIndex={1}
-        isFocused={false}
-        availableWidth={35}
-      />,
+      <SitemapLedger nodes={nodes} selectedIndex={1} isFocused={false} availableWidth={35} />,
       { width: 35, height: 10 },
     );
 
@@ -101,8 +89,6 @@ describe("SitemapLedger", () => {
     const frame = testSetup.captureCharFrame();
 
     expect(frame).toContain("\u25c6 /vulnerabilities/* \u00b7 2 routes");
-    expect(frame.indexOf("/vulnerabilities/*")).toBeLessThan(
-      frame.indexOf("/sqli"),
-    );
+    expect(frame.indexOf("/vulnerabilities/*")).toBeLessThan(frame.indexOf("/sqli"));
   });
 });

@@ -16,7 +16,10 @@ import { AuthenticationContextMetadataRepository } from "../../../authentication
 import { createAuthenticationContextMetadataTable } from "../../../authentication/services/authentication-context-metadata.schema";
 import { AuthenticatedRequestContextService } from "../../../authentication/services/authenticated-request-context.service";
 import { AuthCheckService } from "../../../authentication/services/auth-check.service";
-import { SecretStore, SecretStoreValue } from "../../../authentication/services/platform-secret-store";
+import {
+  SecretStore,
+  SecretStoreValue,
+} from "../../../authentication/services/platform-secret-store";
 
 class TestSecretStore implements SecretStore {
   private readonly values = new Map<string, string>();
@@ -39,13 +42,13 @@ class TestSecretStore implements SecretStore {
 class FakeAttachments {
   findActiveAttachmentByOpenCodeConversationId(id: string) {
     return id === "conversation-1"
-      ? {
+      ? ({
           sessionId: "session-1",
           opencodeConversationId: id,
           isDefault: true,
           archivedAt: null,
           createdAt: "2026-07-15T10:00:00.000Z",
-        } satisfies ConversationAttachmentRecord
+        } satisfies ConversationAttachmentRecord)
       : null;
   }
 }
@@ -100,9 +103,7 @@ class FakeAuthenticationMetadata {
 }
 
 class FakeSitemap {
-  constructor(
-    private readonly status: AuthenticatedSitemapCrawlStatus = "completed",
-  ) {}
+  constructor(private readonly status: AuthenticatedSitemapCrawlStatus = "completed") {}
 
   getAuthenticatedCrawlStatus(sessionId: string, targetId: string) {
     return {
@@ -118,9 +119,7 @@ class FakeSitemap {
     };
   }
 
-  listEntries(
-    filters: TargetSitemapEntryListFilters,
-  ): TargetSitemapEntryListResult {
+  listEntries(filters: TargetSitemapEntryListFilters): TargetSitemapEntryListResult {
     const total = filters.provenance === "authenticated" ? 3 : 2;
     return { entries: [], total, limit: 1, offset: 0 };
   }
@@ -201,18 +200,14 @@ describe("authentication chat context tools", () => {
   });
 
   it("registers one read without authentication or crawler mutations", () => {
-    const registry = new ChatContextToolRegistry(
-      createService().createToolDefinitions(),
-    );
+    const registry = new ChatContextToolRegistry(createService().createToolDefinitions());
     const definitions = registry.listDefinitions();
     const names = definitions.map((definition) => definition.name);
 
     expect(names).toEqual(["get_authentication_context"]);
     expect(Object.keys(definitions[0]?.args ?? {})).toEqual([]);
     expect(
-      names.some((name) =>
-        /import|clear|check|pause|resume|retry|restart|start|stop/.test(name),
-      ),
+      names.some((name) => /import|clear|check|pause|resume|retry|restart|start|stop/.test(name)),
     ).toBe(false);
 
     const globalNames = chatContextToolRegistry
@@ -239,11 +234,9 @@ describe("authentication chat context tools", () => {
     ] as const;
 
     for (const [status, isProceedAllowed, crawlStatus, expected, hasGuidance] of cases) {
-      const result = await createService(
-        status,
-        isProceedAllowed,
-        crawlStatus,
-      ).getContext("conversation-1");
+      const result = await createService(status, isProceedAllowed, crawlStatus).getContext(
+        "conversation-1",
+      );
       expect(result.authentication.posture).toBe(expected);
       if (hasGuidance) {
         expect(result.authentication.operatorGuidance).toBeString();
@@ -258,18 +251,9 @@ describe("authentication chat context tools", () => {
     database.exec("CREATE TABLE sessions (id TEXT PRIMARY KEY);");
     database.exec("INSERT INTO sessions (id) VALUES ('session-1');");
     createAuthenticationContextMetadataTable(database);
-    const appWriter = new AuthenticationContextMetadataRepository(
-      database,
-      "shared-runtime",
-    );
-    const chatReader = new AuthenticationContextMetadataRepository(
-      database,
-      "shared-runtime",
-    );
-    const contextService = new AuthenticatedRequestContextService(
-      new TestSecretStore(),
-      appWriter,
-    );
+    const appWriter = new AuthenticationContextMetadataRepository(database, "shared-runtime");
+    const chatReader = new AuthenticationContextMetadataRepository(database, "shared-runtime");
+    const contextService = new AuthenticatedRequestContextService(new TestSecretStore(), appWriter);
     await contextService.save("session-1", "https://example.com", {
       origin: "https://example.com",
       cookies: "session=protected-value",
@@ -296,13 +280,8 @@ describe("authentication chat context tools", () => {
       },
     });
     expect(
-      (
-        await authCheck.run(
-          "session-1",
-          "https://example.com",
-          "https://example.com/account",
-        )
-      ).status,
+      (await authCheck.run("session-1", "https://example.com", "https://example.com/account"))
+        .status,
     ).toBe("verified");
     const service = new AuthenticationChatContextToolsService(
       new FakeAttachments(),

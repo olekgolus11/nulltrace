@@ -2,19 +2,13 @@ import { describe, expect, test } from "bun:test";
 
 process.env.XDG_DATA_HOME = "/private/tmp/nulltrace-test";
 
-const { nucleiCommandService, parseNucleiJsonl } = await import(
-  "../nuclei-command.service"
-);
+const { nucleiCommandService, parseNucleiJsonl } = await import("../nuclei-command.service");
 
 describe("nucleiCommandService", () => {
   test("builds a target-centric command with no severity filter by default", () => {
-    const toolData = nucleiCommandService.createInitialToolData(
-      "https://example.com",
-    );
+    const toolData = nucleiCommandService.createInitialToolData("https://example.com");
 
-    expect(nucleiCommandService.buildCommand(toolData)).toBe(
-      "nuclei -u https://example.com",
-    );
+    expect(nucleiCommandService.buildCommand(toolData)).toBe("nuclei -u https://example.com");
   });
 
   test("maps severity presets to nuclei CLI severity values", () => {
@@ -34,21 +28,13 @@ describe("nucleiCommandService", () => {
       "critical",
     );
 
-    expect(nucleiCommandService.buildCommand(medium)).toContain(
-      "-severity medium,high,critical",
-    );
-    expect(nucleiCommandService.buildCommand(high)).toContain(
-      "-severity high,critical",
-    );
-    expect(nucleiCommandService.buildCommand(critical)).toContain(
-      "-severity critical",
-    );
+    expect(nucleiCommandService.buildCommand(medium)).toContain("-severity medium,high,critical");
+    expect(nucleiCommandService.buildCommand(high)).toContain("-severity high,critical");
+    expect(nucleiCommandService.buildCommand(critical)).toContain("-severity critical");
   });
 
   test("appends tags, templates path, and extra args when provided", () => {
-    const initial = nucleiCommandService.createInitialToolData(
-      "https://example.com",
-    );
+    const initial = nucleiCommandService.createInitialToolData("https://example.com");
     const withTags = nucleiCommandService.setField(initial, "tags", "cve,rce");
     const withTemplates = nucleiCommandService.setField(
       withTags,
@@ -67,23 +53,14 @@ describe("nucleiCommandService", () => {
   });
 
   test("hides and disables session auth when the editable target changes origin", () => {
-    let toolData = nucleiCommandService.createInitialToolData(
-      "https://example.com",
-    );
-    toolData = nucleiCommandService.setAuthenticationAvailability(
-      toolData,
-      "https://example.com",
-    );
+    let toolData = nucleiCommandService.createInitialToolData("https://example.com");
+    toolData = nucleiCommandService.setAuthenticationAvailability(toolData, "https://example.com");
     toolData = nucleiCommandService.toggleAuthenticatedContext(toolData);
 
     expect(toolData.authentication.isAvailable).toBe(true);
     expect(toolData.form.useAuthenticatedContext).toBe(true);
 
-    toolData = nucleiCommandService.setField(
-      toolData,
-      "target",
-      "https://api.example.com",
-    );
+    toolData = nucleiCommandService.setField(toolData, "target", "https://api.example.com");
 
     expect(toolData.authentication).toMatchObject({
       isAvailable: false,
@@ -95,8 +72,7 @@ describe("nucleiCommandService", () => {
 
   test("forces controlled JSONL output for prepared runs", async () => {
     const preparedCommand = await nucleiCommandService.prepareCommandForRun({
-      command:
-        "nuclei -u https://example.com -json -o /tmp/manual.json -jle /tmp/manual.jsonl",
+      command: "nuclei -u https://example.com -json -o /tmp/manual.json -jle /tmp/manual.jsonl",
       sessionId: "session-1",
       toolRunId: "run-1",
     });
@@ -107,9 +83,7 @@ describe("nucleiCommandService", () => {
     expect(preparedCommand).not.toContain("/tmp/manual.jsonl");
     expect(preparedCommand).toContain(" -nc ");
     expect(preparedCommand).toContain("-jsonl-export ");
-    expect(preparedCommand).toContain(
-      "artifacts/sessions/session-1/tool-runs/run-1/nuclei.jsonl",
-    );
+    expect(preparedCommand).toContain("artifacts/sessions/session-1/tool-runs/run-1/nuclei.jsonl");
   });
 
   test("keeps an existing no-color flag when preparing a run", async () => {
@@ -145,15 +119,12 @@ describe("nucleiCommandService", () => {
   });
 
   test("rejects raw request or response output flags for authenticated runs", async () => {
-    const toolData = nucleiCommandService.createInitialToolData(
-      "https://example.com",
-    );
+    const toolData = nucleiCommandService.createInitialToolData("https://example.com");
     toolData.form.useAuthenticatedContext = true;
 
     await expect(
       nucleiCommandService.prepareCommandForRun({
-        command:
-          "nuclei -u https://example.com -debug-req -store-resp-dir /tmp/raw",
+        command: "nuclei -u https://example.com -debug-req -store-resp-dir /tmp/raw",
         sessionId: "session-1",
         toolRunId: "run-auth",
         toolData,
@@ -198,9 +169,7 @@ describe("nucleiCommandService", () => {
       nucleiCommandService.redactCommandForPersistence(
         "nuclei -u https://example.com -H 'Authorization: Bearer secret-token' -H 'Cookie: session=secret-cookie'",
       ),
-    ).toBe(
-      "nuclei -u https://example.com -H '[redacted]' -H '[redacted]'",
-    );
+    ).toBe("nuclei -u https://example.com -H '[redacted]' -H '[redacted]'");
     expect(
       nucleiCommandService.redactCommandForPersistence(
         "nuclei -u=https://example.com -header='Authorization: Bearer inline-secret'",
@@ -210,9 +179,7 @@ describe("nucleiCommandService", () => {
       nucleiCommandService.redactCommandForPersistence(
         "nuclei -u https://example.com -H Authorization: Bearer unquoted-secret -stats",
       ),
-    ).toBe(
-      "nuclei -u https://example.com -H '[redacted]' -stats",
-    );
+    ).toBe("nuclei -u https://example.com -H '[redacted]' -stats");
   });
 
   test("parses valid JSONL findings with normalized convenience fields and raw preservation", () => {

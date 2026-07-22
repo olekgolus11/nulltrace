@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import type { AuthenticatedContextVerificationInput } from "../../../authentication/services/auth-check.types";
 import {
   AuthenticatedSitemapAccessObservationInput,
   AuthenticatedSitemapCrawlStatus,
@@ -9,9 +10,7 @@ import {
 process.env.NULLTRACE_APP_DATA_DIR = `/tmp/nulltrace-authenticated-sitemap-crawler-test-${crypto.randomUUID()}`;
 
 async function createCrawler(options: object) {
-  const { AuthenticatedSitemapCrawler } = await import(
-    "../authenticated-sitemap-crawler.service"
-  );
+  const { AuthenticatedSitemapCrawler } = await import("../authenticated-sitemap-crawler.service");
   return new AuthenticatedSitemapCrawler(options);
 }
 
@@ -157,10 +156,7 @@ describe("AuthenticatedSitemapCrawler", () => {
     resolveProtected(new Response("sign in", { status: 401 }));
 
     expect(await crawl).toMatchObject({ status: "paused" });
-    expect(requests).toEqual([
-      "GET https://example.com/",
-      "GET https://example.com/protected",
-    ]);
+    expect(requests).toEqual(["GET https://example.com/", "GET https://example.com/protected"]);
   });
   it("uses only safe same-origin retrieval and refuses cross-origin redirects", async () => {
     const persistence = new FakePersistence();
@@ -280,76 +276,21 @@ describe("AuthenticatedSitemapCrawler", () => {
     expect(requestHeaders.get("x-csrf-token")).toBe("csrf-secret");
   });
 
-  it("continues after route denials when the verification URL remains authenticated", async () => {
+  it("stops when verification confirms the authenticated context is invalid", async () => {
     const persistence = new FakePersistence();
     const requests: string[] = [];
     const crawler = await createCrawler({
       repository: persistence,
       fetch: async (url: string, init?: RequestInit) => {
         requests.push(`${init?.method ?? "GET"} ${url}`);
-        const cookies = new Headers(init?.headers).get("cookie") ?? "";
         if (url.endsWith("/")) {
           return html('<a href="/one">one</a><a href="/two">two</a>');
         }
-        if (url.endsWith("/verify")) {
-          return cookies === "session=valid"
-            ? new Response("", {
-                status: 302,
-                headers: { location: "/signin" },
-              })
-            : new Response("sign in", { status: 401 });
-        }
-        if (url.endsWith("/signin")) {
-          return cookies === "session=valid"
-            ? html("authenticated account")
-            : new Response("sign in", { status: 401 });
-        }
-        return new Response("forbidden", {
-          status: 403,
-          headers: { "set-cookie": "session=; Max-Age=0" },
-        });
-      },
-      limits: { maxDepth: 1, maxPages: 5 },
-    });
-
-    const result = await crawler.crawl({
-      sessionId: "session-1",
-      targetId: "target-1",
-      rootUrl: "https://example.com",
-      verificationUrl: "https://example.com/verify",
-      context: {
-        origin: "https://example.com",
-        cookies: "session=valid",
-        headers: "",
-        updatedAt: "2026-07-13T10:00:00.000Z",
-      },
-    });
-
-    expect(result.status).toBe("completed");
-    expect(persistence.status).toBe("completed");
-    expect(requests).toEqual([
-      "GET https://example.com/",
-      "GET https://example.com/one",
-      "GET https://example.com/verify",
-      "GET https://example.com/signin",
-      "GET https://example.com/two",
-      "GET https://example.com/verify",
-      "GET https://example.com/signin",
-    ]);
-  });
-
-  it("pauses only when the dedicated verification URL also requires authentication", async () => {
-    const persistence = new FakePersistence();
-    const requests: string[] = [];
-    const crawler = await createCrawler({
-      repository: persistence,
-      fetch: async (url: string, init?: RequestInit) => {
-        requests.push(`${init?.method ?? "GET"} ${url}`);
-        if (url.endsWith("/")) {
-          return html('<a href="/protected">protected</a>');
-        }
         return new Response("sign in", { status: 401 });
       },
+      authenticationVerifier: {
+        verify: async () => "invalid",
+      },
       limits: { maxDepth: 1, maxPages: 5 },
     });
 
@@ -357,7 +298,6 @@ describe("AuthenticatedSitemapCrawler", () => {
       sessionId: "session-1",
       targetId: "target-1",
       rootUrl: "https://example.com",
-      verificationUrl: "https://example.com/verify",
       context: {
         origin: "https://example.com",
         cookies: "session=expired",
@@ -368,11 +308,92 @@ describe("AuthenticatedSitemapCrawler", () => {
 
     expect(result.status).toBe("authentication_required");
     expect(persistence.status).toBe("authentication_required");
-    expect(requests).toEqual([
-      "GET https://example.com/",
-      "GET https://example.com/protected",
-      "GET https://example.com/verify",
+    expect(requests).toEqual(["GET https://example.com/", "GET https://example.com/one"]);
+  });
+
+  it("continues after an authentication signal when the current context verifies", async () => {
+    const persistence = new FakePersistence();
+    const requests: string[] = [];
+    const verificationInputs: AuthenticatedContextVerificationInput[] = [];
+    const crawler = await createCrawler({
+      repository: persistence,
+      fetch: async (url: string) => {
+        requests.push(url);
+        if (url.endsWith("/")) {
+          return html('<a href="/restricted">restricted</a><a href="/available">available</a>');
+        }
+        if (url.endsWith("/restricted")) {
+          return new Response("sign in", { status: 401 });
+        }
+        return html("available");
+      },
+      authenticationVerifier: {
+        verify: async (input: AuthenticatedContextVerificationInput) => {
+          verificationInputs.push(input);
+          return "valid";
+        },
+      },
+      limits: { maxDepth: 1, maxPages: 5 },
+    });
+
+    const result = await crawler.crawl({
+      sessionId: "session-1",
+      targetId: "target-1",
+      rootUrl: "https://example.com",
+      context: {
+        origin: "https://example.com",
+        cookies: "session=valid",
+        headers: "Authorization: Bearer valid",
+        updatedAt: "2026-07-13T10:00:00.000Z",
+      },
+    });
+
+    expect(result.status).toBe("completed");
+    expect(requests).toContain("https://example.com/available");
+    expect(verificationInputs).toEqual([
+      {
+        sessionId: "session-1",
+        targetUrl: "https://example.com",
+        cookies: "session=valid",
+        headers: "Authorization: Bearer valid",
+      },
     ]);
+  });
+
+  it("records a forbidden page and continues crawling with a valid authenticated session", async () => {
+    const persistence = new FakePersistence();
+    const requests: string[] = [];
+    const crawler = await createCrawler({
+      repository: persistence,
+      fetch: async (url: string, init?: RequestInit) => {
+        requests.push(`${init?.method ?? "GET"} ${url}`);
+        if (url.endsWith("/")) {
+          return html('<a href="/forbidden">forbidden</a><a href="/available">available</a>');
+        }
+        if (url.endsWith("/forbidden")) {
+          return new Response("forbidden", { status: 403 });
+        }
+        return html("available");
+      },
+      limits: { maxDepth: 1, maxPages: 5 },
+    });
+
+    const result = await crawler.crawl({
+      sessionId: "session-1",
+      targetId: "target-1",
+      rootUrl: "https://example.com",
+      context: {
+        origin: "https://example.com",
+        cookies: "session=valid",
+        headers: "",
+        updatedAt: "2026-07-13T10:00:00.000Z",
+      },
+    });
+
+    expect(result.status).toBe("completed");
+    expect(persistence.status).toBe("completed");
+    expect(persistence.observations).toContainEqual(expect.objectContaining({ httpStatus: 403 }));
+    expect(requests).toContain("GET https://example.com/available");
   });
 
   it("retries the auth-required page after context renewal", async () => {
@@ -394,13 +415,16 @@ describe("AuthenticatedSitemapCrawler", () => {
         }
         return new Response("sign in", { status: 401 });
       },
+      authenticationVerifier: {
+        verify: async ({ cookies }: AuthenticatedContextVerificationInput) =>
+          cookies === "session=fresh" ? "valid" : "invalid",
+      },
       limits: { maxDepth: 2, maxPages: 5 },
     });
     const input = {
       sessionId: "session-1",
       targetId: "target-1",
       rootUrl: "https://example.com",
-      verificationUrl: "https://example.com/verify",
       context: {
         origin: "https://example.com",
         cookies: "session=expired",
@@ -412,12 +436,8 @@ describe("AuthenticatedSitemapCrawler", () => {
     expect(await crawler.crawl(input)).toMatchObject({
       status: "authentication_required",
     });
-    expect(persistence.checkpoint?.frontier[0]?.url).toBe(
-      "https://example.com/protected",
-    );
-    expect(persistence.checkpoint?.visitedUrls).not.toContain(
-      "https://example.com/protected",
-    );
+    expect(persistence.checkpoint?.frontier[0]?.url).toBe("https://example.com/protected");
+    expect(persistence.checkpoint?.visitedUrls).not.toContain("https://example.com/protected");
 
     expect(
       await crawler.crawl({
@@ -429,15 +449,11 @@ describe("AuthenticatedSitemapCrawler", () => {
         },
       }),
     ).toMatchObject({ status: "completed" });
-    expect(requests).toContain(
-      "session=fresh https://example.com/protected",
-    );
-    expect(requests).toContain(
-      "session=fresh https://example.com/behind-auth",
-    );
+    expect(requests).toContain("session=fresh https://example.com/protected");
+    expect(requests).toContain("session=fresh https://example.com/behind-auth");
   });
 
-  it("pauses when repeated same-origin redirects remain login-like", async () => {
+  it("stops when a login redirect is followed by invalid authentication verification", async () => {
     const persistence = new FakePersistence();
     const requests: string[] = [];
     const crawler = await createCrawler({
@@ -450,10 +466,10 @@ describe("AuthenticatedSitemapCrawler", () => {
             headers: { location: "/signin" },
           });
         }
-        if (url === "https://example.com/verify") {
-          return new Response("sign in", { status: 401 });
-        }
         return html("Continue with SSO");
+      },
+      authenticationVerifier: {
+        verify: async () => "invalid",
       },
     });
 
@@ -461,7 +477,6 @@ describe("AuthenticatedSitemapCrawler", () => {
       sessionId: "session-1",
       targetId: "target-1",
       rootUrl: "https://example.com",
-      verificationUrl: "https://example.com/verify",
       context: {
         origin: "https://example.com",
         cookies: "session=expired",
@@ -471,11 +486,7 @@ describe("AuthenticatedSitemapCrawler", () => {
     });
 
     expect(result.status).toBe("authentication_required");
-    expect(requests).toEqual([
-      "GET https://example.com/",
-      "GET https://example.com/signin",
-      "GET https://example.com/verify",
-    ]);
+    expect(requests).toEqual(["GET https://example.com/", "GET https://example.com/signin"]);
   });
 
   it("stops reading an authenticated response at the public byte bound", async () => {
@@ -491,8 +502,7 @@ describe("AuthenticatedSitemapCrawler", () => {
     });
     const crawler = await createCrawler({
       repository: new FakePersistence(),
-      fetch: async () =>
-        new Response(body, { headers: { "content-type": "text/html" } }),
+      fetch: async () => new Response(body, { headers: { "content-type": "text/html" } }),
       limits: { maxResponseBytes: 4 },
     });
 

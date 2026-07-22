@@ -96,23 +96,13 @@ function createTestDatabase() {
       `INSERT INTO targets (id, normalized_url, display_url, created_at)
        VALUES (?1, ?2, ?3, ?4)`,
     )
-    .run(
-      "target-1",
-      "https://example.com",
-      "https://example.com",
-      "2026-07-04T10:00:00.000Z",
-    );
+    .run("target-1", "https://example.com", "https://example.com", "2026-07-04T10:00:00.000Z");
   database
     .query(
       `INSERT INTO targets (id, normalized_url, display_url, created_at)
        VALUES (?1, ?2, ?3, ?4)`,
     )
-    .run(
-      "target-2",
-      "https://other.example",
-      "https://other.example",
-      "2026-07-04T10:00:00.000Z",
-    );
+    .run("target-2", "https://other.example", "https://other.example", "2026-07-04T10:00:00.000Z");
 
   return database;
 }
@@ -142,9 +132,7 @@ describe("SitemapRepository", () => {
     });
 
     const rowCount = database
-      .query<{ count: number }, []>(
-        "SELECT COUNT(*) AS count FROM target_sitemap_entries",
-      )
+      .query<{ count: number }, []>("SELECT COUNT(*) AS count FROM target_sitemap_entries")
       .get();
 
     expect(rowCount?.count).toBe(1);
@@ -193,12 +181,8 @@ describe("SitemapRepository", () => {
       depth: 1,
     });
 
-    expect(repository.listEntries({ targetId: "target-1" }).entries).toHaveLength(
-      2,
-    );
-    expect(repository.listEntries({ targetId: "target-2" }).entries).toHaveLength(
-      1,
-    );
+    expect(repository.listEntries({ targetId: "target-1" }).entries).toHaveLength(2);
+    expect(repository.listEntries({ targetId: "target-2" }).entries).toHaveLength(1);
   });
 
   it("lists entries with pagination and depth filters", async () => {
@@ -234,19 +218,13 @@ describe("SitemapRepository", () => {
     });
 
     expect(depthOne.total).toBe(2);
-    expect(depthOne.entries.map((entry) => entry.path)).toEqual([
-      "/about",
-      "/admin",
-    ]);
+    expect(depthOne.entries.map((entry) => entry.path)).toEqual(["/about", "/admin"]);
     expect(shallowPage).toMatchObject({
       total: 4,
       limit: 2,
       offset: 1,
     });
-    expect(shallowPage.entries.map((entry) => entry.path)).toEqual([
-      "/about",
-      "/admin",
-    ]);
+    expect(shallowPage.entries.map((entry) => entry.path)).toEqual(["/about", "/admin"]);
   });
 
   it("searches entries and retrieves detail within one target", async () => {
@@ -415,10 +393,12 @@ describe("SitemapRepository", () => {
       httpStatus: 200,
     });
     expect(
-      repository.listEntries({
-        targetId: "target-1",
-        provenance: "both",
-      }).entries.map((entry) => entry.id),
+      repository
+        .listEntries({
+          targetId: "target-1",
+          provenance: "both",
+        })
+        .entries.map((entry) => entry.id),
     ).toEqual([mergedEntry.id]);
     expect(repository.listAccessObservations("session-1")).toEqual([
       expect.objectContaining({
@@ -430,18 +410,22 @@ describe("SitemapRepository", () => {
     ]);
     expect(repository.listAccessObservations("session-2")).toEqual([]);
     expect(
-      repository.listEntries({
-        targetId: "target-1",
-        accessObservedBySessionId: "session-1",
-        hasAccessObservation: true,
-      }).entries.map((entry) => entry.id),
+      repository
+        .listEntries({
+          targetId: "target-1",
+          accessObservedBySessionId: "session-1",
+          hasAccessObservation: true,
+        })
+        .entries.map((entry) => entry.id),
     ).toEqual([mergedEntry.id]);
     expect(
-      repository.listEntries({
-        targetId: "target-1",
-        accessObservedBySessionId: "session-1",
-        hasAccessObservation: false,
-      }).entries.map((entry) => entry.id),
+      repository
+        .listEntries({
+          targetId: "target-1",
+          accessObservedBySessionId: "session-1",
+          hasAccessObservation: false,
+        })
+        .entries.map((entry) => entry.id),
     ).toEqual([unobservedEntry.id]);
   });
 
@@ -464,8 +448,10 @@ describe("SitemapRepository", () => {
     });
     expect(paused.startedAt).toBeString();
     expect(paused.pausedAt).toBeString();
-    expect(repository.getAuthenticatedCrawlStatus("session-2", "target-1"))
-      .toMatchObject({ status: "idle", sessionId: "session-2" });
+    expect(repository.getAuthenticatedCrawlStatus("session-2", "target-1")).toMatchObject({
+      status: "idle",
+      sessionId: "session-2",
+    });
   });
 
   it("round-trips non-secret crawl checkpoints", async () => {
@@ -490,10 +476,7 @@ describe("SitemapRepository", () => {
       entriesDiscovered: 2,
     });
 
-    const recovered = repository.getCrawlCheckpoint(
-      "authenticated",
-      "session-1",
-    );
+    const recovered = repository.getCrawlCheckpoint("authenticated", "session-1");
     expect(recovered).toMatchObject({
       crawlerType: "authenticated",
       ownerId: "session-1",
@@ -521,9 +504,7 @@ describe("SitemapRepository", () => {
     repository.recoverInterruptedCrawls();
 
     expect(repository.getCrawlStatus("target-1").status).toBe("paused");
-    expect(
-      repository.getAuthenticatedCrawlStatus("session-1", "target-1"),
-    ).toMatchObject({
+    expect(repository.getAuthenticatedCrawlStatus("session-1", "target-1")).toMatchObject({
       status: "authentication_required",
       errorMessage: "Run Auth Check again to resume after application restart.",
     });

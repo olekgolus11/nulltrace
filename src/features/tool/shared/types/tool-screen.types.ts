@@ -7,20 +7,9 @@ import {
 
 export type ToolName = "nmap" | "nuclei" | "ffuf" | "sqlmap" | "zap" | "nikto";
 
-export type ToolPanel =
-  | "drafts"
-  | "chat"
-  | "form"
-  | "command"
-  | "output"
-  | "history";
+export type ToolPanel = "drafts" | "chat" | "form" | "command" | "output" | "history";
 
-export type ExecutionStatus =
-  | "idle"
-  | "running"
-  | "success"
-  | "cancelled"
-  | "error";
+export type ExecutionStatus = "idle" | "running" | "success" | "cancelled" | "error";
 
 export type CommandSource = "generated" | "manual";
 
@@ -71,9 +60,7 @@ export interface ToolModule {
     options: ToolPrepareCommand,
   ) => string | ToolPreparedCommand | Promise<string | ToolPreparedCommand>;
   redactCommandForPersistence?: (command: string) => string;
-  collectArtifacts?: (
-    options: ToolRunCompleted,
-  ) => Promise<ToolRunArtifactInput[]>;
+  collectArtifacts?: (options: ToolRunCompleted) => Promise<ToolRunArtifactInput[]>;
 }
 
 export interface ToolData {

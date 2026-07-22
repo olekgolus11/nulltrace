@@ -1,6 +1,6 @@
 import { AuthenticatedRequestContext } from "../../authentication/model/authenticated-request-context.types";
-import { AuthenticatedSitemapCrawlerInput } from "./authenticated-sitemap-crawler.service";
 import { AuthenticatedSitemapCrawlStatusRecord } from "../model/sitemap.types";
+import { AuthenticatedSitemapCrawlerInput } from "./authenticated-sitemap-crawler.types";
 
 interface AuthenticatedContextLoader {
   loadProtectedContext(sessionId: string): Promise<AuthenticatedRequestContext | null>;
@@ -16,10 +16,6 @@ interface AuthenticatedCrawlStatusReader {
     sessionId: string,
     targetId: string,
   ): AuthenticatedSitemapCrawlStatusRecord;
-}
-
-interface AuthCheckMetadataReader {
-  getMetadata(sessionId: string): { verificationUrl: string | null };
 }
 
 export interface StartAuthenticatedSitemapCrawlInput {
@@ -48,7 +44,6 @@ export class AuthenticatedSitemapCrawlCoordinator {
     private readonly contextLoader: AuthenticatedContextLoader,
     private readonly crawler: AuthenticatedCrawlerRunner,
     private readonly repository?: AuthenticatedCrawlStatusReader,
-    private readonly authCheckMetadata?: AuthCheckMetadataReader,
   ) {}
 
   async startAfterAcceptedAuthCheck({
@@ -56,15 +51,10 @@ export class AuthenticatedSitemapCrawlCoordinator {
     targetId,
     rootUrl,
   }: StartAuthenticatedSitemapCrawlInput): Promise<StartAuthenticatedSitemapCrawlResult> {
-    const status = this.repository?.getAuthenticatedCrawlStatus(
-      sessionId,
-      targetId,
-    ).status;
+    const status = this.repository?.getAuthenticatedCrawlStatus(sessionId, targetId).status;
     return this.startWithContext(
       { sessionId, targetId, rootUrl },
-      status === "paused" || status === "authentication_required"
-        ? "resume"
-        : "fresh",
+      status === "paused" || status === "authentication_required" ? "resume" : "fresh",
     );
   }
 
@@ -90,19 +80,6 @@ export class AuthenticatedSitemapCrawlCoordinator {
     return this.startWithContext(input, "resume");
   }
 
-  async retrySessionFailures(
-    input: StartAuthenticatedSitemapCrawlInput,
-  ): Promise<StartAuthenticatedSitemapCrawlResult> {
-    const status = this.repository?.getAuthenticatedCrawlStatus(
-      input.sessionId,
-      input.targetId,
-    ).status;
-    if (status === "authentication_required") {
-      return { state: "auth_check_required", crawl: null };
-    }
-    return this.startWithContext(input, "retry_failures");
-  }
-
   async restartSessionCrawl(
     input: StartAuthenticatedSitemapCrawlInput,
   ): Promise<StartAuthenticatedSitemapCrawlResult> {
@@ -126,7 +103,7 @@ export class AuthenticatedSitemapCrawlCoordinator {
 
   private async startWithContext(
     { sessionId, targetId, rootUrl }: StartAuthenticatedSitemapCrawlInput,
-    mode: "fresh" | "resume" | "retry_failures",
+    mode: "fresh" | "resume",
   ): Promise<StartAuthenticatedSitemapCrawlResult> {
     const running = this.runningBySessionId.get(sessionId);
     if (running) {
@@ -160,8 +137,6 @@ export class AuthenticatedSitemapCrawlCoordinator {
       sessionId,
       targetId,
       rootUrl,
-      verificationUrl:
-        this.authCheckMetadata?.getMetadata(sessionId).verificationUrl ?? null,
       context,
       mode,
     });

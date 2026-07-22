@@ -134,9 +134,7 @@ describe("FindingRepository", () => {
     ]);
 
     const rowCount = database
-      .query<{ count: number }, []>(
-        "SELECT COUNT(*) AS count FROM session_findings",
-      )
+      .query<{ count: number }, []>("SELECT COUNT(*) AS count FROM session_findings")
       .get();
 
     expect(rowCount?.count).toBe(1);
@@ -187,9 +185,7 @@ describe("FindingRepository", () => {
     ]);
 
     const rowCount = database
-      .query<{ count: number }, []>(
-        "SELECT COUNT(*) AS count FROM session_findings",
-      )
+      .query<{ count: number }, []>("SELECT COUNT(*) AS count FROM session_findings")
       .get();
 
     expect(rowCount?.count).toBe(2);
@@ -379,9 +375,7 @@ describe("FindingRepository", () => {
       reviewStatus: "needs_review",
     });
     const rowCount = database
-      .query<{ count: number }, []>(
-        "SELECT COUNT(*) AS count FROM finding_reviews",
-      )
+      .query<{ count: number }, []>("SELECT COUNT(*) AS count FROM finding_reviews")
       .get();
 
     expect(rowCount?.count).toBe(1);

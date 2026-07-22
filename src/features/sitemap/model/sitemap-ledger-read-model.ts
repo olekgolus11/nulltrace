@@ -20,11 +20,7 @@ function splitGraphemes(value: string) {
   return Array.from(segmenter.segment(value), ({ segment }) => segment);
 }
 
-function takeByWidth(
-  graphemes: string[],
-  maxWidth: number,
-  direction: "start" | "end",
-) {
+function takeByWidth(graphemes: string[], maxWidth: number, direction: "start" | "end") {
   const result: string[] = [];
   let width = 0;
   let index = direction === "start" ? 0 : graphemes.length - 1;
@@ -63,19 +59,11 @@ function findPathSegmentSuffix(path: string, maxWidth: number) {
   return null;
 }
 
-export function createSitemapLedgerColumns(
-  availableWidth: number,
-): SitemapLedgerColumns {
-  const scope = availableWidth >= 48
-    ? wideScopeColumnWidth
-    : narrowScopeColumnWidth;
+export function createSitemapLedgerColumns(availableWidth: number): SitemapLedgerColumns {
+  const scope = availableWidth >= 48 ? wideScopeColumnWidth : narrowScopeColumnWidth;
   const route = Math.max(
     1,
-    availableWidth -
-      methodColumnWidth -
-      statusColumnWidth -
-      scope -
-      columnGapCount,
+    availableWidth - methodColumnWidth - statusColumnWidth - scope - columnGapCount,
   );
 
   return {
@@ -100,10 +88,7 @@ export function formatSitemapLedgerPath(path: string, maxWidth: number) {
   const graphemes = splitGraphemes(path);
   const contentWidth = maxWidth - 1;
   const minimumPrefixWidth = Math.max(1, Math.floor(contentWidth * 0.25));
-  const segmentSuffix = findPathSegmentSuffix(
-    path,
-    contentWidth - minimumPrefixWidth,
-  );
+  const segmentSuffix = findPathSegmentSuffix(path, contentWidth - minimumPrefixWidth);
   if (segmentSuffix) {
     const prefixWidth = contentWidth - Bun.stringWidth(segmentSuffix);
     return `${takeByWidth(graphemes, prefixWidth, "start")}\u2026${segmentSuffix}`;
@@ -127,11 +112,7 @@ export function getSitemapLedgerScopeLabel(
     return "\u2014";
   }
   if (scopeWidth <= narrowScopeColumnWidth) {
-    return provenance === "public"
-      ? "PUB"
-      : provenance === "authenticated"
-        ? "AUTH"
-        : "BOTH";
+    return provenance === "public" ? "PUB" : provenance === "authenticated" ? "AUTH" : "BOTH";
   }
 
   return provenance === "authenticated" ? "AUTH" : provenance.toUpperCase();

@@ -5,15 +5,9 @@ import {
   getInitialExpandedTargetId,
 } from "../../session/model/session-list";
 import { useSessionContextStore } from "../../session/store/session-context.store";
-import {
-  entryPanels,
-  initialEntryState,
-} from "../model/entry.state";
+import { entryPanels, initialEntryState } from "../model/entry.state";
 import { EntryPanel, EntryState } from "../model/entry.types";
-import {
-  cyclePanel,
-  getPanelByShortcut,
-} from "../../../shared/model/panel-navigation";
+import { cyclePanel, getPanelByShortcut } from "../../../shared/model/panel-navigation";
 import { TargetSummary } from "../../session/model/session.types";
 
 type EntryAction =
@@ -37,19 +31,12 @@ function clamp(value: number, min: number, max: number) {
 }
 
 function createEntryReducer() {
-  return function dashboardReducer(
-    state: EntryState,
-    action: EntryAction,
-  ): EntryState {
+  return function dashboardReducer(state: EntryState, action: EntryAction): EntryState {
     switch (action.type) {
       case "CYCLE_PANEL":
         return {
           ...state,
-          activePanel: cyclePanel(
-            entryPanels,
-            state.activePanel,
-            action.direction,
-          ),
+          activePanel: cyclePanel(entryPanels, state.activePanel, action.direction),
         };
 
       case "SET_ACTIVE_PANEL":
@@ -61,11 +48,7 @@ function createEntryReducer() {
       case "MOVE_SELECTION":
         return {
           ...state,
-          selectedRow: clamp(
-            state.selectedRow + action.delta,
-            0,
-            Math.max(0, action.rowCount - 1),
-          ),
+          selectedRow: clamp(state.selectedRow + action.delta, 0, Math.max(0, action.rowCount - 1)),
         };
 
       case "SET_URL_INPUT":
@@ -77,8 +60,7 @@ function createEntryReducer() {
       case "TOGGLE_TARGET":
         return {
           ...state,
-          expandedTargetId:
-            state.expandedTargetId === action.targetId ? null : action.targetId,
+          expandedTargetId: state.expandedTargetId === action.targetId ? null : action.targetId,
         };
 
       case "INITIALIZE_TARGET":
@@ -90,11 +72,7 @@ function createEntryReducer() {
       case "CLAMP_SELECTION":
         return {
           ...state,
-          selectedRow: clamp(
-            state.selectedRow,
-            0,
-            Math.max(0, action.rowCount - 1),
-          ),
+          selectedRow: clamp(state.selectedRow, 0, Math.max(0, action.rowCount - 1)),
         };
     }
   };
@@ -111,11 +89,7 @@ export function useEntryShortcuts({
   const reducer = createEntryReducer();
   const [state, dispatch] = useReducer(reducer, initialEntryState);
   const expandedTargetId = state.expandedTargetId;
-  const rows = buildSessionSidebarRows(
-    targets,
-    expandedTargetId,
-    currentSessionId,
-  );
+  const rows = buildSessionSidebarRows(targets, expandedTargetId, currentSessionId);
 
   const setUrlInput = (value: string) => {
     dispatch({ type: "SET_URL_INPUT", value });
@@ -211,7 +185,6 @@ export function useEntryShortcuts({
     rows,
     setUrlInput,
     submitUrlInput,
-    setActivePanel: (panel: EntryPanel) =>
-      dispatch({ type: "SET_ACTIVE_PANEL", panel }),
+    setActivePanel: (panel: EntryPanel) => dispatch({ type: "SET_ACTIVE_PANEL", panel }),
   };
 }

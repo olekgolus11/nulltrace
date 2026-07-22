@@ -1,8 +1,5 @@
 import { NmapWorkspace } from "../../nmap/components/NmapWorkspace";
-import {
-  nmapBooleanFields,
-  nmapFieldOrder,
-} from "../../nmap/config/nmap.config";
+import { nmapBooleanFields, nmapFieldOrder } from "../../nmap/config/nmap.config";
 import { nmapCommandService } from "../../nmap/services/nmap-command.service";
 import { NmapFieldId, NmapToolData } from "../../nmap/types/nmap.types";
 import { NucleiWorkspace } from "../../nuclei/components/NucleiWorkspace";
@@ -32,8 +29,7 @@ export const toolRegistry: Record<string, ToolModule> = {
       nmapCommandService.buildCommand(toolData as NmapToolData),
     prepareCommandForRun: (options: ToolPrepareCommand) =>
       nmapCommandService.prepareCommandForRun(options),
-    collectArtifacts: (options: ToolRunCompleted) =>
-      nmapCommandService.collectArtifacts(options),
+    collectArtifacts: (options: ToolRunCompleted) => nmapCommandService.collectArtifacts(options),
     handleFormKey: (key, state, api) => {
       if (state.activePanel !== "form") {
         return false;
@@ -51,22 +47,14 @@ export const toolRegistry: Record<string, ToolModule> = {
 
       if (key.name === "up") {
         api.updateToolData((current) =>
-          nmapCommandService.moveSelection(
-            current as NmapToolData,
-            -1,
-            nmapFieldOrder.length - 1,
-          ),
+          nmapCommandService.moveSelection(current as NmapToolData, -1, nmapFieldOrder.length - 1),
         );
         return true;
       }
 
       if (key.name === "down") {
         api.updateToolData((current) =>
-          nmapCommandService.moveSelection(
-            current as NmapToolData,
-            1,
-            nmapFieldOrder.length - 1,
-          ),
+          nmapCommandService.moveSelection(current as NmapToolData, 1, nmapFieldOrder.length - 1),
         );
         return true;
       }
@@ -81,9 +69,7 @@ export const toolRegistry: Record<string, ToolModule> = {
       }
 
       if (timingFieldSelected && key.name === "right") {
-        api.updateToolData((current) =>
-          nmapCommandService.cycleTiming(current as NmapToolData, 1),
-        );
+        api.updateToolData((current) => nmapCommandService.cycleTiming(current as NmapToolData, 1));
         api.syncGeneratedCommand();
         return true;
       }
@@ -121,8 +107,7 @@ export const toolRegistry: Record<string, ToolModule> = {
       nucleiCommandService.prepareCommandForRun(options),
     redactCommandForPersistence: (command: string) =>
       nucleiCommandService.redactCommandForPersistence(command),
-    collectArtifacts: (options: ToolRunCompleted) =>
-      nucleiCommandService.collectArtifacts(options),
+    collectArtifacts: (options: ToolRunCompleted) => nucleiCommandService.collectArtifacts(options),
     handleFormKey: (key, state, api) => {
       if (state.activePanel !== "form") {
         return false;
@@ -170,18 +155,13 @@ export const toolRegistry: Record<string, ToolModule> = {
         (key.name === "left" || key.name === "right")
       ) {
         api.updateToolData((current) =>
-          nucleiCommandService.toggleAuthenticatedContext(
-            current as NucleiToolData,
-          ),
+          nucleiCommandService.toggleAuthenticatedContext(current as NucleiToolData),
         );
         api.syncGeneratedCommand();
         return true;
       }
 
-      if (
-        nucleiCommandService.isSeverityFieldSelected(selectedField) &&
-        key.name === "left"
-      ) {
+      if (nucleiCommandService.isSeverityFieldSelected(selectedField) && key.name === "left") {
         api.updateToolData((current) =>
           nucleiCommandService.cycleSeverity(current as NucleiToolData, -1),
         );
@@ -189,10 +169,7 @@ export const toolRegistry: Record<string, ToolModule> = {
         return true;
       }
 
-      if (
-        nucleiCommandService.isSeverityFieldSelected(selectedField) &&
-        key.name === "right"
-      ) {
+      if (nucleiCommandService.isSeverityFieldSelected(selectedField) && key.name === "right") {
         api.updateToolData((current) =>
           nucleiCommandService.cycleSeverity(current as NucleiToolData, 1),
         );
@@ -214,10 +191,7 @@ export const toolPanels: Array<PanelDefinition<ToolPanel>> = [
   { id: "history", label: "HISTORY" },
 ];
 
-export const helpContent: Record<
-  ToolName,
-  Record<string, ToolHelpContent> | null
-> = {
+export const helpContent: Record<ToolName, Record<string, ToolHelpContent> | null> = {
   nmap: scannerCatalog.nmap.helpContent as Record<string, ToolHelpContent>,
   nuclei: scannerCatalog.nuclei.helpContent as Record<string, ToolHelpContent>,
   ffuf: scannerCatalog.ffuf.helpContent,

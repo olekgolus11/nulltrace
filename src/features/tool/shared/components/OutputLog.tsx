@@ -19,9 +19,7 @@ export function OutputLog({
             <text
               key={`line-${index}-${line}`}
               fg={
-                line.startsWith("[execution failed]")
-                  ? theme.accent.critical
-                  : theme.text.primary
+                line.startsWith("[execution failed]") ? theme.accent.critical : theme.text.primary
               }
             >
               {line || " "}

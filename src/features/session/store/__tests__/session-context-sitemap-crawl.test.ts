@@ -41,28 +41,18 @@ describe("session sitemap crawl startup", () => {
     });
 
     try {
-      const { useSessionContextStore } = await import(
-        "../session-context.store"
-      );
-      const { sessionDatabase } = await import(
-        "../../services/session-database"
-      );
+      const { useSessionContextStore } = await import("../session-context.store");
+      const { sessionDatabase } = await import("../../services/session-database");
 
-      await useSessionContextStore
-        .getState()
-        .createSessionForNewTarget("https://example.com");
+      await useSessionContextStore.getState().createSessionForNewTarget("https://example.com");
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       const status = sessionDatabase
-        .query<{ status: string }, []>(
-          "SELECT status FROM target_sitemap_crawl_statuses LIMIT 1",
-        )
+        .query<{ status: string }, []>("SELECT status FROM target_sitemap_crawl_statuses LIMIT 1")
         .get();
       const entries = sessionDatabase
-        .query<{ path: string }, []>(
-          "SELECT path FROM target_sitemap_entries ORDER BY path ASC",
-        )
+        .query<{ path: string }, []>("SELECT path FROM target_sitemap_entries ORDER BY path ASC")
         .all()
         .map((entry) => entry.path);
 

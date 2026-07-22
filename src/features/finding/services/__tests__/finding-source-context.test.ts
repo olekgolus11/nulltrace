@@ -53,9 +53,7 @@ describe("createFindingSourceContextFields", () => {
       label: "Script Output",
       value: "Subject: commonName=example.com",
     });
-    expect(fields.some((field) => field.value === "hidden-debug-value")).toBe(
-      false,
-    );
+    expect(fields.some((field) => field.value === "hidden-debug-value")).toBe(false);
   });
 
   it("formats nuclei payloads with a compact references preview", () => {
@@ -91,8 +89,7 @@ describe("createFindingSourceContextFields", () => {
     });
     expect(fields).toContainEqual({
       label: "References",
-      value:
-        "https://one.test, https://two.test, https://three.test, +1 more",
+      value: "https://one.test, https://two.test, https://three.test, +1 more",
     });
   });
 
@@ -110,7 +107,7 @@ describe("createFindingSourceContextFields", () => {
     expect(fields).toEqual([
       {
         label: "JSON Preview",
-        value: "{\"nested\":{\"value\":true}}",
+        value: '{"nested":{"value":true}}',
       },
     ]);
   });
