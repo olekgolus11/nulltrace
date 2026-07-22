@@ -2,10 +2,8 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import {
-  buildNucleiSecretFile,
-  NucleiAuthenticatedRunService,
-} from "../nuclei-authenticated-run.service";
+import { buildNucleiSecretFile } from "../nuclei-authenticated-run.helpers";
+import { NucleiAuthenticatedRunService } from "../nuclei-authenticated-run.service";
 
 const temporaryDirectories: string[] = [];
 

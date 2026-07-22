@@ -23,8 +23,8 @@ import {
   listAvailableScannerToolsFromCatalog,
   scannerCatalog,
 } from "../../tool/shared/registry/scanner-catalog";
-import { redactNucleiCommandForPersistence } from "../../tool/nuclei/services/nuclei-command-redaction";
-import { assertSimpleShellCommand } from "../../tool/nuclei/services/nuclei-shell";
+import { redactNucleiCommandForPersistence } from "../../tool/nuclei/services/nuclei-command-redaction.helpers";
+import { assertSimpleShellCommand } from "../../tool/nuclei/services/nuclei-shell.helpers";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { findingRepository } from "../../finding/services/finding.repository";
 import {
@@ -51,6 +51,7 @@ import {
   ToolWorkspaceContextSnapshot,
   toolWorkspaceContextService,
 } from "../../tool/shared/services/tool-workspace-context.service";
+import { redactActionDraftAuthorizationValues } from "./action-draft-chat-context.helpers";
 import { ChatContextToolRegistry } from "./chat-context-tool-registry";
 import { conversationAttachmentService } from "./conversation-attachment.service";
 
@@ -553,26 +554,6 @@ function replaceTargetPlaceholders(value: string, target: string) {
     .replaceAll("{TARGET}", target);
 }
 
-function redactDraftAuthorizationValues(value: unknown): unknown {
-  if (typeof value === "string") {
-    return redactNucleiCommandForPersistence(value);
-  }
-  if (Array.isArray(value)) {
-    return value.map(redactDraftAuthorizationValues);
-  }
-  if (!value || typeof value !== "object") {
-    return value;
-  }
-  return Object.fromEntries(
-    Object.entries(value).map(([key, entryValue]) => [
-      key,
-      /authorization|cookie|header|password|secret|token/i.test(key)
-        ? "[redacted]"
-        : redactDraftAuthorizationValues(entryValue),
-    ]),
-  );
-}
-
 function toCreateActionDraftPayload(
   args: CreateActionDraftArgs,
   session: SessionContextRecord | null,
@@ -581,7 +562,7 @@ function toCreateActionDraftPayload(
   const parsedFormState = parseOptionalJson(args.formStateJson, "formStateJson");
   const formState =
     args.targetTool === "nuclei"
-      ? redactDraftAuthorizationValues(parsedFormState)
+      ? redactActionDraftAuthorizationValues(parsedFormState)
       : parsedFormState;
   const formStateRecord =
     formState && typeof formState === "object" && !Array.isArray(formState)
@@ -623,7 +604,9 @@ function toCreateActionDraftPayload(
       ? {
           intent:
             args.targetTool === "nuclei"
-              ? redactDraftAuthorizationValues(parseOptionalJson(args.intentJson, "intentJson"))
+              ? redactActionDraftAuthorizationValues(
+                  parseOptionalJson(args.intentJson, "intentJson"),
+                )
               : parseOptionalJson(args.intentJson, "intentJson"),
         }
       : {}),

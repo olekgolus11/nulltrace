@@ -9,7 +9,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { getAppDataDirectory } from "../../../session/services/session-database";
-import { redactNucleiCommandForPersistence } from "../../nuclei/services/nuclei-command-redaction";
+import { redactNucleiCommandForPersistence } from "../../nuclei/services/nuclei-command-redaction.helpers";
 import {
   CommandSource,
   ExecutionStatus,

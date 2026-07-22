@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 
 process.env.XDG_DATA_HOME = "/private/tmp/nulltrace-test";
 
-const { nucleiCommandService, parseNucleiJsonl } = await import("../nuclei-command.service");
+const { parseNucleiJsonl } = await import("../nuclei-command.helpers");
+const { nucleiCommandService } = await import("../nuclei-command.service");
 
 describe("nucleiCommandService", () => {
   test("builds a target-centric command with no severity filter by default", () => {

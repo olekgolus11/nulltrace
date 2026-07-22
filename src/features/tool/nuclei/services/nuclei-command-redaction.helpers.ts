@@ -1,4 +1,4 @@
-import { shellTokenPattern } from "./nuclei-shell";
+import { shellTokenPattern } from "./nuclei-shell.helpers";
 
 const nucleiUnquotedSensitiveHeaderPattern = new RegExp(
   String.raw`(^|\s)(--?(?:H|header))(?:=|\s+)(?:(?:authorization|cookie|proxy-authorization|x-api-key)\s*:\s*)[^\r\n]*?(?=\s+--?[A-Za-z][\w-]*(?:=|\s|$)|$)`,
