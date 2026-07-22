@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { buildNucleiSecretFile } from "../nuclei-authenticated-run.helpers";
+import { createAuthenticatedNucleiJsonlRedactor } from "../nuclei-authenticated-output-redaction.helpers";
 import { NucleiAuthenticatedRunService } from "../nuclei-authenticated-run.service";
 
 const temporaryDirectories: string[] = [];
@@ -20,7 +21,7 @@ afterEach(() => {
 });
 
 describe("buildNucleiSecretFile", () => {
-  it("scopes cookies and headers to the exact authenticated origin", () => {
+  it("uses the exact authority supported by Nuclei and records the normalized origin", () => {
     expect(
       buildNucleiSecretFile({
         origin: "https://example.com:8443",
@@ -41,6 +42,32 @@ static:
       - key: "X-Tenant"
         value: "tenant-1"
 `);
+  });
+
+  it("redacts escaped secrets without corrupting short JSON values", () => {
+    const redactJsonl = createAuthenticatedNucleiJsonlRedactor({
+      origin: "https://example.com",
+      cookies: "a=1; flag=true",
+      headers: 'Authorization: Bearer secret"\\token',
+      updatedAt: "2026-05-10T10:00:00.000Z",
+    });
+    const redacted = JSON.parse(
+      redactJsonl(
+        JSON.stringify({
+          status: 200,
+          enabled: true,
+          templateId: "CVE-2021-10001",
+          reflected: 'secret"\\token',
+        }),
+      ),
+    );
+
+    expect(redacted).toEqual({
+      status: 200,
+      enabled: "[redacted]",
+      templateId: "CVE-2021-10001",
+      reflected: "[redacted]",
+    });
   });
 });
 
@@ -67,13 +94,20 @@ describe("NucleiAuthenticatedRunService", () => {
     });
     const secretPath = prepared.secretFilePath;
 
-    expect(prepared.command).toContain(` -exclude-tags default-login -sf '${secretPath}'`);
+    expect(prepared.command).toContain(` -sf '${secretPath}'`);
+    expect(prepared.command).not.toContain("-exclude-tags default-login");
     expect(statSync(rootDirectory).mode & 0o777).toBe(0o700);
     expect(statSync(dirname(secretPath)).mode & 0o777).toBe(0o700);
     expect(statSync(secretPath).mode & 0o777).toBe(0o600);
     expect(readFileSync(secretPath, "utf8")).toContain("secret-token");
     expect(prepared.command).not.toContain("secret-token");
     expect(prepared.command).not.toContain("secret-cookie");
+    expect(
+      prepared.redactOutput("Authorization: Bearer secret-token; Cookie: session=secret-cookie"),
+    ).not.toContain("secret-token");
+    expect(
+      prepared.redactOutput("Authorization: Bearer secret-token; Cookie: session=secret-cookie"),
+    ).not.toContain("secret-cookie");
 
     prepared.cleanup();
 
@@ -129,6 +163,31 @@ describe("NucleiAuthenticatedRunService", () => {
         sessionId: "session-1",
         targetUrl: "https://api.example.com",
         command: "nuclei -u https://api.example.com",
+      }),
+    ).rejects.toThrow("exact origin");
+    expect(Array.from(new Bun.Glob("**/*").scanSync(rootDirectory))).toEqual([]);
+  });
+
+  it("rejects a command target using a different scheme on the same authority", async () => {
+    const rootDirectory = createTemporaryDirectory();
+    const service = new NucleiAuthenticatedRunService({
+      rootDirectory,
+      contextService: {
+        loadProtectedContext: async () => ({
+          origin: "https://example.com",
+          cookies: "session=secret-cookie",
+          headers: "",
+          updatedAt: "2026-05-10T10:00:00.000Z",
+        }),
+      },
+      isProceedAllowed: () => true,
+    });
+
+    await expect(
+      service.prepare({
+        sessionId: "session-1",
+        targetUrl: "http://example.com",
+        command: "nuclei -u http://example.com",
       }),
     ).rejects.toThrow("exact origin");
     expect(Array.from(new Bun.Glob("**/*").scanSync(rootDirectory))).toEqual([]);

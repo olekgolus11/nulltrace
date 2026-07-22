@@ -4,6 +4,9 @@ import { normalizeExactOrigin } from "../../../authentication/services/authentic
 
 export function buildNucleiSecretFile(context: AuthenticatedRequestContext) {
   const exactOrigin = normalizeExactOrigin(context.origin);
+  // Nuclei matches Secret File entries against URL.host, so the file carries the
+  // narrowest supported authority scope. The run boundary separately enforces
+  // the normalized target scheme and disables redirects and custom templates.
   const domain = new URL(exactOrigin).host;
   const exactDomainPattern = `^${escapeRegex(domain)}$`;
   const cookies = parseCookieEntries(context.cookies);

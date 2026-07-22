@@ -8,6 +8,10 @@ import {
 import { authCheckService } from "../../../authentication/services/auth-check.service";
 import { getAppDataDirectory } from "../../../session/services/session-database";
 import { buildNucleiSecretFile } from "./nuclei-authenticated-run.helpers";
+import {
+  createAuthenticatedNucleiJsonlRedactor,
+  createAuthenticatedNucleiOutputRedactor,
+} from "./nuclei-authenticated-output-redaction.helpers";
 import { PreparedAuthenticatedNucleiRun } from "./nuclei-authenticated-run.types";
 import { shellQuote } from "./nuclei-shell.helpers";
 
@@ -51,6 +55,8 @@ export class NucleiAuthenticatedRunService {
     if (context.origin !== targetOrigin) {
       throw new Error("Authentication context must match the Nuclei target's exact origin.");
     }
+    const redactOutput = createAuthenticatedNucleiOutputRedactor(context);
+    const redactJsonl = createAuthenticatedNucleiJsonlRedactor(context);
 
     let runDirectory: string | null = null;
     const cleanup = () => {
@@ -71,13 +77,16 @@ export class NucleiAuthenticatedRunService {
       chmodSync(secretFilePath, 0o600);
 
       return {
-        command: `${command} -exclude-tags default-login -sf ${shellQuote(secretFilePath)}`,
+        command: `${command} -sf ${shellQuote(secretFilePath)}`,
         secretFilePath,
         cleanup,
+        redactOutput,
+        redactJsonl,
       };
     } catch (error) {
       cleanup();
-      throw error;
+      const message = error instanceof Error ? redactOutput(error.message) : "Secret setup failed.";
+      throw new Error(message);
     }
   }
 }

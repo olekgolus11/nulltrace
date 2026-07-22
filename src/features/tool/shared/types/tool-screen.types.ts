@@ -85,6 +85,8 @@ export interface ToolPrepareCommand {
 export interface ToolPreparedCommand {
   command: string;
   cleanup?: () => void;
+  redactOutput?: (content: string) => string;
+  redactArtifact?: (content: string) => string;
 }
 
 export interface ToolRunCompleted {
@@ -92,4 +94,6 @@ export interface ToolRunCompleted {
   toolRunId: string | null;
   status: ExecutionStatus;
   exitCode: number | null;
+  redactOutput?: (content: string) => string;
+  redactArtifact?: (content: string) => string;
 }

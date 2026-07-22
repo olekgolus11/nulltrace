@@ -253,6 +253,50 @@ describe("ToolRunnerService", () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
+  it("redacts authenticated output before displaying or persisting it", async () => {
+    const appendToolRunLog = mock(() => {});
+    const stdout = mock(() => {});
+    const stderr = mock(() => {});
+    const service = new ToolRunnerService(
+      {
+        run: mock(async (_command, onStdoutLines, onStderrLines) => {
+          onStdoutLines(["reflected secret-token"]);
+          onStderrLines(["cookie secret-cookie"]);
+          return 0;
+        }),
+        stop: mock(() => {}),
+      },
+      { processCompletedRun: mock(async () => {}) },
+      {
+        recordToolRun: mock(() => createToolRunRecord()),
+        appendToolRunLog,
+        finishToolRun: mock(() => {}),
+        cancelToolRun: mock(() => {}),
+      },
+    );
+    const redactOutput = (content: string) =>
+      content.replaceAll("secret-token", "[redacted]").replaceAll("secret-cookie", "[redacted]");
+
+    await service.run({
+      sessionId: "session-1",
+      toolName: "nuclei",
+      command: "nuclei -u https://example.com",
+      commandSource: "generated",
+      toolModule: createToolModule(() => ({
+        command: "nuclei -sf /tmp/secret",
+        redactOutput,
+      })),
+      onStdoutLines: stdout,
+      onStderrLines: stderr,
+      onSystemLines: mock(() => {}),
+    });
+
+    expect(stdout).toHaveBeenCalledWith(["reflected [redacted]"]);
+    expect(stderr).toHaveBeenCalledWith(["cookie [redacted]"]);
+    expect(JSON.stringify(appendToolRunLog.mock.calls)).not.toContain("secret-token");
+    expect(JSON.stringify(appendToolRunLog.mock.calls)).not.toContain("secret-cookie");
+  });
+
   it("cleans prepared state after execution failure", async () => {
     const cleanup = mock(() => {});
     const service = new ToolRunnerService(
@@ -330,5 +374,111 @@ describe("ToolRunnerService", () => {
     (finishProcess as (() => void) | null)?.();
     await runPromise;
     expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it("finalizes authenticated artifacts after a cancelled process stops", async () => {
+    let finishProcess: (() => void) | null = null;
+    const processCompletedRun = mock(async () => {});
+    const redactArtifact = (content: string) => content.replaceAll("secret", "[redacted]");
+    const service = new ToolRunnerService(
+      {
+        run: mock(
+          () =>
+            new Promise<number>((resolve) => {
+              finishProcess = () => resolve(130);
+            }),
+        ),
+        stop: mock(() => {
+          finishProcess?.();
+        }),
+      },
+      { processCompletedRun },
+      {
+        recordToolRun: mock(() => createToolRunRecord()),
+        appendToolRunLog: mock(() => {}),
+        finishToolRun: mock(() => {}),
+        cancelToolRun: mock(() => {}),
+      },
+    );
+
+    const runPromise = service.run({
+      sessionId: "session-1",
+      toolName: "nuclei",
+      command: "nuclei -u https://example.com",
+      commandSource: "generated",
+      toolModule: createToolModule(() => ({
+        command: "nuclei -sf /tmp/secret",
+        redactArtifact,
+      })),
+      onStdoutLines: mock(() => {}),
+      onStderrLines: mock(() => {}),
+      onSystemLines: mock(() => {}),
+    });
+    await Promise.resolve();
+
+    service.stop();
+    await runPromise;
+
+    expect(processCompletedRun).toHaveBeenCalledWith({
+      sessionId: "session-1",
+      toolRunId: "run-1",
+      toolModule: expect.any(Object),
+      status: "cancelled",
+      exitCode: 130,
+      redactArtifact,
+    });
+  });
+
+  it("finalizes authenticated artifacts when cancellation rejects the process", async () => {
+    let rejectProcess: ((error: Error) => void) | null = null;
+    const processCompletedRun = mock(async () => {});
+    const redactArtifact = (content: string) => content.replaceAll("secret", "[redacted]");
+    const service = new ToolRunnerService(
+      {
+        run: mock(
+          () =>
+            new Promise<number>((_resolve, reject) => {
+              rejectProcess = reject;
+            }),
+        ),
+        stop: mock(() => {
+          rejectProcess?.(new Error("process terminated"));
+        }),
+      },
+      { processCompletedRun },
+      {
+        recordToolRun: mock(() => createToolRunRecord()),
+        appendToolRunLog: mock(() => {}),
+        finishToolRun: mock(() => {}),
+        cancelToolRun: mock(() => {}),
+      },
+    );
+
+    const runPromise = service.run({
+      sessionId: "session-1",
+      toolName: "nuclei",
+      command: "nuclei -u https://example.com",
+      commandSource: "generated",
+      toolModule: createToolModule(() => ({
+        command: "nuclei -sf /tmp/secret",
+        redactArtifact,
+      })),
+      onStdoutLines: mock(() => {}),
+      onStderrLines: mock(() => {}),
+      onSystemLines: mock(() => {}),
+    });
+    await Promise.resolve();
+
+    service.stop();
+    await runPromise;
+
+    expect(processCompletedRun).toHaveBeenCalledWith({
+      sessionId: "session-1",
+      toolRunId: "run-1",
+      toolModule: expect.any(Object),
+      status: "cancelled",
+      exitCode: null,
+      redactArtifact,
+    });
   });
 });

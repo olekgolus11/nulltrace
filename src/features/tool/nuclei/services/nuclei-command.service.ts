@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
   nucleiFieldOrder,
@@ -22,12 +22,9 @@ import {
 import { normalizeExactOrigin } from "../../../authentication/services/authenticated-request-context.service";
 import { nucleiAuthenticatedRunService } from "./nuclei-authenticated-run.service";
 import { redactNucleiCommandForPersistence } from "./nuclei-command-redaction.helpers";
-import {
-  hasNucleiNoColorFlag,
-  parseNucleiJsonl,
-  stripNucleiOutputFlags,
-  validateAuthenticatedNucleiCommand,
-} from "./nuclei-command.helpers";
+import { validateAuthenticatedNucleiCommand } from "./nuclei-authenticated-command.helpers";
+import { hasNucleiNoColorFlag, stripNucleiOutputFlags } from "./nuclei-command-output.helpers";
+import { parseNucleiJsonl } from "./nuclei-finding-jsonl.parser";
 import { shellQuote } from "./nuclei-shell.helpers";
 
 class NucleiCommandService {
@@ -223,18 +220,20 @@ class NucleiCommandService {
     const prepared = await nucleiAuthenticatedRunService.prepare({
       sessionId,
       targetUrl: authenticatedTarget,
-      command: `${controlledCommand} -omit-raw -disable-redirects -disable-unsigned-templates`,
+      command: `${controlledCommand} -omit-raw -disable-redirects -disable-unsigned-templates -type http`,
     });
     return {
       command: prepared.command,
       cleanup: prepared.cleanup,
+      redactOutput: prepared.redactOutput,
+      redactArtifact: prepared.redactJsonl,
     };
   }
 
   async collectArtifacts(options: ToolRunCompleted): Promise<ToolRunArtifactInput[]> {
     const { sessionId, toolRunId, status, exitCode } = options;
 
-    if (!sessionId || !toolRunId || status === "cancelled") {
+    if (!sessionId || !toolRunId) {
       return [];
     }
 
@@ -243,8 +242,16 @@ class NucleiCommandService {
       return [];
     }
 
-    const jsonl = readFileSync(jsonlOutputPath, "utf8");
+    const rawJsonl = readFileSync(jsonlOutputPath, "utf8");
+    const jsonl =
+      options.redactArtifact?.(rawJsonl) ?? options.redactOutput?.(rawJsonl) ?? rawJsonl;
+    if (jsonl !== rawJsonl) {
+      writeFileSync(jsonlOutputPath, jsonl, { encoding: "utf8", mode: 0o600 });
+    }
     if (!jsonl.trim()) {
+      return [];
+    }
+    if (status === "cancelled") {
       return [];
     }
 

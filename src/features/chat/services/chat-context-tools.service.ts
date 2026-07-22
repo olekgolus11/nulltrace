@@ -23,7 +23,6 @@ import {
   listAvailableScannerToolsFromCatalog,
   scannerCatalog,
 } from "../../tool/shared/registry/scanner-catalog";
-import { redactNucleiCommandForPersistence } from "../../tool/nuclei/services/nuclei-command-redaction.helpers";
 import { assertSimpleShellCommand } from "../../tool/nuclei/services/nuclei-shell.helpers";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { findingRepository } from "../../finding/services/finding.repository";
@@ -51,7 +50,8 @@ import {
   ToolWorkspaceContextSnapshot,
   toolWorkspaceContextService,
 } from "../../tool/shared/services/tool-workspace-context.service";
-import { redactActionDraftAuthorizationValues } from "./action-draft-chat-context.helpers";
+import { mapActionDraftChatPayload } from "./action-draft-chat-context.mapper";
+import { ActionDraftChatContextArgs } from "./action-draft-chat-context.types";
 import { ChatContextToolRegistry } from "./chat-context-tool-registry";
 import { conversationAttachmentService } from "./conversation-attachment.service";
 
@@ -103,13 +103,7 @@ type GetArtifactArgs = {
   maxCharacters?: number;
 };
 
-type CreateActionDraftArgs = {
-  targetTool: ScannerToolId;
-  title: string;
-  command?: string;
-  intentJson?: string;
-  formStateJson?: string;
-};
+type CreateActionDraftArgs = ActionDraftChatContextArgs;
 
 type ListSitemapEntriesArgs = {
   limit?: number;
@@ -509,109 +503,9 @@ function normalizeOptionalToolString(value: unknown, toolName: string, argumentN
   return trimmed ? trimmed : undefined;
 }
 
-function parseOptionalJson(value: string | undefined, argumentName: string) {
-  if (!value) {
-    return undefined;
-  }
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    throw new Error(`create_action_draft ${argumentName} must be valid JSON.`);
-  }
-}
-
 function normalizeOptionalCommand(value: unknown) {
   const command = normalizeOptionalToolString(value, "create_action_draft", "command");
   return command;
-}
-
-function getScannerTargetForDraft(targetTool: ScannerToolId, session: SessionContextRecord | null) {
-  const target = session?.normalizedUrl.trim() || session?.displayUrl.trim();
-  if (!target) {
-    return "";
-  }
-
-  if (targetTool === "nmap") {
-    try {
-      return new URL(target).hostname;
-    } catch {
-      return target.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-    }
-  }
-
-  return target;
-}
-
-function replaceTargetPlaceholders(value: string, target: string) {
-  if (!target) {
-    return value;
-  }
-
-  return value
-    .replaceAll("{{TARGET}}", target)
-    .replaceAll("<TARGET>", target)
-    .replaceAll("{TARGET}", target);
-}
-
-function toCreateActionDraftPayload(
-  args: CreateActionDraftArgs,
-  session: SessionContextRecord | null,
-) {
-  const scannerTarget = getScannerTargetForDraft(args.targetTool, session);
-  const parsedFormState = parseOptionalJson(args.formStateJson, "formStateJson");
-  const formState =
-    args.targetTool === "nuclei"
-      ? redactActionDraftAuthorizationValues(parsedFormState)
-      : parsedFormState;
-  const formStateRecord =
-    formState && typeof formState === "object" && !Array.isArray(formState)
-      ? (formState as Record<string, unknown>)
-      : null;
-  const normalizedFormState = formStateRecord
-    ? {
-        ...formStateRecord,
-        ...(typeof formStateRecord.target === "string"
-          ? {
-              target: replaceTargetPlaceholders(formStateRecord.target, scannerTarget),
-            }
-          : {}),
-        ...(!("target" in formStateRecord) && scannerTarget ? { target: scannerTarget } : {}),
-      }
-    : formState;
-
-  return {
-    ...(scannerTarget
-      ? {
-          sessionTarget: {
-            normalized: session?.normalizedUrl ?? scannerTarget,
-            display: session?.displayUrl ?? scannerTarget,
-            scannerTarget,
-          },
-        }
-      : {}),
-    ...(args.command
-      ? {
-          command:
-            args.targetTool === "nuclei"
-              ? redactNucleiCommandForPersistence(
-                  replaceTargetPlaceholders(args.command, scannerTarget),
-                )
-              : replaceTargetPlaceholders(args.command, scannerTarget),
-        }
-      : {}),
-    ...(args.intentJson
-      ? {
-          intent:
-            args.targetTool === "nuclei"
-              ? redactActionDraftAuthorizationValues(
-                  parseOptionalJson(args.intentJson, "intentJson"),
-                )
-              : parseOptionalJson(args.intentJson, "intentJson"),
-        }
-      : {}),
-    ...(normalizedFormState !== undefined ? { formState: normalizedFormState } : {}),
-  };
 }
 
 function normalizeActionDraftTargetTool(value: unknown) {
@@ -1566,7 +1460,7 @@ export class ActionDraftChatContextToolsService {
     const targetTool = normalizeActionDraftTargetTool(args.targetTool);
     const attachment = requireActiveAttachment(this.attachments, opencodeConversationId);
     const session = this.sessions.getSessionById(attachment.sessionId);
-    const payload = toCreateActionDraftPayload(args, session);
+    const payload = mapActionDraftChatPayload(args, session);
     const formState =
       payload.formState &&
       typeof payload.formState === "object" &&

@@ -10,6 +10,7 @@ const nucleiSensitiveFlagPattern = new RegExp(
 );
 const inlineAuthorizationPattern =
   /((?:authorization|cookie|proxy-authorization|x-api-key)\s*:\s*)(?:[^\s'";]+(?:\s+[^'";]+)?)/gi;
+const urlUserInfoPattern = /\b([a-z][a-z0-9+.-]*:\/\/)[^@\s/]+@/gi;
 
 export function redactNucleiCommandForPersistence(command: string) {
   return command
@@ -21,5 +22,6 @@ export function redactNucleiCommandForPersistence(command: string) {
       nucleiSensitiveFlagPattern,
       (_match, prefix: string, flag: string) => `${prefix}${flag} '[redacted]'`,
     )
-    .replace(inlineAuthorizationPattern, "$1[redacted]");
+    .replace(inlineAuthorizationPattern, "$1[redacted]")
+    .replace(urlUserInfoPattern, "$1[redacted]@");
 }

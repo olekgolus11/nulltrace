@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 process.env.XDG_DATA_HOME = "/private/tmp/nulltrace-test";
 
-const { parseNucleiJsonl } = await import("../nuclei-command.helpers");
+const { parseNucleiJsonl } = await import("../nuclei-finding-jsonl.parser");
 const { nucleiCommandService } = await import("../nuclei-command.service");
+const { getAppDataDirectory } = await import("../../../../session/services/session-database");
 
 describe("nucleiCommandService", () => {
   test("builds a target-centric command with no severity filter by default", () => {
@@ -153,6 +156,10 @@ describe("nucleiCommandService", () => {
       "nuclei -u https://example.com -t /tmp/custom-template.yaml",
       "nuclei -u https://example.com -it /tmp/custom-template.yaml",
       "nuclei -u https://example.com -include-templates /tmp/custom-template.yaml",
+      "nuclei -u https://user:password@example.com",
+      "nuclei -u https://example.com -proxy http://user:password@127.0.0.1:8080",
+      "nuclei -u https://example.com --jsonl-export=/tmp/leak.jsonl",
+      "nuclei -u https://example.com -pdf-export /tmp/leak.pdf",
     ]) {
       await expect(
         nucleiCommandService.prepareCommandForRun({
@@ -181,6 +188,11 @@ describe("nucleiCommandService", () => {
         "nuclei -u https://example.com -H Authorization: Bearer unquoted-secret -stats",
       ),
     ).toBe("nuclei -u https://example.com -H '[redacted]' -stats");
+    expect(
+      nucleiCommandService.redactCommandForPersistence(
+        "nuclei -u https://user:password@example.com -proxy socks5://proxy:secret@127.0.0.1:1080",
+      ),
+    ).toBe("nuclei -u https://[redacted]@example.com -proxy socks5://[redacted]@127.0.0.1:1080");
   });
 
   test("parses valid JSONL findings with normalized convenience fields and raw preservation", () => {
@@ -241,5 +253,45 @@ describe("nucleiCommandService", () => {
       severity: "low",
       matchedAt: "https://example.com",
     });
+  });
+
+  test("redacts reflected authorization values from JSONL artifacts", async () => {
+    const toolRunId = "run-auth-redaction";
+    await nucleiCommandService.prepareCommandForRun({
+      command: "nuclei -u https://example.com",
+      sessionId: "session-1",
+      toolRunId,
+    });
+    const jsonlPath = join(
+      getAppDataDirectory(),
+      "artifacts/sessions/session-1/tool-runs",
+      toolRunId,
+      "nuclei.jsonl",
+    );
+    writeFileSync(
+      jsonlPath,
+      `${JSON.stringify({
+        "template-id": "reflected-secret",
+        "matched-at": "https://example.com/secret-token",
+        info: {
+          name: "Cookie secret-cookie",
+          severity: "info",
+        },
+      })}\n`,
+    );
+
+    const artifacts = await nucleiCommandService.collectArtifacts({
+      sessionId: "session-1",
+      toolRunId,
+      status: "success",
+      exitCode: 0,
+      redactOutput: (content) =>
+        content.replaceAll("secret-token", "[redacted]").replaceAll("secret-cookie", "[redacted]"),
+    });
+
+    expect(JSON.stringify(artifacts)).not.toContain("secret-token");
+    expect(JSON.stringify(artifacts)).not.toContain("secret-cookie");
+    expect(readFileSync(jsonlPath, "utf8")).not.toContain("secret-token");
+    expect(readFileSync(jsonlPath, "utf8")).not.toContain("secret-cookie");
   });
 });

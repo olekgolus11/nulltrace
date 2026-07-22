@@ -1,18 +1,20 @@
 import { normalizeExactOrigin } from "../../authentication/services/authenticated-request-context.service";
+import { NmapToolData } from "../../tool/nmap/types/nmap.types";
 import { redactNucleiCommandForPersistence } from "../../tool/nuclei/services/nuclei-command-redaction.helpers";
 import { NucleiToolData } from "../../tool/nuclei/types/nuclei.types";
 import {
-  applyActionDraftFormState,
   getActionDraftBooleanField,
   getActionDraftCommand,
   getActionDraftFormState,
   getActionDraftPayload,
   getActionDraftStringField,
-} from "./action-draft-workspace.helpers";
+} from "./action-draft-payload.helpers";
 import {
   ActionDraftWorkspaceApplyResult,
   ActionDraftWorkspaceMapInput,
 } from "./action-draft-workspace.types";
+import { mapNmapActionDraftFormState } from "./nmap-action-draft-workspace.mapper";
+import { mapNucleiActionDraftFormState } from "./nuclei-action-draft-workspace.mapper";
 
 export function mapActionDraftToWorkspaceState({
   draft,
@@ -72,12 +74,14 @@ export function mapActionDraftToWorkspaceState({
       };
     }
   }
-  const { toolData, didApply } = applyActionDraftFormState(
-    currentToolName,
-    currentToolData,
-    formState,
-    authenticatedContext,
-  );
+  const { toolData, didApply } =
+    currentToolName === "nmap"
+      ? mapNmapActionDraftFormState(currentToolData as NmapToolData, formState)
+      : mapNucleiActionDraftFormState(
+          currentToolData as NucleiToolData,
+          formState,
+          authenticatedContext,
+        );
 
   if (!command && !didApply) {
     return {
