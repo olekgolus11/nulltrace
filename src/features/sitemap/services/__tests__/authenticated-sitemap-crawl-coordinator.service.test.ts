@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { AuthenticatedRequestContext } from "../../../authentication/model/authenticated-request-context.types";
 import { AuthenticatedSitemapCrawlCoordinator } from "../authenticated-sitemap-crawl-coordinator.service";
-import { AuthenticatedSitemapCrawlerInput } from "../authenticated-sitemap-crawler.service";
+import { AuthenticatedSitemapCrawlerInput } from "../authenticated-sitemap-crawler.types";
 
 function deferred() {
   let resolve!: () => void;

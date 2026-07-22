@@ -215,59 +215,6 @@ describe("PublicSitemapCrawler", () => {
     expect(requestedUrls).toContain("https://example.com/from-sitemap");
   });
 
-  it("retries only timeout, 429, and 5xx checkpoint failures", async () => {
-    const repository = new FakeSitemapRepository();
-    repository.checkpoint = {
-      crawlerType: "public",
-      ownerId: "target-1",
-      targetId: "target-1",
-      rootUrl: "https://example.com",
-      frontier: [],
-      visitedUrls: [],
-      failures: [
-        ["/timeout", "timeout", null],
-        ["/rate", "http", 429],
-        ["/server", "http", 502],
-        ["/missing", "http", 404],
-        ["/network", "network", null],
-      ].map(([path, kind, httpStatus]) => ({
-        url: `https://example.com${path}`,
-        depth: 1,
-        source: "html_link" as const,
-        kind: kind as "timeout" | "http" | "network",
-        httpStatus: httpStatus as number | null,
-        errorMessage: String(kind),
-      })),
-      discoveredEntryKeys: [
-        "GET https://example.com/",
-        "GET https://example.com/existing",
-        "GET https://example.com/third",
-      ],
-      pagesFetched: 1,
-      entriesDiscovered: 3,
-      updatedAt: "2026-07-15T10:00:00.000Z",
-    };
-    const requestedUrls: string[] = [];
-    const crawler = new PublicSitemapCrawler({
-      repository,
-      fetch: async (url: string) => {
-        requestedUrls.push(url);
-        return createResponse("<html></html>");
-      },
-    });
-
-    await crawler.crawl({
-      targetId: "target-1",
-      rootUrl: "https://example.com",
-      mode: "retry_failures",
-    });
-
-    expect(requestedUrls).toEqual([
-      "https://example.com/timeout",
-      "https://example.com/rate",
-      "https://example.com/server",
-    ]);
-  });
   it("extracts same-origin HTML links and forms without external URLs", async () => {
     const { repository, requestedUrls, result } = await runCrawler({
       responses: {

@@ -8,7 +8,6 @@ import {
 export interface SitemapCrawlLifecycleActionState {
   canPause: boolean;
   canResume: boolean;
-  canRetryFailures: boolean;
   canRestart: boolean;
   requiresAuthCheck: boolean;
 }
@@ -20,22 +19,8 @@ export interface SitemapCrawlControlPresentation {
   actions: SitemapCrawlLifecycleActionState | null;
 }
 
-export function isTransientCrawlFailure(failure: SitemapCrawlFailure) {
-  return (
-    failure.kind === "timeout" ||
-    (failure.kind === "http" &&
-      (failure.httpStatus === 429 ||
-        ((failure.httpStatus ?? 0) >= 500 && (failure.httpStatus ?? 0) <= 599)))
-  );
-}
-
-export function selectTransientCrawlFailures(failures: SitemapCrawlFailure[]) {
-  return failures.filter(isTransientCrawlFailure);
-}
-
 export function getCrawlLifecycleActionState(
   status: TargetSitemapCrawlStatus | AuthenticatedSitemapCrawlStatus,
-  transientFailureCount: number,
   isAuthenticated: boolean,
 ): SitemapCrawlLifecycleActionState {
   const requiresAuthCheck = isAuthenticated && status === "authentication_required";
@@ -43,7 +28,6 @@ export function getCrawlLifecycleActionState(
   return {
     canPause: status === "running",
     canResume: status === "paused",
-    canRetryFailures: !requiresAuthCheck && status !== "running" && transientFailureCount > 0,
     canRestart: !requiresAuthCheck && status !== "idle",
     requiresAuthCheck,
   };
@@ -53,18 +37,20 @@ export function getSitemapCrawlControlPresentation(
   provenance: TargetSitemapProvenanceFilter,
   publicStatus: TargetSitemapCrawlStatus,
   authenticatedStatus: AuthenticatedSitemapCrawlStatus,
-  publicTransientFailureCount: number,
-  authenticatedTransientFailureCount: number,
 ): SitemapCrawlControlPresentation {
+  if (provenance === "all") {
+    return {
+      scope: null,
+      status: null,
+      hint: "Select provenance for actions",
+      actions: null,
+    };
+  }
   const isAuthenticated = provenance === "authenticated";
   const scope = isAuthenticated ? "authenticated" : "public";
   const scopeLabel = isAuthenticated ? "Authenticated" : "Public";
   const status = isAuthenticated ? authenticatedStatus : publicStatus;
-  const actions = getCrawlLifecycleActionState(
-    status,
-    isAuthenticated ? authenticatedTransientFailureCount : publicTransientFailureCount,
-    isAuthenticated,
-  );
+  const actions = getCrawlLifecycleActionState(status, isAuthenticated);
   if (actions.requiresAuthCheck) {
     return {
       scope,
@@ -85,7 +71,7 @@ export function getSitemapCrawlControlPresentation(
   return {
     scope,
     status,
-    hint: `${scopeLabel} · ${hints.join(" · ") || "No lifecycle actions available"}`,
+    hint: `${hints.join(" · ") || "Select provenance for actions"}`,
     actions,
   };
 }

@@ -38,7 +38,7 @@ class FakeCrawler {
   calls: Array<{
     targetId: string;
     rootUrl: string;
-    mode?: "fresh" | "resume" | "retry_failures";
+    mode?: "fresh" | "resume";
   }> = [];
   pauseCalls: string[] = [];
   private readonly crawlResult: Promise<unknown>;
@@ -47,11 +47,7 @@ class FakeCrawler {
     this.crawlResult = crawlResult;
   }
 
-  crawl(input: {
-    targetId: string;
-    rootUrl: string;
-    mode?: "fresh" | "resume" | "retry_failures";
-  }) {
+  crawl(input: { targetId: string; rootUrl: string; mode?: "fresh" | "resume" }) {
     this.calls.push(input);
     return this.crawlResult;
   }

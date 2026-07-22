@@ -17,38 +17,17 @@ import {
   AuthenticationContextMetadataRepository,
   authenticationContextMetadataRepository,
 } from "./authentication-context-metadata.repository";
+import type {
+  AuthCheckResponsePair,
+  AuthCheckComparisonResult,
+  AuthCheckResponseSignals,
+  AuthCheckServiceOptions,
+  AuthenticatedContextVerificationInput,
+  AuthenticatedContextVerificationResult,
+  AuthenticatedContextVerifier,
+} from "./auth-check.types";
 
 type FetchFunction = (input: string, init?: RequestInit) => Promise<Response>;
-
-export interface AuthCheckResponseSignals {
-  status: number;
-  redirects: string[];
-  contentType: string;
-  contentFingerprint: string;
-  title: string | null;
-  hasLoginForm: boolean;
-}
-
-export interface AuthCheckResponsePair {
-  unauthenticated: AuthCheckResponseSignals;
-  authenticated: AuthCheckResponseSignals;
-}
-
-export interface AuthCheckComparisonResult {
-  status: "verified" | "inconclusive" | "failed";
-  isProceedAllowed: boolean;
-  summary: string;
-  signals: AuthCheckSignalMetadata;
-}
-
-export interface AuthCheckServiceOptions {
-  contextService?: AuthenticatedRequestContextService;
-  metadataRepository?: AuthenticationContextMetadataRepository;
-  fetch?: FetchFunction;
-  requestTimeoutMs?: number;
-  maxResponseBytes?: number;
-  maxRedirects?: number;
-}
 
 const defaultLimits = {
   requestTimeoutMs: 10_000,
@@ -274,14 +253,13 @@ function inspectResponse(
   };
 }
 
-export class AuthCheckService {
+export class AuthCheckService implements AuthenticatedContextVerifier {
   private readonly contextService: AuthenticatedRequestContextService;
   private readonly metadataRepository: AuthenticationContextMetadataRepository;
   private readonly fetch: FetchFunction;
   private readonly requestTimeoutMs: number;
   private readonly maxResponseBytes: number;
   private readonly maxRedirects: number;
-
   constructor(options: AuthCheckServiceOptions = {}) {
     this.contextService = options.contextService ?? authenticatedRequestContextService;
     this.metadataRepository = options.metadataRepository ?? authenticationContextMetadataRepository;
@@ -389,6 +367,47 @@ export class AuthCheckService {
         signals: null,
       });
       throw new Error("Auth Check could not compare the selected same-origin URL.");
+    }
+  }
+
+  async verify(
+    input: AuthenticatedContextVerificationInput,
+  ): Promise<AuthenticatedContextVerificationResult> {
+    const verificationUrl = this.getMetadata(input.sessionId).verificationUrl;
+    if (!verificationUrl) {
+      return "inconclusive";
+    }
+
+    let normalizedVerificationUrl: string;
+    try {
+      normalizedVerificationUrl = validateAuthCheckUrl(input.targetUrl, verificationUrl);
+    } catch {
+      return "inconclusive";
+    }
+
+    try {
+      const unauthenticated = await this.fetchSignals(
+        normalizedVerificationUrl,
+        createRequestHeaders("", ""),
+      );
+      const authenticated = await this.fetchSignals(
+        normalizedVerificationUrl,
+        createRequestHeaders(input.cookies, input.headers),
+      );
+      const comparison = compareAuthCheckSignals({ unauthenticated, authenticated });
+      this.metadataRepository.updateAuthCheck(input.sessionId, {
+        ...comparison,
+        verificationUrl: createMetadataVerificationUrl(normalizedVerificationUrl),
+        checkedAt: new Date().toISOString(),
+        acknowledgedAt: null,
+      });
+
+      if (comparison.status === "verified") {
+        return "valid";
+      }
+      return comparison.status === "failed" ? "invalid" : "inconclusive";
+    } catch {
+      return "inconclusive";
     }
   }
 

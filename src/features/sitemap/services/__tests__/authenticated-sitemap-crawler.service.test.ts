@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import type { AuthenticatedContextVerificationInput } from "../../../authentication/services/auth-check.types";
 import {
   AuthenticatedSitemapAccessObservationInput,
   AuthenticatedSitemapCrawlStatus,
@@ -275,7 +276,7 @@ describe("AuthenticatedSitemapCrawler", () => {
     expect(requestHeaders.get("x-csrf-token")).toBe("csrf-secret");
   });
 
-  it("pauses after repeated authentication-required responses", async () => {
+  it("stops when verification confirms the authenticated context is invalid", async () => {
     const persistence = new FakePersistence();
     const requests: string[] = [];
     const crawler = await createCrawler({
@@ -286,6 +287,9 @@ describe("AuthenticatedSitemapCrawler", () => {
           return html('<a href="/one">one</a><a href="/two">two</a>');
         }
         return new Response("sign in", { status: 401 });
+      },
+      authenticationVerifier: {
+        verify: async () => "invalid",
       },
       limits: { maxDepth: 1, maxPages: 5 },
     });
@@ -304,11 +308,92 @@ describe("AuthenticatedSitemapCrawler", () => {
 
     expect(result.status).toBe("authentication_required");
     expect(persistence.status).toBe("authentication_required");
-    expect(requests).toEqual([
-      "GET https://example.com/",
-      "GET https://example.com/one",
-      "HEAD https://example.com/one",
+    expect(requests).toEqual(["GET https://example.com/", "GET https://example.com/one"]);
+  });
+
+  it("continues after an authentication signal when the current context verifies", async () => {
+    const persistence = new FakePersistence();
+    const requests: string[] = [];
+    const verificationInputs: AuthenticatedContextVerificationInput[] = [];
+    const crawler = await createCrawler({
+      repository: persistence,
+      fetch: async (url: string) => {
+        requests.push(url);
+        if (url.endsWith("/")) {
+          return html('<a href="/restricted">restricted</a><a href="/available">available</a>');
+        }
+        if (url.endsWith("/restricted")) {
+          return new Response("sign in", { status: 401 });
+        }
+        return html("available");
+      },
+      authenticationVerifier: {
+        verify: async (input: AuthenticatedContextVerificationInput) => {
+          verificationInputs.push(input);
+          return "valid";
+        },
+      },
+      limits: { maxDepth: 1, maxPages: 5 },
+    });
+
+    const result = await crawler.crawl({
+      sessionId: "session-1",
+      targetId: "target-1",
+      rootUrl: "https://example.com",
+      context: {
+        origin: "https://example.com",
+        cookies: "session=valid",
+        headers: "Authorization: Bearer valid",
+        updatedAt: "2026-07-13T10:00:00.000Z",
+      },
+    });
+
+    expect(result.status).toBe("completed");
+    expect(requests).toContain("https://example.com/available");
+    expect(verificationInputs).toEqual([
+      {
+        sessionId: "session-1",
+        targetUrl: "https://example.com",
+        cookies: "session=valid",
+        headers: "Authorization: Bearer valid",
+      },
     ]);
+  });
+
+  it("records a forbidden page and continues crawling with a valid authenticated session", async () => {
+    const persistence = new FakePersistence();
+    const requests: string[] = [];
+    const crawler = await createCrawler({
+      repository: persistence,
+      fetch: async (url: string, init?: RequestInit) => {
+        requests.push(`${init?.method ?? "GET"} ${url}`);
+        if (url.endsWith("/")) {
+          return html('<a href="/forbidden">forbidden</a><a href="/available">available</a>');
+        }
+        if (url.endsWith("/forbidden")) {
+          return new Response("forbidden", { status: 403 });
+        }
+        return html("available");
+      },
+      limits: { maxDepth: 1, maxPages: 5 },
+    });
+
+    const result = await crawler.crawl({
+      sessionId: "session-1",
+      targetId: "target-1",
+      rootUrl: "https://example.com",
+      context: {
+        origin: "https://example.com",
+        cookies: "session=valid",
+        headers: "",
+        updatedAt: "2026-07-13T10:00:00.000Z",
+      },
+    });
+
+    expect(result.status).toBe("completed");
+    expect(persistence.status).toBe("completed");
+    expect(persistence.observations).toContainEqual(expect.objectContaining({ httpStatus: 403 }));
+    expect(requests).toContain("GET https://example.com/available");
   });
 
   it("retries the auth-required page after context renewal", async () => {
@@ -329,6 +414,10 @@ describe("AuthenticatedSitemapCrawler", () => {
           return html("done");
         }
         return new Response("sign in", { status: 401 });
+      },
+      authenticationVerifier: {
+        verify: async ({ cookies }: AuthenticatedContextVerificationInput) =>
+          cookies === "session=fresh" ? "valid" : "invalid",
       },
       limits: { maxDepth: 2, maxPages: 5 },
     });
@@ -364,7 +453,7 @@ describe("AuthenticatedSitemapCrawler", () => {
     expect(requests).toContain("session=fresh https://example.com/behind-auth");
   });
 
-  it("pauses when repeated same-origin redirects remain login-like", async () => {
+  it("stops when a login redirect is followed by invalid authentication verification", async () => {
     const persistence = new FakePersistence();
     const requests: string[] = [];
     const crawler = await createCrawler({
@@ -378,6 +467,9 @@ describe("AuthenticatedSitemapCrawler", () => {
           });
         }
         return html("Continue with SSO");
+      },
+      authenticationVerifier: {
+        verify: async () => "invalid",
       },
     });
 
@@ -394,11 +486,7 @@ describe("AuthenticatedSitemapCrawler", () => {
     });
 
     expect(result.status).toBe("authentication_required");
-    expect(requests).toEqual([
-      "GET https://example.com/",
-      "GET https://example.com/signin",
-      "HEAD https://example.com/signin",
-    ]);
+    expect(requests).toEqual(["GET https://example.com/", "GET https://example.com/signin"]);
   });
 
   it("stops reading an authenticated response at the public byte bound", async () => {

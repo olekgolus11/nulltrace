@@ -1,54 +1,10 @@
 import { load } from "cheerio";
-import {
-  DiscoveredForm,
-  DiscoveredUrl,
-  PublicSitemapCrawlerLimits,
-} from "./public-sitemap-crawler.types";
-import { createAbsoluteCrawlUrl, normalizeCrawlUrl } from "./sitemap-crawler-url";
 import { XMLParser } from "fast-xml-parser";
-import { defaultPublicSitemapCrawlerLimits } from "./public-sitemap-crawler.config";
-
-export function mergeLimits(
-  baseLimits: Partial<PublicSitemapCrawlerLimits> | undefined,
-  inputLimits: Partial<PublicSitemapCrawlerLimits> | undefined,
-): PublicSitemapCrawlerLimits {
-  return {
-    ...defaultPublicSitemapCrawlerLimits,
-    ...baseLimits,
-    ...inputLimits,
-  };
-}
-
-export function normalizeRootUrl(value: string) {
-  const url = new URL(value);
-
-  return new URL("/", url.origin);
-}
-
-export function getOrigin(value: URL) {
-  return value.origin;
-}
-
-export function isSameOrigin(url: URL, origin: string) {
-  return url.origin === origin;
-}
-
-export function getPath(value: URL) {
-  return `${value.pathname}${value.search}`;
-}
-
-export function getContentType(response: Response) {
-  return response.headers.get("content-type")?.toLowerCase() ?? "";
-}
-
-export function isHtmlResponse(response: Response) {
-  const contentType = getContentType(response);
-
-  return contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
-}
+import type { DiscoveredForm, DiscoveredUrl } from "./public-sitemap-crawler.types";
+import { createAbsoluteCrawlUrl, normalizeCrawlUrl } from "./sitemap-crawler-url";
 
 export function isXmlResponse(response: Response) {
-  const contentType = getContentType(response);
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
 
   return contentType.includes("xml") || contentType.includes("text/plain");
 }
@@ -61,10 +17,6 @@ export function toErrorMessage(error: unknown) {
   return "Public sitemap crawl failed.";
 }
 
-export function getFormMethod(value: string | undefined) {
-  return value?.trim().toUpperCase() || "GET";
-}
-
 export function extractRobotsSitemapUrls(body: string, rootUrl: URL) {
   return body
     .split(/\r?\n/)
@@ -73,31 +25,6 @@ export function extractRobotsSitemapUrls(body: string, rootUrl: URL) {
     .map((value) => createAbsoluteCrawlUrl(value, rootUrl))
     .filter((url): url is URL => Boolean(url));
 }
-
-export function collectXmlValues(value: unknown, key: string, results: string[]) {
-  if (!value || typeof value !== "object") {
-    return;
-  }
-
-  if (Array.isArray(value)) {
-    value.forEach((item) => collectXmlValues(item, key, results));
-    return;
-  }
-
-  Object.entries(value).forEach(([entryKey, entryValue]) => {
-    if (entryKey === key && typeof entryValue === "string") {
-      results.push(entryValue);
-      return;
-    }
-
-    collectXmlValues(entryValue, key, results);
-  });
-}
-
-const sitemapXmlParser = new XMLParser({
-  ignoreAttributes: false,
-  isArray: (name) => ["url", "sitemap"].includes(name),
-});
 
 export function extractSitemapXmlUrls(body: string, rootUrl: URL) {
   const parsed = sitemapXmlParser.parse(body);
@@ -142,41 +69,31 @@ export function extractHtmlDiscoveries(body: string, pageUrl: URL) {
   };
 }
 
-export async function readResponseText(response: Response, maxBytes: number) {
-  if (!response.body) {
-    const text = await response.text();
-    if (new TextEncoder().encode(text).byteLength > maxBytes) {
-      throw new Error(`Response body exceeded ${maxBytes} bytes.`);
-    }
-
-    return text;
-  }
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
-
-    totalBytes += value.byteLength;
-    if (totalBytes > maxBytes) {
-      await reader.cancel();
-      throw new Error(`Response body exceeded ${maxBytes} bytes.`);
-    }
-
-    chunks.push(value);
-  }
-
-  const body = new Uint8Array(totalBytes);
-  let offset = 0;
-  chunks.forEach((chunk) => {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  });
-
-  return new TextDecoder().decode(body);
+function getFormMethod(value: string | undefined) {
+  return value?.trim().toUpperCase() || "GET";
 }
+
+function collectXmlValues(value: unknown, key: string, results: string[]) {
+  if (!value || typeof value !== "object") {
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectXmlValues(item, key, results));
+    return;
+  }
+
+  Object.entries(value).forEach(([entryKey, entryValue]) => {
+    if (entryKey === key && typeof entryValue === "string") {
+      results.push(entryValue);
+      return;
+    }
+
+    collectXmlValues(entryValue, key, results);
+  });
+}
+
+const sitemapXmlParser = new XMLParser({
+  ignoreAttributes: false,
+  isArray: (name) => ["url", "sitemap"].includes(name),
+});

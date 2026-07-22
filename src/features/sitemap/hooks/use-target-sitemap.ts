@@ -13,10 +13,7 @@ import {
   SitemapCrawlCheckpoint,
 } from "../model/sitemap.types";
 import { sitemapRepository } from "../services/sitemap.repository";
-import {
-  getSitemapCrawlControlPresentation,
-  selectTransientCrawlFailures,
-} from "../model/sitemap-crawl-lifecycle";
+import { getSitemapCrawlControlPresentation } from "../model/sitemap-crawl-lifecycle";
 import { sitemapCrawlCoordinator } from "../services/sitemap-crawl-coordinator.instance";
 import { authenticatedSitemapCrawlCoordinator } from "../services/authenticated-sitemap-crawl-coordinator.instance";
 
@@ -49,12 +46,7 @@ function readTargetSitemap(targetId: string, sessionId: string | null): TargetSi
   };
 }
 
-const provenanceFilters: TargetSitemapProvenanceFilter[] = [
-  "all",
-  "public",
-  "authenticated",
-  "both",
-];
+const provenanceFilters: TargetSitemapProvenanceFilter[] = ["all", "public", "authenticated"];
 
 export function useTargetSitemap(
   targetId: string | null,
@@ -112,6 +104,13 @@ export function useTargetSitemap(
       new Map(state.accessObservations.map((observation) => [observation.entryId, observation])),
     [state.accessObservations],
   );
+  const authenticatedAccessDeniedCount = useMemo(
+    () =>
+      state.accessObservations.filter(
+        (observation) => observation.httpStatus === 401 || observation.httpStatus === 403,
+      ).length,
+    [state.accessObservations],
+  );
 
   const nodes = useMemo(
     () =>
@@ -157,8 +156,6 @@ export function useTargetSitemap(
     provenanceFilter,
     state.status?.status ?? "idle",
     state.authenticatedStatus?.status ?? "idle",
-    selectTransientCrawlFailures(state.publicCheckpoint?.failures ?? []).length,
-    selectTransientCrawlFailures(state.authenticatedCheckpoint?.failures ?? []).length,
   );
 
   const pauseOrResume = () => {
@@ -180,21 +177,6 @@ export function useTargetSitemap(
       authenticatedSitemapCrawlCoordinator.pauseSessionCrawl(sessionId);
     } else if (controlPresentation.actions?.canResume) {
       void authenticatedSitemapCrawlCoordinator.resumePausedCrawl({
-        sessionId,
-        targetId,
-        rootUrl: targetUrl,
-      });
-    }
-  };
-
-  const retryFailures = () => {
-    if (!targetId || !controlPresentation.actions?.canRetryFailures) {
-      return;
-    }
-    if (controlPresentation.scope === "public") {
-      sitemapCrawlCoordinator.retryTargetFailures({ targetId, rootUrl: targetUrl });
-    } else if (controlPresentation.scope === "authenticated" && sessionId) {
-      void authenticatedSitemapCrawlCoordinator.retrySessionFailures({
         sessionId,
         targetId,
         rootUrl: targetUrl,
@@ -225,13 +207,13 @@ export function useTargetSitemap(
     entryNodes,
     status: state.status,
     authenticatedStatus: state.authenticatedStatus,
+    authenticatedAccessDeniedCount,
     maxDepth,
     provenanceFilter,
     cycleMaxDepth,
     cycleProvenance,
     controlPresentation,
     pauseOrResume,
-    retryFailures,
     restart,
   };
 }

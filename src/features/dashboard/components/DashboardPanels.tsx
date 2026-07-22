@@ -37,6 +37,7 @@ export const LeftDashboardPanel = ({
   sitemapProvenanceFilter,
   sitemapStatus,
   authenticatedSitemapStatus,
+  authenticatedAccessDeniedCount,
   sitemapCrawlControls,
   findings,
   layout,
@@ -53,6 +54,7 @@ export const LeftDashboardPanel = ({
   sitemapProvenanceFilter: TargetSitemapProvenanceFilter;
   sitemapStatus: TargetSitemapCrawlStatusRecord | null;
   authenticatedSitemapStatus: AuthenticatedSitemapCrawlStatusRecord | null;
+  authenticatedAccessDeniedCount: number;
   sitemapCrawlControls: SitemapCrawlControlPresentation;
   findings: SessionFindingRecord[];
   layout: UseDashboardLayoutResult;
@@ -66,7 +68,8 @@ export const LeftDashboardPanel = ({
   const hasAuthenticatedStatus =
     authenticatedSitemapStatus?.status === "running" ||
     authenticatedSitemapStatus?.status === "paused" ||
-    authenticatedSitemapStatus?.status === "authentication_required";
+    authenticatedSitemapStatus?.status === "authentication_required" ||
+    (authenticatedSitemapStatus?.status === "completed" && authenticatedAccessDeniedCount > 0);
   const sitemapHeaderHeight = 3 + (hasFilterSummary ? 1 : 0) + (hasAuthenticatedStatus ? 1 : 0);
   const sitemapLedgerHeight = Math.max(1, layout.sitemapScrollHeight - sitemapHeaderHeight);
   const sitemapStatusSummary =
@@ -115,6 +118,11 @@ export const LeftDashboardPanel = ({
             <text fg={theme.text.secondary}>authenticated crawl paused</text>
           ) : authenticatedSitemapStatus?.status === "authentication_required" ? (
             <text fg={theme.accent.warning}>{"auth required \u00b7 crawl paused"}</text>
+          ) : authenticatedSitemapStatus?.status === "completed" &&
+            authenticatedAccessDeniedCount > 0 ? (
+            <text fg={theme.accent.warning}>
+              {`Completed \u00b7 ${authenticatedAccessDeniedCount} access-denied ${authenticatedAccessDeniedCount === 1 ? "response" : "responses"}`}
+            </text>
           ) : null}
           <text
             fg={

@@ -10,11 +10,7 @@ interface SitemapCrawlStatusReader {
 }
 
 interface PublicSitemapCrawlerRunner {
-  crawl(input: {
-    targetId: string;
-    rootUrl: string;
-    mode?: "fresh" | "resume" | "retry_failures";
-  }): Promise<unknown>;
+  crawl(input: { targetId: string; rootUrl: string; mode?: "fresh" | "resume" }): Promise<unknown>;
   requestPause(targetId: string): boolean;
 }
 
@@ -76,14 +72,6 @@ export class SitemapCrawlCoordinator {
     return "started";
   }
 
-  retryTargetFailures(input: EnsureSitemapCrawlInput): SitemapCrawlControlState {
-    if (this.runningCrawlsByTargetId.has(input.targetId)) {
-      return "already_running";
-    }
-    this.startCrawl(input, "retry_failures");
-    return "started";
-  }
-
   restartTargetCrawl(input: EnsureSitemapCrawlInput): SitemapCrawlControlState {
     const running = this.runningCrawlsByTargetId.get(input.targetId);
     if (running) {
@@ -97,10 +85,7 @@ export class SitemapCrawlCoordinator {
     return "started";
   }
 
-  private startCrawl(
-    { targetId, rootUrl }: EnsureSitemapCrawlInput,
-    mode: "fresh" | "resume" | "retry_failures",
-  ) {
+  private startCrawl({ targetId, rootUrl }: EnsureSitemapCrawlInput, mode: "fresh" | "resume") {
     const crawlPromise = this.crawler
       .crawl({ targetId, rootUrl, mode })
       .catch(() => undefined)

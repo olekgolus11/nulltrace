@@ -38,9 +38,6 @@ describe("filterTargetSitemapEntries", () => {
     expect(filterTargetSitemapEntries(entries, 2, "authenticated").map((item) => item.id)).toEqual([
       "authenticated",
     ]);
-    expect(filterTargetSitemapEntries(entries, null, "both").map((item) => item.id)).toEqual([
-      "both",
-    ]);
     expect(filterTargetSitemapEntries(entries, 1, "all").map((item) => item.id)).toEqual([
       "public",
     ]);

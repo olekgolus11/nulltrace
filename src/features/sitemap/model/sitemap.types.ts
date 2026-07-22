@@ -13,7 +13,8 @@ export interface SitemapNode {
 
 export type TargetSitemapDiscoveryProvenance = "public" | "authenticated" | "both";
 
-export type TargetSitemapProvenanceFilter = "all" | TargetSitemapDiscoveryProvenance;
+export type TargetSitemapProvenanceFilter =
+  "all" | Exclude<TargetSitemapDiscoveryProvenance, "both">;
 
 export type TargetSitemapCrawlStatus = "idle" | "running" | "paused" | "completed" | "failed";
 
@@ -111,7 +112,7 @@ export interface SitemapCrawlCheckpoint {
   updatedAt: string;
 }
 
-export type SitemapCrawlRunMode = "fresh" | "resume" | "retry_failures";
+export type SitemapCrawlRunMode = "fresh" | "resume";
 
 export interface AuthenticatedSitemapCrawlStatusRecord {
   sessionId: string;

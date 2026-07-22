@@ -137,6 +137,7 @@ export function DashboardScreen({
           sitemapProvenanceFilter={targetSitemap.provenanceFilter}
           sitemapStatus={targetSitemap.status}
           authenticatedSitemapStatus={targetSitemap.authenticatedStatus}
+          authenticatedAccessDeniedCount={targetSitemap.authenticatedAccessDeniedCount}
           sitemapCrawlControls={targetSitemap.controlPresentation}
           findings={sessionFindings.findings}
           sitemapScrollRef={sitemapScrollRef}
@@ -201,8 +202,12 @@ export function DashboardScreen({
                         { key: "↑↓", label: "navigate" },
                         { key: "←→", label: "depth" },
                         { key: "P/Shift+P", label: "provenance" },
-                        { key: "Space", label: "pause crawl" },
-                        { key: "Ctrl+R", label: "restart crawl" },
+                        ...(targetSitemap.controlPresentation.actions !== null
+                          ? [{ key: "Space", label: "pause crawl" }]
+                          : []),
+                        ...(targetSitemap.controlPresentation.actions !== null
+                          ? [{ key: "Ctrl+R", label: "restart crawl" }]
+                          : []),
                       ]
                     : [{ key: "Enter", label: "select" }]),
                 { key: "ESC", label: "back" },

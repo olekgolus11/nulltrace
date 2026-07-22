@@ -182,6 +182,56 @@ describe("Auth Check URL selection", () => {
 });
 
 describe("Auth Check state", () => {
+  test("rechecks the stored verification URL with current runtime credentials", async () => {
+    const metadataRepository = createMetadataRepository();
+    const contextService = new AuthenticatedRequestContextService(
+      new TestSecretStore(),
+      metadataRepository,
+    );
+    await contextService.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=saved",
+      headers: "",
+    });
+    const authenticatedCookies: string[] = [];
+    const authCheckService = new AuthCheckService({
+      contextService,
+      metadataRepository,
+      fetch: async (_url, init) => {
+        const cookies = new Headers(init?.headers).get("cookie") ?? "";
+        if (cookies) {
+          authenticatedCookies.push(cookies);
+        }
+        return cookies === "session=saved" || cookies === "session=rotated"
+          ? new Response("account", { status: 200 })
+          : new Response("sign in", { status: 401 });
+      },
+    });
+    await authCheckService.run(
+      "session-1",
+      "https://app.example.test",
+      "https://app.example.test/account",
+    );
+
+    await expect(
+      authCheckService.verify({
+        sessionId: "session-1",
+        targetUrl: "https://app.example.test",
+        cookies: "session=rotated",
+        headers: "",
+      }),
+    ).resolves.toBe("valid");
+    await expect(
+      authCheckService.verify({
+        sessionId: "session-1",
+        targetUrl: "https://app.example.test",
+        cookies: "session=expired",
+        headers: "",
+      }),
+    ).resolves.toBe("invalid");
+    expect(authenticatedCookies).toContain("session=rotated");
+  });
+
   test("never forwards context across an off-origin redirect", async () => {
     const metadataRepository = createMetadataRepository();
     const contextService = new AuthenticatedRequestContextService(
