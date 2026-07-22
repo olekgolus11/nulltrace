@@ -19,8 +19,7 @@ export function getAppDataDirectory() {
   }
 
   if (process.platform === "win32") {
-    const appDataDirectory =
-      process.env.APPDATA ?? join(homedir(), "AppData", "Roaming");
+    const appDataDirectory = process.env.APPDATA ?? join(homedir(), "AppData", "Roaming");
     return join(appDataDirectory, "nulltrace");
   }
 
@@ -192,7 +191,6 @@ function createTargetSitemapTables() {
       FOREIGN KEY (target_id) REFERENCES targets(id) ON DELETE CASCADE
     );
   `);
-
 }
 
 sessionDatabase.exec(`

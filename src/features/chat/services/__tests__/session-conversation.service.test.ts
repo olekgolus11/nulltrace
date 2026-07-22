@@ -8,15 +8,11 @@ class FakeConversationAttachmentService {
 
   listActiveAttachments(sessionId: string) {
     return this.attachments.filter(
-      (attachment) =>
-        attachment.sessionId === sessionId && !attachment.archivedAt,
+      (attachment) => attachment.sessionId === sessionId && !attachment.archivedAt,
     );
   }
 
-  createDefaultAttachment(input: {
-    sessionId: string;
-    opencodeConversationId: string;
-  }) {
+  createDefaultAttachment(input: { sessionId: string; opencodeConversationId: string }) {
     const attachment: ConversationAttachmentRecord = {
       sessionId: input.sessionId,
       opencodeConversationId: input.opencodeConversationId,
@@ -29,10 +25,7 @@ class FakeConversationAttachmentService {
     return attachment;
   }
 
-  createAttachment(input: {
-    sessionId: string;
-    opencodeConversationId: string;
-  }) {
+  createAttachment(input: { sessionId: string; opencodeConversationId: string }) {
     const attachment: ConversationAttachmentRecord = {
       sessionId: input.sessionId,
       opencodeConversationId: input.opencodeConversationId,
@@ -47,8 +40,7 @@ class FakeConversationAttachmentService {
 
   archiveAttachment(opencodeConversationId: string) {
     const attachment = this.attachments.find(
-      (candidate) =>
-        candidate.opencodeConversationId === opencodeConversationId,
+      (candidate) => candidate.opencodeConversationId === opencodeConversationId,
     );
     if (!attachment) {
       return null;
@@ -97,8 +89,7 @@ describe("SessionConversationService", () => {
     const runtime = new FakeChatRuntime();
     const service = new SessionConversationService(attachments, runtime);
 
-    const activeConversation =
-      await service.ensureActiveConversation("session-1");
+    const activeConversation = await service.ensureActiveConversation("session-1");
 
     expect(activeConversation.attachment).toMatchObject({
       sessionId: "session-1",
@@ -119,12 +110,9 @@ describe("SessionConversationService", () => {
     const runtime = new FakeChatRuntime();
     const service = new SessionConversationService(attachments, runtime);
 
-    const activeConversation =
-      await service.ensureActiveConversation("session-1");
+    const activeConversation = await service.ensureActiveConversation("session-1");
 
-    expect(activeConversation.attachment.opencodeConversationId).toBe(
-      "opencode-existing",
-    );
+    expect(activeConversation.attachment.opencodeConversationId).toBe("opencode-existing");
     expect(activeConversation.title).toBe("Existing conversation");
     expect(runtime.createdConversationIds).toEqual([]);
     expect(runtime.reopenedConversationIds).toEqual(["opencode-existing"]);
@@ -142,12 +130,9 @@ describe("SessionConversationService", () => {
     const runtime = new FakeChatRuntime();
     const service = new SessionConversationService(attachments, runtime);
 
-    const activeConversation =
-      await service.ensureActiveConversation("session-1");
+    const activeConversation = await service.ensureActiveConversation("session-1");
 
-    expect(activeConversation.attachment.opencodeConversationId).toBe(
-      "opencode-1",
-    );
+    expect(activeConversation.attachment.opencodeConversationId).toBe("opencode-1");
     expect(activeConversation.attachment.isDefault).toBe(true);
     expect(runtime.createdConversationIds).toEqual(["opencode-1"]);
   });
@@ -165,22 +150,15 @@ describe("SessionConversationService", () => {
     const runtime = new FakeChatRuntime();
     const service = new SessionConversationService(attachments, runtime);
 
-    const conversations = await service.archiveConversation(
-      "session-1",
-      "opencode-existing",
-    );
+    const conversations = await service.archiveConversation("session-1", "opencode-existing");
 
     expect(
       attachments.attachments.find(
-        (attachment) =>
-          attachment.opencodeConversationId === "opencode-existing",
+        (attachment) => attachment.opencodeConversationId === "opencode-existing",
       )?.archivedAt,
     ).toBeString();
     expect(
-      conversations.map(
-        (conversation) =>
-          conversation.attachment.opencodeConversationId,
-      ),
+      conversations.map((conversation) => conversation.attachment.opencodeConversationId),
     ).toEqual(["opencode-2"]);
     expect(runtime.createdConversationIds).toEqual([]);
   });
@@ -194,22 +172,15 @@ describe("SessionConversationService", () => {
     const runtime = new FakeChatRuntime();
     const service = new SessionConversationService(attachments, runtime);
 
-    const conversations = await service.archiveConversation(
-      "session-1",
-      "opencode-existing",
-    );
+    const conversations = await service.archiveConversation("session-1", "opencode-existing");
 
     expect(
       attachments.attachments.find(
-        (attachment) =>
-          attachment.opencodeConversationId === "opencode-existing",
+        (attachment) => attachment.opencodeConversationId === "opencode-existing",
       )?.archivedAt,
     ).toBeString();
     expect(
-      conversations.map(
-        (conversation) =>
-          conversation.attachment.opencodeConversationId,
-      ),
+      conversations.map((conversation) => conversation.attachment.opencodeConversationId),
     ).toEqual(["opencode-1"]);
     expect(conversations[0]?.attachment).toMatchObject({
       sessionId: "session-1",

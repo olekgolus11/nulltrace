@@ -36,27 +36,16 @@ const emptyToolData: ToolData = {
   selectedField: 0,
 };
 
-function getToolData(
-  toolName: ToolName,
-  targetUrl: string,
-  toolData: unknown,
-): ToolData {
+function getToolData(toolName: ToolName, targetUrl: string, toolData: unknown): ToolData {
   const toolModule = toolRegistry[toolName];
   if (!toolModule) {
     return emptyToolData;
   }
 
-  return (
-    (toolData as ToolData | null) ??
-    toolModule.createInitialToolData(targetUrl)
-  );
+  return (toolData as ToolData | null) ?? toolModule.createInitialToolData(targetUrl);
 }
 
-export function ToolScreen({
-  toolName,
-  onBack,
-  pendingActionDraftId = null,
-}: ToolScreenProps) {
+export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: ToolScreenProps) {
   const { width, height } = useTerminalDimensions();
   const actionDraftScrollRef = useRef<ScrollBoxRenderable | null>(null);
   const historyScrollRef = useRef<ScrollBoxRenderable | null>(null);
@@ -64,28 +53,14 @@ export function ToolScreen({
   const [selectedActionDraftIndex, setSelectedActionDraftIndex] = useState(0);
   const sessionId = useSessionContextStore((state) => state.sessionId);
   const targetUrl = useSessionContextStore((state) => state.targetUrl);
-  const activeConversationId = useSessionContextStore(
-    (state) => state.activeConversationId,
-  );
-  const conversationError = useSessionContextStore(
-    (state) => state.conversationError,
-  );
+  const activeConversationId = useSessionContextStore((state) => state.activeConversationId);
+  const conversationError = useSessionContextStore((state) => state.conversationError);
   const conversations = useSessionContextStore((state) => state.conversations);
-  const isLoadingConversations = useSessionContextStore(
-    (state) => state.isLoadingConversations,
-  );
-  const isCreatingConversation = useSessionContextStore(
-    (state) => state.isCreatingConversation,
-  );
-  const isArchivingConversation = useSessionContextStore(
-    (state) => state.isArchivingConversation,
-  );
-  const selectConversation = useSessionContextStore(
-    (state) => state.selectConversation,
-  );
-  const createConversation = useSessionContextStore(
-    (state) => state.createConversation,
-  );
+  const isLoadingConversations = useSessionContextStore((state) => state.isLoadingConversations);
+  const isCreatingConversation = useSessionContextStore((state) => state.isCreatingConversation);
+  const isArchivingConversation = useSessionContextStore((state) => state.isArchivingConversation);
+  const selectConversation = useSessionContextStore((state) => state.selectConversation);
+  const createConversation = useSessionContextStore((state) => state.createConversation);
   const archiveActiveConversation = useSessionContextStore(
     (state) => state.archiveActiveConversation,
   );
@@ -104,52 +79,33 @@ export function ToolScreen({
   const isHelpOpen = useToolWorkspaceStore((state) => state.isHelpOpen);
   const setActivePanel = useToolWorkspaceStore((state) => state.setActivePanel);
   const commandInput = useToolWorkspaceStore((state) => state.commandInput);
-  const generatedCommand = useToolWorkspaceStore(
-    (state) => state.generatedCommand,
-  );
+  const generatedCommand = useToolWorkspaceStore((state) => state.generatedCommand);
   const commandSource = useToolWorkspaceStore((state) => state.commandSource);
-  const executionStatus = useToolWorkspaceStore(
-    (state) => state.executionStatus,
-  );
-  const currentToolRunId = useToolWorkspaceStore(
-    (state) => state.currentToolRunId,
-  );
+  const executionStatus = useToolWorkspaceStore((state) => state.executionStatus);
+  const currentToolRunId = useToolWorkspaceStore((state) => state.currentToolRunId);
   const historyRuns = useToolWorkspaceStore((state) => state.historyRuns);
   const findingsRefreshKey = historyRuns
     .map((run) => `${run.id}:${run.status}:${run.endedAt ?? ""}`)
     .join("|");
   const sessionFindings = useSessionFindings(sessionId, findingsRefreshKey);
-  const selectedHistoryRunId = useToolWorkspaceStore(
-    (state) => state.selectedHistoryRunId,
-  );
-  const isHistoricPreview = useToolWorkspaceStore(
-    (state) => state.isHistoricPreview,
-  );
-  const initializeWorkspace = useToolWorkspaceStore(
-    (state) => state.initializeWorkspace,
-  );
+  const selectedHistoryRunId = useToolWorkspaceStore((state) => state.selectedHistoryRunId);
+  const isHistoricPreview = useToolWorkspaceStore((state) => state.isHistoricPreview);
+  const initializeWorkspace = useToolWorkspaceStore((state) => state.initializeWorkspace);
   const stopCommand = useToolWorkspaceStore((state) => state.stopCommand);
-  const applyActionDraftState = useToolWorkspaceStore(
-    (state) => state.applyActionDraftState,
-  );
+  const applyActionDraftState = useToolWorkspaceStore((state) => state.applyActionDraftState);
   const reportActionDraftApplyError = useToolWorkspaceStore(
     (state) => state.reportActionDraftApplyError,
   );
   const toolData = useToolWorkspaceStore((state) =>
     getToolData(toolName, targetUrl, state.toolData),
   );
-  const toolActionDrafts = drafts.filter(
-    (draft) => draft.targetTool === toolName,
-  );
+  const toolActionDrafts = drafts.filter((draft) => draft.targetTool === toolName);
   const visibleToolActionDrafts = toolActionDrafts.filter(
     (draft) => draft.status !== "dismissed" && draft.status !== "superseded",
   );
   const selectedActionDraft =
     visibleToolActionDrafts[
-      Math.min(
-        selectedActionDraftIndex,
-        Math.max(0, visibleToolActionDrafts.length - 1),
-      )
+      Math.min(selectedActionDraftIndex, Math.max(0, visibleToolActionDrafts.length - 1))
     ] ?? null;
   const focusPanel = (panel: typeof activePanel) => {
     if (isHelpOpen) {
@@ -163,9 +119,7 @@ export function ToolScreen({
     const toolModule = toolRegistry[toolName];
 
     if (!toolModule || !state.toolData) {
-      reportActionDraftApplyError(
-        "The scanner workspace is not ready for this draft yet.",
-      );
+      reportActionDraftApplyError("The scanner workspace is not ready for this draft yet.");
       return;
     }
 
@@ -201,13 +155,7 @@ export function ToolScreen({
   };
   const moveActionDraftSelection = (direction: -1 | 1) => {
     setSelectedActionDraftIndex((currentIndex) =>
-      Math.max(
-        0,
-        Math.min(
-          visibleToolActionDrafts.length - 1,
-          currentIndex + direction,
-        ),
-      ),
+      Math.max(0, Math.min(visibleToolActionDrafts.length - 1, currentIndex + direction)),
     );
   };
   const applySelectedActionDraft = () => {
@@ -269,21 +217,12 @@ export function ToolScreen({
 
   useEffect(() => {
     setSelectedActionDraftIndex((currentIndex) =>
-      Math.max(
-        0,
-        Math.min(
-          currentIndex,
-          Math.max(0, visibleToolActionDrafts.length - 1),
-        ),
-      ),
+      Math.max(0, Math.min(currentIndex, Math.max(0, visibleToolActionDrafts.length - 1))),
     );
   }, [visibleToolActionDrafts.length]);
 
   useEffect(() => {
-    if (
-      !pendingActionDraftId ||
-      appliedPendingDraftIdRef.current === pendingActionDraftId
-    ) {
+    if (!pendingActionDraftId || appliedPendingDraftIdRef.current === pendingActionDraftId) {
       return;
     }
 
@@ -292,9 +231,7 @@ export function ToolScreen({
       return;
     }
 
-    const draft = drafts.find(
-      (candidate) => candidate.id === pendingActionDraftId,
-    );
+    const draft = drafts.find((candidate) => candidate.id === pendingActionDraftId);
     if (!draft) {
       return;
     }
@@ -346,12 +283,7 @@ export function ToolScreen({
   }, [sessionId]);
 
   return (
-    <box
-      flexDirection="column"
-      width={width}
-      height={height}
-      backgroundColor={theme.bg.primary}
-    >
+    <box flexDirection="column" width={width} height={height} backgroundColor={theme.bg.primary}>
       <Header
         title={`${toolName} Workspace`}
         subtitle="guided controls + raw command"
@@ -360,11 +292,7 @@ export function ToolScreen({
       />
 
       <box flexDirection="row" height={layout.contentHeight}>
-        <box
-          width={layout.leftPanelWidth}
-          height={layout.contentHeight}
-          flexDirection="column"
-        >
+        <box width={layout.leftPanelWidth} height={layout.contentHeight} flexDirection="column">
           <DashboardPanel
             title="Action Drafts"
             panelNumber={getPanelDisplayNumber(toolPanels, "drafts")}
@@ -378,10 +306,7 @@ export function ToolScreen({
               height={Math.max(1, Math.min(8, layout.contentHeight - 15))}
               width={Math.max(1, layout.leftPanelWidth - 4)}
               viewportOptions={{
-                height: Math.max(
-                  1,
-                  Math.min(7, layout.contentHeight - 16),
-                ),
+                height: Math.max(1, Math.min(7, layout.contentHeight - 16)),
               }}
               contentOptions={{
                 paddingRight: 1,
@@ -439,11 +364,7 @@ export function ToolScreen({
           </DashboardPanel>
         </box>
 
-        <box
-          width={layout.rightPanelWidth}
-          height={layout.contentHeight}
-          flexDirection="row"
-        >
+        <box width={layout.rightPanelWidth} height={layout.contentHeight} flexDirection="row">
           <box
             width={layout.workspacePanelWidth}
             height={layout.contentHeight}

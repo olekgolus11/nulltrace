@@ -145,12 +145,7 @@ export const sessionRepository = {
         `INSERT INTO targets (id, normalized_url, display_url, created_at)
          VALUES (?1, ?2, ?3, ?4)`,
       )
-      .run(
-        target.id,
-        target.normalizedUrl,
-        target.displayUrl,
-        target.createdAt,
-      );
+      .run(target.id, target.normalizedUrl, target.displayUrl, target.createdAt);
 
     return target;
   },
@@ -203,15 +198,16 @@ export const sessionRepository = {
       )
       .all();
 
-    const sessionsByTargetId = sessionRows.reduce<
-      Record<string, SessionSummary[]>
-    >((accumulator, row) => {
-      const session = mapSessionRow(row);
-      accumulator[row.targetId] = accumulator[row.targetId]
-        ? [...accumulator[row.targetId], session]
-        : [session];
-      return accumulator;
-    }, {});
+    const sessionsByTargetId = sessionRows.reduce<Record<string, SessionSummary[]>>(
+      (accumulator, row) => {
+        const session = mapSessionRow(row);
+        accumulator[row.targetId] = accumulator[row.targetId]
+          ? [...accumulator[row.targetId], session]
+          : [session];
+        return accumulator;
+      },
+      {},
+    );
 
     return targetRows.map<TargetSummary>((row) => ({
       id: row.id,
@@ -479,14 +475,7 @@ export const sessionRepository = {
           `INSERT INTO tool_run_logs (id, tool_run_id, seq, stream, line, created_at)
            VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
         )
-        .run(
-          createId(),
-          toolRunId,
-          nextSequence,
-          stream,
-          line,
-          createTimestamp(),
-        );
+        .run(createId(), toolRunId, nextSequence, stream, line, createTimestamp());
 
       nextSequence += 1;
     });
@@ -566,10 +555,8 @@ export const sessionRepository = {
       )
       .all(toolRunId);
 
-    const stdoutLineCount = logs.filter((line) => line.stream === "stdout")
-      .length;
-    const stderrLineCount = logs.filter((line) => line.stream === "stderr")
-      .length;
+    const stdoutLineCount = logs.filter((line) => line.stream === "stdout").length;
+    const stderrLineCount = logs.filter((line) => line.stream === "stderr").length;
 
     return this.saveToolRunArtifact(toolRunId, {
       artifactType: "output_summary",

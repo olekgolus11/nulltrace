@@ -1,7 +1,4 @@
-import {
-  ChatContextToolArgs,
-  ChatContextToolDefinition,
-} from "../model/chat-context-tool.types";
+import { ChatContextToolArgs, ChatContextToolDefinition } from "../model/chat-context-tool.types";
 
 export class ChatContextToolRegistry {
   private readonly definitions = new Map<
@@ -9,9 +6,7 @@ export class ChatContextToolRegistry {
     ChatContextToolDefinition<ChatContextToolArgs, unknown>
   >();
 
-  constructor(
-    definitions: ChatContextToolDefinition<ChatContextToolArgs, unknown>[] = [],
-  ) {
+  constructor(definitions: ChatContextToolDefinition<ChatContextToolArgs, unknown>[] = []) {
     definitions.forEach((definition) => {
       this.register(definition);
     });
@@ -30,11 +25,7 @@ export class ChatContextToolRegistry {
     return [...this.definitions.values()];
   }
 
-  async execute(
-    name: string,
-    opencodeConversationId: string,
-    args: ChatContextToolArgs,
-  ) {
+  async execute(name: string, opencodeConversationId: string, args: ChatContextToolArgs) {
     const definition = this.definitions.get(name);
     if (!definition) {
       throw new Error(`Unknown chat context tool: ${name}`);

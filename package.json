@@ -13,6 +13,7 @@
   "devDependencies": {
     "@types/bun": "latest",
     "@types/react": "^19.2.7",
+    "prettier": "3.9.5",
     "react-devtools-core": "7"
   },
   "peerDependencies": {

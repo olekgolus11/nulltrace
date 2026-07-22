@@ -61,9 +61,7 @@ export class ToolArtifactPipelineService {
       }
     } catch (artifactError) {
       const message =
-        artifactError instanceof Error
-          ? artifactError.message
-          : "Unknown artifact parsing error";
+        artifactError instanceof Error ? artifactError.message : "Unknown artifact parsing error";
       const artifactMessage = `[artifact parsing failed] ${message}`;
       this.repository.appendToolRunLog(toolRunId, ["", artifactMessage]);
       onArtifactProcessingError?.(artifactMessage);

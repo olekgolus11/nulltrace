@@ -37,8 +37,7 @@ export function buildTree(items: FlatSitemapItem[]): SitemapNode[] {
 
       const nodeMethod = isLeaf ? item.method : undefined;
       let child = current.children?.find(
-        (candidate) =>
-          candidate.path === builtPath && candidate.method === nodeMethod,
+        (candidate) => candidate.path === builtPath && candidate.method === nodeMethod,
       );
       if (!child) {
         child = {

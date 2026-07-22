@@ -28,8 +28,7 @@ export function useSessionAuthenticatedRequestContext(
   targetId: string | null,
   targetUrl: string,
 ) {
-  const [metadata, setMetadata] =
-    useState<AuthenticatedRequestContextMetadata | null>(null);
+  const [metadata, setMetadata] = useState<AuthenticatedRequestContextMetadata | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
@@ -110,14 +109,8 @@ export function useSessionAuthenticatedRequestContext(
 
       setIsChecking(true);
       try {
-        const authCheck = await authCheckService.run(
-          sessionId,
-          targetUrl,
-          verificationUrl,
-        );
-        setMetadata((current) =>
-          current ? { ...current, authCheck } : current,
-        );
+        const authCheck = await authCheckService.run(sessionId, targetUrl, verificationUrl);
+        setMetadata((current) => (current ? { ...current, authCheck } : current));
         if (authCheck.isProceedAllowed && targetId) {
           await authenticatedSitemapCrawlCoordinator.startAfterAcceptedAuthCheck({
             sessionId,
@@ -152,9 +145,7 @@ export function useSessionAuthenticatedRequestContext(
 
     try {
       const authCheck = authCheckService.acknowledgeInconclusive(sessionId);
-      setMetadata((current) =>
-        current ? { ...current, authCheck } : current,
-      );
+      setMetadata((current) => (current ? { ...current, authCheck } : current));
       setError(null);
       if (targetId) {
         void authenticatedSitemapCrawlCoordinator.startAfterAcceptedAuthCheck({

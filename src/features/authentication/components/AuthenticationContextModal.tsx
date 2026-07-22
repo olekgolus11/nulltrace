@@ -44,20 +44,13 @@ type AuthenticationField =
   | "import"
   | "actions";
 
-const modeFields: Record<
-  AuthenticationMode,
-  readonly AuthenticationField[]
-> = {
+const modeFields: Record<AuthenticationMode, readonly AuthenticationField[]> = {
   manual: ["cookies", "headers", "verification_url", "actions"],
   curl: ["curlSource", "verification_url", "import"],
   har: ["harPath", "verification_url", "import"],
   review: ["verification_url", "actions"],
 } as const;
-const harRequestFields = [
-  "harRequests",
-  "verification_url",
-  "import",
-] as const;
+const harRequestFields = ["harRequests", "verification_url", "import"] as const;
 
 function getStorageLabel(metadata: AuthenticatedRequestContextMetadata | null) {
   if (!metadata) {
@@ -85,9 +78,7 @@ function getSignalSummary(authCheck: AuthCheckMetadata) {
 }
 
 function getImportError(error: unknown) {
-  return error instanceof Error
-    ? error.message
-    : "Unable to import authentication context.";
+  return error instanceof Error ? error.message : "Unable to import authentication context.";
 }
 
 export function AuthenticationContextModal({
@@ -106,8 +97,7 @@ export function AuthenticationContextModal({
   onClose,
 }: AuthenticationContextModalProps) {
   const [mode, setMode] = useState<AuthenticationMode>("manual");
-  const [importSource, setImportSource] =
-    useState<AuthenticatedContextImportSource>("manual");
+  const [importSource, setImportSource] = useState<AuthenticatedContextImportSource>("manual");
   const [cookies, setCookies] = useState("");
   const [headers, setHeaders] = useState("");
   const [verificationUrl, setVerificationUrl] = useState(
@@ -116,12 +106,9 @@ export function AuthenticationContextModal({
   const [curlSource, setCurlSource] = useState("");
   const [harPath, setHarPath] = useState("");
   const [harData, setHarData] = useState("");
-  const [harRequests, setHarRequests] = useState<
-    HarAuthenticationRequestSelection[]
-  >([]);
+  const [harRequests, setHarRequests] = useState<HarAuthenticationRequestSelection[]>([]);
   const [selectedHarRequest, setSelectedHarRequest] = useState(0);
-  const [selectedField, setSelectedField] =
-    useState<AuthenticationField>("cookies");
+  const [selectedField, setSelectedField] = useState<AuthenticationField>("cookies");
   const [importError, setImportError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isReadingHar, setIsReadingHar] = useState(false);
@@ -132,14 +119,9 @@ export function AuthenticationContextModal({
     headers,
   });
   const authCheck = metadata?.authCheck;
-  const checkPresentation = authCheck
-    ? getAuthCheckPresentation(authCheck)
-    : null;
+  const checkPresentation = authCheck ? getAuthCheckPresentation(authCheck) : null;
   const isBusy = isSaving || isChecking;
-  const fields =
-    mode === "har" && harRequests.length > 0
-      ? harRequestFields
-      : modeFields[mode];
+  const fields = mode === "har" && harRequests.length > 0 ? harRequestFields : modeFields[mode];
 
   useEffect(() => {
     setMode("manual");
@@ -197,15 +179,8 @@ export function AuthenticationContextModal({
 
   const importCurl = () => {
     try {
-      const imported = parseCurlAuthenticationContextImport(
-        curlSource,
-        targetUrl,
-      );
-      prepareImportedContext(
-        imported.context,
-        "curl",
-        imported.verificationUrl,
-      );
+      const imported = parseCurlAuthenticationContextImport(curlSource, targetUrl);
+      prepareImportedContext(imported.context, "curl", imported.verificationUrl);
     } catch (nextError) {
       setImportError(getImportError(nextError));
       setNotice(null);
@@ -223,9 +198,7 @@ export function AuthenticationContextModal({
       try {
         data = await Bun.file(harPath.trim()).text();
       } catch {
-        setImportError(
-          "Unable to read the HAR file. Check its path and permissions.",
-        );
+        setImportError("Unable to read the HAR file. Check its path and permissions.");
         return;
       }
       const requests = listHarAuthenticationRequests(data, targetUrl);
@@ -257,11 +230,7 @@ export function AuthenticationContextModal({
         targetUrl,
         selection.entryIndex,
       );
-      prepareImportedContext(
-        imported.context,
-        "HAR",
-        imported.verificationUrl,
-      );
+      prepareImportedContext(imported.context, "HAR", imported.verificationUrl);
     } catch (nextError) {
       setImportError(getImportError(nextError));
       setNotice(null);
@@ -336,10 +305,7 @@ export function AuthenticationContextModal({
       return;
     }
     if (key.name === "pageup" || key.name === "pagedown") {
-      bodyScrollRef.current?.scrollBy(
-        key.name === "pageup" ? -8 : 8,
-        "step",
-      );
+      bodyScrollRef.current?.scrollBy(key.name === "pageup" ? -8 : 8, "step");
       return;
     }
     if (key.ctrl && key.name === "e") {
@@ -356,15 +322,10 @@ export function AuthenticationContextModal({
     }
     if (key.name === "tab") {
       const currentIndex = fields.indexOf(selectedField);
-      const nextIndex =
-        (currentIndex + (key.shift ? -1 : 1) + fields.length) % fields.length;
+      const nextIndex = (currentIndex + (key.shift ? -1 : 1) + fields.length) % fields.length;
       const nextField = fields[nextIndex]!;
       setSelectedField(nextField);
-      if (
-        nextField === "actions" ||
-        nextField === "import" ||
-        nextField === "verification_url"
-      ) {
+      if (nextField === "actions" || nextField === "import" || nextField === "verification_url") {
         const scrollbox = bodyScrollRef.current;
         scrollbox?.scrollTo(scrollbox.scrollHeight);
       } else if (nextField === fields[0]) {
@@ -454,26 +415,14 @@ export function AuthenticationContextModal({
           <text fg={theme.text.dim}>Esc close</text>
         </box>
 
-        <scrollbox
-          ref={bodyScrollRef}
-          width="100%"
-          height={Math.max(1, height - 6)}
-        >
+        <scrollbox ref={bodyScrollRef} width="100%" height={Math.max(1, height - 6)}>
           <box flexDirection="column" width="100%" flexShrink={0}>
             <text fg={theme.text.dim}>PgUp/PgDn scroll</text>
             <text fg={theme.text.secondary}>Exact origin: {preview.origin}</text>
-            <text
-              fg={
-                metadata?.storageMode === "memory"
-                  ? theme.accent.warning
-                  : theme.text.dim
-              }
-            >
+            <text fg={metadata?.storageMode === "memory" ? theme.accent.warning : theme.text.dim}>
               Storage: {getStorageLabel(metadata)}
             </text>
-            <text fg={theme.text.dim}>
-              Modes: Ctrl+E manual | Ctrl+U curl | Ctrl+R HAR
-            </text>
+            <text fg={theme.text.dim}>Modes: Ctrl+E manual | Ctrl+U curl | Ctrl+R HAR</text>
             <text fg={theme.accent.secondary}>
               Active: {mode === "review" ? "redacted import review" : mode}
             </text>
@@ -483,11 +432,7 @@ export function AuthenticationContextModal({
                 <box flexDirection="row" marginTop={1}>
                   <box width={18}>
                     <text
-                      fg={
-                        selectedField === "cookies"
-                          ? theme.accent.primary
-                          : theme.text.secondary
-                      }
+                      fg={selectedField === "cookies" ? theme.accent.primary : theme.text.secondary}
                     >
                       {selectedField === "cookies" ? "> Cookies" : "  Cookies"}
                     </text>
@@ -511,11 +456,7 @@ export function AuthenticationContextModal({
                 <box flexDirection="row" marginTop={1}>
                   <box width={18}>
                     <text
-                      fg={
-                        selectedField === "headers"
-                          ? theme.accent.primary
-                          : theme.text.secondary
-                      }
+                      fg={selectedField === "headers" ? theme.accent.primary : theme.text.secondary}
                     >
                       {selectedField === "headers" ? "> Headers" : "  Headers"}
                     </text>
@@ -543,14 +484,10 @@ export function AuthenticationContextModal({
                 <box width={18}>
                   <text
                     fg={
-                      selectedField === "curlSource"
-                        ? theme.accent.primary
-                        : theme.text.secondary
+                      selectedField === "curlSource" ? theme.accent.primary : theme.text.secondary
                     }
                   >
-                    {selectedField === "curlSource"
-                      ? "> curl command"
-                      : "  curl command"}
+                    {selectedField === "curlSource" ? "> curl command" : "  curl command"}
                   </text>
                 </box>
                 <box flexGrow={1} minWidth={0}>
@@ -577,9 +514,7 @@ export function AuthenticationContextModal({
                     <box width={18}>
                       <text
                         fg={
-                          selectedField === "harPath"
-                            ? theme.accent.primary
-                            : theme.text.secondary
+                          selectedField === "harPath" ? theme.accent.primary : theme.text.secondary
                         }
                       >
                         {selectedField === "harPath" ? "> HAR file" : "  HAR file"}
@@ -667,13 +602,14 @@ export function AuthenticationContextModal({
                 </box>
               </box>
               <text fg={theme.text.dim}>
-                Ctrl+↑/↓ known route ({verificationUrlSuggestions.length} suggestions, root included)
+                Ctrl+↑/↓ known route ({verificationUrlSuggestions.length} suggestions, root
+                included)
               </text>
               <text fg={checkPresentation?.color ?? theme.text.muted}>
                 <strong>
                   {isChecking
                     ? "CHECKING…"
-                    : checkPresentation?.modalLabel ?? "SAVE CONTEXT FIRST"}
+                    : (checkPresentation?.modalLabel ?? "SAVE CONTEXT FIRST")}
                 </strong>
               </text>
               {authCheck ? (
@@ -711,18 +647,11 @@ export function AuthenticationContextModal({
                 <strong>{isSaving ? "Saving…" : actionLabel}</strong>
               </text>
               <text>
-                <span
-                  fg={
-                    metadata ? theme.accent.secondary : theme.text.muted
-                  }
-                >
-                  Ctrl+K check
-                </span>
+                <span fg={metadata ? theme.accent.secondary : theme.text.muted}>Ctrl+K check</span>
                 <span fg={theme.text.dim}> | </span>
                 <span
                   fg={
-                    authCheck?.status === "inconclusive" &&
-                    !authCheck.isProceedAllowed
+                    authCheck?.status === "inconclusive" && !authCheck.isProceedAllowed
                       ? theme.accent.warning
                       : theme.text.muted
                   }
@@ -734,9 +663,9 @@ export function AuthenticationContextModal({
             </box>
 
             <text fg={theme.text.dim} marginTop={1}>
-              Imports ignore methods and bodies; saving requires confirmation.
-              Auth Check is heuristic only and does not establish authorization
-              scope. Secrets and response content stay out of metadata.
+              Imports ignore methods and bodies; saving requires confirmation. Auth Check is
+              heuristic only and does not establish authorization scope. Secrets and response
+              content stay out of metadata.
             </text>
           </box>
         </scrollbox>

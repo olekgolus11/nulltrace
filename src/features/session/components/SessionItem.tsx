@@ -17,13 +17,7 @@ function formatTimestamp(value: string) {
   });
 }
 
-function getSessionBadges({
-  isCurrent,
-  isLatest,
-}: {
-  isCurrent: boolean;
-  isLatest: boolean;
-}) {
+function getSessionBadges({ isCurrent, isLatest }: { isCurrent: boolean; isLatest: boolean }) {
   const badges: string[] = [];
 
   if (isCurrent) {

@@ -7,14 +7,8 @@ export interface ChatRuntimeConversation {
 
 export interface ChatRuntime {
   createConversation: (sessionId: string) => Promise<ChatRuntimeConversation>;
-  getConversation: (
-    sessionId: string,
-    conversationId: string,
-  ) => Promise<ChatRuntimeConversation>;
-  listMessages: (
-    sessionId: string,
-    conversationId: string,
-  ) => Promise<ChatMessageData[]>;
+  getConversation: (sessionId: string, conversationId: string) => Promise<ChatRuntimeConversation>;
+  listMessages: (sessionId: string, conversationId: string) => Promise<ChatMessageData[]>;
   sendPrompt: (
     sessionId: string,
     conversationId: string,
@@ -34,10 +28,7 @@ export class ChatRuntimeError extends Error {
 }
 
 export class ChatRuntimeConversationNotFoundError extends ChatRuntimeError {
-  constructor(
-    message: string,
-    cause?: unknown,
-  ) {
+  constructor(message: string, cause?: unknown) {
     super(message, cause);
     this.name = "ChatRuntimeConversationNotFoundError";
   }

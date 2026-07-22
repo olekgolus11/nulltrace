@@ -2,17 +2,9 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { XMLParser } from "fast-xml-parser";
-import {
-  ToolPrepareCommand,
-  ToolRunCompleted,
-} from "../../shared/types/tool-screen.types";
+import { ToolPrepareCommand, ToolRunCompleted } from "../../shared/types/tool-screen.types";
 import { nmapBooleanFields, nmapTimingOptions } from "../config/nmap.config";
-import {
-  NmapFieldId,
-  NmapFormState,
-  NmapTiming,
-  NmapToolData,
-} from "../types/nmap.types";
+import { NmapFieldId, NmapFormState, NmapTiming, NmapToolData } from "../types/nmap.types";
 import { getAppDataDirectory } from "../../../session/services/session-database";
 import { ToolRunArtifactInput } from "../../../session/model/session.repository.types";
 
@@ -161,11 +153,7 @@ class NmapCommandService {
     };
   }
 
-  moveSelection(
-    toolData: NmapToolData,
-    delta: -1 | 1,
-    max: number,
-  ): NmapToolData {
+  moveSelection(toolData: NmapToolData, delta: -1 | 1, max: number): NmapToolData {
     return {
       ...toolData,
       selectedField: Math.max(0, Math.min(toolData.selectedField + delta, max)),
@@ -188,9 +176,7 @@ class NmapCommandService {
 
   cycleTiming(toolData: NmapToolData, delta: -1 | 1): NmapToolData {
     const currentIndex = nmapTimingOptions.indexOf(toolData.form.timing);
-    const nextIndex =
-      (currentIndex + delta + nmapTimingOptions.length) %
-      nmapTimingOptions.length;
+    const nextIndex = (currentIndex + delta + nmapTimingOptions.length) % nmapTimingOptions.length;
 
     return {
       ...toolData,
@@ -217,9 +203,7 @@ class NmapCommandService {
     return strippedCommand + xmlOutputFlag;
   }
 
-  async collectArtifacts(
-    options: ToolRunCompleted,
-  ): Promise<ToolRunArtifactInput[]> {
+  async collectArtifacts(options: ToolRunCompleted): Promise<ToolRunArtifactInput[]> {
     const { sessionId, toolRunId, status, exitCode } = options;
 
     if (!sessionId || !toolRunId || status === "cancelled") {
@@ -262,11 +246,7 @@ class NmapCommandService {
     };
   }
 
-  private parseScanner(
-    nmapRun: unknown,
-    status: string,
-    exitCode: number | null,
-  ) {
+  private parseScanner(nmapRun: unknown, status: string, exitCode: number | null) {
     const runstats = getNode(nmapRun, "runstats");
     const finished = getNode(runstats, "finished");
     const hosts = getNode(runstats, "hosts");
@@ -299,12 +279,10 @@ class NmapCommandService {
         address: getAttribute(address, "addr"),
         type: getAttribute(address, "addrtype"),
       })),
-      hostnames: toArray(getNode(getNode(host, "hostnames"), "hostname")).map(
-        (hostname) => ({
-          name: getAttribute(hostname, "name"),
-          type: getAttribute(hostname, "type"),
-        }),
-      ),
+      hostnames: toArray(getNode(getNode(host, "hostnames"), "hostname")).map((hostname) => ({
+        name: getAttribute(hostname, "name"),
+        type: getAttribute(hostname, "type"),
+      })),
       ports: this.parsePorts(getNode(host, "ports")),
       os: this.parseOs(getNode(host, "os")),
       scripts: this.parseScripts(host),
@@ -369,21 +347,15 @@ class NmapCommandService {
     return toArray(getNode(node, "script")).map((script) => ({
       id: getAttribute(script, "id"),
       output: getAttribute(script, "output"),
-      tables: toArray(getNode(script, "table")).map((table) =>
-        this.parseScriptTable(table),
-      ),
-      elements: toArray(getNode(script, "elem")).map((element) =>
-        this.parseScriptElement(element),
-      ),
+      tables: toArray(getNode(script, "table")).map((table) => this.parseScriptTable(table)),
+      elements: toArray(getNode(script, "elem")).map((element) => this.parseScriptElement(element)),
     }));
   }
 
   private parseScriptTable(table: unknown): NmapScriptTable {
     return {
       key: getAttribute(table, "key"),
-      elements: toArray(getNode(table, "elem")).map((element) =>
-        this.parseScriptElement(element),
-      ),
+      elements: toArray(getNode(table, "elem")).map((element) => this.parseScriptElement(element)),
       tables: toArray(getNode(table, "table")).map((childTable) =>
         this.parseScriptTable(childTable),
       ),
@@ -391,10 +363,7 @@ class NmapCommandService {
   }
 
   private parseScriptElement(element: unknown): NmapScriptElement {
-    const value =
-      element && typeof element === "object"
-        ? getNode(element, "#text")
-        : element;
+    const value = element && typeof element === "object" ? getNode(element, "#text") : element;
 
     return {
       key: getAttribute(element, "key"),

@@ -11,29 +11,15 @@ export interface SitemapNode {
   children?: SitemapNode[];
 }
 
-export type TargetSitemapDiscoveryProvenance =
-  | "public"
-  | "authenticated"
-  | "both";
+export type TargetSitemapDiscoveryProvenance = "public" | "authenticated" | "both";
 
 export type TargetSitemapProvenanceFilter =
-  | "all"
-  | TargetSitemapDiscoveryProvenance;
+  "all" | Exclude<TargetSitemapDiscoveryProvenance, "both">;
 
-export type TargetSitemapCrawlStatus =
-  | "idle"
-  | "running"
-  | "paused"
-  | "completed"
-  | "failed";
+export type TargetSitemapCrawlStatus = "idle" | "running" | "paused" | "completed" | "failed";
 
 export type TargetSitemapEntrySource =
-  | "seed"
-  | "html_link"
-  | "html_form"
-  | "sitemap_xml"
-  | "robots_sitemap"
-  | "manual";
+  "seed" | "html_link" | "html_form" | "sitemap_xml" | "robots_sitemap" | "manual";
 
 export interface TargetSitemapEntryRecord {
   id: string;
@@ -94,12 +80,7 @@ export interface TargetSitemapCrawlStatusRecord {
 }
 
 export type AuthenticatedSitemapCrawlStatus =
-  | "idle"
-  | "running"
-  | "paused"
-  | "completed"
-  | "authentication_required"
-  | "failed";
+  "idle" | "running" | "paused" | "completed" | "authentication_required" | "failed";
 
 export type SitemapCrawlerType = "public" | "authenticated";
 
@@ -131,7 +112,7 @@ export interface SitemapCrawlCheckpoint {
   updatedAt: string;
 }
 
-export type SitemapCrawlRunMode = "fresh" | "resume" | "retry_failures";
+export type SitemapCrawlRunMode = "fresh" | "resume";
 
 export interface AuthenticatedSitemapCrawlStatusRecord {
   sessionId: string;
@@ -152,7 +133,6 @@ export interface AuthenticatedSitemapAccessObservationInput {
   httpStatus: number;
 }
 
-export interface AuthenticatedSitemapAccessObservationRecord
-  extends AuthenticatedSitemapAccessObservationInput {
+export interface AuthenticatedSitemapAccessObservationRecord extends AuthenticatedSitemapAccessObservationInput {
   observedAt: string;
 }

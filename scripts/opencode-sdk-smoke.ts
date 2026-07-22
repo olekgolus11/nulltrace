@@ -136,9 +136,7 @@ async function main() {
   console.log(
     `Messages after first prompt: ${await listMessageCount(firstRuntime.client, sessionId)}`,
   );
-  console.log(
-    `Title after first prompt: ${await getSessionTitle(firstRuntime.client, sessionId)}`,
-  );
+  console.log(`Title after first prompt: ${await getSessionTitle(firstRuntime.client, sessionId)}`);
 
   firstRuntime.server.close();
   console.log("Closed first OpenCode server.");
@@ -154,9 +152,7 @@ async function main() {
       id: sessionId,
     },
   });
-  console.log(
-    `Reopened session: ${requireData(reopenedSession.data, "session.get").id}`,
-  );
+  console.log(`Reopened session: ${requireData(reopenedSession.data, "session.get").id}`);
 
   const seenEvents: string[] = [];
   const seenTitles: string[] = [];
@@ -195,10 +191,7 @@ async function main() {
   console.log("Closed second OpenCode server.");
 
   if (eventTask) {
-    await Promise.race([
-      eventTask,
-      new Promise((resolve) => setTimeout(resolve, 1000)),
-    ]);
+    await Promise.race([eventTask, new Promise((resolve) => setTimeout(resolve, 1000))]);
     console.log(`Observed event types: ${seenEvents.join(", ") || "none"}`);
     console.log(`Observed titles: ${seenTitles.join(" | ") || "none"}`);
   }

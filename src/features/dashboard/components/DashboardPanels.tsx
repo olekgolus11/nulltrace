@@ -6,10 +6,7 @@ import { SessionChatPanel } from "../../chat/components/SessionChatPanel";
 import { ChatMessageData } from "../../chat/model/chat.types";
 import { ActiveSessionConversation } from "../../chat/services/session-conversation.service";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
-import {
-  SitemapLedger,
-  SitemapLedgerHeader,
-} from "../../sitemap/components/SitemapLedger";
+import { SitemapLedger, SitemapLedgerHeader } from "../../sitemap/components/SitemapLedger";
 import {
   AuthenticatedSitemapCrawlStatusRecord,
   SitemapNode,
@@ -40,6 +37,7 @@ export const LeftDashboardPanel = ({
   sitemapProvenanceFilter,
   sitemapStatus,
   authenticatedSitemapStatus,
+  authenticatedAccessDeniedCount,
   sitemapCrawlControls,
   findings,
   layout,
@@ -56,6 +54,7 @@ export const LeftDashboardPanel = ({
   sitemapProvenanceFilter: TargetSitemapProvenanceFilter;
   sitemapStatus: TargetSitemapCrawlStatusRecord | null;
   authenticatedSitemapStatus: AuthenticatedSitemapCrawlStatusRecord | null;
+  authenticatedAccessDeniedCount: number;
   sitemapCrawlControls: SitemapCrawlControlPresentation;
   findings: SessionFindingRecord[];
   layout: UseDashboardLayoutResult;
@@ -69,39 +68,35 @@ export const LeftDashboardPanel = ({
   const hasAuthenticatedStatus =
     authenticatedSitemapStatus?.status === "running" ||
     authenticatedSitemapStatus?.status === "paused" ||
-    authenticatedSitemapStatus?.status === "authentication_required";
-  const sitemapHeaderHeight =
-    3 + (hasFilterSummary ? 1 : 0) + (hasAuthenticatedStatus ? 1 : 0);
-  const sitemapLedgerHeight = Math.max(
-    1,
-    layout.sitemapScrollHeight - sitemapHeaderHeight,
-  );
-  const sitemapStatusSummary = sitemapStatus?.status === "running"
-    ? `${sitemapEntryCount} routes \u00b7 public crawl running`
-    : sitemapStatus?.status === "paused"
-      ? `${sitemapEntryCount} routes \u00b7 public crawl paused`
-    : sitemapStatus?.status === "failed"
-      ? `${sitemapEntryCount} routes \u00b7 incomplete`
-      : sitemapStatus?.status === "completed"
-        ? `${sitemapEntryCount} routes \u00b7 complete`
-        : `${sitemapEntryCount} routes \u00b7 waiting`;
-  const sitemapStatusColor = sitemapStatus?.status === "failed"
-    ? theme.accent.warning
-    : sitemapStatus?.status === "running"
-      ? theme.accent.primary
-      : theme.text.secondary;
-  const sitemapScopeLabel = sitemapProvenanceFilter === "authenticated"
-    ? "auth"
-    : sitemapProvenanceFilter === "public"
-      ? "pub"
-      : sitemapProvenanceFilter;
+    authenticatedSitemapStatus?.status === "authentication_required" ||
+    (authenticatedSitemapStatus?.status === "completed" && authenticatedAccessDeniedCount > 0);
+  const sitemapHeaderHeight = 3 + (hasFilterSummary ? 1 : 0) + (hasAuthenticatedStatus ? 1 : 0);
+  const sitemapLedgerHeight = Math.max(1, layout.sitemapScrollHeight - sitemapHeaderHeight);
+  const sitemapStatusSummary =
+    sitemapStatus?.status === "running"
+      ? `${sitemapEntryCount} routes \u00b7 public crawl running`
+      : sitemapStatus?.status === "paused"
+        ? `${sitemapEntryCount} routes \u00b7 public crawl paused`
+        : sitemapStatus?.status === "failed"
+          ? `${sitemapEntryCount} routes \u00b7 incomplete`
+          : sitemapStatus?.status === "completed"
+            ? `${sitemapEntryCount} routes \u00b7 complete`
+            : `${sitemapEntryCount} routes \u00b7 waiting`;
+  const sitemapStatusColor =
+    sitemapStatus?.status === "failed"
+      ? theme.accent.warning
+      : sitemapStatus?.status === "running"
+        ? theme.accent.primary
+        : theme.text.secondary;
+  const sitemapScopeLabel =
+    sitemapProvenanceFilter === "authenticated"
+      ? "auth"
+      : sitemapProvenanceFilter === "public"
+        ? "pub"
+        : sitemapProvenanceFilter;
 
   return (
-    <box
-      width={layout.leftPanelWidth}
-      height={layout.contentHeight}
-      flexDirection="column"
-    >
+    <box width={layout.leftPanelWidth} height={layout.contentHeight} flexDirection="column">
       <DashboardPanel
         title="Route Ledger"
         panelNumber={getPanelDisplayNumber(dashboardPanels, "sitemap")}
@@ -123,6 +118,11 @@ export const LeftDashboardPanel = ({
             <text fg={theme.text.secondary}>authenticated crawl paused</text>
           ) : authenticatedSitemapStatus?.status === "authentication_required" ? (
             <text fg={theme.accent.warning}>{"auth required \u00b7 crawl paused"}</text>
+          ) : authenticatedSitemapStatus?.status === "completed" &&
+            authenticatedAccessDeniedCount > 0 ? (
+            <text fg={theme.accent.warning}>
+              {`Completed \u00b7 ${authenticatedAccessDeniedCount} access-denied ${authenticatedAccessDeniedCount === 1 ? "response" : "responses"}`}
+            </text>
           ) : null}
           <text
             fg={
@@ -161,9 +161,7 @@ export const LeftDashboardPanel = ({
             isFocused={dashboardState.activePanel === "sitemap"}
             availableWidth={sitemapLedgerWidth}
             emptyMessage={
-              sitemapEntryCount > 0
-                ? "No routes match current filters."
-                : "No routes discovered."
+              sitemapEntryCount > 0 ? "No routes match current filters." : "No routes discovered."
             }
           />
         </scrollbox>
@@ -252,11 +250,7 @@ export const CenterDashboardPanel = ({
   chatError: string | null;
 }) => {
   return (
-    <box
-      width={layout.centerPanelWidth}
-      height={layout.contentHeight}
-      flexDirection="column"
-    >
+    <box width={layout.centerPanelWidth} height={layout.contentHeight} flexDirection="column">
       <DashboardPanel
         title="AI Assistant"
         panelNumber={getPanelDisplayNumber(dashboardPanels, "chat")}
@@ -307,11 +301,7 @@ export const RightDashboardPanel = ({
   );
 
   return (
-    <box
-      width={layout.rightPanelWidth}
-      height={layout.contentHeight}
-      flexDirection="column"
-    >
+    <box width={layout.rightPanelWidth} height={layout.contentHeight} flexDirection="column">
       <DashboardPanel
         title="Tools"
         panelNumber={getPanelDisplayNumber(dashboardPanels, "tools")}

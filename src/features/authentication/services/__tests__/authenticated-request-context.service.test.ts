@@ -4,9 +4,7 @@ import {
   AuthenticatedRequestContextService,
   validateAuthenticatedRequestContextOrigin,
 } from "../authenticated-request-context.service";
-import {
-  createRedactedAuthenticatedRequestContextPreview,
-} from "../authenticated-request-context-redaction";
+import { createRedactedAuthenticatedRequestContextPreview } from "../authenticated-request-context-redaction";
 import {
   PlatformSecretStore,
   PlatformSecretStoreAdapter,

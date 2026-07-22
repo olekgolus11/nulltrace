@@ -1,19 +1,10 @@
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAppDataDirectory } from "../../session/services/session-database";
 import { getAuthenticationRuntimeId } from "../../authentication/services/authentication-runtime";
-import {
-  chatContextToolRegistry,
-  createOpenCodeToolSource,
-} from "./chat-context-tools.service";
+import { chatContextToolRegistry, createOpenCodeToolSource } from "./chat-context-tools.service";
 
 const runtimeRoot = join(getAppDataDirectory(), "chat-runtime");
 const runtimeHome = join(runtimeRoot, "home");
@@ -76,10 +67,7 @@ const chatContextToolsImportPath = join(
   repoRoot,
   "src/features/chat/services/chat-context-tools.service.ts",
 );
-const openCodePluginImportPath = join(
-  repoRoot,
-  "node_modules/@opencode-ai/plugin/dist/index.js",
-);
+const openCodePluginImportPath = join(repoRoot, "node_modules/@opencode-ai/plugin/dist/index.js");
 
 function ensureSessionChatContextTools(workspace: string) {
   const toolsDirectory = join(workspace, ".opencode", "tools");
@@ -121,9 +109,7 @@ export function getOpenCodeExecutable() {
 export function getOpenCodeRuntimeEnvironment() {
   ensureOpenCodeRuntimeDirectories();
   const inheritedEnvironment = Object.fromEntries(
-    Object.entries(process.env).filter(
-      ([name]) => !name.startsWith("OPENCODE_"),
-    ),
+    Object.entries(process.env).filter(([name]) => !name.startsWith("OPENCODE_")),
   );
 
   return {

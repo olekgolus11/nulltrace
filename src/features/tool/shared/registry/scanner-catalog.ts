@@ -1,17 +1,9 @@
 import { nmapHelpContent } from "../../nmap/data/nmap-help";
 import { nucleiHelpContent } from "../../nuclei/data/nuclei-help";
 
-export type ScannerToolId =
-  | "nmap"
-  | "nuclei"
-  | "ffuf"
-  | "sqlmap"
-  | "zap"
-  | "nikto";
+export type ScannerToolId = "nmap" | "nuclei" | "ffuf" | "sqlmap" | "zap" | "nikto";
 
-export type ScannerToolImplementationStatus =
-  | "implemented"
-  | "catalog_only";
+export type ScannerToolImplementationStatus = "implemented" | "catalog_only";
 
 export interface ScannerCatalogTool {
   id: ScannerToolId;
@@ -95,8 +87,9 @@ export function listAvailableScannerToolsFromCatalog(
   catalog: Record<ScannerToolId, ScannerCatalogTool> = scannerCatalog,
 ): ScannerCatalogContext {
   const tools = Object.values(catalog).map((tool) => {
-    const implementationStatus: ScannerToolImplementationStatus =
-      tool.isImplemented ? "implemented" : "catalog_only";
+    const implementationStatus: ScannerToolImplementationStatus = tool.isImplemented
+      ? "implemented"
+      : "catalog_only";
 
     return {
       id: tool.id,

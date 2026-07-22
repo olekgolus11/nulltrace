@@ -59,9 +59,7 @@ const bunSecretStoreCommandRunner: SecretStoreCommandRunner = {
   },
 };
 
-export class MacOSKeychainSecretStoreAdapter
-  implements PlatformSecretStoreAdapter
-{
+export class MacOSKeychainSecretStoreAdapter implements PlatformSecretStoreAdapter {
   constructor(private readonly commandRunner: SecretStoreCommandRunner) {}
 
   async isAvailable() {
@@ -117,9 +115,7 @@ export class MacOSKeychainSecretStoreAdapter
   }
 }
 
-export class LinuxSecretServiceSecretStoreAdapter
-  implements PlatformSecretStoreAdapter
-{
+export class LinuxSecretServiceSecretStoreAdapter implements PlatformSecretStoreAdapter {
   constructor(private readonly commandRunner: SecretStoreCommandRunner) {}
 
   async isAvailable() {
@@ -207,9 +203,7 @@ function windowsCommand(operation: "save" | "load" | "clear") {
   return `${common} if (![NullTraceCredentialManager]::CredDelete($target, 1, 0)) { exit 1 }`;
 }
 
-export class WindowsCredentialManagerSecretStoreAdapter
-  implements PlatformSecretStoreAdapter
-{
+export class WindowsCredentialManagerSecretStoreAdapter implements PlatformSecretStoreAdapter {
   constructor(private readonly commandRunner: SecretStoreCommandRunner) {}
 
   async isAvailable() {
@@ -225,14 +219,7 @@ export class WindowsCredentialManagerSecretStoreAdapter
 
   async save(key: string, value: string) {
     const result = await this.commandRunner.run(
-      [
-        "powershell.exe",
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        windowsCommand("save"),
-        key,
-      ],
+      ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", windowsCommand("save"), key],
       Buffer.from(value, "utf8").toString("base64"),
     );
     if (result.exitCode !== 0) {

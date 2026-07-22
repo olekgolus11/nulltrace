@@ -40,10 +40,7 @@ interface RunToolCommandInput {
   onSystemLines: (lines: string[]) => void;
   onRunFinished?: (event: {
     toolRunId: string | null;
-    status: Extract<
-      import("../types/tool-screen.types").ExecutionStatus,
-      "success" | "error"
-    >;
+    status: Extract<import("../types/tool-screen.types").ExecutionStatus, "success" | "error">;
     exitCode: number | null;
   }) => void;
   onRunCancelled?: (event: { toolRunId: string | null }) => void;
@@ -153,8 +150,7 @@ export class ToolRunnerService {
         return;
       }
 
-      const message =
-        error instanceof Error ? error.message : "Unknown execution error";
+      const message = error instanceof Error ? error.message : "Unknown execution error";
       const failureMessage = `[execution failed] ${message}`;
       if (toolRunId) {
         this.repository.appendToolRunLog(toolRunId, ["", failureMessage]);
@@ -194,10 +190,7 @@ export class ToolRunnerService {
 
     const cancelMessage = "[run cancelled by operator]";
     if (this.activeRun.toolRunId) {
-      this.repository.appendToolRunLog(this.activeRun.toolRunId, [
-        "",
-        cancelMessage,
-      ]);
+      this.repository.appendToolRunLog(this.activeRun.toolRunId, ["", cancelMessage]);
       this.repository.cancelToolRun(this.activeRun.toolRunId);
     }
     this.activeRun.onSystemLines(["", cancelMessage]);

@@ -17,41 +17,17 @@ import {
   AuthenticationContextMetadataRepository,
   authenticationContextMetadataRepository,
 } from "./authentication-context-metadata.repository";
+import type {
+  AuthCheckResponsePair,
+  AuthCheckComparisonResult,
+  AuthCheckResponseSignals,
+  AuthCheckServiceOptions,
+  AuthenticatedContextVerificationInput,
+  AuthenticatedContextVerificationResult,
+  AuthenticatedContextVerifier,
+} from "./auth-check.types";
 
-type FetchFunction = (
-  input: string,
-  init?: RequestInit,
-) => Promise<Response>;
-
-export interface AuthCheckResponseSignals {
-  status: number;
-  redirects: string[];
-  contentType: string;
-  contentFingerprint: string;
-  title: string | null;
-  hasLoginForm: boolean;
-}
-
-export interface AuthCheckResponsePair {
-  unauthenticated: AuthCheckResponseSignals;
-  authenticated: AuthCheckResponseSignals;
-}
-
-export interface AuthCheckComparisonResult {
-  status: "verified" | "inconclusive" | "failed";
-  isProceedAllowed: boolean;
-  summary: string;
-  signals: AuthCheckSignalMetadata;
-}
-
-export interface AuthCheckServiceOptions {
-  contextService?: AuthenticatedRequestContextService;
-  metadataRepository?: AuthenticationContextMetadataRepository;
-  fetch?: FetchFunction;
-  requestTimeoutMs?: number;
-  maxResponseBytes?: number;
-  maxRedirects?: number;
-}
+type FetchFunction = (input: string, init?: RequestInit) => Promise<Response>;
 
 const defaultLimits = {
   requestTimeoutMs: 10_000,
@@ -71,15 +47,10 @@ function normalizeVerificationUrl(value: string) {
   return url;
 }
 
-export function validateAuthCheckUrl(
-  targetUrl: string,
-  verificationUrl: string,
-): string {
+export function validateAuthCheckUrl(targetUrl: string, verificationUrl: string): string {
   let normalizedVerificationUrl: URL;
   try {
-    normalizedVerificationUrl = normalizeVerificationUrl(
-      verificationUrl.trim(),
-    );
+    normalizedVerificationUrl = normalizeVerificationUrl(verificationUrl.trim());
   } catch (error) {
     if (error instanceof Error && error.message.includes("credentials")) {
       throw error;
@@ -89,9 +60,7 @@ export function validateAuthCheckUrl(
 
   const targetOrigin = normalizeExactOrigin(targetUrl);
   if (normalizedVerificationUrl.origin !== targetOrigin) {
-    throw new Error(
-      "Auth Check verification URL must match the target's exact origin.",
-    );
+    throw new Error("Auth Check verification URL must match the target's exact origin.");
   }
 
   return normalizedVerificationUrl.toString();
@@ -103,10 +72,7 @@ function createMetadataVerificationUrl(value: string) {
   return url.toString();
 }
 
-export function createAuthCheckUrlSuggestions(
-  targetUrl: string,
-  sitemapUrls: string[],
-): string[] {
+export function createAuthCheckUrlSuggestions(targetUrl: string, sitemapUrls: string[]): string[] {
   const targetOrigin = normalizeExactOrigin(targetUrl);
   const suggestions = new Set<string>([new URL("/", targetOrigin).toString()]);
 
@@ -147,15 +113,12 @@ function createSignalMetadata({
     authenticatedHasLoginForm: authenticated.hasLoginForm,
     hasStatusChanged: unauthenticated.status !== authenticated.status,
     hasRedirectsChanged:
-      JSON.stringify(unauthenticated.redirects) !==
-      JSON.stringify(authenticated.redirects),
-    hasContentTypeChanged:
-      unauthenticated.contentType !== authenticated.contentType,
+      JSON.stringify(unauthenticated.redirects) !== JSON.stringify(authenticated.redirects),
+    hasContentTypeChanged: unauthenticated.contentType !== authenticated.contentType,
     hasContentFingerprintChanged:
       unauthenticated.contentFingerprint !== authenticated.contentFingerprint,
     hasTitleChanged: unauthenticated.title !== authenticated.title,
-    hasLoginFormChanged:
-      unauthenticated.hasLoginForm !== authenticated.hasLoginForm,
+    hasLoginFormChanged: unauthenticated.hasLoginForm !== authenticated.hasLoginForm,
   };
 }
 
@@ -167,8 +130,7 @@ export function compareAuthCheckSignals(
     isBlockedStatus(responses.unauthenticated.status) &&
     isSuccessfulStatus(responses.authenticated.status);
   const hasLoginFormBeenRemoved =
-    responses.unauthenticated.hasLoginForm &&
-    !responses.authenticated.hasLoginForm;
+    responses.unauthenticated.hasLoginForm && !responses.authenticated.hasLoginForm;
 
   if (
     responses.authenticated.status >= 400 ||
@@ -219,10 +181,7 @@ function createRequestHeaders(cookies: string, headerLines: string) {
   splitAuthenticatedHeaderEntries(headerLines).forEach((entry) => {
     const separatorIndex = entry.indexOf(":");
     if (separatorIndex > 0) {
-      headers.set(
-        entry.slice(0, separatorIndex).trim(),
-        entry.slice(separatorIndex + 1).trim(),
-      );
+      headers.set(entry.slice(0, separatorIndex).trim(), entry.slice(separatorIndex + 1).trim());
     }
   });
   if (cookies) {
@@ -269,24 +228,19 @@ function inspectResponse(
   body: string,
 ): AuthCheckResponseSignals {
   const contentType =
-    response.headers
-      .get("content-type")
-      ?.split(";", 1)[0]
-      ?.trim()
-      .toLowerCase() ?? "";
-  const isHtml =
-    contentType === "text/html" || contentType === "application/xhtml+xml";
+    response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+  const isHtml = contentType === "text/html" || contentType === "application/xhtml+xml";
   let title: string | null = null;
   let hasLoginForm = false;
 
   if (isHtml) {
     const $ = load(body);
-    title =
-      $("title").first().text().replace(/\s+/g, " ").trim().slice(0, 256) ||
-      null;
-    hasLoginForm = $("form").toArray().some((form) => {
-      return $(form).find('input[type="password"]').length > 0;
-    });
+    title = $("title").first().text().replace(/\s+/g, " ").trim().slice(0, 256) || null;
+    hasLoginForm = $("form")
+      .toArray()
+      .some((form) => {
+        return $(form).find('input[type="password"]').length > 0;
+      });
   }
 
   return {
@@ -299,24 +253,19 @@ function inspectResponse(
   };
 }
 
-export class AuthCheckService {
+export class AuthCheckService implements AuthenticatedContextVerifier {
   private readonly contextService: AuthenticatedRequestContextService;
   private readonly metadataRepository: AuthenticationContextMetadataRepository;
   private readonly fetch: FetchFunction;
   private readonly requestTimeoutMs: number;
   private readonly maxResponseBytes: number;
   private readonly maxRedirects: number;
-
   constructor(options: AuthCheckServiceOptions = {}) {
-    this.contextService =
-      options.contextService ?? authenticatedRequestContextService;
-    this.metadataRepository =
-      options.metadataRepository ?? authenticationContextMetadataRepository;
+    this.contextService = options.contextService ?? authenticatedRequestContextService;
+    this.metadataRepository = options.metadataRepository ?? authenticationContextMetadataRepository;
     this.fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
-    this.requestTimeoutMs =
-      options.requestTimeoutMs ?? defaultLimits.requestTimeoutMs;
-    this.maxResponseBytes =
-      options.maxResponseBytes ?? defaultLimits.maxResponseBytes;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? defaultLimits.requestTimeoutMs;
+    this.maxResponseBytes = options.maxResponseBytes ?? defaultLimits.maxResponseBytes;
     this.maxRedirects = options.maxRedirects ?? defaultLimits.maxRedirects;
   }
 
@@ -366,20 +315,13 @@ export class AuthCheckService {
     verificationUrl: string,
   ): Promise<AuthCheckMetadata> {
     const contextVersion = this.contextService.getAuthStateVersion(sessionId);
-    const normalizedVerificationUrl = validateAuthCheckUrl(
-      targetUrl,
-      verificationUrl,
-    );
+    const normalizedVerificationUrl = validateAuthCheckUrl(targetUrl, verificationUrl);
     const context = await this.contextService.loadProtectedContext(sessionId);
     if (!context) {
-      throw new Error(
-        "Save an authentication context before running Auth Check.",
-      );
+      throw new Error("Save an authentication context before running Auth Check.");
     }
     if (context.origin !== normalizeExactOrigin(targetUrl)) {
-      throw new Error(
-        "Authentication context no longer matches the target origin.",
-      );
+      throw new Error("Authentication context no longer matches the target origin.");
     }
 
     try {
@@ -387,18 +329,14 @@ export class AuthCheckService {
         normalizedVerificationUrl,
         createRequestHeaders("", ""),
       );
-      if (
-        this.contextService.getAuthStateVersion(sessionId) !== contextVersion
-      ) {
+      if (this.contextService.getAuthStateVersion(sessionId) !== contextVersion) {
         throw new Error("Authentication context changed during Auth Check.");
       }
       const authenticated = await this.fetchSignals(
         normalizedVerificationUrl,
         createRequestHeaders(context.cookies, context.headers),
       );
-      if (
-        this.contextService.getAuthStateVersion(sessionId) !== contextVersion
-      ) {
+      if (this.contextService.getAuthStateVersion(sessionId) !== contextVersion) {
         throw new Error("Authentication context changed during Auth Check.");
       }
       const comparison = compareAuthCheckSignals({
@@ -408,27 +346,19 @@ export class AuthCheckService {
       const checkedAt = new Date().toISOString();
       const metadata: AuthCheckMetadata = {
         ...comparison,
-        verificationUrl: createMetadataVerificationUrl(
-          normalizedVerificationUrl,
-        ),
+        verificationUrl: createMetadataVerificationUrl(normalizedVerificationUrl),
         checkedAt,
         acknowledgedAt: null,
       };
       this.metadataRepository.updateAuthCheck(sessionId, metadata);
       return metadata;
     } catch {
-      if (
-        this.contextService.getAuthStateVersion(sessionId) !== contextVersion
-      ) {
-        throw new Error(
-          "Authentication context changed during Auth Check. Run it again.",
-        );
+      if (this.contextService.getAuthStateVersion(sessionId) !== contextVersion) {
+        throw new Error("Authentication context changed during Auth Check. Run it again.");
       }
       this.metadataRepository.updateAuthCheck(sessionId, {
         status: "failed",
-        verificationUrl: createMetadataVerificationUrl(
-          normalizedVerificationUrl,
-        ),
+        verificationUrl: createMetadataVerificationUrl(normalizedVerificationUrl),
         checkedAt: new Date().toISOString(),
         acknowledgedAt: null,
         isProceedAllowed: false,
@@ -436,16 +366,52 @@ export class AuthCheckService {
           "Auth Check could not compare bounded responses. Authorization scope is not established.",
         signals: null,
       });
-      throw new Error(
-        "Auth Check could not compare the selected same-origin URL.",
-      );
+      throw new Error("Auth Check could not compare the selected same-origin URL.");
     }
   }
 
-  private async fetchSignals(
-    url: string,
-    headers: Headers,
-  ): Promise<AuthCheckResponseSignals> {
+  async verify(
+    input: AuthenticatedContextVerificationInput,
+  ): Promise<AuthenticatedContextVerificationResult> {
+    const verificationUrl = this.getMetadata(input.sessionId).verificationUrl;
+    if (!verificationUrl) {
+      return "inconclusive";
+    }
+
+    let normalizedVerificationUrl: string;
+    try {
+      normalizedVerificationUrl = validateAuthCheckUrl(input.targetUrl, verificationUrl);
+    } catch {
+      return "inconclusive";
+    }
+
+    try {
+      const unauthenticated = await this.fetchSignals(
+        normalizedVerificationUrl,
+        createRequestHeaders("", ""),
+      );
+      const authenticated = await this.fetchSignals(
+        normalizedVerificationUrl,
+        createRequestHeaders(input.cookies, input.headers),
+      );
+      const comparison = compareAuthCheckSignals({ unauthenticated, authenticated });
+      this.metadataRepository.updateAuthCheck(input.sessionId, {
+        ...comparison,
+        verificationUrl: createMetadataVerificationUrl(normalizedVerificationUrl),
+        checkedAt: new Date().toISOString(),
+        acknowledgedAt: null,
+      });
+
+      if (comparison.status === "verified") {
+        return "valid";
+      }
+      return comparison.status === "failed" ? "invalid" : "inconclusive";
+    } catch {
+      return "inconclusive";
+    }
+  }
+
+  private async fetchSignals(url: string, headers: Headers): Promise<AuthCheckResponseSignals> {
     const origin = new URL(url).origin;
     const redirects: string[] = [];
     let currentUrl = new URL(url);
@@ -459,10 +425,7 @@ export class AuthCheckService {
       });
       const location = response.headers.get("location");
       if (response.status < 300 || response.status >= 400 || !location) {
-        const body = await readBoundedResponseText(
-          response,
-          this.maxResponseBytes,
-        );
+        const body = await readBoundedResponseText(response, this.maxResponseBytes);
         return inspectResponse(response, redirects, body);
       }
 
@@ -473,10 +436,7 @@ export class AuthCheckService {
       const nextUrl = new URL(location, currentUrl);
       if (nextUrl.origin !== origin) {
         redirects.push("cross-origin");
-        const body = await readBoundedResponseText(
-          response,
-          this.maxResponseBytes,
-        );
+        const body = await readBoundedResponseText(response, this.maxResponseBytes);
         return inspectResponse(response, redirects, body);
       }
 

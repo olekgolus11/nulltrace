@@ -85,9 +85,7 @@ export function validateAuthenticatedRequestContextOrigin(
   const targetOrigin = normalizeExactOrigin(targetUrl);
   const normalizedContextOrigin = normalizeExactOrigin(contextOrigin);
   if (targetOrigin !== normalizedContextOrigin) {
-    throw new Error(
-      "Authentication context must match the session target's exact origin.",
-    );
+    throw new Error("Authentication context must match the session target's exact origin.");
   }
   return targetOrigin;
 }
@@ -100,13 +98,10 @@ export class AuthenticatedRequestContextService {
 
   constructor(
     private readonly secretStore: SecretStore = platformSecretStore,
-    private readonly metadataRepository: AuthenticationContextMetadataRepository =
-      authenticationContextMetadataRepository,
+    private readonly metadataRepository: AuthenticationContextMetadataRepository = authenticationContextMetadataRepository,
   ) {}
 
-  subscribeToInvalidation(
-    listener: (invalidation: AuthenticatedContextInvalidation) => void,
-  ) {
+  subscribeToInvalidation(listener: (invalidation: AuthenticatedContextInvalidation) => void) {
     this.invalidationListeners.add(listener);
     return () => {
       this.invalidationListeners.delete(listener);
@@ -143,9 +138,7 @@ export class AuthenticatedRequestContextService {
     );
   }
 
-  async loadProtectedContext(
-    sessionId: string,
-  ): Promise<AuthenticatedRequestContext | null> {
+  async loadProtectedContext(sessionId: string): Promise<AuthenticatedRequestContext | null> {
     const stored = await this.secretStore.load(getSecretStoreKey(sessionId));
     if (!stored) {
       return null;
@@ -154,11 +147,7 @@ export class AuthenticatedRequestContextService {
     return parseStoredContext(stored.value);
   }
 
-  async save(
-    sessionId: string,
-    targetUrl: string,
-    input: AuthenticatedRequestContextInput,
-  ) {
+  async save(sessionId: string, targetUrl: string, input: AuthenticatedRequestContextInput) {
     const origin = validateAuthenticatedRequestContextOrigin(targetUrl, input.origin);
     const cookies = input.cookies.trim();
     const headers = input.headers.trim();
@@ -194,5 +183,4 @@ export class AuthenticatedRequestContextService {
   }
 }
 
-export const authenticatedRequestContextService =
-  new AuthenticatedRequestContextService();
+export const authenticatedRequestContextService = new AuthenticatedRequestContextService();

@@ -21,10 +21,7 @@ export function getAuthenticationPosture(
   if (metadata.authCheck.status === "verified") {
     return "verified";
   }
-  if (
-    metadata.authCheck.status === "inconclusive" &&
-    metadata.authCheck.isProceedAllowed
-  ) {
+  if (metadata.authCheck.status === "inconclusive" && metadata.authCheck.isProceedAllowed) {
     return "acknowledged_inconclusive";
   }
   if (metadata.authCheck.status === "not_checked") {

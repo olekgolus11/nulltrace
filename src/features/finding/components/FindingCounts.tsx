@@ -1,13 +1,7 @@
 import { theme } from "../../../app/theme/theme";
 import { FindingSummaryProps } from "../model/finding-summary.types";
 
-export function FindingCounts({
-  critical,
-  high,
-  medium,
-  low,
-  info,
-}: FindingSummaryProps) {
+export function FindingCounts({ critical, high, medium, low, info }: FindingSummaryProps) {
   return (
     <box flexDirection="row" gap={2}>
       <text fg={theme.severity.critical}>

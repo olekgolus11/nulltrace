@@ -16,9 +16,7 @@ function createToolRunRecord() {
   };
 }
 
-function createToolModule(
-  prepareCommandForRun?: ToolModule["prepareCommandForRun"],
-): ToolModule {
+function createToolModule(prepareCommandForRun?: ToolModule["prepareCommandForRun"]): ToolModule {
   return {
     id: "nmap",
     name: "Nmap",
@@ -81,16 +79,8 @@ describe("ToolRunnerService", () => {
     expect(onRunStarted).toHaveBeenCalledWith("run-1");
     expect(stdout).toHaveBeenCalledWith(["open port"]);
     expect(stderr).toHaveBeenCalledWith(["warning"]);
-    expect(appendToolRunLog).toHaveBeenCalledWith(
-      "run-1",
-      ["open port"],
-      "stdout",
-    );
-    expect(appendToolRunLog).toHaveBeenCalledWith(
-      "run-1",
-      ["warning"],
-      "stderr",
-    );
+    expect(appendToolRunLog).toHaveBeenCalledWith("run-1", ["open port"], "stdout");
+    expect(appendToolRunLog).toHaveBeenCalledWith("run-1", ["warning"], "stderr");
     expect(finishToolRun).toHaveBeenCalledWith("run-1", "success", 0);
     expect(processCompletedRun).toHaveBeenCalledWith({
       sessionId: "session-1",
@@ -154,10 +144,7 @@ describe("ToolRunnerService", () => {
     service.stop();
     await runPromise;
 
-    expect(appendToolRunLog).toHaveBeenCalledWith("run-1", [
-      "",
-      "[run cancelled by operator]",
-    ]);
+    expect(appendToolRunLog).toHaveBeenCalledWith("run-1", ["", "[run cancelled by operator]"]);
     expect(cancelToolRun).toHaveBeenCalledWith("run-1");
     expect(onRunCancelled).toHaveBeenCalledWith({
       toolRunId: "run-1",
@@ -203,10 +190,7 @@ describe("ToolRunnerService", () => {
       onRunFinished,
     });
 
-    expect(appendToolRunLog).toHaveBeenCalledWith("run-1", [
-      "",
-      "[execution failed] spawn failed",
-    ]);
+    expect(appendToolRunLog).toHaveBeenCalledWith("run-1", ["", "[execution failed] spawn failed"]);
     expect(finishToolRun).toHaveBeenCalledWith("run-1", "error", null);
     expect(processCompletedRun).toHaveBeenCalledWith({
       sessionId: "session-1",
@@ -221,9 +205,6 @@ describe("ToolRunnerService", () => {
       status: "error",
       exitCode: null,
     });
-    expect(system).toHaveBeenCalledWith([
-      "",
-      "[execution failed] spawn failed",
-    ]);
+    expect(system).toHaveBeenCalledWith(["", "[execution failed] spawn failed"]);
   });
 });

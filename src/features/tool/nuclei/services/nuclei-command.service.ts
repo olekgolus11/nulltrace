@@ -8,10 +8,7 @@ import {
 } from "../config/nuclei.config";
 import { getAppDataDirectory } from "../../../session/services/session-database";
 import { ToolRunArtifactInput } from "../../../session/model/session.repository.types";
-import {
-  ToolPrepareCommand,
-  ToolRunCompleted,
-} from "../../shared/types/tool-screen.types";
+import { ToolPrepareCommand, ToolRunCompleted } from "../../shared/types/tool-screen.types";
 import {
   NucleiFieldId,
   NucleiFormState,
@@ -216,11 +213,7 @@ class NucleiCommandService {
     };
   }
 
-  moveSelection(
-    toolData: NucleiToolData,
-    delta: -1 | 1,
-    max: number,
-  ): NucleiToolData {
+  moveSelection(toolData: NucleiToolData, delta: -1 | 1, max: number): NucleiToolData {
     return {
       ...toolData,
       selectedField: Math.max(0, Math.min(toolData.selectedField + delta, max)),
@@ -228,12 +221,9 @@ class NucleiCommandService {
   }
 
   cycleSeverity(toolData: NucleiToolData, delta: -1 | 1): NucleiToolData {
-    const currentIndex = nucleiSeverityOptions.indexOf(
-      toolData.form.severityPreset,
-    );
+    const currentIndex = nucleiSeverityOptions.indexOf(toolData.form.severityPreset);
     const nextIndex =
-      (currentIndex + delta + nucleiSeverityOptions.length) %
-      nucleiSeverityOptions.length;
+      (currentIndex + delta + nucleiSeverityOptions.length) % nucleiSeverityOptions.length;
 
     return {
       ...toolData,
@@ -271,9 +261,7 @@ class NucleiCommandService {
     return colorSafeCommand + jsonlOutputFlags;
   }
 
-  async collectArtifacts(
-    options: ToolRunCompleted,
-  ): Promise<ToolRunArtifactInput[]> {
+  async collectArtifacts(options: ToolRunCompleted): Promise<ToolRunArtifactInput[]> {
     const { sessionId, toolRunId, status, exitCode } = options;
 
     if (!sessionId || !toolRunId || status === "cancelled") {

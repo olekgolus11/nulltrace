@@ -50,8 +50,7 @@ export function DashboardPanel({
     finalBorderColor = focused ? theme.accent.primary : borderColor;
     finalTitle = title;
   }
-  const numberedTitle =
-    finalTitle && panelNumber ? `[${panelNumber}] ${finalTitle}` : finalTitle;
+  const numberedTitle = finalTitle && panelNumber ? `[${panelNumber}] ${finalTitle}` : finalTitle;
 
   return (
     <box

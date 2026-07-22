@@ -55,10 +55,7 @@ function getContextPath(sessionId: string) {
 }
 
 function getTemporaryContextPath(sessionId: string) {
-  return join(
-    getContextDirectory(),
-    `${encodeURIComponent(sessionId)}.${process.pid}.tmp`,
-  );
+  return join(getContextDirectory(), `${encodeURIComponent(sessionId)}.${process.pid}.tmp`);
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -66,11 +63,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 function isToolData(value: unknown): value is ToolData {
-  return (
-    isObject(value) &&
-    isObject(value.form) &&
-    typeof value.selectedField === "number"
-  );
+  return isObject(value) && isObject(value.form) && typeof value.selectedField === "number";
 }
 
 function readSnapshot(value: unknown): ToolWorkspaceContextSnapshot | null {
@@ -101,8 +94,7 @@ function readSnapshot(value: unknown): ToolWorkspaceContextSnapshot | null {
     typeof commandSource !== "string" ||
     typeof executionStatus !== "string" ||
     (currentToolRunId !== null && typeof currentToolRunId !== "string") ||
-    (selectedHistoryRunId !== null &&
-      typeof selectedHistoryRunId !== "string") ||
+    (selectedHistoryRunId !== null && typeof selectedHistoryRunId !== "string") ||
     typeof isHistoricPreview !== "boolean" ||
     typeof updatedAt !== "string"
   ) {
@@ -134,11 +126,7 @@ export const toolWorkspaceContextService = {
     };
 
     const temporaryPath = getTemporaryContextPath(input.sessionId);
-    writeFileSync(
-      temporaryPath,
-      `${JSON.stringify(snapshot, null, 2)}\n`,
-      "utf8",
-    );
+    writeFileSync(temporaryPath, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
     renameSync(temporaryPath, getContextPath(input.sessionId));
 
     return snapshot;

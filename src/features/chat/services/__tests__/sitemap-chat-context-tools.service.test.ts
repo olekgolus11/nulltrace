@@ -116,7 +116,8 @@ class FakeSitemapRepository {
       if (entry.targetId !== filters.targetId) return false;
       if (filters.depth !== undefined && entry.depth !== filters.depth) return false;
       if (filters.maxDepth !== undefined && entry.depth > filters.maxDepth) return false;
-      if (filters.path && !entry.path.toLowerCase().includes(filters.path.toLowerCase())) return false;
+      if (filters.path && !entry.path.toLowerCase().includes(filters.path.toLowerCase()))
+        return false;
       if (filters.method && entry.method !== filters.method) return false;
       if (filters.httpStatus !== undefined && entry.httpStatus !== filters.httpStatus) return false;
       if (filters.source && entry.source !== filters.source) return false;
@@ -212,8 +213,22 @@ describe("sitemap chat context tools", () => {
 
   it("searches by path, method, status, source, and depth", () => {
     const { service } = createService();
-    expect(service.searchEntries("conversation-1", { path: "ADMIN", method: "get", httpStatus: 403, source: "html_link", depth: 1 }).entries.map((entry) => entry.id)).toEqual(["entry-admin"]);
-    expect(service.searchEntries("conversation-1", { method: "post", source: "html_form", maxDepth: 2 }).entries.map((entry) => entry.id)).toEqual(["entry-login"]);
+    expect(
+      service
+        .searchEntries("conversation-1", {
+          path: "ADMIN",
+          method: "get",
+          httpStatus: 403,
+          source: "html_link",
+          depth: 1,
+        })
+        .entries.map((entry) => entry.id),
+    ).toEqual(["entry-admin"]);
+    expect(
+      service
+        .searchEntries("conversation-1", { method: "post", source: "html_form", maxDepth: 2 })
+        .entries.map((entry) => entry.id),
+    ).toEqual(["entry-login"]);
   });
 
   it("filters by discovery provenance and current-session access observations", () => {
@@ -246,13 +261,20 @@ describe("sitemap chat context tools", () => {
 
   it("rejects conversations without an active session attachment", () => {
     const { service } = createService();
-    expect(() => service.listEntries("unattached")).toThrow("No active NullTrace session attachment");
+    expect(() => service.listEntries("unattached")).toThrow(
+      "No active NullTrace session attachment",
+    );
   });
 
   it("registers sitemap reads without crawler mutation tools", () => {
     const registry = new ChatContextToolRegistry(serviceDefinitions());
     const names = registry.listDefinitions().map((definition) => definition.name);
-    expect(names).toEqual(["get_sitemap_status", "list_sitemap_entries", "search_sitemap_entries", "get_sitemap_entry"]);
+    expect(names).toEqual([
+      "get_sitemap_status",
+      "list_sitemap_entries",
+      "search_sitemap_entries",
+      "get_sitemap_entry",
+    ]);
     expect(names.some((name) => /start|stop|refresh|crawl|mutate/.test(name))).toBe(false);
     const allNames = chatContextToolRegistry.listDefinitions().map((definition) => definition.name);
     expect(allNames).not.toContain("start_sitemap_crawl");

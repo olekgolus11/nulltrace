@@ -55,8 +55,7 @@ export function ConversationSwitcher({
     : defaultArchiveConversationWidth;
   const fixedTileCount = 4;
   const activeIndex = conversations.findIndex(
-    (conversation) =>
-      conversation.attachment.opencodeConversationId === activeConversationId,
+    (conversation) => conversation.attachment.opencodeConversationId === activeConversationId,
   );
   const reservedWidth =
     navigationTileWidth * 2 +
@@ -100,9 +99,7 @@ export function ConversationSwitcher({
       return;
     }
 
-    setWindowStartIndex((currentStartIndex) =>
-      Math.max(0, currentStartIndex - visibleCount),
-    );
+    setWindowStartIndex((currentStartIndex) => Math.max(0, currentStartIndex - visibleCount));
   };
   const onNextPage = () => {
     if (isDisabled || !hasNext) {
@@ -124,11 +121,7 @@ export function ConversationSwitcher({
         backgroundColor={theme.border.default}
         onMouseDown={onPreviousPage}
       >
-        <text
-          fg={hasPrevious && !isDisabled ? theme.text.primary : theme.text.dim}
-        >
-          ‹
-        </text>
+        <text fg={hasPrevious && !isDisabled ? theme.text.primary : theme.text.dim}>‹</text>
       </box>
       {visibleConversations.map((conversation) => {
         const conversationId = conversation.attachment.opencodeConversationId;
@@ -142,9 +135,7 @@ export function ConversationSwitcher({
             height={1}
             alignItems="center"
             justifyContent="center"
-            backgroundColor={
-              isActive ? theme.accent.primary : theme.border.default
-            }
+            backgroundColor={isActive ? theme.accent.primary : theme.border.default}
             onMouseDown={() => {
               if (!isDisabled) {
                 onSelectConversation(conversationId);
@@ -152,13 +143,7 @@ export function ConversationSwitcher({
             }}
           >
             <text
-              fg={
-                isDisabled
-                  ? theme.text.dim
-                  : isActive
-                    ? theme.text.inverse
-                    : theme.text.primary
-              }
+              fg={isDisabled ? theme.text.dim : isActive ? theme.text.inverse : theme.text.primary}
             >
               {isActive ? <strong>{label}</strong> : label}
             </text>
@@ -173,9 +158,7 @@ export function ConversationSwitcher({
         backgroundColor={theme.border.default}
         onMouseDown={onNextPage}
       >
-        <text fg={hasNext && !isDisabled ? theme.text.primary : theme.text.dim}>
-          ›
-        </text>
+        <text fg={hasNext && !isDisabled ? theme.text.primary : theme.text.dim}>›</text>
       </box>
       <box
         width={newConversationWidth}
@@ -205,13 +188,7 @@ export function ConversationSwitcher({
           }
         }}
       >
-        <text
-          fg={
-            isDisabled || !activeConversationId
-              ? theme.text.dim
-              : theme.accent.warning
-          }
-        >
+        <text fg={isDisabled || !activeConversationId ? theme.text.dim : theme.accent.warning}>
           {isCompact ? "×" : "Archive"}
         </text>
       </box>

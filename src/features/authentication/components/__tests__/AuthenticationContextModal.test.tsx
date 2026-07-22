@@ -75,19 +75,13 @@ describe("AuthenticationContextModal layout", () => {
     const frame = testSetup.captureCharFrame();
 
     expect(frame).toContain("Cookies: No cookies");
-    expect(frame).toContain(
-      "Ctrl+↑/↓ known route (3 suggestions, root included)",
-    );
-    expect(frame).toContain(
-      "Save an authentication context before running Auth Check.",
-    );
+    expect(frame).toContain("Ctrl+↑/↓ known route (3 suggestions, root included)");
+    expect(frame).toContain("Save an authentication context before running Auth Check.");
 
     pressPageDown();
     await testSetup.renderOnce();
 
-    expect(testSetup.captureCharFrame()).toContain(
-      "content stay out of metadata.",
-    );
+    expect(testSetup.captureCharFrame()).toContain("content stay out of metadata.");
   });
 
   test("stacks actions before they can collide at narrow widths", async () => {
@@ -132,9 +126,7 @@ describe("AuthenticationContextModal layout", () => {
     });
     await testSetup.renderOnce();
 
-    expect(testSetup.captureCharFrame()).toContain(
-      "http://localhost:4280/account",
-    );
+    expect(testSetup.captureCharFrame()).toContain("http://localhost:4280/account");
 
     await act(async () => {
       testSetup!.mockInput.pressKey("s", { ctrl: true });
@@ -145,9 +137,7 @@ describe("AuthenticationContextModal layout", () => {
       origin: "http://localhost:4280",
       cookies: "session=secret",
     });
-    expect(testSetup.captureCharFrame()).toContain(
-      "Active: redacted import review",
-    );
+    expect(testSetup.captureCharFrame()).toContain("Active: redacted import review");
     expect(testSetup.captureCharFrame()).not.toContain("Active: manual");
 
     await act(async () => {
@@ -176,9 +166,7 @@ describe("AuthenticationContextModal layout", () => {
               request: {
                 method: "GET",
                 url: "http://localhost:4280/account?view=summary",
-                headers: [
-                  { name: "Authorization", value: "Bearer secret" },
-                ],
+                headers: [{ name: "Authorization", value: "Bearer secret" }],
                 cookies: [],
               },
             },
@@ -213,9 +201,7 @@ describe("AuthenticationContextModal layout", () => {
     });
     await testSetup.renderOnce();
 
-    expect(testSetup.captureCharFrame()).toContain(
-      "http://localhost:4280/account?view=summary",
-    );
+    expect(testSetup.captureCharFrame()).toContain("http://localhost:4280/account?view=summary");
 
     await act(async () => {
       testSetup!.mockInput.pressKey("k", { ctrl: true });

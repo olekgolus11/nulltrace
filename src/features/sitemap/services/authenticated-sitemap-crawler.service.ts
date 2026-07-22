@@ -1,180 +1,52 @@
 import { load } from "cheerio";
-import { AuthenticatedRequestContext } from "../../authentication/model/authenticated-request-context.types";
+import { authCheckService } from "../../authentication/services/auth-check.service";
+import type {
+  AuthenticatedContextVerificationResult,
+  AuthenticatedContextVerifier,
+} from "../../authentication/services/auth-check.types";
 import { splitAuthenticatedHeaderEntries } from "../../authentication/services/authenticated-request-context-redaction";
-import {
-  AuthenticatedSitemapAccessObservationInput,
-  AuthenticatedSitemapCrawlStatus,
-  SitemapCrawlCheckpoint,
-  SitemapCrawlRunMode,
-  TargetSitemapEntrySource,
-  UpsertTargetSitemapEntryInput,
-} from "../model/sitemap.types";
-import { selectTransientCrawlFailures } from "../model/sitemap-crawl-lifecycle";
-import {
-  defaultPublicSitemapCrawlerLimits,
-  PublicSitemapCrawlerLimits,
-  readResponseText,
-} from "./public-sitemap-crawler.service";
+import { SitemapCrawlFailure } from "../model/sitemap.types";
 import { sitemapRepository } from "./sitemap.repository";
+import { createAbsoluteCrawlUrl } from "./sitemap-crawler-url";
+import { defaultSitemapCrawlerLimits } from "./sitemap-crawler.config";
+import { isHtmlResponse, readResponseText } from "./sitemap-crawler.helpers";
+import type { QueuedUrl, SitemapCrawlerLimits } from "./sitemap-crawler.types";
+import { isAuthenticationSignal, toErrorMessage } from "./authenticated-sitemap-crawler.helpers";
 import {
-  createAbsoluteCrawlUrl,
-  normalizeCrawlUrl,
-} from "./sitemap-crawler-url";
+  AuthenticatedSitemapCrawlerPersistence,
+  AuthenticatedSitemapCrawlerInput,
+  AuthenticatedSitemapCrawlerResult,
+} from "./authenticated-sitemap-crawler.types";
+import { TemporaryCookieJar } from "./authenticated-sitemap-cookie-jar";
 
 type FetchFunction = (input: string, init?: RequestInit) => Promise<Response>;
-
-export interface AuthenticatedSitemapCrawlerPersistence {
-  upsertEntry(input: UpsertTargetSitemapEntryInput): { id: string };
-  upsertAccessObservation(
-    input: AuthenticatedSitemapAccessObservationInput,
-  ): unknown;
-  markAuthenticatedCrawlRunning(sessionId: string, targetId: string): unknown;
-  markAuthenticatedCrawlCompleted(sessionId: string, targetId: string): unknown;
-  markAuthenticatedCrawlAuthenticationRequired(
-    sessionId: string,
-    targetId: string,
-    errorMessage: string,
-  ): unknown;
-  markAuthenticatedCrawlFailed(
-    sessionId: string,
-    targetId: string,
-    errorMessage: string,
-  ): unknown;
-  markAuthenticatedCrawlPaused?(sessionId: string, targetId: string): unknown;
-  saveCrawlCheckpoint?(
-    input: Omit<SitemapCrawlCheckpoint, "updatedAt">,
-  ): unknown;
-  getCrawlCheckpoint?(
-    crawlerType: "authenticated",
-    ownerId: string,
-  ): SitemapCrawlCheckpoint | null;
-  deleteCrawlCheckpoint?(
-    crawlerType: "authenticated",
-    ownerId: string,
-  ): unknown;
-}
-
-export interface AuthenticatedSitemapCrawlerInput {
-  sessionId: string;
-  targetId: string;
-  rootUrl: string;
-  context: AuthenticatedRequestContext;
-  limits?: Partial<PublicSitemapCrawlerLimits>;
-  mode?: SitemapCrawlRunMode;
-}
-
-export interface AuthenticatedSitemapCrawlerResult {
-  status: Extract<
-    AuthenticatedSitemapCrawlStatus,
-    "completed" | "paused" | "authentication_required" | "failed"
-  >;
-  pagesFetched: number;
-  entriesDiscovered: number;
-  errorMessage?: string;
-}
 
 interface AuthenticatedSitemapCrawlerOptions {
   repository?: AuthenticatedSitemapCrawlerPersistence;
   fetch?: FetchFunction;
-  limits?: Partial<PublicSitemapCrawlerLimits>;
+  limits?: Partial<SitemapCrawlerLimits>;
+  authenticationVerifier?: AuthenticatedContextVerifier;
 }
 
-interface QueuedUrl {
-  url: URL;
-  depth: number;
-  source: TargetSitemapEntrySource;
+interface AuthenticatedSitemapCrawlerState {
+  queue: QueuedUrl[];
+  visited: Set<string>;
+  discoveredEntryKeys: Set<string>;
+  failures: SitemapCrawlFailure[];
+  pagesFetched: number;
 }
 
-const authenticationSignalThreshold = 2;
-
-class TemporaryCookieJar {
-  private readonly cookies = new Map<string, string>();
-
-  constructor(seed: string) {
-    seed.split(";").forEach((pair) => this.setPair(pair));
-  }
-
-  getHeader() {
-    return [...this.cookies.entries()]
-      .map(([name, value]) => `${name}=${value}`)
-      .join("; ");
-  }
-
-  accept(response: Response) {
-    const headers = response.headers as Headers & { getSetCookie?: () => string[] };
-    const values = headers.getSetCookie?.() ?? [];
-    if (values.length === 0) {
-      const combined = response.headers.get("set-cookie");
-      if (combined) {
-        values.push(combined);
-      }
-    }
-    values.forEach((value) => this.setPair(value.split(";", 1)[0] ?? ""));
-  }
-
-  clear() {
-    this.cookies.clear();
-  }
-
-  private setPair(value: string) {
-    const separator = value.indexOf("=");
-    if (separator <= 0) {
-      return;
-    }
-    const name = value.slice(0, separator).trim();
-    const cookieValue = value.slice(separator + 1).trim();
-    if (!name) {
-      return;
-    }
-    if (!cookieValue) {
-      this.cookies.delete(name);
-      return;
-    }
-    this.cookies.set(name, cookieValue);
-  }
-}
-
-function isHtml(response: Response) {
-  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-  return contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
-}
-
-function hasLoginForm(body: string) {
-  const $ = load(body);
-  return $('form input[type="password"]').length > 0;
-}
-
-function isLoginLikeUrl(url: URL) {
-  return /(?:^|\/)(?:login|log-in|signin|sign-in|sso|oauth|authorize)(?:\/|$)/i.test(
-    url.pathname,
-  );
-}
-
-function isAuthenticationSignal(
-  response: Response,
-  url: URL,
-  body: string,
-  crossOriginRedirectUrl: URL | null,
-) {
-  return (
-    response.status === 401 ||
-    response.status === 403 ||
-    (crossOriginRedirectUrl !== null && isLoginLikeUrl(crossOriginRedirectUrl)) ||
-    isLoginLikeUrl(url) ||
-    hasLoginForm(body)
-  );
-}
-
-function toErrorMessage(error: unknown) {
-  return error instanceof Error && error.message
-    ? error.message
-    : "Authenticated sitemap crawl failed.";
+interface AuthenticatedSitemapCrawlerRuntimeState {
+  authenticationVerification: AuthenticatedContextVerificationResult | null;
+  cookieJar: TemporaryCookieJar;
+  queuedUrls: Set<string>;
 }
 
 export class AuthenticatedSitemapCrawler {
   private readonly repository: AuthenticatedSitemapCrawlerPersistence;
   private readonly fetch: FetchFunction;
-  private readonly limits: Partial<PublicSitemapCrawlerLimits>;
+  private readonly limits: Partial<SitemapCrawlerLimits>;
+  private readonly authenticationVerifier: AuthenticatedContextVerifier;
   private readonly activeSessionIds = new Set<string>();
   private readonly pauseRequestedSessionIds = new Set<string>();
 
@@ -182,6 +54,7 @@ export class AuthenticatedSitemapCrawler {
     this.repository = options.repository ?? sitemapRepository;
     this.fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.limits = options.limits ?? {};
+    this.authenticationVerifier = options.authenticationVerifier ?? authCheckService;
   }
 
   requestPause(sessionId: string) {
@@ -192,96 +65,93 @@ export class AuthenticatedSitemapCrawler {
     return true;
   }
 
-  async crawl(
-    input: AuthenticatedSitemapCrawlerInput,
-  ): Promise<AuthenticatedSitemapCrawlerResult> {
+  async crawl(input: AuthenticatedSitemapCrawlerInput): Promise<AuthenticatedSitemapCrawlerResult> {
+    const state: AuthenticatedSitemapCrawlerState = {
+      queue: [],
+      visited: new Set(),
+      discoveredEntryKeys: new Set(),
+      failures: [],
+      pagesFetched: 0,
+    };
     const limits = {
-      ...defaultPublicSitemapCrawlerLimits,
+      ...defaultSitemapCrawlerLimits,
       ...this.limits,
       ...input.limits,
     };
+
     const contextOrigin = new URL(input.context.origin).origin;
     const rootOrigin = new URL(input.rootUrl).origin;
+
     if (contextOrigin !== rootOrigin) {
       throw new Error("Authenticated crawl context must match the target's exact origin.");
     }
 
     const rootUrl = new URL("/", rootOrigin);
     const mode = input.mode ?? "fresh";
-    const checkpoint = mode === "fresh"
-      ? null
-      : this.repository.getCrawlCheckpoint?.(
-          "authenticated",
-          input.sessionId,
-        ) ?? null;
-    const recoveredFrontier = mode === "retry_failures"
-      ? selectTransientCrawlFailures(checkpoint?.failures ?? [])
-      : checkpoint?.frontier ?? null;
-    const queue: QueuedUrl[] = recoveredFrontier
+    const checkpoint =
+      mode === "fresh"
+        ? null
+        : (this.repository.getCrawlCheckpoint?.("authenticated", input.sessionId) ?? null);
+
+    const recoveredFrontier = checkpoint?.frontier ?? null;
+
+    state.queue = recoveredFrontier
       ? recoveredFrontier.map((entry) => ({
           url: new URL(entry.url),
           depth: entry.depth,
           source: entry.source,
         }))
       : [{ url: rootUrl, depth: 0, source: "seed" }];
-    const visited = new Set(checkpoint?.visitedUrls ?? []);
-    if (mode === "retry_failures") {
-      queue.forEach((entry) => visited.delete(entry.url.toString()));
-    }
-    const queued = new Set([
-      ...visited,
-      ...queue.map((entry) => entry.url.toString()),
-    ]);
-    const entries = new Set(checkpoint?.discoveredEntryKeys ?? []);
-    const cookieJar = new TemporaryCookieJar(input.context.cookies);
-    let pagesFetched = checkpoint?.pagesFetched ?? 0;
-    const failures = mode === "retry_failures"
-      ? (checkpoint?.failures ?? []).filter(
-          (failure) => !selectTransientCrawlFailures([failure]).length,
-        )
-      : [...(checkpoint?.failures ?? [])];
-    let authenticationSignals = 0;
+    state.visited = new Set(checkpoint?.visitedUrls ?? []);
+    state.discoveredEntryKeys = new Set(checkpoint?.discoveredEntryKeys ?? []);
+    state.failures = [...(checkpoint?.failures ?? [])];
+    state.pagesFetched = checkpoint?.pagesFetched ?? 0;
 
     if (mode === "fresh") {
       this.repository.deleteCrawlCheckpoint?.("authenticated", input.sessionId);
     }
     this.activeSessionIds.add(input.sessionId);
     this.repository.markAuthenticatedCrawlRunning(input.sessionId, input.targetId);
+    const runtimeState: AuthenticatedSitemapCrawlerRuntimeState = {
+      authenticationVerification: null,
+      cookieJar: new TemporaryCookieJar(input.context.cookies),
+      queuedUrls: new Set([...state.visited, ...state.queue.map((entry) => entry.url.toString())]),
+    };
 
     try {
-      while (queue.length > 0 && visited.size < limits.maxPages) {
-        const next = queue.shift();
-        if (!next || next.depth > limits.maxDepth || visited.has(next.url.toString())) {
+      while (state.queue.length > 0 && state.visited.size < limits.maxPages) {
+        const next = state.queue.shift();
+        if (!next || next.depth > limits.maxDepth || state.visited.has(next.url.toString())) {
           continue;
         }
-        visited.add(next.url.toString());
+        state.visited.add(next.url.toString());
         let fetched: Awaited<ReturnType<AuthenticatedSitemapCrawler["fetchSameOrigin"]>>;
         try {
           fetched = await this.fetchSameOrigin(
             next.url,
             contextOrigin,
             input.context.headers,
-            cookieJar,
+            runtimeState.cookieJar,
             limits.requestTimeoutMs,
           );
         } catch (error) {
-          failures.push({
+          state.failures.push({
             url: next.url.toString(),
             depth: next.depth,
             source: next.source,
             kind:
               error instanceof Error &&
-                (error.name === "TimeoutError" || error.name === "AbortError")
+              (error.name === "TimeoutError" || error.name === "AbortError")
                 ? "timeout"
                 : "network",
             httpStatus: null,
             errorMessage: toErrorMessage(error),
           });
-          this.saveCheckpoint(input, queue, visited, failures, pagesFetched, entries);
+          this.saveCheckpoint(input, state);
           throw error;
         }
         const { response, url } = fetched;
-        cookieJar.accept(response);
+        runtimeState.cookieJar.accept(response);
         const record = this.repository.upsertEntry({
           targetId: input.targetId,
           normalizedUrl: url.toString(),
@@ -292,21 +162,21 @@ export class AuthenticatedSitemapCrawler {
           provenance: "authenticated",
           depth: next.depth,
         });
-        entries.add(`GET ${url.toString()}`);
+        state.discoveredEntryKeys.add(`GET ${url.toString()}`);
         this.repository.upsertAccessObservation({
           sessionId: input.sessionId,
           targetId: input.targetId,
           entryId: record.id,
           httpStatus: response.status,
         });
-        const failureIndex = failures.findIndex(
+        const failureIndex = state.failures.findIndex(
           (failure) => failure.url === next.url.toString(),
         );
         if (failureIndex >= 0) {
-          failures.splice(failureIndex, 1);
+          state.failures.splice(failureIndex, 1);
         }
         if (!response.ok) {
-          failures.push({
+          state.failures.push({
             url: next.url.toString(),
             depth: next.depth,
             source: next.source,
@@ -316,7 +186,7 @@ export class AuthenticatedSitemapCrawler {
           });
         }
 
-        const body = isHtml(response)
+        const body = isHtmlResponse(response)
           ? await readResponseText(response, limits.maxResponseBytes)
           : "";
         const hasAuthenticationSignal = isAuthenticationSignal(
@@ -325,80 +195,29 @@ export class AuthenticatedSitemapCrawler {
           body,
           fetched.crossOriginRedirectUrl,
         );
-        authenticationSignals = hasAuthenticationSignal
-          ? authenticationSignals + 1
-          : 0;
-        if (
-          hasAuthenticationSignal &&
-          authenticationSignals < authenticationSignalThreshold
-        ) {
-          const pausedResult = this.checkpointAndPauseIfRequested(
+        if (hasAuthenticationSignal) {
+          const authenticationResult = await this.verifyAuthenticationSignal(
             input,
-            queue,
-            visited,
-            failures,
-            pagesFetched,
-            entries,
+            state,
+            runtimeState,
+            next,
           );
-          if (pausedResult) {
-            return pausedResult;
+          if (authenticationResult) {
+            return authenticationResult;
           }
-          const confirmation = await this.fetchSameOrigin(
-            url,
-            contextOrigin,
-            input.context.headers,
-            cookieJar,
-            limits.requestTimeoutMs,
-            "HEAD",
-          );
-          cookieJar.accept(confirmation.response);
-          if (
-            isAuthenticationSignal(
-              confirmation.response,
-              confirmation.url,
-              "",
-              confirmation.crossOriginRedirectUrl,
-            )
-          ) {
-            authenticationSignals += 1;
-          }
-        }
-        if (authenticationSignals >= authenticationSignalThreshold) {
-          const errorMessage =
-            "Repeated authentication-required responses paused the authenticated crawl.";
-          visited.delete(next.url.toString());
-          queue.unshift(next);
-          this.repository.markAuthenticatedCrawlAuthenticationRequired(
-            input.sessionId,
-            input.targetId,
-            errorMessage,
-          );
-          this.saveCheckpoint(input, queue, visited, failures, pagesFetched, entries);
-          return {
-            status: "authentication_required",
-            pagesFetched,
-            entriesDiscovered: entries.size,
-            errorMessage,
-          };
+          continue;
         }
 
-        if (!response.ok || !isHtml(response)) {
-          const pausedResult = this.checkpointAndPauseIfRequested(
-            input,
-            queue,
-            visited,
-            failures,
-            pagesFetched,
-            entries,
-          );
+        if (!response.ok || !isHtmlResponse(response)) {
+          const pausedResult = this.checkpointAndPauseIfRequested(input, state);
           if (pausedResult) {
             return pausedResult;
           }
           continue;
         }
-        pagesFetched += 1;
+        state.pagesFetched += 1;
         const $ = load(body);
-        $('a[href]').each((_, element) => {
+        $("a[href]").each((_, element) => {
           this.enqueue(
             $(element).attr("href"),
             url,
@@ -406,18 +225,11 @@ export class AuthenticatedSitemapCrawler {
             next.depth + 1,
             "html_link",
             limits.maxDepth,
-            queue,
-            queued,
+            state.queue,
+            runtimeState.queuedUrls,
           );
         });
-        const pausedResult = this.checkpointAndPauseIfRequested(
-          input,
-          queue,
-          visited,
-          failures,
-          pagesFetched,
-          entries,
-        );
+        const pausedResult = this.checkpointAndPauseIfRequested(input, state);
         if (pausedResult) {
           return pausedResult;
         }
@@ -426,24 +238,20 @@ export class AuthenticatedSitemapCrawler {
       this.repository.markAuthenticatedCrawlCompleted(input.sessionId, input.targetId);
       return {
         status: "completed",
-        pagesFetched,
-        entriesDiscovered: entries.size,
+        pagesFetched: state.pagesFetched,
+        entriesDiscovered: state.discoveredEntryKeys.size,
       };
     } catch (error) {
       const errorMessage = toErrorMessage(error);
-      this.repository.markAuthenticatedCrawlFailed(
-        input.sessionId,
-        input.targetId,
-        errorMessage,
-      );
+      this.repository.markAuthenticatedCrawlFailed(input.sessionId, input.targetId, errorMessage);
       return {
         status: "failed",
-        pagesFetched,
-        entriesDiscovered: entries.size,
+        pagesFetched: state.pagesFetched,
+        entriesDiscovered: state.discoveredEntryKeys.size,
         errorMessage,
       };
     } finally {
-      cookieJar.clear();
+      runtimeState.cookieJar.clear();
       this.activeSessionIds.delete(input.sessionId);
       this.pauseRequestedSessionIds.delete(input.sessionId);
     }
@@ -451,57 +259,81 @@ export class AuthenticatedSitemapCrawler {
 
   private saveCheckpoint(
     input: AuthenticatedSitemapCrawlerInput,
-    queue: QueuedUrl[],
-    visited: Set<string>,
-    failures: SitemapCrawlCheckpoint["failures"],
-    pagesFetched: number,
-    entries: Set<string>,
+    state: AuthenticatedSitemapCrawlerState,
   ) {
     this.repository.saveCrawlCheckpoint?.({
       crawlerType: "authenticated",
       ownerId: input.sessionId,
       targetId: input.targetId,
       rootUrl: input.rootUrl,
-      frontier: queue.map((entry) => ({
+      frontier: state.queue.map((entry) => ({
         url: entry.url.toString(),
         depth: entry.depth,
         source: entry.source,
       })),
-      visitedUrls: [...visited],
-      failures,
-      discoveredEntryKeys: [...entries],
-      pagesFetched,
-      entriesDiscovered: entries.size,
+      visitedUrls: [...state.visited],
+      failures: state.failures,
+      discoveredEntryKeys: [...state.discoveredEntryKeys],
+      pagesFetched: state.pagesFetched,
+      entriesDiscovered: state.discoveredEntryKeys.size,
     });
   }
 
   private checkpointAndPauseIfRequested(
     input: AuthenticatedSitemapCrawlerInput,
-    queue: QueuedUrl[],
-    visited: Set<string>,
-    failures: SitemapCrawlCheckpoint["failures"],
-    pagesFetched: number,
-    entries: Set<string>,
+    state: AuthenticatedSitemapCrawlerState,
   ): AuthenticatedSitemapCrawlerResult | null {
-    this.saveCheckpoint(
-      input,
-      queue,
-      visited,
-      failures,
-      pagesFetched,
-      entries,
-    );
+    this.saveCheckpoint(input, state);
     if (!this.pauseRequestedSessionIds.has(input.sessionId)) {
       return null;
     }
-    this.repository.markAuthenticatedCrawlPaused?.(
-      input.sessionId,
-      input.targetId,
-    );
+    this.repository.markAuthenticatedCrawlPaused?.(input.sessionId, input.targetId);
     return {
       status: "paused",
-      pagesFetched,
-      entriesDiscovered: entries.size,
+      pagesFetched: state.pagesFetched,
+      entriesDiscovered: state.discoveredEntryKeys.size,
+    };
+  }
+
+  private async verifyAuthenticationSignal(
+    input: AuthenticatedSitemapCrawlerInput,
+    state: AuthenticatedSitemapCrawlerState,
+    runtimeState: AuthenticatedSitemapCrawlerRuntimeState,
+    current: QueuedUrl,
+  ): Promise<AuthenticatedSitemapCrawlerResult | null> {
+    const pausedResult = this.checkpointAndPauseIfRequested(input, state);
+    if (pausedResult) {
+      return pausedResult;
+    }
+
+    runtimeState.authenticationVerification ??= await this.authenticationVerifier.verify({
+      sessionId: input.sessionId,
+      targetUrl: input.rootUrl,
+      cookies: runtimeState.cookieJar.getHeader(),
+      headers: input.context.headers,
+    });
+    const pauseAfterVerification = this.checkpointAndPauseIfRequested(input, state);
+    if (pauseAfterVerification) {
+      return pauseAfterVerification;
+    }
+    if (runtimeState.authenticationVerification !== "invalid") {
+      return null;
+    }
+
+    const errorMessage = "Authentication verification failed during the authenticated crawl.";
+    state.visited.delete(current.url.toString());
+    state.queue.unshift(current);
+    this.repository.markAuthenticatedCrawlAuthenticationRequired(
+      input.sessionId,
+      input.targetId,
+      errorMessage,
+    );
+    this.saveCheckpoint(input, state);
+    return {
+      status: "authentication_required",
+      pagesFetched: state.pagesFetched,
+      entriesDiscovered: state.discoveredEntryKeys.size,
+      errorMessage,
     };
   }
 
@@ -529,7 +361,6 @@ export class AuthenticatedSitemapCrawler {
     contextHeaders: string,
     cookieJar: TemporaryCookieJar,
     timeoutMs: number,
-    method: "GET" | "HEAD" = "GET",
   ) {
     let url = initialUrl;
     for (let redirects = 0; redirects < 10; redirects += 1) {
@@ -547,7 +378,7 @@ export class AuthenticatedSitemapCrawler {
         headers.set("cookie", cookies);
       }
       const response = await this.fetch(url.toString(), {
-        method,
+        method: "GET",
         headers,
         redirect: "manual",
         signal: AbortSignal.timeout(timeoutMs),

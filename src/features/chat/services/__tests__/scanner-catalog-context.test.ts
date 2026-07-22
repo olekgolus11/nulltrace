@@ -222,17 +222,11 @@ describe("listAvailableScannerToolsFromCatalog", () => {
         helpContent: null,
       },
     });
-    const registry = new ChatContextToolRegistry(
-      service.createToolDefinitions(),
-    );
+    const registry = new ChatContextToolRegistry(service.createToolDefinitions());
 
-    const result = (await registry.execute(
-      "list_available_scanner_tools",
-      "opencode-1",
-      {
-        sessionId: "ignored",
-      },
-    )) as ScannerCatalogContext;
+    const result = (await registry.execute("list_available_scanner_tools", "opencode-1", {
+      sessionId: "ignored",
+    })) as ScannerCatalogContext;
 
     expect(registry.listDefinitions()).toMatchObject([
       {
@@ -266,7 +260,7 @@ describe("listAvailableScannerToolsFromCatalog", () => {
     );
 
     expect(source).toContain("context.sessionID");
-    expect(source).toContain("\"list_available_scanner_tools\"");
+    expect(source).toContain('"list_available_scanner_tools"');
     expect(source).toContain("args: {}");
     expect(source).not.toContain("findingId");
     expect(source).not.toContain("sessionId");

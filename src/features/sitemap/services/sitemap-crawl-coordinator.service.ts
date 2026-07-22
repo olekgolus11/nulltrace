@@ -1,38 +1,17 @@
 import { TargetSitemapCrawlStatusRecord } from "../model/sitemap.types";
+import {
+  EnsureSitemapCrawlInput,
+  EnsureSitemapCrawlResult,
+  SitemapCrawlControlState,
+} from "./sitemap-crawl-coordinator.types";
 
 interface SitemapCrawlStatusReader {
   getCrawlStatus(targetId: string): TargetSitemapCrawlStatusRecord;
 }
 
 interface PublicSitemapCrawlerRunner {
-  crawl(input: {
-    targetId: string;
-    rootUrl: string;
-    mode?: "fresh" | "resume" | "retry_failures";
-  }): Promise<unknown>;
+  crawl(input: { targetId: string; rootUrl: string; mode?: "fresh" | "resume" }): Promise<unknown>;
   requestPause(targetId: string): boolean;
-}
-
-export type SitemapCrawlStartState =
-  | "started"
-  | "already_running"
-  | "paused"
-  | "completed"
-  | "failed";
-
-export type SitemapCrawlControlState =
-  | "started"
-  | "pause_requested"
-  | "already_running"
-  | "unavailable";
-
-export interface EnsureSitemapCrawlInput {
-  targetId: string;
-  rootUrl: string;
-}
-
-export interface EnsureSitemapCrawlResult {
-  state: SitemapCrawlStartState;
 }
 
 export class SitemapCrawlCoordinator {
@@ -43,10 +22,7 @@ export class SitemapCrawlCoordinator {
     private readonly crawler: PublicSitemapCrawlerRunner,
   ) {}
 
-  ensureTargetCrawl({
-    targetId,
-    rootUrl,
-  }: EnsureSitemapCrawlInput): EnsureSitemapCrawlResult {
+  ensureTargetCrawl({ targetId, rootUrl }: EnsureSitemapCrawlInput): EnsureSitemapCrawlResult {
     if (this.runningCrawlsByTargetId.has(targetId)) {
       return {
         state: "already_running",
@@ -73,9 +49,7 @@ export class SitemapCrawlCoordinator {
       };
     }
 
-    const mode = crawlStatus.status === "running"
-      ? "resume"
-      : "fresh";
+    const mode = crawlStatus.status === "running" ? "resume" : "fresh";
     this.startCrawl({ targetId, rootUrl }, mode);
 
     return {
@@ -84,9 +58,7 @@ export class SitemapCrawlCoordinator {
   }
 
   pauseTargetCrawl(targetId: string): SitemapCrawlControlState {
-    return this.crawler.requestPause(targetId)
-      ? "pause_requested"
-      : "unavailable";
+    return this.crawler.requestPause(targetId) ? "pause_requested" : "unavailable";
   }
 
   resumeTargetCrawl(input: EnsureSitemapCrawlInput): SitemapCrawlControlState {
@@ -97,14 +69,6 @@ export class SitemapCrawlCoordinator {
       return "unavailable";
     }
     this.startCrawl(input, "resume");
-    return "started";
-  }
-
-  retryTargetFailures(input: EnsureSitemapCrawlInput): SitemapCrawlControlState {
-    if (this.runningCrawlsByTargetId.has(input.targetId)) {
-      return "already_running";
-    }
-    this.startCrawl(input, "retry_failures");
     return "started";
   }
 
@@ -121,10 +85,7 @@ export class SitemapCrawlCoordinator {
     return "started";
   }
 
-  private startCrawl(
-    { targetId, rootUrl }: EnsureSitemapCrawlInput,
-    mode: "fresh" | "resume" | "retry_failures",
-  ) {
+  private startCrawl({ targetId, rootUrl }: EnsureSitemapCrawlInput, mode: "fresh" | "resume") {
     const crawlPromise = this.crawler
       .crawl({ targetId, rootUrl, mode })
       .catch(() => undefined)

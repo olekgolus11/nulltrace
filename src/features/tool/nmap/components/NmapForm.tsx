@@ -36,10 +36,7 @@ export function NmapForm({
   form: NmapFormState;
   selectedField: number;
   focused: boolean;
-  onFieldChange: (
-    field: keyof NmapFormState,
-    value: string | boolean | NmapTiming,
-  ) => void;
+  onFieldChange: (field: keyof NmapFormState, value: string | boolean | NmapTiming) => void;
 }) {
   const selectedId = nmapFieldOrder[selectedField];
 
@@ -47,13 +44,7 @@ export function NmapForm({
     <box flexDirection="column">
       <box flexDirection="row" width="100%">
         <box width={20}>
-          <text
-            fg={
-              selectedId === "target"
-                ? theme.accent.primary
-                : theme.text.secondary
-            }
-          >
+          <text fg={selectedId === "target" ? theme.accent.primary : theme.text.secondary}>
             {selectedId === "target" ? "> Target" : "  Target"}
           </text>
         </box>
@@ -75,13 +66,7 @@ export function NmapForm({
 
       <box flexDirection="row" width="100%">
         <box width={20}>
-          <text
-            fg={
-              selectedId === "ports"
-                ? theme.accent.primary
-                : theme.text.secondary
-            }
-          >
+          <text fg={selectedId === "ports" ? theme.accent.primary : theme.text.secondary}>
             {selectedId === "ports" ? "> Ports" : "  Ports"}
           </text>
         </box>
@@ -103,21 +88,11 @@ export function NmapForm({
 
       <box flexDirection="row" width="100%">
         <box width={20}>
-          <text
-            fg={
-              selectedId === "timing"
-                ? theme.accent.primary
-                : theme.text.secondary
-            }
-          >
+          <text fg={selectedId === "timing" ? theme.accent.primary : theme.text.secondary}>
             {selectedId === "timing" ? "> Timing" : "  Timing"}
           </text>
         </box>
-        <text
-          fg={
-            selectedId === "timing" ? theme.text.primary : theme.text.secondary
-          }
-        >
+        <text fg={selectedId === "timing" ? theme.text.primary : theme.text.secondary}>
           {nmapTimingOptions
             .map((option) => (option === form.timing ? `[${option}]` : option))
             .join("  ")}{" "}
@@ -164,13 +139,7 @@ export function NmapForm({
 
       <box flexDirection="row" width="100%" marginTop={1}>
         <box width={20}>
-          <text
-            fg={
-              selectedId === "extraArgs"
-                ? theme.accent.primary
-                : theme.text.secondary
-            }
-          >
+          <text fg={selectedId === "extraArgs" ? theme.accent.primary : theme.text.secondary}>
             {selectedId === "extraArgs" ? "> Extra args" : "  Extra args"}
           </text>
         </box>

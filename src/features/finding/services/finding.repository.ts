@@ -32,11 +32,7 @@ interface SessionFindingRow {
   createdAt: string;
 }
 
-const findingReviewStatuses: FindingReviewStatus[] = [
-  "needs_review",
-  "confirmed",
-  "dismissed",
-];
+const findingReviewStatuses: FindingReviewStatus[] = ["needs_review", "confirmed", "dismissed"];
 
 function createTimestamp() {
   return new Date().toISOString();
@@ -227,10 +223,7 @@ export class FindingRepository {
       return record;
     }
 
-    const preservedSeverity = maxFindingSeverity(
-      existing.severity,
-      nextSeverity,
-    );
+    const preservedSeverity = maxFindingSeverity(existing.severity, nextSeverity);
 
     this.database
       .query(

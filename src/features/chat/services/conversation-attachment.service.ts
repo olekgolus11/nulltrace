@@ -9,8 +9,7 @@ import {
 
 export class ConversationAttachmentService {
   constructor(
-    private readonly repository: ConversationAttachmentRepository =
-      conversationAttachmentRepository,
+    private readonly repository: ConversationAttachmentRepository = conversationAttachmentRepository,
   ) {}
 
   createDefaultAttachment(input: ConversationAttachmentInput) {
@@ -30,9 +29,7 @@ export class ConversationAttachmentService {
   }
 
   findActiveAttachmentByOpenCodeConversationId(opencodeConversationId: string) {
-    return this.repository.findActiveByOpenCodeConversationId(
-      opencodeConversationId,
-    );
+    return this.repository.findActiveByOpenCodeConversationId(opencodeConversationId);
   }
 
   hasActiveAttachment(sessionId: string) {
@@ -50,5 +47,4 @@ export class ConversationAttachmentService {
   }
 }
 
-export const conversationAttachmentService =
-  new ConversationAttachmentService();
+export const conversationAttachmentService = new ConversationAttachmentService();

@@ -43,19 +43,13 @@ function createTreePrefix(depth: number, isLast: boolean) {
 }
 
 function countSitemapEntries(node: SitemapNode): number {
-  return (node.entryId ? 1 : 0) +
-    (node.children?.reduce(
-      (total, child) => total + countSitemapEntries(child),
-      0,
-    ) ?? 0);
+  return (
+    (node.entryId ? 1 : 0) +
+    (node.children?.reduce((total, child) => total + countSitemapEntries(child), 0) ?? 0)
+  );
 }
 
-function SitemapLedgerGroup({
-  node,
-  depth,
-  availableWidth,
-  entryCount,
-}: SitemapLedgerGroupProps) {
+function SitemapLedgerGroup({ node, depth, availableWidth, entryCount }: SitemapLedgerGroupProps) {
   const indent = "  ".repeat(Math.min(depth, 2));
   const marker = "\u25c6 ";
   const countLabel = ` \u00b7 ${entryCount} routes`;
@@ -68,12 +62,7 @@ function SitemapLedgerGroup({
   );
 
   return (
-    <box
-      flexDirection="row"
-      width={availableWidth}
-      height={1}
-      backgroundColor={theme.bg.panel}
-    >
+    <box flexDirection="row" width={availableWidth} height={1} backgroundColor={theme.bg.panel}>
       <text fg={theme.text.dim}>{indent}</text>
       <text fg={theme.accent.primary}>{marker}</text>
       <text fg={theme.text.secondary}>
@@ -97,10 +86,7 @@ function SitemapLedgerItem({
   const childBranchCount =
     node.children?.filter((child) => countSitemapEntries(child) > 0).length ?? 0;
   const groupEntryCount =
-    node.children?.reduce(
-      (total, child) => total + countSitemapEntries(child),
-      0,
-    ) ?? 0;
+    node.children?.reduce((total, child) => total + countSitemapEntries(child), 0) ?? 0;
   const isGroup = childBranchCount > 1;
   const isSelected = isEntry && node.id === selectedId;
   const isFocusedSelection = isFocused && isSelected;
@@ -132,11 +118,7 @@ function SitemapLedgerItem({
             backgroundColor={isSelected ? theme.bg.elevated : undefined}
           >
             <box width={columns.method}>
-              <text
-                fg={
-                  isFocusedSelection ? theme.accent.primary : methodColor(method)
-                }
-              >
+              <text fg={isFocusedSelection ? theme.accent.primary : methodColor(method)}>
                 {isFocusedSelection ? <strong>{method}</strong> : method}
               </text>
             </box>
@@ -166,7 +148,10 @@ function SitemapLedgerItem({
               paddingRight={1}
               backgroundColor={theme.bg.elevated}
             >
-              <text fg={theme.text.secondary}>{"\u21b3 "}{node.path}</text>
+              <text fg={theme.text.secondary}>
+                {"\u21b3 "}
+                {node.path}
+              </text>
               <text fg={theme.text.muted}>{`source ${source}`}</text>
               <text fg={theme.text.muted}>
                 {`access current session \u00b7 ${accessObservation}`}
@@ -191,9 +176,7 @@ function SitemapLedgerItem({
   );
 }
 
-export function SitemapLedgerHeader({
-  availableWidth,
-}: SitemapLedgerHeaderProps) {
+export function SitemapLedgerHeader({ availableWidth }: SitemapLedgerHeaderProps) {
   const columns = createSitemapLedgerColumns(availableWidth);
 
   return (
@@ -211,9 +194,7 @@ export function SitemapLedgerHeader({
       </box>
       <text> </text>
       <box width={columns.scope}>
-        <text fg={theme.text.muted}>
-          {columns.scope <= 4 ? "SCP" : "SCOPE"}
-        </text>
+        <text fg={theme.text.muted}>{columns.scope <= 4 ? "SCP" : "SCOPE"}</text>
       </box>
     </box>
   );

@@ -14,9 +14,7 @@ interface ModelOption {
 
 function createModelOptions(providers: Provider[]) {
   return providers
-    .flatMap((provider) =>
-      Object.values(provider.models).map((model) => ({ provider, model })),
-    )
+    .flatMap((provider) => Object.values(provider.models).map((model) => ({ provider, model })))
     .sort((left, right) =>
       `${left.provider.id}/${left.model.id}`.localeCompare(
         `${right.provider.id}/${right.model.id}`,
@@ -64,9 +62,7 @@ if (options.length === 0) {
   const readline = createInterface({ input: stdin, output: stdout });
   try {
     while (true) {
-      const query = (
-        await readline.question("Search models, or q to cancel: ")
-      ).trim();
+      const query = (await readline.question("Search models, or q to cancel: ")).trim();
       if (query.toLowerCase() === "q") {
         break;
       }

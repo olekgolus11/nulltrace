@@ -11,9 +11,7 @@ export interface AuthCheckPresentation {
   color: string;
 }
 
-export function getAuthCheckPresentation(
-  authCheck: AuthCheckMetadata,
-): AuthCheckPresentation {
+export function getAuthCheckPresentation(authCheck: AuthCheckMetadata): AuthCheckPresentation {
   switch (authCheck.status) {
     case "verified":
       return {

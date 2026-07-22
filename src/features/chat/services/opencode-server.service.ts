@@ -96,10 +96,7 @@ export class OpenCodeServerService {
       return await operation(this.createClient(server.url, sessionId));
     } catch (error) {
       const hasCrashed = server.process.exitCode !== null;
-      if (
-        retryPolicy === "never" ||
-        (!hasCrashed && !isConnectionFailure(error))
-      ) {
+      if (retryPolicy === "never" || (!hasCrashed && !isConnectionFailure(error))) {
         throw error;
       }
 
@@ -153,12 +150,7 @@ export class OpenCodeServerService {
     const port = await reserveSystemPort();
     const child = spawn(
       getOpenCodeExecutable(),
-      [
-        "serve",
-        "--hostname=127.0.0.1",
-        `--port=${port}`,
-        "--pure",
-      ],
+      ["serve", "--hostname=127.0.0.1", `--port=${port}`, "--pure"],
       {
         cwd: getOpenCodeRuntimeRoot(),
         env: getOpenCodeRuntimeEnvironment(),
@@ -190,11 +182,7 @@ export class OpenCodeServerService {
     return new Promise<string>((resolve, reject) => {
       const timeout = setTimeout(() => {
         child.kill("SIGTERM");
-        reject(
-          new Error(
-            `OpenCode did not start within ${readStartupTimeout()}ms.`,
-          ),
-        );
+        reject(new Error(`OpenCode did not start within ${readStartupTimeout()}ms.`));
       }, readStartupTimeout());
       let output = "";
       let stderr = "";
@@ -206,9 +194,7 @@ export class OpenCodeServerService {
 
       child.stdout.on("data", (chunk: Buffer) => {
         output += chunk.toString();
-        const match = output.match(
-          /opencode server listening[^\n]*on\s+(https?:\/\/[^\s]+)/,
-        );
+        const match = output.match(/opencode server listening[^\n]*on\s+(https?:\/\/[^\s]+)/);
         if (!match) {
           return;
         }

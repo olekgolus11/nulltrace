@@ -3,9 +3,7 @@ import { ToolRunArtifactInput } from "../../../../session/model/session.reposito
 import { ToolArtifactPipelineService } from "../tool-artifact-pipeline.service";
 import { ToolModule } from "../../types/tool-screen.types";
 
-function createToolModule(
-  collectArtifacts?: ToolModule["collectArtifacts"],
-): ToolModule {
+function createToolModule(collectArtifacts?: ToolModule["collectArtifacts"]): ToolModule {
   return {
     id: "nmap",
     name: "Nmap",

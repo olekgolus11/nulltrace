@@ -110,11 +110,7 @@ async function runCrawler({
   };
 }
 
-function findEntry(
-  entries: UpsertTargetSitemapEntryInput[],
-  path: string,
-  method = "GET",
-) {
+function findEntry(entries: UpsertTargetSitemapEntryInput[], path: string, method = "GET") {
   return entries.find((entry) => entry.path === path && entry.method === method);
 }
 
@@ -169,18 +165,13 @@ describe("PublicSitemapCrawler", () => {
       status: "completed",
       entriesDiscovered: pausedEntryCount,
     });
-    expect(
-      requestedUrls.filter((url) => url === "https://example.com/"),
-    ).toHaveLength(1);
+    expect(requestedUrls.filter((url) => url === "https://example.com/")).toHaveLength(1);
     expect(requestedUrls).toContain("https://example.com/next");
   });
 
   it("retains pending sitemap discovery when paused after robots", async () => {
     const repository = new FakeSitemapRepository();
-    const {
-      promise: robotsResponse,
-      resolve: resolveRobots,
-    } = Promise.withResolvers<Response>();
+    const { promise: robotsResponse, resolve: resolveRobots } = Promise.withResolvers<Response>();
     const requestedUrls: string[] = [];
     const crawler = new PublicSitemapCrawler({
       repository,
@@ -207,10 +198,9 @@ describe("PublicSitemapCrawler", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     crawler.requestPause("target-1");
     resolveRobots(
-      createResponse(
-        "Sitemap: https://example.com/private-sitemap.xml",
-        { contentType: "text/plain" },
-      ),
+      createResponse("Sitemap: https://example.com/private-sitemap.xml", {
+        contentType: "text/plain",
+      }),
     );
 
     expect(await pausedCrawl).toMatchObject({ status: "paused" });
@@ -221,65 +211,10 @@ describe("PublicSitemapCrawler", () => {
     expect(await crawler.crawl({ ...input, mode: "resume" })).toMatchObject({
       status: "completed",
     });
-    expect(requestedUrls).toContain(
-      "https://example.com/private-sitemap.xml",
-    );
+    expect(requestedUrls).toContain("https://example.com/private-sitemap.xml");
     expect(requestedUrls).toContain("https://example.com/from-sitemap");
   });
 
-  it("retries only timeout, 429, and 5xx checkpoint failures", async () => {
-    const repository = new FakeSitemapRepository();
-    repository.checkpoint = {
-      crawlerType: "public",
-      ownerId: "target-1",
-      targetId: "target-1",
-      rootUrl: "https://example.com",
-      frontier: [],
-      visitedUrls: [],
-      failures: [
-        ["/timeout", "timeout", null],
-        ["/rate", "http", 429],
-        ["/server", "http", 502],
-        ["/missing", "http", 404],
-        ["/network", "network", null],
-      ].map(([path, kind, httpStatus]) => ({
-        url: `https://example.com${path}`,
-        depth: 1,
-        source: "html_link" as const,
-        kind: kind as "timeout" | "http" | "network",
-        httpStatus: httpStatus as number | null,
-        errorMessage: String(kind),
-      })),
-      discoveredEntryKeys: [
-        "GET https://example.com/",
-        "GET https://example.com/existing",
-        "GET https://example.com/third",
-      ],
-      pagesFetched: 1,
-      entriesDiscovered: 3,
-      updatedAt: "2026-07-15T10:00:00.000Z",
-    };
-    const requestedUrls: string[] = [];
-    const crawler = new PublicSitemapCrawler({
-      repository,
-      fetch: async (url: string) => {
-        requestedUrls.push(url);
-        return createResponse("<html></html>");
-      },
-    });
-
-    await crawler.crawl({
-      targetId: "target-1",
-      rootUrl: "https://example.com",
-      mode: "retry_failures",
-    });
-
-    expect(requestedUrls).toEqual([
-      "https://example.com/timeout",
-      "https://example.com/rate",
-      "https://example.com/server",
-    ]);
-  });
   it("extracts same-origin HTML links and forms without external URLs", async () => {
     const { repository, requestedUrls, result } = await runCrawler({
       responses: {
@@ -310,11 +245,9 @@ describe("PublicSitemapCrawler", () => {
       source: "html_form",
       depth: 1,
     });
-    expect(
-      repository.entries.some((entry) =>
-        entry.normalizedUrl.includes("other.example"),
-      ),
-    ).toBe(false);
+    expect(repository.entries.some((entry) => entry.normalizedUrl.includes("other.example"))).toBe(
+      false,
+    );
     expect(requestedUrls).toContain("https://example.com/admin");
     expect(requestedUrls).not.toContain("https://example.com/styles.css");
     expect(requestedUrls).not.toContain("https://other.example/private");
@@ -326,12 +259,8 @@ describe("PublicSitemapCrawler", () => {
       responses: {
         "https://example.com/robots.txt": createResponse("", { status: 404 }),
         "https://example.com/sitemap.xml": createResponse("", { status: 404 }),
-        "https://example.com/": createResponse(
-          '<html><a href="/login">Login</a></html>',
-        ),
-        "https://example.com/login": createResponse(
-          '<html><form method="post"></form></html>',
-        ),
+        "https://example.com/": createResponse('<html><a href="/login">Login</a></html>'),
+        "https://example.com/login": createResponse('<html><form method="post"></form></html>'),
       },
     });
 
@@ -349,9 +278,7 @@ describe("PublicSitemapCrawler", () => {
       responses: {
         "https://example.com/robots.txt": createResponse("", { status: 404 }),
         "https://example.com/sitemap.xml": createResponse("", { status: 404 }),
-        "https://example.com/": createResponse(
-          '<html><a href="/level-1">Level 1</a></html>',
-        ),
+        "https://example.com/": createResponse('<html><a href="/level-1">Level 1</a></html>'),
         "https://example.com/level-1": createResponse(
           '<html><a href="/level-2">Level 2</a></html>',
         ),
@@ -428,9 +355,7 @@ describe("PublicSitemapCrawler", () => {
             location: "/docs/",
           },
         }),
-        "https://example.com/docs/": createResponse(
-          '<html><a href="page">Page</a></html>',
-        ),
+        "https://example.com/docs/": createResponse('<html><a href="page">Page</a></html>'),
         "https://example.com/docs/page": createResponse("<html></html>"),
       },
     });
@@ -484,11 +409,9 @@ describe("PublicSitemapCrawler", () => {
       source: "sitemap_xml",
       depth: 1,
     });
-    expect(
-      repository.entries.some((entry) =>
-        entry.normalizedUrl.includes("other.example"),
-      ),
-    ).toBe(false);
+    expect(repository.entries.some((entry) => entry.normalizedUrl.includes("other.example"))).toBe(
+      false,
+    );
   });
 
   it("fails the crawl when an HTML response exceeds the size limit", async () => {

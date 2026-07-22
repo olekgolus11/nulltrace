@@ -52,9 +52,7 @@ function getNumberLikeString(value: unknown): string | null {
   return getString(value);
 }
 
-function parseNucleiFindingsPayload(
-  payload: unknown,
-): NucleiFindingsPayload | null {
+function parseNucleiFindingsPayload(payload: unknown): NucleiFindingsPayload | null {
   if (!isRecord(payload)) {
     return null;
   }

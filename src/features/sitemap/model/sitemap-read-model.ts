@@ -18,8 +18,7 @@ export function filterTargetSitemapEntries(
 ) {
   return entries.filter((entry) => {
     const matchesDepth = maxDepth === null || entry.depth <= maxDepth;
-    const matchesProvenance =
-      provenance === "all" || entry.provenance === provenance;
+    const matchesProvenance = provenance === "all" || entry.provenance === provenance;
     return matchesDepth && matchesProvenance;
   });
 }

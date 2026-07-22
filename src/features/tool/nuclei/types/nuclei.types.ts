@@ -2,12 +2,7 @@ import { ToolData } from "../../shared/types/tool-screen.types";
 
 export type NucleiSeverityPreset = "all" | "medium+" | "high+" | "critical";
 
-export type NucleiFieldId =
-  | "target"
-  | "severityPreset"
-  | "tags"
-  | "templatesPath"
-  | "extraArgs";
+export type NucleiFieldId = "target" | "severityPreset" | "tags" | "templatesPath" | "extraArgs";
 
 export interface NucleiAuthPlaceholder {
   strategy: "none";

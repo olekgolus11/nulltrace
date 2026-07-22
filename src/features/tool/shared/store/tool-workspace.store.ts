@@ -37,11 +37,7 @@ const initialWorkspaceState: ToolWorkspaceStoreState = {
 };
 
 interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
-  initializeWorkspace: (
-    toolName: string,
-    targetUrl: string,
-    sessionId: string,
-  ) => void;
+  initializeWorkspace: (toolName: string, targetUrl: string, sessionId: string) => void;
   cyclePanel: (direction: PanelDirection) => void;
   setActivePanel: (panel: ToolPanel) => void;
   openHelp: () => void;
@@ -140,11 +136,8 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
 
   syncGeneratedCommand: () => {
     const state = get();
-    const toolModule = state.toolName
-      ? toolRegistry[state.toolName]
-      : undefined;
-    const generatedCommand =
-      toolModule?.buildGeneratedCommand(state.toolData) ?? "";
+    const toolModule = state.toolName ? toolRegistry[state.toolName] : undefined;
+    const generatedCommand = toolModule?.buildGeneratedCommand(state.toolData) ?? "";
 
     get().refreshGeneratedCommand(generatedCommand);
   },
@@ -168,17 +161,11 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
   runCommand: async () => {
     const state = get();
     const command = state.commandInput.trim();
-    if (
-      !command ||
-      state.executionStatus === "running" ||
-      state.isHistoricPreview
-    ) {
+    if (!command || state.executionStatus === "running" || state.isHistoricPreview) {
       return;
     }
 
-    const toolModule = state.toolName
-      ? toolRegistry[state.toolName]
-      : undefined;
+    const toolModule = state.toolName ? toolRegistry[state.toolName] : undefined;
 
     set({
       outputLines: [`$ ${command}`, ""],
@@ -241,9 +228,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
 
     set((current) => ({
       historyRuns,
-      selectedHistoryRunId: historyRuns.some(
-        (run) => run.id === current.selectedHistoryRunId,
-      )
+      selectedHistoryRunId: historyRuns.some((run) => run.id === current.selectedHistoryRunId)
         ? current.selectedHistoryRunId
         : (historyRuns[0]?.id ?? null),
     }));
@@ -271,9 +256,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
 
       const currentIndex = Math.max(
         0,
-        state.historyRuns.findIndex(
-          (run) => run.id === state.selectedHistoryRunId,
-        ),
+        state.historyRuns.findIndex((run) => run.id === state.selectedHistoryRunId),
       );
       const nextIndex = Math.min(
         state.historyRuns.length - 1,
@@ -339,10 +322,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       generatedCommand: draftState.generatedCommand,
       commandSource: draftState.commandSource,
       activePanel: "form",
-      outputLines: [
-        draftState.message,
-        "Review and edit the scanner workspace before running.",
-      ],
+      outputLines: [draftState.message, "Review and edit the scanner workspace before running."],
       executionStatus: "idle",
       lastExitCode: null,
       currentToolRunId: null,
