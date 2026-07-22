@@ -15,6 +15,7 @@ import {
 } from "../model/chat-context-tool.types";
 import { ActionDraftInput, ActionDraftRecord } from "../../action-draft/model/action-draft.types";
 import { actionDraftRepository } from "../../action-draft/services/action-draft.repository.instance";
+import { authCheckService } from "../../authentication/services/auth-check.service";
 import {
   ScannerCatalogContext,
   ScannerCatalogTool,
@@ -22,6 +23,7 @@ import {
   listAvailableScannerToolsFromCatalog,
   scannerCatalog,
 } from "../../tool/shared/registry/scanner-catalog";
+import { assertSimpleShellCommand } from "../../tool/nuclei/services/nuclei-shell.helpers";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { findingRepository } from "../../finding/services/finding.repository";
 import {
@@ -48,6 +50,8 @@ import {
   ToolWorkspaceContextSnapshot,
   toolWorkspaceContextService,
 } from "../../tool/shared/services/tool-workspace-context.service";
+import { mapActionDraftChatPayload } from "./action-draft-chat-context.mapper";
+import { ActionDraftChatContextArgs } from "./action-draft-chat-context.types";
 import { ChatContextToolRegistry } from "./chat-context-tool-registry";
 import { conversationAttachmentService } from "./conversation-attachment.service";
 
@@ -99,13 +103,7 @@ type GetArtifactArgs = {
   maxCharacters?: number;
 };
 
-type CreateActionDraftArgs = {
-  targetTool: ScannerToolId;
-  title: string;
-  command?: string;
-  intentJson?: string;
-  formStateJson?: string;
-};
+type CreateActionDraftArgs = ActionDraftChatContextArgs;
 
 type ListSitemapEntriesArgs = {
   limit?: number;
@@ -353,6 +351,10 @@ interface ActionDraftWriteRepository {
   createDraft: (input: ActionDraftInput) => ActionDraftRecord;
 }
 
+interface AuthenticatedContextAcceptanceContract {
+  isProceedAllowed: (sessionId: string) => boolean;
+}
+
 interface SitemapReadRepository {
   getCrawlStatus: (targetId: string) => TargetSitemapCrawlStatusRecord;
   listEntries: (filters: TargetSitemapEntryListFilters) => TargetSitemapEntryListResult;
@@ -501,88 +503,9 @@ function normalizeOptionalToolString(value: unknown, toolName: string, argumentN
   return trimmed ? trimmed : undefined;
 }
 
-function parseOptionalJson(value: string | undefined, argumentName: string) {
-  if (!value) {
-    return undefined;
-  }
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    throw new Error(`create_action_draft ${argumentName} must be valid JSON.`);
-  }
-}
-
 function normalizeOptionalCommand(value: unknown) {
   const command = normalizeOptionalToolString(value, "create_action_draft", "command");
   return command;
-}
-
-function getScannerTargetForDraft(targetTool: ScannerToolId, session: SessionContextRecord | null) {
-  const target = session?.normalizedUrl.trim() || session?.displayUrl.trim();
-  if (!target) {
-    return "";
-  }
-
-  if (targetTool === "nmap") {
-    try {
-      return new URL(target).hostname;
-    } catch {
-      return target.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-    }
-  }
-
-  return target;
-}
-
-function replaceTargetPlaceholders(value: string, target: string) {
-  if (!target) {
-    return value;
-  }
-
-  return value
-    .replaceAll("{{TARGET}}", target)
-    .replaceAll("<TARGET>", target)
-    .replaceAll("{TARGET}", target);
-}
-
-function toCreateActionDraftPayload(
-  args: CreateActionDraftArgs,
-  session: SessionContextRecord | null,
-) {
-  const scannerTarget = getScannerTargetForDraft(args.targetTool, session);
-  const formState = parseOptionalJson(args.formStateJson, "formStateJson");
-  const normalizedFormState =
-    formState && typeof formState === "object" && !Array.isArray(formState)
-      ? {
-          ...formState,
-          ...(typeof formState.target === "string"
-            ? {
-                target: replaceTargetPlaceholders(formState.target, scannerTarget),
-              }
-            : {}),
-          ...(!("target" in formState) && scannerTarget ? { target: scannerTarget } : {}),
-        }
-      : formState;
-
-  return {
-    ...(scannerTarget
-      ? {
-          sessionTarget: {
-            normalized: session?.normalizedUrl ?? scannerTarget,
-            display: session?.displayUrl ?? scannerTarget,
-            scannerTarget,
-          },
-        }
-      : {}),
-    ...(args.command
-      ? {
-          command: replaceTargetPlaceholders(args.command, scannerTarget),
-        }
-      : {}),
-    ...(args.intentJson ? { intent: parseOptionalJson(args.intentJson, "intentJson") } : {}),
-    ...(normalizedFormState !== undefined ? { formState: normalizedFormState } : {}),
-  };
 }
 
 function normalizeActionDraftTargetTool(value: unknown) {
@@ -1527,6 +1450,7 @@ export class ActionDraftChatContextToolsService {
     private readonly attachments: ConversationAttachmentScope = conversationAttachmentService,
     private readonly drafts: ActionDraftWriteRepository = actionDraftRepository,
     private readonly sessions: SessionContextReadRepository = sessionRepository,
+    private readonly authenticationAcceptance: AuthenticatedContextAcceptanceContract = authCheckService,
   ) {}
 
   createActionDraft(
@@ -1536,13 +1460,35 @@ export class ActionDraftChatContextToolsService {
     const targetTool = normalizeActionDraftTargetTool(args.targetTool);
     const attachment = requireActiveAttachment(this.attachments, opencodeConversationId);
     const session = this.sessions.getSessionById(attachment.sessionId);
+    const payload = mapActionDraftChatPayload(args, session);
+    const formState =
+      payload.formState &&
+      typeof payload.formState === "object" &&
+      !Array.isArray(payload.formState)
+        ? (payload.formState as Record<string, unknown>)
+        : null;
+    if (
+      targetTool === "nuclei" &&
+      formState?.useAuthenticatedContext === true &&
+      !this.authenticationAcceptance.isProceedAllowed(attachment.sessionId)
+    ) {
+      throw new Error("Authenticated Nuclei drafts require an accepted authentication context.");
+    }
+    if (targetTool === "nuclei" && formState?.useAuthenticatedContext === true) {
+      if (typeof payload.command === "string") {
+        assertSimpleShellCommand(payload.command);
+      }
+      if (typeof formState.extraArgs === "string") {
+        assertSimpleShellCommand(formState.extraArgs);
+      }
+    }
     const draft = this.drafts.createDraft({
       sessionId: attachment.sessionId,
       opencodeConversationId: attachment.opencodeConversationId,
       targetTool,
       title: args.title,
       summary: "",
-      payload: toCreateActionDraftPayload(args, session),
+      payload,
     });
 
     return toCreateActionDraftResult(draft);

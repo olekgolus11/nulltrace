@@ -24,6 +24,7 @@ export function NucleiWorkspace() {
     isHistoricPreview,
     isHelpOpen,
     setField,
+    toggleAuthenticatedContext,
     setActivePanel,
     setManualCommandInput,
     runCommand,
@@ -56,6 +57,9 @@ export function NucleiWorkspace() {
           selectedField={toolData.selectedField}
           focused={activePanel === "form"}
           onFieldChange={setField}
+          authAvailable={toolData.authentication.isAvailable}
+          authOrigin={toolData.authentication.origin}
+          onToggleAuthenticatedContext={toggleAuthenticatedContext}
         />
       </DashboardPanel>
 

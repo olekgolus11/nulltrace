@@ -26,6 +26,7 @@ interface ActiveToolRun {
   onSystemLines: (lines: string[]) => void;
   onRunCancelled?: (event: { toolRunId: string | null }) => void;
   cancelled: boolean;
+  cleanupPreparedRun: (() => void) | null;
 }
 
 interface RunToolCommandInput {
@@ -34,6 +35,7 @@ interface RunToolCommandInput {
   command: string;
   commandSource: import("../types/tool-screen.types").CommandSource;
   toolModule: ToolModule | undefined;
+  toolData?: unknown;
   onRunStarted?: (toolRunId: string | null) => void;
   onStdoutLines: (lines: string[]) => void;
   onStderrLines: (lines: string[]) => void;
@@ -61,6 +63,7 @@ export class ToolRunnerService {
     command,
     commandSource,
     toolModule,
+    toolData,
     onRunStarted,
     onStdoutLines,
     onStderrLines,
@@ -68,11 +71,12 @@ export class ToolRunnerService {
     onRunFinished,
     onRunCancelled,
   }: RunToolCommandInput) {
+    const persistedCommand = toolModule?.redactCommandForPersistence?.(command) ?? command;
     const toolRun =
       sessionId && toolName
         ? this.repository.recordToolRun(sessionId, {
             toolName,
-            command,
+            command: persistedCommand,
             commandSource,
             status: "running",
           })
@@ -85,36 +89,76 @@ export class ToolRunnerService {
       onSystemLines,
       onRunCancelled,
       cancelled: false,
+      cleanupPreparedRun: null,
     };
 
     this.activeRun = activeRun;
     onRunStarted?.(toolRunId);
-
-    const preparedCommand =
-      toolModule?.prepareCommandForRun?.({
-        command,
-        sessionId,
-        toolRunId,
-      }) ?? command;
+    let redactPreparedOutput: ((content: string) => string) | undefined;
+    let redactPreparedArtifact: ((content: string) => string) | undefined;
 
     try {
+      const preparation =
+        toolModule?.prepareCommandForRun?.({
+          command,
+          sessionId,
+          toolRunId,
+          toolData,
+        }) ?? command;
+      const prepared =
+        typeof preparation === "object" && preparation !== null && "then" in preparation
+          ? await preparation
+          : preparation;
+      const preparedCommand = typeof prepared === "string" ? prepared : prepared.command;
+      redactPreparedOutput = typeof prepared === "string" ? undefined : prepared.redactOutput;
+      redactPreparedArtifact = typeof prepared === "string" ? undefined : prepared.redactArtifact;
+      let hasCleanedPreparedRun = false;
+      activeRun.cleanupPreparedRun =
+        typeof prepared === "string" || !prepared.cleanup
+          ? null
+          : () => {
+              if (hasCleanedPreparedRun) {
+                return;
+              }
+              hasCleanedPreparedRun = true;
+              prepared.cleanup?.();
+            };
+
+      if (activeRun.cancelled) {
+        activeRun.cleanupPreparedRun?.();
+        return;
+      }
+
       const exitCode = await this.commandRunner.run(
         preparedCommand,
         (lines) => {
+          const redactedLines = redactPreparedOutput ? lines.map(redactPreparedOutput) : lines;
           if (toolRunId) {
-            this.repository.appendToolRunLog(toolRunId, lines, "stdout");
+            this.repository.appendToolRunLog(toolRunId, redactedLines, "stdout");
           }
-          onStdoutLines(lines);
+          onStdoutLines(redactedLines);
         },
         (lines) => {
+          const redactedLines = redactPreparedOutput ? lines.map(redactPreparedOutput) : lines;
           if (toolRunId) {
-            this.repository.appendToolRunLog(toolRunId, lines, "stderr");
+            this.repository.appendToolRunLog(toolRunId, redactedLines, "stderr");
           }
-          onStderrLines(lines);
+          onStderrLines(redactedLines);
         },
       );
 
       if (activeRun.cancelled) {
+        if (redactPreparedArtifact) {
+          await this.artifactPipeline.processCompletedRun({
+            sessionId,
+            toolRunId,
+            toolModule,
+            status: "cancelled",
+            exitCode,
+            ...(redactPreparedOutput ? { redactOutput: redactPreparedOutput } : {}),
+            redactArtifact: redactPreparedArtifact,
+          });
+        }
         return;
       }
 
@@ -135,6 +179,8 @@ export class ToolRunnerService {
         toolModule,
         status,
         exitCode,
+        ...(redactPreparedOutput ? { redactOutput: redactPreparedOutput } : {}),
+        ...(redactPreparedArtifact ? { redactArtifact: redactPreparedArtifact } : {}),
         onArtifactProcessingError: (artifactMessage) => {
           onSystemLines(["", artifactMessage]);
         },
@@ -147,10 +193,22 @@ export class ToolRunnerService {
       });
     } catch (error) {
       if (activeRun.cancelled) {
+        if (redactPreparedArtifact) {
+          await this.artifactPipeline.processCompletedRun({
+            sessionId,
+            toolRunId,
+            toolModule,
+            status: "cancelled",
+            exitCode: null,
+            ...(redactPreparedOutput ? { redactOutput: redactPreparedOutput } : {}),
+            redactArtifact: redactPreparedArtifact,
+          });
+        }
         return;
       }
 
-      const message = error instanceof Error ? error.message : "Unknown execution error";
+      const rawMessage = error instanceof Error ? error.message : "Unknown execution error";
+      const message = redactPreparedOutput?.(rawMessage) ?? rawMessage;
       const failureMessage = `[execution failed] ${message}`;
       if (toolRunId) {
         this.repository.appendToolRunLog(toolRunId, ["", failureMessage]);
@@ -164,6 +222,8 @@ export class ToolRunnerService {
         toolModule,
         status: "error",
         exitCode: null,
+        ...(redactPreparedOutput ? { redactOutput: redactPreparedOutput } : {}),
+        ...(redactPreparedArtifact ? { redactArtifact: redactPreparedArtifact } : {}),
         onArtifactProcessingError: (artifactMessage) => {
           onSystemLines(["", artifactMessage]);
         },
@@ -175,6 +235,7 @@ export class ToolRunnerService {
         exitCode: null,
       });
     } finally {
+      activeRun.cleanupPreparedRun?.();
       if (this.activeRun === activeRun) {
         this.activeRun = null;
       }
@@ -197,6 +258,7 @@ export class ToolRunnerService {
     this.activeRun.onRunCancelled?.({
       toolRunId: this.activeRun.toolRunId,
     });
+    this.activeRun.cleanupPreparedRun?.();
     this.commandRunner.stop();
   }
 }

@@ -77,6 +77,12 @@ bun test --filter "command state"
 - Do not add alternate toolchains unless the user explicitly asks.
 - There is no ESLint, Prettier, or CI config to rely on.
 
+## Authenticated Nuclei Troubleshooting
+
+- An authenticated Nuclei scan has been observed to start working when NullTrace was launched with `sudo`. Treat this as a diagnostic sign of a filesystem ownership or permission problem involving Nuclei configuration, cache, templates, or NullTrace application data—not as the normal way to run NullTrace.
+- Do not routinely run NullTrace with `sudo`. It can create root-owned application data and later cause failures such as `SQLITE_READONLY` when NullTrace runs as the normal user.
+- If `sudo` changes the behavior, compare ownership and permissions for the Nuclei configuration/cache/template directories and the NullTrace application-data directory, restore normal-user access, then retry without `sudo`.
+
 ## Project Structure
 
 ```text

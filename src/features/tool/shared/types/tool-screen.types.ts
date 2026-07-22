@@ -56,7 +56,10 @@ export interface ToolModule {
     state: ToolWorkspaceStoreState,
     api: ToolKeyboardApi,
   ) => boolean;
-  prepareCommandForRun?: (options: ToolPrepareCommand) => string;
+  prepareCommandForRun?: (
+    options: ToolPrepareCommand,
+  ) => string | ToolPreparedCommand | Promise<string | ToolPreparedCommand>;
+  redactCommandForPersistence?: (command: string) => string;
   collectArtifacts?: (options: ToolRunCompleted) => Promise<ToolRunArtifactInput[]>;
 }
 
@@ -76,6 +79,14 @@ export interface ToolPrepareCommand {
   command: string;
   sessionId: string | null;
   toolRunId: string | null;
+  toolData?: unknown;
+}
+
+export interface ToolPreparedCommand {
+  command: string;
+  cleanup?: () => void;
+  redactOutput?: (content: string) => string;
+  redactArtifact?: (content: string) => string;
 }
 
 export interface ToolRunCompleted {
@@ -83,4 +94,6 @@ export interface ToolRunCompleted {
   toolRunId: string | null;
   status: ExecutionStatus;
   exitCode: number | null;
+  redactOutput?: (content: string) => string;
+  redactArtifact?: (content: string) => string;
 }

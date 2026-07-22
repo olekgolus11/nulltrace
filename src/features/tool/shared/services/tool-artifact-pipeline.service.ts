@@ -20,6 +20,8 @@ interface ProcessCompletedRunInput {
   toolModule: ToolModule | undefined;
   status: import("../types/tool-screen.types").ExecutionStatus;
   exitCode: number | null;
+  redactOutput?: (content: string) => string;
+  redactArtifact?: (content: string) => string;
   onArtifactProcessingError?: (message: string) => void;
 }
 
@@ -35,6 +37,8 @@ export class ToolArtifactPipelineService {
     toolModule,
     status,
     exitCode,
+    redactOutput,
+    redactArtifact,
     onArtifactProcessingError,
   }: ProcessCompletedRunInput) {
     if (!toolRunId || !toolModule?.collectArtifacts) {
@@ -47,6 +51,8 @@ export class ToolArtifactPipelineService {
         toolRunId,
         status,
         exitCode,
+        ...(redactOutput ? { redactOutput } : {}),
+        ...(redactArtifact ? { redactArtifact } : {}),
       });
 
       const savedArtifacts = artifacts.map((artifact) =>

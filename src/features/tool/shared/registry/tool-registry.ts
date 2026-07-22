@@ -105,6 +105,8 @@ export const toolRegistry: Record<string, ToolModule> = {
       nucleiCommandService.buildCommand(toolData as NucleiToolData),
     prepareCommandForRun: (options: ToolPrepareCommand) =>
       nucleiCommandService.prepareCommandForRun(options),
+    redactCommandForPersistence: (command: string) =>
+      nucleiCommandService.redactCommandForPersistence(command),
     collectArtifacts: (options: ToolRunCompleted) => nucleiCommandService.collectArtifacts(options),
     handleFormKey: (key, state, api) => {
       if (state.activePanel !== "form") {
@@ -126,7 +128,9 @@ export const toolRegistry: Record<string, ToolModule> = {
           nucleiCommandService.moveSelection(
             current as NucleiToolData,
             -1,
-            nucleiFieldOrder.length - 1,
+            toolData.authentication.isAvailable
+              ? nucleiFieldOrder.length - 1
+              : nucleiFieldOrder.length - 2,
           ),
         );
         return true;
@@ -137,13 +141,26 @@ export const toolRegistry: Record<string, ToolModule> = {
           nucleiCommandService.moveSelection(
             current as NucleiToolData,
             1,
-            nucleiFieldOrder.length - 1,
+            toolData.authentication.isAvailable
+              ? nucleiFieldOrder.length - 1
+              : nucleiFieldOrder.length - 2,
           ),
         );
         return true;
       }
 
       const selectedField = nucleiFieldOrder[toolData.selectedField];
+      if (
+        nucleiCommandService.isAuthenticationFieldSelected(selectedField) &&
+        (key.name === "left" || key.name === "right")
+      ) {
+        api.updateToolData((current) =>
+          nucleiCommandService.toggleAuthenticatedContext(current as NucleiToolData),
+        );
+        api.syncGeneratedCommand();
+        return true;
+      }
+
       if (nucleiCommandService.isSeverityFieldSelected(selectedField) && key.name === "left") {
         api.updateToolData((current) =>
           nucleiCommandService.cycleSeverity(current as NucleiToolData, -1),
