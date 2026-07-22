@@ -1,0 +1,2 @@
+[test]
+preload = ["./test/bun-test-environment.setup.ts"]
