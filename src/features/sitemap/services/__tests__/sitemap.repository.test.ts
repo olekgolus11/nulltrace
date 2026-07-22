@@ -1,8 +1,6 @@
 import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
 
-process.env.NULLTRACE_APP_DATA_DIR = `/tmp/nulltrace-sitemap-repository-test-${crypto.randomUUID()}`;
-
 async function createRepository(database: Database) {
   const { SitemapRepository } = await import("../sitemap.repository");
 

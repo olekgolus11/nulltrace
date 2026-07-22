@@ -7,8 +7,6 @@ import {
   UpsertTargetSitemapEntryInput,
 } from "../../model/sitemap.types";
 
-process.env.NULLTRACE_APP_DATA_DIR = `/tmp/nulltrace-authenticated-sitemap-crawler-test-${crypto.randomUUID()}`;
-
 async function createCrawler(options: object) {
   const { AuthenticatedSitemapCrawler } = await import("../authenticated-sitemap-crawler.service");
   return new AuthenticatedSitemapCrawler(options);
