@@ -19,7 +19,9 @@ type DashboardAction =
   | { type: "OPEN_FINDING_DETAIL"; findingId: string }
   | { type: "CLOSE_FINDING_DETAIL" }
   | { type: "OPEN_AUTHENTICATION_CONTEXT" }
-  | { type: "CLOSE_AUTHENTICATION_CONTEXT" };
+  | { type: "CLOSE_AUTHENTICATION_CONTEXT" }
+  | { type: "OPEN_PAGE_INSPECTION" }
+  | { type: "CLOSE_PAGE_INSPECTION" };
 
 interface UseDashboardShortcutsProps {
   onBack: () => void;
@@ -129,6 +131,18 @@ function createDashboardReducer(counts: {
           ...state,
           isAuthenticationContextOpen: false,
         };
+
+      case "OPEN_PAGE_INSPECTION":
+        return {
+          ...state,
+          isPageInspectionOpen: true,
+        };
+
+      case "CLOSE_PAGE_INSPECTION":
+        return {
+          ...state,
+          isPageInspectionOpen: false,
+        };
     }
   };
 }
@@ -175,9 +189,13 @@ export function useDashboardShortcuts({
   }, [findings, state.selectedFindingDetailId]);
 
   useKeyboard((key) => {
-    if (state.isAuthenticationContextOpen) {
+    if (state.isAuthenticationContextOpen || state.isPageInspectionOpen) {
       if (key.name === "escape") {
-        dispatch({ type: "CLOSE_AUTHENTICATION_CONTEXT" });
+        dispatch({
+          type: state.isAuthenticationContextOpen
+            ? "CLOSE_AUTHENTICATION_CONTEXT"
+            : "CLOSE_PAGE_INSPECTION",
+        });
       }
       return;
     }
@@ -203,6 +221,11 @@ export function useDashboardShortcuts({
 
     if (key.ctrl && key.name === "a") {
       dispatch({ type: "OPEN_AUTHENTICATION_CONTEXT" });
+      return;
+    }
+
+    if (key.ctrl && key.name === "p") {
+      dispatch({ type: "OPEN_PAGE_INSPECTION" });
       return;
     }
 
@@ -372,11 +395,16 @@ export function useDashboardShortcuts({
     dispatch({ type: "CLOSE_AUTHENTICATION_CONTEXT" });
   };
 
+  const closePageInspection = () => {
+    dispatch({ type: "CLOSE_PAGE_INSPECTION" });
+  };
+
   return {
     dashboardState: state,
     setActivePanel,
     selectFinding,
     closeAuthenticationContext,
+    closePageInspection,
     sitemapScrollRef,
     findingsScrollRef,
     findingDetailScrollRef,

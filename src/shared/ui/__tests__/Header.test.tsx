@@ -53,4 +53,35 @@ test("shows authentication required when a verified context stops working", asyn
 
   expect(frame).toContain("Auth: authentication required");
   expect(frame).not.toContain("Auth: verified");
+  expect(frame).toContain("Page: blocked");
+});
+
+test("shows ready page inspection", async () => {
+  testSetup = await testRender(
+    <Header
+      pageInspectionStatus={{
+        isAllowed: true,
+        status: "ready",
+      }}
+    />,
+    { width: 160, height: 3 },
+  );
+
+  await testSetup.renderOnce();
+  expect(testSetup.captureCharFrame()).toContain("Page: allowed / ready");
+});
+
+test("shows missing Chromium page inspection", async () => {
+  testSetup = await testRender(
+    <Header
+      pageInspectionStatus={{
+        isAllowed: false,
+        status: "browser_missing",
+      }}
+    />,
+    { width: 160, height: 3 },
+  );
+
+  await testSetup.renderOnce();
+  expect(testSetup.captureCharFrame()).toContain("Page: unavailable / Chromium missing");
 });

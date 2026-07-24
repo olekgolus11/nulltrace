@@ -20,6 +20,7 @@ import {
 } from "./chat-tool-activity.service";
 import { getSelectedOpenCodeModel } from "./opencode-runtime.config";
 import { openCodeServerService } from "./opencode-server.service";
+import { pageInspectionPermissionService } from "../../page-inspection/services/page-inspection-permission.service";
 
 type OpenCodeMessageItem = {
   info: {
@@ -77,16 +78,24 @@ export const chatContextSystemPrompt = [
   "When authentication is absent, awaiting verification, requires action, or the authenticated crawl reports authentication_required, explain why logged-in coverage may help and direct the operator to the Authentication Context Modal.",
   "Authentication and crawler context tools are read-only. You must not mutate authentication or crawler state, request protected values, infer redacted values, or claim that an access observation proves authorization scope.",
   "Use create_action_draft when the operator asks you to prepare or propose an nmap or nuclei scanner action for later inspection. Before creating a draft, use get_session_context and put the real target in command/form state instead of placeholders such as <TARGET>.",
+  "When inspect_page is available, use it only for a relevant exact-origin public page. It is read-only, does not persist results, and may return partial or truncated sections.",
   "Do not execute scanner tools, generate live scanner commands as if they were run, mutate review status, or mutate session state except by creating an action draft through create_action_draft.",
   "Action drafts are proposals only. Tell the operator that scanner execution still requires explicit review and approval in the scanner workspace.",
   "If the requested session data is unavailable from the tools, say that it is unavailable instead of inventing it.",
 ].join("\n");
 
-function createChatContextToolSelection() {
+function createChatContextToolSelection(sessionId: string) {
   return {
     ...disabledOpenCodeTools,
     ...Object.fromEntries(
-      chatContextToolRegistry.listDefinitions().map((definition) => [definition.name, true]),
+      chatContextToolRegistry
+        .listDefinitions()
+        .filter(
+          (definition) =>
+            definition.name !== "inspect_page" ||
+            pageInspectionPermissionService.getStatus(sessionId).status === "ready",
+        )
+        .map((definition) => [definition.name, true]),
     ),
   };
 }
@@ -192,13 +201,13 @@ function toChatMessages(items: OpenCodeMessageItem[]) {
   });
 }
 
-function createPromptBody(text: string) {
+function createPromptBody(sessionId: string, text: string) {
   const model = readPromptModel();
 
   return {
     ...(model ? { model } : {}),
     system: chatContextSystemPrompt,
-    tools: createChatContextToolSelection(),
+    tools: createChatContextToolSelection(sessionId),
     parts: [
       {
         type: "text" as const,
@@ -225,6 +234,7 @@ function describeStreamError(error: unknown) {
 
 async function streamPrompt(
   client: OpencodeClient,
+  sessionId: string,
   conversationId: string,
   prompt: string,
   onProgress?: (message: ChatMessageData) => void,
@@ -402,7 +412,7 @@ async function streamPrompt(
       path: {
         id: conversationId,
       },
-      body: createPromptBody(prompt),
+      body: createPromptBody(sessionId, prompt),
     });
     await complete;
     return [];
@@ -471,13 +481,17 @@ export class OpenCodeChatRuntimeService implements ChatRuntime {
   ) {
     try {
       const response = await openCodeServerService.run(sessionId, "once-after-crash", (client) =>
-        streamPrompt(client, conversationId, prompt, onProgress),
+        streamPrompt(client, sessionId, conversationId, prompt, onProgress),
       );
 
       return response;
     } catch (error) {
       throw toRuntimeError(error, "send a prompt to");
     }
+  }
+
+  refreshPageInspectionTools() {
+    return openCodeServerService.close();
   }
 }
 

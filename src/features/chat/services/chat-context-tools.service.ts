@@ -50,6 +50,7 @@ import {
 } from "../../tool/shared/services/tool-workspace-context.service";
 import { ChatContextToolRegistry } from "./chat-context-tool-registry";
 import { conversationAttachmentService } from "./conversation-attachment.service";
+import { pageInspectionChatContextToolsService } from "./page-inspection-chat-context-tools.service";
 
 const DEFAULT_ARTIFACT_PREVIEW_MAX_CHARACTERS = 4000;
 const DEFAULT_FINDING_LIST_LIMIT = 25;
@@ -1599,6 +1600,7 @@ export const chatContextToolRegistry = new ChatContextToolRegistry([
   ...activeToolWorkspaceChatContextToolsService.createToolDefinitions(),
   ...scannerCatalogChatContextToolsService.createToolDefinitions(),
   ...actionDraftChatContextToolsService.createToolDefinitions(),
+  ...pageInspectionChatContextToolsService.createToolDefinitions(),
 ]);
 
 function toOpenCodeSchemaSource(schema: ChatContextToolSchema) {

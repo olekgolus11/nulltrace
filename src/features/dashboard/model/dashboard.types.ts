@@ -9,6 +9,7 @@ export interface DashboardState {
   selectedFindingItem: number;
   selectedFindingDetailId: string | null;
   isAuthenticationContextOpen: boolean;
+  isPageInspectionOpen: boolean;
 }
 
 export interface UseDashboardLayoutResult {

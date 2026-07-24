@@ -15,6 +15,7 @@ import { useSessionChat } from "../../chat/hooks/use-session-chat";
 import { DashboardPanel } from "../../dashboard/components/DashboardPanel";
 import { useSessionFindings } from "../../finding/hooks/use-session-findings";
 import { useSessionContextStore } from "../../session/store/session-context.store";
+import { pageInspectionPermissionService } from "../../page-inspection/services/page-inspection-permission.service";
 import { useToolLayout } from "../hooks/use-tool-layout";
 import { ActiveToolWorkspace } from "../shared/components/ActiveToolWorkspace";
 import { ToolHelpDialog } from "../shared/components/ToolHelpDialog";
@@ -53,6 +54,9 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
   const [selectedActionDraftIndex, setSelectedActionDraftIndex] = useState(0);
   const sessionId = useSessionContextStore((state) => state.sessionId);
   const targetUrl = useSessionContextStore((state) => state.targetUrl);
+  const pageInspectionStatus = sessionId
+    ? pageInspectionPermissionService.getStatus(sessionId)
+    : null;
   const activeConversationId = useSessionContextStore((state) => state.activeConversationId);
   const conversationError = useSessionContextStore((state) => state.conversationError);
   const conversations = useSessionContextStore((state) => state.conversations);
@@ -289,6 +293,7 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
         subtitle="guided controls + raw command"
         targetUrl={targetUrl}
         counts={sessionFindings.counts}
+        pageInspectionStatus={pageInspectionStatus}
       />
 
       <box flexDirection="row" height={layout.contentHeight}>

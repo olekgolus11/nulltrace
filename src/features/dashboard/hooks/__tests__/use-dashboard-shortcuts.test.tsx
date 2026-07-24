@@ -36,6 +36,7 @@ function DashboardShortcutHarness({ isLocked = true }: { isLocked?: boolean }) {
     <text>
       {dashboardState.activePanel}:
       {dashboardState.isAuthenticationContextOpen ? "auth-open" : "auth-closed"}
+      :{dashboardState.isPageInspectionOpen ? "inspection-open" : "inspection-closed"}
     </text>
   );
 }
@@ -88,5 +89,20 @@ describe("useDashboardShortcuts", () => {
       testSetup!.mockInput.pressKey("r", { ctrl: true });
     });
     expect(restartCallCount).toBe(1);
+  });
+
+  test("opens Page Inspection with Ctrl+P without cycling the active panel", async () => {
+    testSetup = await testRender(<DashboardShortcutHarness />, {
+      width: 60,
+      height: 10,
+    });
+
+    await testSetup.renderOnce();
+    await act(async () => {
+      testSetup!.mockInput.pressKey("p", { ctrl: true });
+    });
+    await testSetup.renderOnce();
+
+    expect(testSetup.captureCharFrame()).toContain("sitemap:auth-closed:inspection-open");
   });
 });
