@@ -1029,22 +1029,33 @@ describe("ActionDraftChatContextToolsService", () => {
     );
   });
 
-  it("rejects catalog-only scanner tools before persistence", () => {
+  it("creates FFUF drafts but rejects catalog-only scanner tools before persistence", () => {
     const { drafts, service } = createActionDraftService();
 
-    expect(() =>
+    expect(
       service.createActionDraft("opencode-1", {
         targetTool: "ffuf",
         title: "Discover directories",
       }),
-    ).toThrow("create_action_draft targetTool must be an implemented scanner tool: ffuf");
+    ).toMatchObject({
+      actionDraft: {
+        targetTool: "ffuf",
+      },
+    });
+    expect(drafts.drafts[0]).toMatchObject({
+      payload: {
+        formState: {
+          targetPattern: "http://honey.scanme.sh/FUZZ",
+        },
+      },
+    });
     expect(() =>
       service.createActionDraft("opencode-1", {
         targetTool: "sqlmap",
         title: "SQL injection probe",
       }),
     ).toThrow("create_action_draft targetTool must be an implemented scanner tool: sqlmap");
-    expect(drafts.drafts).toHaveLength(0);
+    expect(drafts.drafts).toHaveLength(1);
   });
 
   it("does not create tool runs when creating an action draft", () => {

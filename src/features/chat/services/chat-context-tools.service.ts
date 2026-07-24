@@ -1504,7 +1504,7 @@ export class ActionDraftChatContextToolsService {
           targetTool: {
             type: "string",
             description:
-              "Implemented scanner tool to draft for. Must be nmap or nuclei; catalog-only tools such as ffuf, sqlmap, zap, and nikto are rejected.",
+              "Implemented scanner tool to draft for. Supported tools include nmap, nuclei, and ffuf. FFUF Content Discovery drafts use formStateJson targetPattern, wordlist, extensions, recursion, recursionDepth, matchCodes, filterCodes, rate, and timeLimit when relevant.",
           },
           title: {
             type: "string",

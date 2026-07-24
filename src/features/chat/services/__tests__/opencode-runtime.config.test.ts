@@ -34,4 +34,9 @@ describe("getOpenCodeRuntimeEnvironment", () => {
     expect(chatContextSystemPrompt).toContain("Authentication Context Modal");
     expect(chatContextSystemPrompt).toContain("must not mutate");
   });
+
+  it("guides chat to create FFUF action drafts", () => {
+    expect(chatContextSystemPrompt).toContain("nmap, nuclei, or ffuf");
+    expect(chatContextSystemPrompt).toContain("create_action_draft");
+  });
 });
