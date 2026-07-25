@@ -22,16 +22,7 @@ export function mapActionDraftChatPayload(
       : null;
   const normalizedFormState = formStateRecord
     ? args.targetTool === "ffuf"
-      ? {
-          ...formStateRecord,
-          ...(typeof formStateRecord.targetPattern === "string"
-            ? {
-                targetPattern: replaceTargetPlaceholders(formStateRecord.targetPattern, scannerTarget),
-              }
-            : scannerTarget
-              ? { targetPattern: `${scannerTarget.replace(/\/$/, "")}/FUZZ` }
-              : {}),
-        }
+      ? normalizeFfufDraftFormState(formStateRecord, scannerTarget)
       : {
           ...formStateRecord,
           ...(typeof formStateRecord.target === "string"
@@ -42,7 +33,7 @@ export function mapActionDraftChatPayload(
           ...(!("target" in formStateRecord) && scannerTarget ? { target: scannerTarget } : {}),
         }
     : args.targetTool === "ffuf" && scannerTarget
-      ? { targetPattern: `${scannerTarget.replace(/\/$/, "")}/FUZZ` }
+      ? { mode: "content_discovery", targetPattern: `${scannerTarget.replace(/\/$/, "")}/FUZZ` }
     : formState;
 
   return {
@@ -76,6 +67,28 @@ export function mapActionDraftChatPayload(
         }
       : {}),
     ...(normalizedFormState !== undefined ? { formState: normalizedFormState } : {}),
+  };
+}
+
+function normalizeFfufDraftFormState(formState: Record<string, unknown>, scannerTarget: string) {
+  if (formState.mode === "parameter_discovery") {
+    return {
+      ...formState,
+      ...(typeof formState.endpoint === "string"
+        ? { endpoint: replaceTargetPlaceholders(formState.endpoint, scannerTarget) }
+        : scannerTarget
+          ? { endpoint: scannerTarget }
+          : {}),
+    };
+  }
+
+  return {
+    ...formState,
+    ...(typeof formState.targetPattern === "string"
+      ? { targetPattern: replaceTargetPlaceholders(formState.targetPattern, scannerTarget) }
+      : scannerTarget
+        ? { targetPattern: `${scannerTarget.replace(/\/$/, "")}/FUZZ` }
+        : {}),
   };
 }
 

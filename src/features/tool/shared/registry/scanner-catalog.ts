@@ -56,7 +56,7 @@ export const scannerCatalog: Record<ScannerToolId, ScannerCatalogTool> = {
   ffuf: {
     id: "ffuf",
     name: "ffuf",
-    description: "Content Discovery with exact-origin sitemap enrichment.",
+    description: "Content and Parameter Discovery with exact-origin run boundaries.",
     isImplemented: true,
     helpContent: null,
   },

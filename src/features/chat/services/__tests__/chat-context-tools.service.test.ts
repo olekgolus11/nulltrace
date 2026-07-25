@@ -1058,6 +1058,32 @@ describe("ActionDraftChatContextToolsService", () => {
     expect(drafts.drafts).toHaveLength(1);
   });
 
+  it("creates a Parameter Discovery FFUF draft with the selected session endpoint", () => {
+    const { drafts, service } = createActionDraftService();
+
+    service.createActionDraft("opencode-1", {
+      targetTool: "ffuf",
+      title: "Discover query parameters",
+      formStateJson: JSON.stringify({
+        mode: "parameter_discovery",
+        endpoint: "{{TARGET}}/search",
+        requestLocation: "query",
+        wordlist: "/tmp/parameters.txt",
+      }),
+    });
+
+    expect(drafts.drafts[0]).toMatchObject({
+      payload: {
+        formState: {
+          mode: "parameter_discovery",
+          endpoint: "http://honey.scanme.sh/search",
+          requestLocation: "query",
+          wordlist: "/tmp/parameters.txt",
+        },
+      },
+    });
+  });
+
   it("does not create tool runs when creating an action draft", () => {
     const toolRepository = new FakeToolRepository([], []);
     const drafts = new FakeActionDraftRepository();
