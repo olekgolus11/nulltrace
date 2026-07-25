@@ -35,9 +35,23 @@ export class PageInspectionChatContextToolsService {
   }
 
   private getProtectedPaths(targetId: string) {
-    return this.sitemap
-      .listEntries({ targetId, limit: 500, provenance: "authenticated" })
-      .entries.map((entry) => entry.normalizedUrl);
+    const protectedPaths = new Set<string>();
+    let offset = 0;
+    let total = 0;
+
+    do {
+      const result = this.sitemap.listEntries({
+        targetId,
+        limit: 500,
+        offset,
+        provenance: "authenticated",
+      });
+      result.entries.forEach((entry) => protectedPaths.add(entry.normalizedUrl));
+      total = result.total;
+      offset += result.entries.length;
+    } while (offset < total && offset > 0);
+
+    return [...protectedPaths];
   }
 
   createToolDefinitions(): ChatContextToolDefinition<ChatContextToolArgs, unknown>[] {
@@ -80,8 +94,10 @@ interface PageInspectionSitemapRepository {
   listEntries: (filters: {
     targetId: string;
     limit: number;
+    offset: number;
     provenance: "authenticated";
   }) => {
     entries: Array<{ normalizedUrl: string }>;
+    total: number;
   };
 }

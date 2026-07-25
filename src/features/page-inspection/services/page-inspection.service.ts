@@ -53,6 +53,15 @@ export class PageInspectionService {
     if (new URL(snapshot.finalUrl).origin !== targetOrigin) {
       throw new Error("Page Inspection blocked an out-of-origin redirect.");
     }
+    if (
+      isPageInspectionProtectedUrl(
+        snapshot.finalUrl,
+        targetOrigin,
+        request.protectedPaths ?? [],
+      )
+    ) {
+      throw new Error("Page Inspection does not inspect known protected paths.");
+    }
 
     return applyPageInspectionBounds(
       excludePageInspectionProtectedPaths(snapshot, targetOrigin, request.protectedPaths ?? []),

@@ -1,5 +1,10 @@
 import { type Page, type Response } from "playwright";
-import { PageInspectionInput, PageInspectionLimits, PageInspectionSnapshot } from "../model/page-inspection.types";
+import {
+  PageInspectionInput,
+  PageInspectionLimits,
+  PageInspectionSnapshot,
+  PageInspectionTruncatedSection,
+} from "../model/page-inspection.types";
 import { toBoundedPageInspectionHeader } from "./playwright-page-inspection-browser.helpers";
 
 interface ExtractedPageContent {
@@ -11,6 +16,7 @@ interface ExtractedPageContent {
   domOutline: PageInspectionSnapshot["domOutline"];
   metadata: PageInspectionSnapshot["metadata"];
   hasPasswordFields: boolean;
+  truncatedSections: PageInspectionTruncatedSection[];
 }
 
 export async function extractPlaywrightPageInspectionSnapshot(
@@ -22,8 +28,16 @@ export async function extractPlaywrightPageInspectionSnapshot(
 ): Promise<PageInspectionSnapshot> {
   const extracted = await page.evaluate<
     ExtractedPageContent,
-    { maxDomOutlineNodes: number; maxVisibleTextCharacters: number }
-  >(({ maxDomOutlineNodes, maxVisibleTextCharacters }) => {
+    PageInspectionExtractionLimits
+  >(({
+    maxDomOutlineNodes,
+    maxForms,
+    maxFormFields,
+    maxLinks,
+    maxMetadataEntries,
+    maxScripts,
+    maxVisibleTextCharacters,
+  }) => {
     const toUrl = (value: string | null) => {
       if (!value) {
         return null;
@@ -50,58 +64,122 @@ export async function extractPlaywrightPageInspectionSnapshot(
       }
       return depth;
     };
-    const forms = Array.from(document.forms).map((form) => ({
-      method: (form.method || "GET").toUpperCase(),
-      action: toUrl(form.getAttribute("action") || document.location.href),
-      fields: Array.from(form.elements)
-        .filter((element): element is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement =>
-          element instanceof HTMLInputElement ||
-          element instanceof HTMLSelectElement ||
-          element instanceof HTMLTextAreaElement,
-        )
-        .filter((element) => {
-          const type =
-            element instanceof HTMLInputElement ? element.type.toLowerCase() : element.tagName.toLowerCase();
-          return type !== "hidden" && type !== "password";
-        })
-        .map((element) => ({
+    const truncatedSections = new Set<PageInspectionTruncatedSection>();
+    const forms: PageInspectionSnapshot["forms"] = [];
+    let hasTruncatedFormFields = false;
+    for (let formIndex = 0; formIndex < document.forms.length && forms.length < maxForms; formIndex += 1) {
+      const form = document.forms.item(formIndex);
+      if (!form) {
+        continue;
+      }
+
+      const fields: PageInspectionSnapshot["forms"][number]["fields"] = [];
+      for (let fieldIndex = 0; fieldIndex < form.elements.length; fieldIndex += 1) {
+        const element = form.elements.item(fieldIndex);
+        if (
+          !(
+            element instanceof HTMLInputElement ||
+            element instanceof HTMLSelectElement ||
+            element instanceof HTMLTextAreaElement
+          )
+        ) {
+          continue;
+        }
+        const type =
+          element instanceof HTMLInputElement ? element.type.toLowerCase() : element.tagName.toLowerCase();
+        if (type === "hidden" || type === "password") {
+          continue;
+        }
+        if (fields.length === maxFormFields) {
+          hasTruncatedFormFields = true;
+          break;
+        }
+        fields.push({
           name: element.getAttribute("name"),
-          type: element instanceof HTMLInputElement ? element.type.toLowerCase() : element.tagName.toLowerCase(),
+          type,
           isRequired: element.required,
-        })),
-    }));
-    const links = Array.from(document.querySelectorAll("a[href]"))
-      .map((element) => ({
-        url: toUrl(element.getAttribute("href")),
-        text: compactText(element.textContent, 200),
-      }))
-      .filter((link): link is { url: string; text: string } => link.url !== null);
-    const scripts = Array.from(document.scripts).map((script) => ({
-      src: toUrl(script.getAttribute("src")),
-      type: script.getAttribute("type"),
-    }));
-    const metadata = Array.from(
-      document.querySelectorAll("meta[name], meta[property], meta[http-equiv]"),
-    ).map((meta) => ({
-      name: meta.getAttribute("name") || meta.getAttribute("property") || meta.getAttribute("http-equiv") || "meta",
-      content: compactText(meta.getAttribute("content")),
-    }));
-    const domOutline = Array.from(
-      document.querySelectorAll(
-        "main, header, nav, footer, section, article, form, h1, h2, h3, button, input, textarea, select",
-      ),
-    )
-      .slice(0, maxDomOutlineNodes)
-      .map((element) => ({
-        tag: element.tagName.toLowerCase(),
-        id: element.id || null,
-        role: element.getAttribute("role"),
-        name: element.getAttribute("aria-label") || element.getAttribute("name"),
-        heading: /^h[1-6]$/i.test(element.tagName)
-          ? compactText(element.textContent, 300)
-          : null,
-        depth: getDepth(element),
-      }));
+        });
+      }
+      forms.push({
+        method: (form.method || "GET").toUpperCase(),
+        action: toUrl(form.getAttribute("action") || document.location.href),
+        fields,
+      });
+    }
+    if (forms.length < document.forms.length) {
+      truncatedSections.add("forms");
+    }
+    if (hasTruncatedFormFields) {
+      truncatedSections.add("form_fields");
+    }
+
+    const links: PageInspectionSnapshot["links"] = [];
+    const linkElements = document.querySelectorAll("a[href]");
+    for (let linkIndex = 0; linkIndex < linkElements.length && links.length < maxLinks; linkIndex += 1) {
+      const element = linkElements.item(linkIndex);
+      const url = toUrl(element.getAttribute("href"));
+      if (url) {
+        links.push({ url, text: compactText(element.textContent, 200) });
+      }
+    }
+    if (links.length === maxLinks && linkElements.length > maxLinks) {
+      truncatedSections.add("links");
+    }
+
+    const scripts: PageInspectionSnapshot["scripts"] = [];
+    for (let scriptIndex = 0; scriptIndex < document.scripts.length && scripts.length < maxScripts; scriptIndex += 1) {
+      const script = document.scripts.item(scriptIndex);
+      if (script) {
+        scripts.push({
+          src: toUrl(script.getAttribute("src")),
+          type: script.getAttribute("type"),
+        });
+      }
+    }
+    if (scripts.length < document.scripts.length) {
+      truncatedSections.add("scripts");
+    }
+
+    const metadata: PageInspectionSnapshot["metadata"] = [];
+    const metadataElements = document.querySelectorAll("meta[name], meta[property], meta[http-equiv]");
+    for (
+      let metadataIndex = 0;
+      metadataIndex < metadataElements.length && metadata.length < maxMetadataEntries;
+      metadataIndex += 1
+    ) {
+      const meta = metadataElements.item(metadataIndex);
+      metadata.push({
+        name: meta.getAttribute("name") || meta.getAttribute("property") || meta.getAttribute("http-equiv") || "meta",
+        content: compactText(meta.getAttribute("content")),
+      });
+    }
+    if (metadata.length < metadataElements.length) {
+      truncatedSections.add("metadata");
+    }
+
+    const domOutline: PageInspectionSnapshot["domOutline"] = [];
+    const outlineSelector = "main, header, nav, footer, section, article, form, h1, h2, h3, button, input, textarea, select";
+    const root = document.body || document.documentElement;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+    let currentNode: Node | null = walker.currentNode;
+    while (currentNode && domOutline.length < maxDomOutlineNodes) {
+      if (currentNode instanceof Element && currentNode.matches(outlineSelector)) {
+        domOutline.push({
+          tag: currentNode.tagName.toLowerCase(),
+          id: currentNode.id || null,
+          role: currentNode.getAttribute("role"),
+          name: currentNode.getAttribute("aria-label") || currentNode.getAttribute("name"),
+          heading: /^h[1-6]$/i.test(currentNode.tagName)
+            ? compactText(currentNode.textContent, 300)
+            : null,
+          depth: getDepth(currentNode),
+        });
+      }
+      currentNode = walker.nextNode();
+    }
+    if (domOutline.length === maxDomOutlineNodes && currentNode) {
+      truncatedSections.add("dom_outline");
+    }
 
     return {
       title: compactText(document.title),
@@ -112,9 +190,15 @@ export async function extractPlaywrightPageInspectionSnapshot(
       domOutline,
       metadata,
       hasPasswordFields: Boolean(document.querySelector('input[type="password"]')),
+      truncatedSections: [...truncatedSections],
     };
   }, {
     maxDomOutlineNodes: limits.maxDomOutlineNodes,
+    maxForms: limits.maxForms,
+    maxFormFields: limits.maxFormFields,
+    maxLinks: limits.maxLinks,
+    maxMetadataEntries: limits.maxMetadataEntries,
+    maxScripts: limits.maxScripts,
     maxVisibleTextCharacters: limits.maxVisibleTextCharacters,
   });
 
@@ -138,7 +222,22 @@ export async function extractPlaywrightPageInspectionSnapshot(
       permissionsPolicy: toBoundedPageInspectionHeader(headers["permissions-policy"]),
       hasPasswordFields: extracted.hasPasswordFields,
     },
-    isPartial: isRenderWaitPartial,
-    truncatedSections: isRenderWaitPartial ? ["render_wait"] : [],
+    isPartial: isRenderWaitPartial || extracted.truncatedSections.length > 0,
+    truncatedSections: [
+      ...new Set([
+        ...extracted.truncatedSections,
+        ...(isRenderWaitPartial ? ["render_wait" as const] : []),
+      ]),
+    ],
   };
+}
+
+interface PageInspectionExtractionLimits {
+  maxDomOutlineNodes: number;
+  maxForms: number;
+  maxFormFields: number;
+  maxLinks: number;
+  maxMetadataEntries: number;
+  maxScripts: number;
+  maxVisibleTextCharacters: number;
 }

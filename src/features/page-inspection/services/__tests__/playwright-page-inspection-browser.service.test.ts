@@ -28,6 +28,7 @@ function createFakeBrowserType(
   let routeHandler: FakeRouteHandler | null = null;
   let hasWebSocketRoute = false;
   let isContextClosed = false;
+  let evaluateArguments: unknown = null;
   const pageEventNames: string[] = [];
   const extracted = {
     title: "Client rendered page",
@@ -44,6 +45,7 @@ function createFakeBrowserType(
     domOutline: [],
     metadata: [{ name: "description", content: "Rendered application" }],
     hasPasswordFields: true,
+    truncatedSections: [],
   };
   const mainFrame = {};
   const page = {
@@ -69,7 +71,8 @@ function createFakeBrowserType(
       }
     },
     mainFrame: () => mainFrame,
-    evaluate: async <T>() => {
+    evaluate: async <T>(_callback: unknown, argumentsValue: unknown) => {
+      evaluateArguments = argumentsValue;
       if (shouldDelayExtraction) {
         await Promise.resolve();
       }
@@ -116,6 +119,7 @@ function createFakeBrowserType(
       contextOptions,
       hasWebSocketRoute,
       pageEventNames,
+      evaluateArguments,
       routeHandler,
     }),
   };
@@ -160,6 +164,15 @@ test("uses an isolated context, renders JavaScript content, and cleans up", asyn
   expect(fake.getState().browserClosed).toBe(2);
   expect(fake.getState().hasWebSocketRoute).toBe(true);
   expect(fake.getState().pageEventNames).toEqual(expect.arrayContaining(["popup", "download"]));
+  expect(fake.getState().evaluateArguments).toEqual({
+    maxDomOutlineNodes: defaultPageInspectionLimits.maxDomOutlineNodes,
+    maxForms: defaultPageInspectionLimits.maxForms,
+    maxFormFields: defaultPageInspectionLimits.maxFormFields,
+    maxLinks: defaultPageInspectionLimits.maxLinks,
+    maxMetadataEntries: defaultPageInspectionLimits.maxMetadataEntries,
+    maxScripts: defaultPageInspectionLimits.maxScripts,
+    maxVisibleTextCharacters: defaultPageInspectionLimits.maxVisibleTextCharacters,
+  });
 });
 
 test("keeps the context open until asynchronous snapshot extraction completes", async () => {

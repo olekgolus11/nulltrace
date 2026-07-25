@@ -60,7 +60,7 @@ class FakeBrowser {
 
 class FakeSitemap {
   listEntries() {
-    return { entries: [] };
+    return { entries: [], total: 0, limit: 500, offset: 0 };
   }
 }
 
@@ -100,12 +100,44 @@ describe("PageInspectionChatContextToolsService", () => {
       {
         listEntries: () => ({
           entries: [{ normalizedUrl: "https://target.example/app/private" }],
+          total: 1,
+          limit: 500,
+          offset: 0,
         }),
       },
     );
 
     await expect(
       service.inspectPage("conversation-one", { url: "https://target.example/app/private/profile" }),
+    ).rejects.toThrow("known protected paths");
+  });
+
+  test("loads protected paths after the first sitemap page", async () => {
+    const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
+    permissions.grant("session-one");
+    const pageInspection = new PageInspectionService(permissions, new FakeBrowser());
+    const firstPage = Array.from({ length: 500 }, (_, index) => ({
+      normalizedUrl: `https://target.example/app/private-${index}`,
+    }));
+    const service = new PageInspectionChatContextToolsService(
+      new FakeAttachments(),
+      new FakeSessions(),
+      pageInspection,
+      {
+        listEntries: ({ offset }) =>
+          (offset ?? 0) === 0
+            ? { entries: firstPage, total: 501, limit: 500, offset }
+            : {
+                entries: [{ normalizedUrl: "https://target.example/app/private-last" }],
+                total: 501,
+                limit: 500,
+                offset,
+              },
+      },
+    );
+
+    await expect(
+      service.inspectPage("conversation-one", { url: "https://target.example/app/private-last" }),
     ).rejects.toThrow("known protected paths");
   });
 });

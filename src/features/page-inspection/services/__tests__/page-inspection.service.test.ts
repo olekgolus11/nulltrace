@@ -128,6 +128,26 @@ describe("PageInspectionService", () => {
     ).rejects.toThrow("out-of-origin redirect");
   });
 
+  test("rejects a redirect that lands on a known protected path", async () => {
+    const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
+    permissions.grant("session-one");
+    const service = new PageInspectionService(permissions, {
+      inspect: async () => ({
+        ...snapshot,
+        finalUrl: "https://target.example/admin",
+      }),
+    });
+
+    await expect(
+      service.inspect({
+        sessionId: "session-one",
+        requestedUrl: "https://target.example/public",
+        targetOrigin: "https://target.example",
+        protectedPaths: ["https://target.example/admin"],
+      }),
+    ).rejects.toThrow("known protected paths");
+  });
+
   test("does not navigate to known protected paths", async () => {
     const browser = new FakePageInspectionBrowser();
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
