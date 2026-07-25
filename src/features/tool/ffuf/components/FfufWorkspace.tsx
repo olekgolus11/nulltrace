@@ -1,0 +1,77 @@
+import { useTerminalDimensions } from "@opentui/react";
+import { getPanelDisplayNumber } from "../../../../shared/model/panel-navigation";
+import { DashboardPanel } from "../../../dashboard/components/DashboardPanel";
+import { useToolLayout } from "../../hooks/use-tool-layout";
+import { CommandEditor } from "../../shared/components/CommandEditor";
+import { OutputLog } from "../../shared/components/OutputLog";
+import { toolPanels } from "../../shared/registry/tool-registry";
+import { useFfufWorkspace } from "../store/use-ffuf-workspace";
+import { FfufForm } from "./FfufForm";
+
+export function FfufWorkspace() {
+  const { width, height } = useTerminalDimensions();
+  const layout = useToolLayout({ width, height });
+  const workspace = useFfufWorkspace();
+  const previewLines = workspace.selectedHistoryRun
+    ? [
+        `$ ${workspace.selectedHistoryRun.command}`,
+        "",
+        ...workspace.selectedHistoryRun.logs.map((log) => log.line),
+      ]
+    : workspace.outputLines;
+  const previewStatus = workspace.selectedHistoryRun?.status ?? workspace.executionStatus;
+  const previewExitCode = workspace.selectedHistoryRun?.exitCode ?? workspace.lastExitCode;
+  const previewCommand = workspace.selectedHistoryRun?.command ?? workspace.commandInput;
+  const focusPanel = (panel: typeof workspace.activePanel) => {
+    if (!workspace.isHelpOpen) workspace.setActivePanel(panel);
+  };
+
+  return (
+    <box flexDirection="column" flexGrow={1}>
+      <DashboardPanel
+        title="FFUF Content Discovery"
+        panelNumber={getPanelDisplayNumber(toolPanels, "form")}
+        height={layout.formPanelHeight}
+        focused={workspace.activePanel === "form"}
+        onMouseDown={() => focusPanel("form")}
+      >
+        <FfufForm
+          form={workspace.toolData.form}
+          selectedField={workspace.toolData.selectedField}
+          focused={workspace.activePanel === "form"}
+          onFieldChange={workspace.setField}
+        />
+      </DashboardPanel>
+      <DashboardPanel
+        title="Command"
+        panelNumber={getPanelDisplayNumber(toolPanels, "command")}
+        isHistoricPreview={workspace.isHistoricPreview}
+        height={layout.commandPanelHeight}
+        focused={workspace.activePanel === "command"}
+        onMouseDown={() => focusPanel("command")}
+      >
+        <CommandEditor
+          commandInput={previewCommand}
+          generatedCommand={workspace.generatedCommand}
+          commandSource={workspace.commandSource}
+          focused={workspace.activePanel === "command"}
+          executionStatus={previewStatus}
+          lastExitCode={previewExitCode}
+          onCommandChange={workspace.setManualCommandInput}
+          onRun={() => void workspace.runCommand()}
+          readOnly={workspace.isHistoricPreview}
+        />
+      </DashboardPanel>
+      <DashboardPanel
+        title="Raw Output"
+        panelNumber={getPanelDisplayNumber(toolPanels, "output")}
+        isHistoricPreview={workspace.isHistoricPreview}
+        flexGrow={1}
+        focused={workspace.activePanel === "output"}
+        onMouseDown={() => focusPanel("output")}
+      >
+        <OutputLog lines={previewLines} focused={workspace.activePanel === "output"} height={layout.outputScrollHeight} />
+      </DashboardPanel>
+    </box>
+  );
+}

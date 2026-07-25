@@ -2,6 +2,7 @@ import { normalizeExactOrigin } from "../../authentication/services/authenticate
 import { NmapToolData } from "../../tool/nmap/types/nmap.types";
 import { redactNucleiCommandForPersistence } from "../../tool/nuclei/services/nuclei-command-redaction.helpers";
 import { NucleiToolData } from "../../tool/nuclei/types/nuclei.types";
+import { FfufToolData } from "../../tool/ffuf/types/ffuf.types";
 import {
   getActionDraftBooleanField,
   getActionDraftCommand,
@@ -15,6 +16,7 @@ import {
 } from "./action-draft-workspace.types";
 import { mapNmapActionDraftFormState } from "./nmap-action-draft-workspace.mapper";
 import { mapNucleiActionDraftFormState } from "./nuclei-action-draft-workspace.mapper";
+import { mapFfufActionDraftFormState } from "./ffuf-action-draft-workspace.mapper";
 
 export function mapActionDraftToWorkspaceState({
   draft,
@@ -30,7 +32,7 @@ export function mapActionDraftToWorkspaceState({
     };
   }
 
-  if (draft.targetTool !== "nmap" && draft.targetTool !== "nuclei") {
+  if (draft.targetTool !== "nmap" && draft.targetTool !== "nuclei" && draft.targetTool !== "ffuf") {
     return {
       ok: false,
       reason: `Draft target ${draft.targetTool} is not an implemented scanner workspace.`,
@@ -77,11 +79,13 @@ export function mapActionDraftToWorkspaceState({
   const { toolData, didApply } =
     currentToolName === "nmap"
       ? mapNmapActionDraftFormState(currentToolData as NmapToolData, formState)
-      : mapNucleiActionDraftFormState(
-          currentToolData as NucleiToolData,
-          formState,
-          authenticatedContext,
-        );
+      : currentToolName === "nuclei"
+        ? mapNucleiActionDraftFormState(
+            currentToolData as NucleiToolData,
+            formState,
+            authenticatedContext,
+          )
+        : mapFfufActionDraftFormState(currentToolData as FfufToolData, formState);
 
   if (!command && !didApply) {
     return {

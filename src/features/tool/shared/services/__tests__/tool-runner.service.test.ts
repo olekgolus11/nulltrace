@@ -92,6 +92,7 @@ describe("ToolRunnerService", () => {
       toolModule: expect.any(Object),
       status: "success",
       exitCode: 0,
+      command: "nmap scanme.nmap.org",
       onArtifactProcessingError: expect.any(Function),
     });
     expect(onRunFinished).toHaveBeenCalledWith({
@@ -202,6 +203,7 @@ describe("ToolRunnerService", () => {
       toolModule: expect.any(Object),
       status: "error",
       exitCode: null,
+      command: "nmap scanme.nmap.org",
       onArtifactProcessingError: expect.any(Function),
     });
     expect(onRunFinished).toHaveBeenCalledWith({
@@ -425,6 +427,7 @@ describe("ToolRunnerService", () => {
       toolModule: expect.any(Object),
       status: "cancelled",
       exitCode: 130,
+      command: "nuclei -u https://example.com",
       redactArtifact,
     });
   });
@@ -478,7 +481,50 @@ describe("ToolRunnerService", () => {
       toolModule: expect.any(Object),
       status: "cancelled",
       exitCode: null,
+      command: "nuclei -u https://example.com",
       redactArtifact,
     });
+  });
+
+  it("bounds persisted and displayed scanner output", async () => {
+    const appendToolRunLog = mock(() => {});
+    const stdout = mock(() => {});
+    const service = new ToolRunnerService(
+      {
+        run: mock(async (_command, onStdoutLines) => {
+          onStdoutLines(Array.from({ length: 2001 }, (_value, index) => `line-${index}`));
+          return 0;
+        }),
+        stop: mock(() => {}),
+      },
+      { processCompletedRun: mock(async () => {}) },
+      {
+        recordToolRun: mock(() => createToolRunRecord()),
+        appendToolRunLog,
+        finishToolRun: mock(() => {}),
+        cancelToolRun: mock(() => {}),
+      },
+    );
+
+    await service.run({
+      sessionId: "session-1",
+      toolName: "ffuf",
+      command: "ffuf -u https://example.com/FUZZ",
+      commandSource: "generated",
+      toolModule: createToolModule(),
+      onStdoutLines: stdout,
+      onStderrLines: mock(() => {}),
+      onSystemLines: mock(() => {}),
+    });
+
+    expect(stdout).toHaveBeenCalledWith(
+      Array.from({ length: 2000 }, (_value, index) => `line-${index}`),
+    );
+    expect(stdout).toHaveBeenCalledWith(["[output truncated after 2000 lines]"]);
+    expect(appendToolRunLog).toHaveBeenCalledWith(
+      "run-1",
+      ["[output truncated after 2000 lines]"],
+      "stdout",
+    );
   });
 });

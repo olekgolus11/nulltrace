@@ -1,6 +1,7 @@
 import { ComponentType } from "react";
 import {
   ToolRunArtifactInput,
+  ToolRunArtifactRecord,
   ToolRunDetail,
   ToolRunSummary,
 } from "../../../session/model/session.repository.types";
@@ -61,6 +62,7 @@ export interface ToolModule {
   ) => string | ToolPreparedCommand | Promise<string | ToolPreparedCommand>;
   redactCommandForPersistence?: (command: string) => string;
   collectArtifacts?: (options: ToolRunCompleted) => Promise<ToolRunArtifactInput[]>;
+  processSavedArtifacts?: (options: ToolArtifactsSaved) => void;
 }
 
 export interface ToolData {
@@ -92,8 +94,14 @@ export interface ToolPreparedCommand {
 export interface ToolRunCompleted {
   sessionId: string | null;
   toolRunId: string | null;
+  command?: string;
   status: ExecutionStatus;
   exitCode: number | null;
   redactOutput?: (content: string) => string;
   redactArtifact?: (content: string) => string;
+}
+
+export interface ToolArtifactsSaved {
+  sessionId: string | null;
+  artifacts: ToolRunArtifactRecord[];
 }

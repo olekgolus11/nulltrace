@@ -3,6 +3,10 @@ import { ActionDraftRecord } from "../../model/action-draft.types";
 import { mapActionDraftToWorkspaceState } from "../action-draft-workspace.mapper";
 import { nmapCommandService } from "../../../tool/nmap/services/nmap-command.service";
 import { nucleiCommandService } from "../../../tool/nuclei/services/nuclei-command.service";
+import {
+  buildFfufContentDiscoveryCommand,
+  createInitialFfufToolData,
+} from "../../../tool/ffuf/services/ffuf-command.helpers";
 
 function createDraft(overrides: Partial<ActionDraftRecord> = {}): ActionDraftRecord {
   return {
@@ -92,6 +96,49 @@ describe("mapActionDraftToWorkspaceState", () => {
         commandInput:
           "nuclei -u https://example.com -severity high,critical -tags exposure,misconfig -t http/exposures/ -rate-limit 20",
         commandSource: "generated",
+      },
+    });
+  });
+
+  it("maps FFUF Content Discovery state without running it", () => {
+    const currentToolData = createInitialFfufToolData("https://example.com");
+    const result = mapActionDraftToWorkspaceState({
+      draft: createDraft({
+        targetTool: "ffuf",
+        title: "Discover hidden content",
+        payload: {
+          formState: {
+            targetPattern: "https://example.com/FUZZ",
+            wordlist: "/tmp/common.txt",
+            extensions: ".php",
+            recursion: true,
+            recursionDepth: "2",
+            matchCodes: "200,301",
+            filterCodes: "404",
+            rate: "20",
+            timeLimit: "10",
+          },
+        },
+      }),
+      currentToolName: "ffuf",
+      currentToolData,
+      buildGeneratedCommand: (toolData) =>
+        buildFfufContentDiscoveryCommand(toolData as typeof currentToolData),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      application: {
+        commandInput:
+          "ffuf -u https://example.com/FUZZ -w /tmp/common.txt -e .php -recursion -recursion-depth 2 -mc 200,301 -fc 404 -rate 20 -maxtime 10",
+        commandSource: "generated",
+      },
+    });
+    expect(result.ok && result.application.toolData).toMatchObject({
+      mode: "content_discovery",
+      form: {
+        wordlist: "/tmp/common.txt",
+        recursion: true,
       },
     });
   });

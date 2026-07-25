@@ -93,6 +93,7 @@ const entrySources: TargetSitemapEntrySource[] = [
   "html_form",
   "sitemap_xml",
   "robots_sitemap",
+  "ffuf",
   "manual",
 ];
 

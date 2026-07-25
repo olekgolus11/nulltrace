@@ -27,6 +27,8 @@ interface ActiveToolRun {
   onRunCancelled?: (event: { toolRunId: string | null }) => void;
   cancelled: boolean;
   cleanupPreparedRun: (() => void) | null;
+  emittedOutputLineCount: number;
+  isOutputTruncated: boolean;
 }
 
 interface RunToolCommandInput {
@@ -50,6 +52,7 @@ interface RunToolCommandInput {
 
 export class ToolRunnerService {
   private activeRun: ActiveToolRun | null = null;
+  private readonly maxOutputLineCount = 2000;
 
   constructor(
     private readonly commandRunner: CommandRunnerContract = commandRunnerService,
@@ -90,6 +93,8 @@ export class ToolRunnerService {
       onRunCancelled,
       cancelled: false,
       cleanupPreparedRun: null,
+      emittedOutputLineCount: 0,
+      isOutputTruncated: false,
     };
 
     this.activeRun = activeRun;
@@ -133,17 +138,11 @@ export class ToolRunnerService {
         preparedCommand,
         (lines) => {
           const redactedLines = redactPreparedOutput ? lines.map(redactPreparedOutput) : lines;
-          if (toolRunId) {
-            this.repository.appendToolRunLog(toolRunId, redactedLines, "stdout");
-          }
-          onStdoutLines(redactedLines);
+          this.emitBoundedOutput(activeRun, redactedLines, "stdout", onStdoutLines);
         },
         (lines) => {
           const redactedLines = redactPreparedOutput ? lines.map(redactPreparedOutput) : lines;
-          if (toolRunId) {
-            this.repository.appendToolRunLog(toolRunId, redactedLines, "stderr");
-          }
-          onStderrLines(redactedLines);
+          this.emitBoundedOutput(activeRun, redactedLines, "stderr", onStderrLines);
         },
       );
 
@@ -155,6 +154,7 @@ export class ToolRunnerService {
             toolModule,
             status: "cancelled",
             exitCode,
+            command,
             ...(redactPreparedOutput ? { redactOutput: redactPreparedOutput } : {}),
             redactArtifact: redactPreparedArtifact,
           });
@@ -179,6 +179,7 @@ export class ToolRunnerService {
         toolModule,
         status,
         exitCode,
+        command,
         ...(redactPreparedOutput ? { redactOutput: redactPreparedOutput } : {}),
         ...(redactPreparedArtifact ? { redactArtifact: redactPreparedArtifact } : {}),
         onArtifactProcessingError: (artifactMessage) => {
@@ -200,6 +201,7 @@ export class ToolRunnerService {
             toolModule,
             status: "cancelled",
             exitCode: null,
+            command,
             ...(redactPreparedOutput ? { redactOutput: redactPreparedOutput } : {}),
             redactArtifact: redactPreparedArtifact,
           });
@@ -222,6 +224,7 @@ export class ToolRunnerService {
         toolModule,
         status: "error",
         exitCode: null,
+        command,
         ...(redactPreparedOutput ? { redactOutput: redactPreparedOutput } : {}),
         ...(redactPreparedArtifact ? { redactArtifact: redactPreparedArtifact } : {}),
         onArtifactProcessingError: (artifactMessage) => {
@@ -260,6 +263,34 @@ export class ToolRunnerService {
     });
     this.activeRun.cleanupPreparedRun?.();
     this.commandRunner.stop();
+  }
+
+  private emitBoundedOutput(
+    activeRun: ActiveToolRun,
+    lines: string[],
+    stream: "stdout" | "stderr",
+    onLines: (lines: string[]) => void,
+  ) {
+    const remainingLineCount = this.maxOutputLineCount - activeRun.emittedOutputLineCount;
+    const visibleLines = lines.slice(0, Math.max(0, remainingLineCount));
+    if (visibleLines.length > 0) {
+      activeRun.emittedOutputLineCount += visibleLines.length;
+      if (activeRun.toolRunId) {
+        this.repository.appendToolRunLog(activeRun.toolRunId, visibleLines, stream);
+      }
+      onLines(visibleLines);
+    }
+
+    if (lines.length <= visibleLines.length || activeRun.isOutputTruncated) {
+      return;
+    }
+
+    activeRun.isOutputTruncated = true;
+    const truncationMessage = `[output truncated after ${this.maxOutputLineCount} lines]`;
+    if (activeRun.toolRunId) {
+      this.repository.appendToolRunLog(activeRun.toolRunId, [truncationMessage], stream);
+    }
+    onLines([truncationMessage]);
   }
 }
 

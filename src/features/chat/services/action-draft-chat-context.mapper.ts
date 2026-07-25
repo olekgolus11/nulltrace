@@ -21,15 +21,28 @@ export function mapActionDraftChatPayload(
       ? (formState as Record<string, unknown>)
       : null;
   const normalizedFormState = formStateRecord
-    ? {
-        ...formStateRecord,
-        ...(typeof formStateRecord.target === "string"
-          ? {
-              target: replaceTargetPlaceholders(formStateRecord.target, scannerTarget),
-            }
-          : {}),
-        ...(!("target" in formStateRecord) && scannerTarget ? { target: scannerTarget } : {}),
-      }
+    ? args.targetTool === "ffuf"
+      ? {
+          ...formStateRecord,
+          ...(typeof formStateRecord.targetPattern === "string"
+            ? {
+                targetPattern: replaceTargetPlaceholders(formStateRecord.targetPattern, scannerTarget),
+              }
+            : scannerTarget
+              ? { targetPattern: `${scannerTarget.replace(/\/$/, "")}/FUZZ` }
+              : {}),
+        }
+      : {
+          ...formStateRecord,
+          ...(typeof formStateRecord.target === "string"
+            ? {
+                target: replaceTargetPlaceholders(formStateRecord.target, scannerTarget),
+              }
+            : {}),
+          ...(!("target" in formStateRecord) && scannerTarget ? { target: scannerTarget } : {}),
+        }
+    : args.targetTool === "ffuf" && scannerTarget
+      ? { targetPattern: `${scannerTarget.replace(/\/$/, "")}/FUZZ` }
     : formState;
 
   return {

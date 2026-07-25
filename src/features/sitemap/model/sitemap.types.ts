@@ -19,7 +19,7 @@ export type TargetSitemapProvenanceFilter =
 export type TargetSitemapCrawlStatus = "idle" | "running" | "paused" | "completed" | "failed";
 
 export type TargetSitemapEntrySource =
-  "seed" | "html_link" | "html_form" | "sitemap_xml" | "robots_sitemap" | "manual";
+  "seed" | "html_link" | "html_form" | "sitemap_xml" | "robots_sitemap" | "ffuf" | "manual";
 
 export interface TargetSitemapEntryRecord {
   id: string;
