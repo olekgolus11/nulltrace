@@ -4,6 +4,7 @@ import { FindingSummaryProps } from "../../features/finding/model/finding-summar
 import { AuthenticatedRequestContextMetadata } from "../../features/authentication/model/authenticated-request-context.types.js";
 import { getAuthenticationHeaderPresentation } from "../../features/authentication/components/auth-check-presentation.js";
 import { AuthenticatedSitemapCrawlStatusRecord } from "../../features/sitemap/model/sitemap.types.js";
+import { PageInspectionPermissionStatus } from "../../features/page-inspection/model/page-inspection.types.js";
 
 interface HeaderProps {
   title?: string;
@@ -12,6 +13,7 @@ interface HeaderProps {
   counts?: FindingSummaryProps;
   authenticationContext?: AuthenticatedRequestContextMetadata | null;
   authenticatedSitemapStatus?: AuthenticatedSitemapCrawlStatusRecord | null;
+  pageInspectionStatus?: PageInspectionPermissionStatus | null;
 }
 
 const emptyCounts: FindingSummaryProps = {
@@ -30,6 +32,7 @@ export function Header({
   counts = emptyCounts,
   authenticationContext,
   authenticatedSitemapStatus,
+  pageInspectionStatus,
 }: HeaderProps) {
   const authenticationPosture = getAuthenticationHeaderPresentation(
     authenticationContext ?? null,
@@ -68,6 +71,23 @@ export function Header({
           <span fg={authenticationPosture?.color ?? theme.text.muted}>
             {authenticationPosture?.headerLabel ?? "none"}
             {authenticationContext?.storageMode === "memory" ? " / memory-only" : ""}
+          </span>
+          <span fg={theme.text.dim}> | </span>
+          <span fg={theme.text.primary}>Page: </span>
+          <span
+            fg={
+              pageInspectionStatus?.status === "ready"
+                ? theme.accent.primary
+                : pageInspectionStatus?.status === "browser_missing"
+                  ? theme.accent.warning
+                  : theme.text.muted
+            }
+          >
+            {pageInspectionStatus?.status === "ready"
+              ? "allowed / ready"
+              : pageInspectionStatus?.status === "browser_missing"
+                ? "unavailable / Chromium missing"
+                : "blocked"}
           </span>
         </text>
       </box>

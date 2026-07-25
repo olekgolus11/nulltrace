@@ -16,6 +16,7 @@ import { DashboardPanel } from "../../dashboard/components/DashboardPanel";
 import { useSessionFindings } from "../../finding/hooks/use-session-findings";
 import { useSessionContextStore } from "../../session/store/session-context.store";
 import { useSessionAuthenticatedRequestContext } from "../../authentication/hooks/use-session-authenticated-request-context";
+import { pageInspectionPermissionService } from "../../page-inspection/services/page-inspection-permission.service";
 import { nucleiCommandService } from "../nuclei/services/nuclei-command.service";
 import { NucleiToolData } from "../nuclei/types/nuclei.types";
 import { useToolLayout } from "../hooks/use-tool-layout";
@@ -62,6 +63,9 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
     targetId,
     targetUrl,
   );
+  const pageInspectionStatus = sessionId
+    ? pageInspectionPermissionService.getStatus(sessionId)
+    : null;
   const activeConversationId = useSessionContextStore((state) => state.activeConversationId);
   const conversationError = useSessionContextStore((state) => state.conversationError);
   const conversations = useSessionContextStore((state) => state.conversations);
@@ -332,6 +336,7 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
         subtitle="guided controls + raw command"
         targetUrl={targetUrl}
         counts={sessionFindings.counts}
+        pageInspectionStatus={pageInspectionStatus}
         authenticationContext={authenticationContext.metadata}
       />
 

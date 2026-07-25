@@ -21,6 +21,8 @@ import { ToolName } from "../../tool/shared/types/tool-screen.types";
 import { AuthenticationContextModal } from "../../authentication/components/AuthenticationContextModal";
 import { useSessionAuthenticatedRequestContext } from "../../authentication/hooks/use-session-authenticated-request-context";
 import { createAuthCheckUrlSuggestions } from "../../authentication/services/auth-check.service";
+import { PageInspectionPermissionModal } from "../../page-inspection/components/PageInspectionPermissionModal";
+import { usePageInspectionPermission } from "../../page-inspection/hooks/use-page-inspection-permission";
 
 interface DashboardScreenProps {
   onSelectTool: (toolName: ToolName) => void;
@@ -57,6 +59,7 @@ export function DashboardScreen({
     targetId,
     targetUrl,
   );
+  const pageInspection = usePageInspectionPermission(sessionId);
   const sessionChat = useSessionChat(sessionId, activeConversationId, {
     onPromptComplete: () => {
       void refreshConversationTitles();
@@ -83,6 +86,7 @@ export function DashboardScreen({
     findingsScrollRef,
     findingDetailScrollRef,
     closeAuthenticationContext,
+    closePageInspection,
   } = useDashboardShortcuts({
     onBack,
     onSelectTool,
@@ -125,6 +129,7 @@ export function DashboardScreen({
         counts={sessionFindings.counts}
         authenticationContext={authenticationContext.metadata}
         authenticatedSitemapStatus={targetSitemap.authenticatedStatus}
+        pageInspectionStatus={pageInspection.status}
       />
       <box flexDirection="row" height={layout.contentHeight}>
         <LeftDashboardPanel
@@ -191,6 +196,7 @@ export function DashboardScreen({
                 { key: "Tab/Shift+Tab", label: "switch" },
                 { key: "Ctrl+1-4", label: "jump" },
                 { key: "Ctrl+A", label: "auth" },
+                { key: "Ctrl+P", label: "inspect" },
                 ...(dashboardState.activePanel === "chat"
                   ? [
                       { key: "Ctrl+←/→", label: "conversation" },
@@ -238,6 +244,16 @@ export function DashboardScreen({
           onRunAuthCheck={authenticationContext.runAuthCheck}
           onAcknowledgeInconclusive={authenticationContext.acknowledgeInconclusive}
           onClose={closeAuthenticationContext}
+        />
+      ) : null}
+      {dashboardState.isPageInspectionOpen ? (
+        <PageInspectionPermissionModal
+          width={modalWidth}
+          height={Math.max(1, Math.min(16, height - 6))}
+          status={pageInspection.status}
+          onGrant={pageInspection.grant}
+          onRevoke={pageInspection.revoke}
+          onClose={closePageInspection}
         />
       ) : null}
     </box>
