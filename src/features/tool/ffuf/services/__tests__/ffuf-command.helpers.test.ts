@@ -68,6 +68,25 @@ describe("FFUF command helpers", () => {
     );
   });
 
+  test("quotes body and header endpoints before shell execution", () => {
+    const initial = createInitialFfufParameterDiscoveryToolData(
+      "https://example.com/search?existing=value&flag=true",
+    );
+
+    expect(
+      buildFfufParameterDiscoveryCommand({
+        ...initial,
+        form: { ...initial.form, requestLocation: "body" },
+      }),
+    ).toContain("-u 'https://example.com/search?existing=value&flag=true'");
+    expect(
+      buildFfufParameterDiscoveryCommand({
+        ...initial,
+        form: { ...initial.form, requestLocation: "header" },
+      }),
+    ).toContain("-u 'https://example.com/search?existing=value&flag=true'");
+  });
+
   test("rejects manually edited FFUF commands outside the session exact origin", () => {
     const toolData = createInitialFfufParameterDiscoveryToolData("https://example.com/search");
 
@@ -122,6 +141,20 @@ describe("FFUF command helpers", () => {
     expect(prepared).toContain("-rate 25 -maxtime 10");
     expect(prepared).not.toContain("999");
     expect(prepared).not.toContain("3600");
+  });
+
+  test("rejects manual commands that switch away from the selected FFUF mode", () => {
+    const toolData = createInitialFfufParameterDiscoveryToolData("https://example.com/search");
+
+    expect(() =>
+      prepareFfufCommandForRun({
+        command: "ffuf -u https://example.com/FUZZ -w /tmp/content.txt",
+        sessionId: "session-mode",
+        toolRunId: "run-mode",
+        targetUrl: "https://example.com",
+        toolData,
+      }),
+    ).toThrow("Parameter Discovery mode");
   });
 
   test("keeps valid results from partial data and counts malformed records", () => {

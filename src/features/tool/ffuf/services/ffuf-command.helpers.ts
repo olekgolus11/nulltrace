@@ -102,7 +102,7 @@ export function buildFfufParameterDiscoveryCommand(
       const separator = endpoint.includes("?") ? "&" : "?";
       command.push("-u", shellQuoteFfufValue(`${endpoint}${separator}FUZZ=nulltrace`));
     } else {
-      command.push("-u", endpoint);
+      command.push("-u", shellQuoteFfufValue(endpoint));
       if (form.requestLocation === "body") {
         command.push("-X", "POST", "-d", shellQuoteFfufValue("FUZZ=nulltrace"));
       } else {
@@ -226,6 +226,7 @@ export function toggleFfufBooleanField(
 export function prepareFfufCommandForRun(options: ToolPrepareCommand): string {
   const { command, sessionId, targetUrl, toolData, toolRunId } = options;
   if (targetUrl) validateFfufCommandExactOrigin(command, targetUrl);
+  validateFfufCommandMode(command, toolData);
   if (!sessionId || !toolRunId) return command;
 
   const jsonOutputPath = getFfufJsonOutputPath(sessionId, toolRunId);
@@ -402,6 +403,19 @@ function validateFfufCommandExactOrigin(command: string, targetUrl: string) {
       throw error;
     }
     throw new Error("FFUF command must use a valid URL on the session exact target origin.");
+  }
+}
+
+function validateFfufCommandMode(command: string, toolData: unknown) {
+  const isParameterDiscoveryCommand =
+    /(?:[?&]FUZZ=|-d\s+['"]?FUZZ=|-H\s+['"]?FUZZ\s*:)/.test(command);
+  const mode = readFfufToolData(toolData).mode;
+
+  if (mode === "parameter_discovery" && !isParameterDiscoveryCommand) {
+    throw new Error("FFUF command must keep the selected Parameter Discovery mode.");
+  }
+  if (mode === "content_discovery" && isParameterDiscoveryCommand) {
+    throw new Error("FFUF command must keep the selected Content Discovery mode.");
   }
 }
 

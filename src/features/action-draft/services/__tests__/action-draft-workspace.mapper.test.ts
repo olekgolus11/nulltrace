@@ -170,7 +170,7 @@ describe("mapActionDraftToWorkspaceState", () => {
       ok: true,
       application: {
         commandInput:
-          "ffuf -u https://example.com/search -H 'FUZZ: nulltrace' -w /tmp/parameters.txt -mc 200,302 -fc 404 -rate 20 -maxtime 15",
+          "ffuf -u 'https://example.com/search' -H 'FUZZ: nulltrace' -w /tmp/parameters.txt -mc 200,302 -fc 404 -rate 20 -maxtime 15",
         commandSource: "generated",
       },
     });
