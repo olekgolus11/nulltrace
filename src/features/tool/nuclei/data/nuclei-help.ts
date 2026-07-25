@@ -37,4 +37,12 @@ export const nucleiHelpContent: Record<NucleiFieldId, ToolHelpContent> = {
     guidance:
       "Good for one-off flags like rate limits, proxy settings, or headers before dedicated controls exist.",
   },
+  useAuthenticatedContext: {
+    title: "Session auth",
+    summary: "Uses the session's accepted authentication context for this exact origin.",
+    commandEffect:
+      "Adds an owner-restricted temporary Secret File with -sf only while the run is active.",
+    guidance:
+      "Use left/right to enable or disable it. Authorization values never appear in the editable command.",
+  },
 };

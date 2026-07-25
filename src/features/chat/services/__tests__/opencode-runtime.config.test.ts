@@ -66,4 +66,9 @@ describe("getOpenCodeRuntimeEnvironment", () => {
     expect(environment.NULLTRACE_PAGE_INSPECTION_SESSION_IDS).toBe("[]");
     expect(chatContextSystemPrompt).toContain("inspect_page");
   });
+
+  it("guides chat to create FFUF action drafts", () => {
+    expect(chatContextSystemPrompt).toContain("nmap, nuclei, or ffuf");
+    expect(chatContextSystemPrompt).toContain("create_action_draft");
+  });
 });

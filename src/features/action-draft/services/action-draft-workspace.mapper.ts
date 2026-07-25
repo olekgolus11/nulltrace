@@ -1,179 +1,29 @@
-import { ActionDraftRecord } from "../model/action-draft.types";
-import { nmapTimingOptions } from "../../tool/nmap/config/nmap.config";
+import { normalizeExactOrigin } from "../../authentication/services/authenticated-request-context.service";
 import { NmapToolData } from "../../tool/nmap/types/nmap.types";
-import { nucleiSeverityOptions } from "../../tool/nuclei/config/nuclei.config";
+import { redactNucleiCommandForPersistence } from "../../tool/nuclei/services/nuclei-command-redaction.helpers";
 import { NucleiToolData } from "../../tool/nuclei/types/nuclei.types";
-import { CommandSource } from "../../tool/shared/types/tool-screen.types";
-
-export interface ActionDraftWorkspaceApplication {
-  toolData: unknown;
-  commandInput: string;
-  generatedCommand: string;
-  commandSource: CommandSource;
-  message: string;
-}
-
-export type ActionDraftWorkspaceApplyResult =
-  | {
-      ok: true;
-      application: ActionDraftWorkspaceApplication;
-    }
-  | {
-      ok: false;
-      reason: string;
-    };
-
-export interface ActionDraftWorkspaceMapInput {
-  draft: ActionDraftRecord;
-  currentToolName: string;
-  currentToolData: unknown;
-  buildGeneratedCommand: (toolData: unknown) => string;
-}
-
-interface ActionDraftPayload {
-  command?: unknown;
-  formState?: unknown;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function getPayload(draft: ActionDraftRecord): ActionDraftPayload {
-  return isRecord(draft.payload) ? draft.payload : {};
-}
-
-function getCommand(payload: ActionDraftPayload) {
-  return typeof payload.command === "string" && payload.command.trim()
-    ? payload.command.trim()
-    : null;
-}
-
-function getFormState(payload: ActionDraftPayload) {
-  return isRecord(payload.formState) ? payload.formState : null;
-}
-
-function getStringField(formState: Record<string, unknown>, field: string) {
-  const value = formState[field];
-  return typeof value === "string" ? value : undefined;
-}
-
-function getBooleanField(formState: Record<string, unknown>, field: string) {
-  const value = formState[field];
-  return typeof value === "boolean" ? value : undefined;
-}
-
-function applyNmapFormState(toolData: NmapToolData, formState: Record<string, unknown> | null) {
-  if (!formState) {
-    return {
-      toolData,
-      didApply: false,
-    };
-  }
-
-  let didApply = false;
-  const form = {
-    ...toolData.form,
-  };
-
-  (["target", "ports", "extraArgs"] as const).forEach((field) => {
-    const value = getStringField(formState, field);
-    if (value !== undefined) {
-      form[field] = value;
-      didApply = true;
-    }
-  });
-
-  const timing = getStringField(formState, "timing");
-  if (timing && nmapTimingOptions.includes(timing as typeof form.timing)) {
-    form.timing = timing as typeof form.timing;
-    didApply = true;
-  }
-
-  (["serviceDetection", "osDetection", "defaultScripts", "aggressive"] as const).forEach(
-    (field) => {
-      const value = getBooleanField(formState, field);
-      if (value !== undefined) {
-        form[field] = value;
-        didApply = true;
-      }
-    },
-  );
-
-  return {
-    toolData: {
-      ...toolData,
-      selectedField: 0,
-      form,
-    },
-    didApply,
-  };
-}
-
-function applyNucleiFormState(toolData: NucleiToolData, formState: Record<string, unknown> | null) {
-  if (!formState) {
-    return {
-      toolData,
-      didApply: false,
-    };
-  }
-
-  let didApply = false;
-  const form = {
-    ...toolData.form,
-  };
-
-  (["target", "tags", "templatesPath", "extraArgs"] as const).forEach((field) => {
-    const value = getStringField(formState, field);
-    if (value !== undefined) {
-      form[field] = value;
-      didApply = true;
-    }
-  });
-
-  const severityPreset = getStringField(formState, "severityPreset");
-  if (
-    severityPreset &&
-    nucleiSeverityOptions.includes(severityPreset as typeof form.severityPreset)
-  ) {
-    form.severityPreset = severityPreset as typeof form.severityPreset;
-    didApply = true;
-  }
-
-  return {
-    toolData: {
-      ...toolData,
-      selectedField: 0,
-      form,
-    },
-    didApply,
-  };
-}
-
-function applyFormState(
-  currentToolName: string,
-  currentToolData: unknown,
-  formState: Record<string, unknown> | null,
-) {
-  if (currentToolName === "nmap") {
-    return applyNmapFormState(currentToolData as NmapToolData, formState);
-  }
-
-  if (currentToolName === "nuclei") {
-    return applyNucleiFormState(currentToolData as NucleiToolData, formState);
-  }
-
-  return {
-    toolData: currentToolData,
-    didApply: false,
-  };
-}
+import { FfufToolData } from "../../tool/ffuf/types/ffuf.types";
+import {
+  getActionDraftBooleanField,
+  getActionDraftCommand,
+  getActionDraftFormState,
+  getActionDraftPayload,
+  getActionDraftStringField,
+} from "./action-draft-payload.helpers";
+import {
+  ActionDraftWorkspaceApplyResult,
+  ActionDraftWorkspaceMapInput,
+} from "./action-draft-workspace.types";
+import { mapNmapActionDraftFormState } from "./nmap-action-draft-workspace.mapper";
+import { mapNucleiActionDraftFormState } from "./nuclei-action-draft-workspace.mapper";
+import { mapFfufActionDraftFormState } from "./ffuf-action-draft-workspace.mapper";
 
 export function mapActionDraftToWorkspaceState({
   draft,
   currentToolName,
   currentToolData,
   buildGeneratedCommand,
+  authenticatedContext = null,
 }: ActionDraftWorkspaceMapInput): ActionDraftWorkspaceApplyResult {
   if (draft.targetTool !== currentToolName) {
     return {
@@ -182,20 +32,60 @@ export function mapActionDraftToWorkspaceState({
     };
   }
 
-  if (draft.targetTool !== "nmap" && draft.targetTool !== "nuclei") {
+  if (draft.targetTool !== "nmap" && draft.targetTool !== "nuclei" && draft.targetTool !== "ffuf") {
     return {
       ok: false,
       reason: `Draft target ${draft.targetTool} is not an implemented scanner workspace.`,
     };
   }
 
-  const payload = getPayload(draft);
-  const command = getCommand(payload);
-  const { toolData, didApply } = applyFormState(
-    currentToolName,
-    currentToolData,
-    getFormState(payload),
-  );
+  const payload = getActionDraftPayload(draft);
+  const rawCommand = getActionDraftCommand(payload);
+  const command =
+    rawCommand && currentToolName === "nuclei"
+      ? redactNucleiCommandForPersistence(rawCommand)
+      : rawCommand;
+  const formState = getActionDraftFormState(payload);
+  if (
+    currentToolName === "nuclei" &&
+    getActionDraftBooleanField(formState ?? {}, "useAuthenticatedContext") === true
+  ) {
+    if (getActionDraftStringField(formState ?? {}, "templatesPath")?.trim()) {
+      return {
+        ok: false,
+        reason: "Authenticated Nuclei drafts cannot use custom template or workflow paths.",
+      };
+    }
+    const target =
+      getActionDraftStringField(formState ?? {}, "target") ??
+      (currentToolData as NucleiToolData).form.target;
+    let isExactOriginAccepted = false;
+    try {
+      isExactOriginAccepted = Boolean(
+        authenticatedContext?.authCheck.isProceedAllowed &&
+        authenticatedContext.origin === normalizeExactOrigin(target),
+      );
+    } catch {
+      isExactOriginAccepted = false;
+    }
+    if (!isExactOriginAccepted) {
+      return {
+        ok: false,
+        reason:
+          "This draft requires an accepted authentication context for the target's exact origin.",
+      };
+    }
+  }
+  const { toolData, didApply } =
+    currentToolName === "nmap"
+      ? mapNmapActionDraftFormState(currentToolData as NmapToolData, formState)
+      : currentToolName === "nuclei"
+        ? mapNucleiActionDraftFormState(
+            currentToolData as NucleiToolData,
+            formState,
+            authenticatedContext,
+          )
+        : mapFfufActionDraftFormState(currentToolData as FfufToolData, formState);
 
   if (!command && !didApply) {
     return {

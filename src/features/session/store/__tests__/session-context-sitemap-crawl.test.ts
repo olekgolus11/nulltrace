@@ -1,7 +1,5 @@
 import { describe, expect, it } from "bun:test";
 
-process.env.NULLTRACE_APP_DATA_DIR = `/tmp/nulltrace-session-sitemap-crawl-test-${crypto.randomUUID()}`;
-
 function createResponse(body: string, contentType = "text/html") {
   return new Response(body, {
     headers: {
@@ -12,6 +10,7 @@ function createResponse(body: string, contentType = "text/html") {
 
 describe("session sitemap crawl startup", () => {
   it("starts the public sitemap crawl when creating a session for a new target", async () => {
+    const targetUrl = `https://session-sitemap-crawl-${crypto.randomUUID()}.test`;
     const originalFetch = globalThis.fetch;
     const mockFetch = async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
@@ -24,7 +23,7 @@ describe("session sitemap crawl startup", () => {
         return createResponse(
           `<?xml version="1.0" encoding="UTF-8"?>
            <urlset>
-             <url><loc>https://example.com/from-sitemap</loc></url>
+             <url><loc>${targetUrl}/from-sitemap</loc></url>
            </urlset>`,
           "application/xml",
         );
@@ -44,16 +43,24 @@ describe("session sitemap crawl startup", () => {
       const { useSessionContextStore } = await import("../session-context.store");
       const { sessionDatabase } = await import("../../services/session-database");
 
-      await useSessionContextStore.getState().createSessionForNewTarget("https://example.com");
+      await useSessionContextStore.getState().createSessionForNewTarget(targetUrl);
+      const targetId = useSessionContextStore.getState().targetId;
+      if (!targetId) {
+        throw new Error("Expected a target to be created for the sitemap crawl.");
+      }
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       const status = sessionDatabase
-        .query<{ status: string }, []>("SELECT status FROM target_sitemap_crawl_statuses LIMIT 1")
-        .get();
+        .query<{ status: string }, [string]>(
+          "SELECT status FROM target_sitemap_crawl_statuses WHERE target_id = ?1",
+        )
+        .get(targetId);
       const entries = sessionDatabase
-        .query<{ path: string }, []>("SELECT path FROM target_sitemap_entries ORDER BY path ASC")
-        .all()
+        .query<{ path: string }, [string]>(
+          "SELECT path FROM target_sitemap_entries WHERE target_id = ?1 ORDER BY path ASC",
+        )
+        .all(targetId)
         .map((entry) => entry.path);
 
       expect(status?.status).toBe("completed");

@@ -6,6 +6,19 @@ import { NucleiWorkspace } from "../../nuclei/components/NucleiWorkspace";
 import { nucleiFieldOrder } from "../../nuclei/config/nuclei.config";
 import { nucleiCommandService } from "../../nuclei/services/nuclei-command.service";
 import { NucleiToolData } from "../../nuclei/types/nuclei.types";
+import { FfufWorkspace } from "../../ffuf/components/FfufWorkspace";
+import { ffufFieldOrder } from "../../ffuf/config/ffuf.config";
+import {
+  buildFfufContentDiscoveryCommand,
+  collectFfufArtifacts,
+  createInitialFfufToolData,
+  isFfufBooleanField,
+  moveFfufFieldSelection,
+  prepareFfufCommandForRun,
+  toggleFfufBooleanField,
+} from "../../ffuf/services/ffuf-command.helpers";
+import { FfufToolData } from "../../ffuf/types/ffuf.types";
+import { ffufSitemapEnrichmentService } from "../../../sitemap/services/ffuf-sitemap-enrichment.service";
 import { PanelDefinition } from "../../../../shared/model/panel-navigation.types";
 import {
   ToolHelpContent,
@@ -18,6 +31,58 @@ import {
 import { scannerCatalog } from "./scanner-catalog";
 
 export const toolRegistry: Record<string, ToolModule> = {
+  ffuf: {
+    id: scannerCatalog.ffuf.id,
+    name: scannerCatalog.ffuf.name,
+    description: scannerCatalog.ffuf.description ?? "",
+    Workspace: FfufWorkspace,
+    createInitialToolData: (targetUrl: string) => createInitialFfufToolData(targetUrl),
+    buildGeneratedCommand: (toolData: unknown) =>
+      buildFfufContentDiscoveryCommand(toolData as FfufToolData),
+    prepareCommandForRun: (options: ToolPrepareCommand) => prepareFfufCommandForRun(options),
+    collectArtifacts: (options: ToolRunCompleted) => collectFfufArtifacts(options),
+    processSavedArtifacts: ({ sessionId, artifacts }) => {
+      if (sessionId) ffufSitemapEnrichmentService.upsertContentDiscoveryResults(sessionId, artifacts);
+    },
+    handleFormKey: (key, state, api) => {
+      if (state.activePanel !== "form") return false;
+
+      const toolData = state.toolData as FfufToolData;
+      if (!toolData) return false;
+
+      if (key.ctrl && key.name === "h") {
+        api.toggleHelp();
+        return true;
+      }
+      if (key.name === "up") {
+        api.updateToolData((current) =>
+          moveFfufFieldSelection(current as FfufToolData, -1),
+        );
+        return true;
+      }
+      if (key.name === "down") {
+        api.updateToolData((current) =>
+          moveFfufFieldSelection(current as FfufToolData, 1),
+        );
+        return true;
+      }
+
+      const selectedField = ffufFieldOrder[toolData.selectedField];
+      if (
+        selectedField &&
+        isFfufBooleanField(selectedField) &&
+        (key.name === "return" || key.name === "enter" || key.name === "space")
+      ) {
+        api.updateToolData((current) =>
+          toggleFfufBooleanField(current as FfufToolData, selectedField),
+        );
+        api.syncGeneratedCommand();
+        return true;
+      }
+
+      return false;
+    },
+  },
   nmap: {
     id: scannerCatalog.nmap.id,
     name: scannerCatalog.nmap.name,
@@ -105,6 +170,8 @@ export const toolRegistry: Record<string, ToolModule> = {
       nucleiCommandService.buildCommand(toolData as NucleiToolData),
     prepareCommandForRun: (options: ToolPrepareCommand) =>
       nucleiCommandService.prepareCommandForRun(options),
+    redactCommandForPersistence: (command: string) =>
+      nucleiCommandService.redactCommandForPersistence(command),
     collectArtifacts: (options: ToolRunCompleted) => nucleiCommandService.collectArtifacts(options),
     handleFormKey: (key, state, api) => {
       if (state.activePanel !== "form") {
@@ -126,7 +193,9 @@ export const toolRegistry: Record<string, ToolModule> = {
           nucleiCommandService.moveSelection(
             current as NucleiToolData,
             -1,
-            nucleiFieldOrder.length - 1,
+            toolData.authentication.isAvailable
+              ? nucleiFieldOrder.length - 1
+              : nucleiFieldOrder.length - 2,
           ),
         );
         return true;
@@ -137,13 +206,26 @@ export const toolRegistry: Record<string, ToolModule> = {
           nucleiCommandService.moveSelection(
             current as NucleiToolData,
             1,
-            nucleiFieldOrder.length - 1,
+            toolData.authentication.isAvailable
+              ? nucleiFieldOrder.length - 1
+              : nucleiFieldOrder.length - 2,
           ),
         );
         return true;
       }
 
       const selectedField = nucleiFieldOrder[toolData.selectedField];
+      if (
+        nucleiCommandService.isAuthenticationFieldSelected(selectedField) &&
+        (key.name === "left" || key.name === "right")
+      ) {
+        api.updateToolData((current) =>
+          nucleiCommandService.toggleAuthenticatedContext(current as NucleiToolData),
+        );
+        api.syncGeneratedCommand();
+        return true;
+      }
+
       if (nucleiCommandService.isSeverityFieldSelected(selectedField) && key.name === "left") {
         api.updateToolData((current) =>
           nucleiCommandService.cycleSeverity(current as NucleiToolData, -1),

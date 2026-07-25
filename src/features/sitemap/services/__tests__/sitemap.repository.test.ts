@@ -1,8 +1,6 @@
 import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
 
-process.env.NULLTRACE_APP_DATA_DIR = `/tmp/nulltrace-sitemap-repository-test-${crypto.randomUUID()}`;
-
 async function createRepository(database: Database) {
   const { SitemapRepository } = await import("../sitemap.repository");
 
@@ -148,6 +146,40 @@ describe("SitemapRepository", () => {
       firstSeenAt: first.firstSeenAt,
     });
     expect(second.lastSeenAt >= first.lastSeenAt).toBe(true);
+  });
+
+  it("updates crawler discovery with FFUF metadata without duplicate endpoint rows", async () => {
+    const database = createTestDatabase();
+    const repository = await createRepository(database);
+    const crawlerEntry = repository.upsertEntry({
+      targetId: "target-1",
+      normalizedUrl: "https://example.com/hidden",
+      path: "/hidden",
+      method: "GET",
+      httpStatus: 301,
+      source: "html_link",
+      provenance: "public",
+      depth: 2,
+    });
+    const ffufEntry = repository.upsertEntry({
+      targetId: "target-1",
+      normalizedUrl: "https://example.com/hidden",
+      path: "/hidden",
+      method: "GET",
+      httpStatus: 200,
+      source: "ffuf",
+      provenance: "public",
+      depth: 1,
+    });
+
+    expect(database.query<{ count: number }, []>("SELECT COUNT(*) AS count FROM target_sitemap_entries").get()?.count).toBe(1);
+    expect(ffufEntry).toMatchObject({
+      id: crawlerEntry.id,
+      httpStatus: 200,
+      source: "ffuf",
+      provenance: "public",
+      depth: 1,
+    });
   });
 
   it("keeps entries separate by target and method", async () => {

@@ -343,7 +343,10 @@ function createSessionContextService() {
   );
 }
 
-function createActionDraftService(drafts = new FakeActionDraftRepository()) {
+function createActionDraftService(
+  drafts = new FakeActionDraftRepository(),
+  isAuthenticationAccepted = false,
+) {
   return {
     drafts,
     service: new ActionDraftChatContextToolsService(
@@ -354,6 +357,9 @@ function createActionDraftService(drafts = new FakeActionDraftRepository()) {
       ]),
       drafts,
       new FakeSessionRepository(),
+      {
+        isProceedAllowed: () => isAuthenticationAccepted,
+      },
     ),
   };
 }
@@ -844,7 +850,7 @@ describe("ActiveToolWorkspaceChatContextToolsService", () => {
 
 describe("ActionDraftChatContextToolsService", () => {
   it("creates an action draft for the session attached to the OpenCode conversation", () => {
-    const { drafts, service } = createActionDraftService();
+    const { drafts, service } = createActionDraftService(new FakeActionDraftRepository(), true);
 
     const result = service.createActionDraft("opencode-1", {
       targetTool: "nmap",
@@ -939,6 +945,75 @@ describe("ActionDraftChatContextToolsService", () => {
     });
   });
 
+  it("redacts authorization values before persisting a Nuclei action draft", () => {
+    const { drafts, service } = createActionDraftService(new FakeActionDraftRepository(), true);
+
+    service.createActionDraft("opencode-1", {
+      targetTool: "nuclei",
+      title: "Authenticated check",
+      command: "nuclei -u {{TARGET}} -H 'Authorization: Bearer secret-token'",
+      formStateJson: JSON.stringify({
+        target: "{{TARGET}}",
+        useAuthenticatedContext: true,
+        cookies: "session=secret-cookie",
+        extraArgs: "-H 'Authorization: Bearer second-secret-token'",
+      }),
+      intentJson: JSON.stringify({
+        token: "secret-token",
+        note: "Cookie: session=second-secret-cookie",
+      }),
+    });
+
+    expect(drafts.drafts[0]?.payload).toMatchObject({
+      command: "nuclei -u http://honey.scanme.sh -H '[redacted]'",
+      formState: {
+        target: "http://honey.scanme.sh",
+        useAuthenticatedContext: true,
+        cookies: "[redacted]",
+        extraArgs: "-H '[redacted]'",
+      },
+      intent: {
+        token: "[redacted]",
+        note: "Cookie: [redacted]",
+      },
+    });
+    expect(JSON.stringify(drafts.drafts[0]?.payload)).not.toContain("secret-token");
+    expect(JSON.stringify(drafts.drafts[0]?.payload)).not.toContain("secret-cookie");
+  });
+
+  it("rejects Nuclei auth opt-in without accepted authentication context", () => {
+    const { drafts, service } = createActionDraftService();
+
+    expect(() =>
+      service.createActionDraft("opencode-1", {
+        targetTool: "nuclei",
+        title: "Authenticated check",
+        formStateJson: JSON.stringify({
+          target: "{{TARGET}}",
+          useAuthenticatedContext: true,
+        }),
+      }),
+    ).toThrow("Authenticated Nuclei drafts require an accepted authentication context.");
+    expect(drafts.drafts).toHaveLength(0);
+  });
+
+  it("rejects shell expansion before persisting an authenticated Nuclei draft", () => {
+    const { drafts, service } = createActionDraftService(new FakeActionDraftRepository(), true);
+
+    expect(() =>
+      service.createActionDraft("opencode-1", {
+        targetTool: "nuclei",
+        title: "Unsafe authenticated check",
+        command: "F=-H; nuclei $F 'X-Auth: secret-value' -u {{TARGET}}",
+        formStateJson: JSON.stringify({
+          target: "{{TARGET}}",
+          useAuthenticatedContext: true,
+        }),
+      }),
+    ).toThrow("Authenticated Nuclei runs cannot use shell expansion or control syntax.");
+    expect(drafts.drafts).toHaveLength(0);
+  });
+
   it("rejects archived or unknown OpenCode conversations", () => {
     const { service } = createActionDraftService();
     const args = {
@@ -954,22 +1029,33 @@ describe("ActionDraftChatContextToolsService", () => {
     );
   });
 
-  it("rejects catalog-only scanner tools before persistence", () => {
+  it("creates FFUF drafts but rejects catalog-only scanner tools before persistence", () => {
     const { drafts, service } = createActionDraftService();
 
-    expect(() =>
+    expect(
       service.createActionDraft("opencode-1", {
         targetTool: "ffuf",
         title: "Discover directories",
       }),
-    ).toThrow("create_action_draft targetTool must be an implemented scanner tool: ffuf");
+    ).toMatchObject({
+      actionDraft: {
+        targetTool: "ffuf",
+      },
+    });
+    expect(drafts.drafts[0]).toMatchObject({
+      payload: {
+        formState: {
+          targetPattern: "http://honey.scanme.sh/FUZZ",
+        },
+      },
+    });
     expect(() =>
       service.createActionDraft("opencode-1", {
         targetTool: "sqlmap",
         title: "SQL injection probe",
       }),
     ).toThrow("create_action_draft targetTool must be an implemented scanner tool: sqlmap");
-    expect(drafts.drafts).toHaveLength(0);
+    expect(drafts.drafts).toHaveLength(1);
   });
 
   it("does not create tool runs when creating an action draft", () => {

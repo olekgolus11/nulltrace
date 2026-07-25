@@ -25,14 +25,14 @@ import type {
 
 export class PublicSitemapCrawler {
   private readonly repository: PublicSitemapCrawlerPersistence;
-  private readonly fetch: NonNullable<PublicSitemapCrawlerOptions["fetch"]>;
+  private readonly fetch: PublicSitemapCrawlerOptions["fetch"];
   private readonly limits: Partial<SitemapCrawlerLimits>;
   private readonly activeTargetIds = new Set<string>();
   private readonly pauseRequestedTargetIds = new Set<string>();
 
   constructor(options: PublicSitemapCrawlerOptions = {}) {
     this.repository = options.repository ?? sitemapRepository;
-    this.fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
+    this.fetch = options.fetch;
     this.limits = options.limits ?? {};
   }
 
@@ -419,10 +419,11 @@ export class PublicSitemapCrawler {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
     let requestUrl = url;
+    const fetch = this.fetch ?? globalThis.fetch.bind(globalThis);
 
     try {
       for (let redirectCount = 0; redirectCount < 10; redirectCount += 1) {
-        const response = await this.fetch(requestUrl.toString(), {
+        const response = await fetch(requestUrl.toString(), {
           redirect: "manual",
           signal: controller.signal,
         });

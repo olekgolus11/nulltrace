@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
   nucleiFieldOrder,
@@ -8,124 +8,24 @@ import {
 } from "../config/nuclei.config";
 import { getAppDataDirectory } from "../../../session/services/session-database";
 import { ToolRunArtifactInput } from "../../../session/model/session.repository.types";
-import { ToolPrepareCommand, ToolRunCompleted } from "../../shared/types/tool-screen.types";
+import {
+  ToolPrepareCommand,
+  ToolPreparedCommand,
+  ToolRunCompleted,
+} from "../../shared/types/tool-screen.types";
 import {
   NucleiFieldId,
   NucleiFormState,
   NucleiSeverityPreset,
   NucleiToolData,
 } from "../types/nuclei.types";
-
-interface NucleiRawFinding {
-  [key: string]: unknown;
-}
-
-export interface NucleiArtifactFinding {
-  templateId: string | null;
-  name: string | null;
-  severity: string | null;
-  matchedAt: string | null;
-  type: string | null;
-  tags: string[];
-  description: string | null;
-  references: string[];
-  raw: NucleiRawFinding;
-}
-
-export interface ParsedNucleiJsonl {
-  findings: NucleiArtifactFinding[];
-  parseErrorCount: number;
-}
-
-const shellTokenPattern = String.raw`(?:'[^']*'|"(?:\\.|[^"])*"|\S+)`;
-const nucleiOutputFlagPattern = new RegExp(
-  String.raw`\s+(?:(?:-jsonl|-json|-j|-sresp|-store-resp)(?=\s|$)|(?:-o|-output|-jle|-jsonl-export|-je|-json-export|-me|-markdown-export|-se|-sarif-export|-rdb|-report-db|-srd|-store-resp-dir)(?:\s+${shellTokenPattern}))`,
-  "g",
-);
-const nucleiNoColorFlagPattern = /(?:^|\s)-(?:nc|no-color)(?=\s|$)/;
-
-function getString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value : null;
-}
-
-function getObject(value: unknown): NucleiRawFinding | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-
-  return value as NucleiRawFinding;
-}
-
-function getStringArray(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.filter((item): item is string => typeof item === "string");
-  }
-
-  if (typeof value === "string" && value.trim()) {
-    return value
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
-  return [];
-}
-
-function getFirstString(...values: unknown[]): string | null {
-  for (const value of values) {
-    const stringValue = getString(value);
-    if (stringValue) {
-      return stringValue;
-    }
-  }
-
-  return null;
-}
-
-export function parseNucleiJsonl(content: string): ParsedNucleiJsonl {
-  return content.split(/\r?\n/).reduce<ParsedNucleiJsonl>(
-    (result, line) => {
-      const trimmedLine = line.trim();
-      if (!trimmedLine) {
-        return result;
-      }
-
-      try {
-        const raw = JSON.parse(trimmedLine) as unknown;
-        const finding = getObject(raw);
-        if (!finding) {
-          return {
-            ...result,
-            parseErrorCount: result.parseErrorCount + 1,
-          };
-        }
-
-        const info = getObject(finding.info);
-        result.findings.push({
-          templateId: getString(finding["template-id"]),
-          name: getFirstString(info?.name, finding["template-id"]),
-          severity: getString(info?.severity),
-          matchedAt: getFirstString(finding["matched-at"], finding.host),
-          type: getString(finding.type),
-          tags: getStringArray(info?.tags),
-          description: getString(info?.description),
-          references: getStringArray(info?.reference),
-          raw: finding,
-        });
-        return result;
-      } catch {
-        return {
-          ...result,
-          parseErrorCount: result.parseErrorCount + 1,
-        };
-      }
-    },
-    {
-      findings: [],
-      parseErrorCount: 0,
-    },
-  );
-}
+import { normalizeExactOrigin } from "../../../authentication/services/authenticated-request-context.service";
+import { nucleiAuthenticatedRunService } from "./nuclei-authenticated-run.service";
+import { redactNucleiCommandForPersistence } from "./nuclei-command-redaction.helpers";
+import { validateAuthenticatedNucleiCommand } from "./nuclei-authenticated-command.helpers";
+import { hasNucleiNoColorFlag, stripNucleiOutputFlags } from "./nuclei-command-output.helpers";
+import { parseNucleiJsonl } from "./nuclei-finding-jsonl.parser";
+import { shellQuote } from "./nuclei-shell.helpers";
 
 class NucleiCommandService {
   private getJsonlOutputPath(sessionId: string, toolRunId: string) {
@@ -138,10 +38,6 @@ class NucleiCommandService {
       toolRunId,
       "nuclei.jsonl",
     );
-  }
-
-  private shellQuotePath(path: string): string {
-    return `'${path.split("'").join("'\\''")}'`;
   }
 
   private extractTarget(targetUrl: string) {
@@ -157,11 +53,14 @@ class NucleiCommandService {
         tags: "",
         templatesPath: "",
         extraArgs: "",
+        useAuthenticatedContext: false,
+      },
+      authentication: {
+        strategy: "none",
+        isAvailable: false,
+        origin: null,
       },
       future: {
-        auth: {
-          strategy: "none",
-        },
         headers: {
           entries: [],
         },
@@ -199,18 +98,63 @@ class NucleiCommandService {
     return cmd.join(" ").trim();
   }
 
+  setAuthenticationAvailability(toolData: NucleiToolData, origin: string | null): NucleiToolData {
+    let isAvailable = false;
+    try {
+      isAvailable = Boolean(origin && normalizeExactOrigin(toolData.form.target) === origin);
+    } catch {
+      isAvailable = false;
+    }
+    return {
+      ...toolData,
+      selectedField: isAvailable
+        ? toolData.selectedField
+        : Math.min(toolData.selectedField, nucleiFieldOrder.length - 2),
+      form: {
+        ...toolData.form,
+        useAuthenticatedContext: isAvailable ? toolData.form.useAuthenticatedContext : false,
+      },
+      authentication: {
+        strategy: isAvailable && toolData.form.useAuthenticatedContext ? "session" : "none",
+        isAvailable,
+        origin,
+      },
+    };
+  }
+
+  toggleAuthenticatedContext(toolData: NucleiToolData): NucleiToolData {
+    if (!toolData.authentication.isAvailable) {
+      return toolData;
+    }
+    const useAuthenticatedContext = !toolData.form.useAuthenticatedContext;
+    return {
+      ...toolData,
+      form: {
+        ...toolData.form,
+        useAuthenticatedContext,
+      },
+      authentication: {
+        ...toolData.authentication,
+        strategy: useAuthenticatedContext ? "session" : "none",
+      },
+    };
+  }
+
   setField(
     toolData: NucleiToolData,
     field: keyof NucleiFormState,
     value: string | NucleiSeverityPreset,
   ): NucleiToolData {
-    return {
+    const updated = {
       ...toolData,
       form: {
         ...toolData.form,
         [field]: value,
       },
     };
+    return field === "target"
+      ? this.setAuthenticationAvailability(updated, toolData.authentication.origin)
+      : updated;
   }
 
   moveSelection(toolData: NucleiToolData, delta: -1 | 1, max: number): NucleiToolData {
@@ -238,11 +182,19 @@ class NucleiCommandService {
     return field === "severityPreset";
   }
 
+  isAuthenticationFieldSelected(field: NucleiFieldId | undefined) {
+    return field === "useAuthenticatedContext";
+  }
+
   getFieldCount() {
     return nucleiFieldOrder.length;
   }
 
-  prepareCommandForRun(options: ToolPrepareCommand): string {
+  redactCommandForPersistence(command: string) {
+    return redactNucleiCommandForPersistence(command);
+  }
+
+  async prepareCommandForRun(options: ToolPrepareCommand): Promise<string | ToolPreparedCommand> {
     const { command, sessionId, toolRunId } = options;
 
     if (!sessionId || !toolRunId) {
@@ -253,18 +205,35 @@ class NucleiCommandService {
     const outputDirectory = dirname(jsonlOutputPath);
     mkdirSync(outputDirectory, { recursive: true });
 
-    const strippedCommand = command.replace(nucleiOutputFlagPattern, " ");
-    const colorSafeCommand = nucleiNoColorFlagPattern.test(strippedCommand)
+    const strippedCommand = stripNucleiOutputFlags(command);
+    const colorSafeCommand = hasNucleiNoColorFlag(strippedCommand)
       ? strippedCommand
       : strippedCommand + " -nc";
-    const jsonlOutputFlags = ` -jsonl-export ${this.shellQuotePath(jsonlOutputPath)}`;
-    return colorSafeCommand + jsonlOutputFlags;
+    const jsonlOutputFlags = ` -jsonl-export ${shellQuote(jsonlOutputPath)}`;
+    const controlledCommand = colorSafeCommand + jsonlOutputFlags;
+    const toolData = options.toolData as NucleiToolData | null | undefined;
+    if (!toolData?.form.useAuthenticatedContext) {
+      return controlledCommand;
+    }
+
+    const authenticatedTarget = validateAuthenticatedNucleiCommand(command);
+    const prepared = await nucleiAuthenticatedRunService.prepare({
+      sessionId,
+      targetUrl: authenticatedTarget,
+      command: `${controlledCommand} -omit-raw -disable-redirects -disable-unsigned-templates -type http`,
+    });
+    return {
+      command: prepared.command,
+      cleanup: prepared.cleanup,
+      redactOutput: prepared.redactOutput,
+      redactArtifact: prepared.redactJsonl,
+    };
   }
 
   async collectArtifacts(options: ToolRunCompleted): Promise<ToolRunArtifactInput[]> {
     const { sessionId, toolRunId, status, exitCode } = options;
 
-    if (!sessionId || !toolRunId || status === "cancelled") {
+    if (!sessionId || !toolRunId) {
       return [];
     }
 
@@ -273,8 +242,16 @@ class NucleiCommandService {
       return [];
     }
 
-    const jsonl = readFileSync(jsonlOutputPath, "utf8");
+    const rawJsonl = readFileSync(jsonlOutputPath, "utf8");
+    const jsonl =
+      options.redactArtifact?.(rawJsonl) ?? options.redactOutput?.(rawJsonl) ?? rawJsonl;
+    if (jsonl !== rawJsonl) {
+      writeFileSync(jsonlOutputPath, jsonl, { encoding: "utf8", mode: 0o600 });
+    }
     if (!jsonl.trim()) {
+      return [];
+    }
+    if (status === "cancelled") {
       return [];
     }
 
