@@ -31,6 +31,7 @@ export class PageInspectionChatContextToolsService {
       requestedUrl: args.url,
       targetOrigin: new URL(session.normalizedUrl).origin,
       protectedPaths: this.getProtectedPaths(session.targetId),
+      authenticationMode: args.authenticationMode,
     });
   }
 
@@ -59,12 +60,18 @@ export class PageInspectionChatContextToolsService {
       {
         name: "inspect_page",
         description:
-          "Inspect one public exact-origin page after JavaScript rendering. This read-only tool returns a bounded structured snapshot without HTML, screenshots, cookies, storage, raw response bodies, or hidden secret inputs. It is available only while the operator has granted Page Inspection for the active testing session.",
+          "Inspect one exact-origin page after JavaScript rendering. Public mode is default. Use accepted_context only when the operator explicitly selects the accepted Authenticated Request Context for this inspection. This read-only tool returns a bounded structured snapshot without HTML, screenshots, cookies, storage, raw response bodies, or hidden secret inputs. It is available only while the operator has granted Page Inspection for the active testing session.",
         args: {
           url: {
             type: "string",
             description:
               "Exact-origin public page URL to inspect. Cross-origin navigation and redirects are blocked.",
+          },
+          authenticationMode: {
+            type: "string",
+            isOptional: true,
+            description:
+              'Optional mode: "public" is default; use "accepted_context" only for an operator-selected accepted authentication context.',
           },
         },
         execute: ({ opencodeConversationId, args }) =>

@@ -33,11 +33,23 @@ export interface PageInspectionRequestPolicyInput {
 export interface PageInspectionInput {
   requestedUrl: string;
   targetOrigin: string;
+  authentication?: PageInspectionAuthentication;
 }
 
-export interface PageInspectionRequest extends PageInspectionInput {
+export interface PageInspectionRequest {
   sessionId: string;
+  requestedUrl: string;
+  targetOrigin: string;
   protectedPaths?: string[];
+  authenticationMode?: PageInspectionAuthenticationMode;
+}
+
+export type PageInspectionAuthenticationMode = "public" | "accepted_context";
+
+export interface PageInspectionAuthentication {
+  origin: string;
+  cookies: string;
+  headers: string;
 }
 
 export interface PageInspectionFormField {

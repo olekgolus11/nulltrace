@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { getAppDataDirectory } from "../../session/services/session-database";
 import { getAuthenticationRuntimeId } from "../../authentication/services/authentication-runtime";
 import { pageInspectionPermissionService } from "../../page-inspection/services/page-inspection-permission.service";
+import { pageInspectionAuthenticationSelectionService } from "../../page-inspection/services/page-inspection-authentication-selection.service";
 import { getPlaywrightBrowsersPath } from "../../page-inspection/services/playwright-page-inspection-browser.helpers";
 import { chatContextToolRegistry, createOpenCodeToolSource } from "./chat-context-tools.service";
 
@@ -112,6 +113,9 @@ export function getOpenCodeExecutable() {
 export function getOpenCodeRuntimeEnvironment() {
   ensureOpenCodeRuntimeDirectories();
   const playwrightBrowsersPath = getPlaywrightBrowsersPath();
+  const pageInspectionAuthenticationSelections =
+    pageInspectionAuthenticationSelectionService.listSelectedAuthStateVersions();
+  pageInspectionAuthenticationSelectionService.clearAll();
   const inheritedEnvironment = Object.fromEntries(
     Object.entries(process.env).filter(([name]) => !name.startsWith("OPENCODE_")),
   );
@@ -124,6 +128,7 @@ export function getOpenCodeRuntimeEnvironment() {
     NULLTRACE_PAGE_INSPECTION_SESSION_IDS: JSON.stringify(
       pageInspectionPermissionService.listAllowedSessionIds(),
     ),
+    NULLTRACE_PAGE_INSPECTION_AUTH_SELECTIONS: JSON.stringify(pageInspectionAuthenticationSelections),
     ...(playwrightBrowsersPath ? { PLAYWRIGHT_BROWSERS_PATH: playwrightBrowsersPath } : {}),
     OPENCODE_CONFIG_CONTENT: JSON.stringify(openCodeConfig),
     OPENCODE_CONFIG_DIR: join(runtimeConfig, "opencode"),

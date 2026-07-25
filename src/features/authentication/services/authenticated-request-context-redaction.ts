@@ -17,7 +17,7 @@ export function createUncheckedAuthCheckMetadata(): AuthCheckMetadata {
   };
 }
 
-function splitCookieEntries(value: string) {
+export function splitAuthenticatedCookieEntries(value: string) {
   return value
     .split(/[;\n\r]+/)
     .map((entry) => entry.trim())
@@ -43,7 +43,7 @@ export function createRedactedAuthenticatedRequestContextPreview(input: {
   cookies: string;
   headers: string;
 }): RedactedAuthenticatedRequestContextPreview {
-  const cookieCount = splitCookieEntries(input.cookies).length;
+  const cookieCount = splitAuthenticatedCookieEntries(input.cookies).length;
   const headerNames = getAuthenticatedHeaderNames(input.headers);
 
   return {

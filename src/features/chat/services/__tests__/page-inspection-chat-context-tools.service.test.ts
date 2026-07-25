@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { ConversationAttachmentRecord } from "../../model/conversation-attachment.types";
 import { PageInspectionPermissionService } from "../../../page-inspection/services/page-inspection-permission.service";
+import { PageInspectionAuthenticationSelectionService } from "../../../page-inspection/services/page-inspection-authentication-selection.service";
 import { PageInspectionService } from "../../../page-inspection/services/page-inspection.service";
 import { PageInspectionChatContextToolsService } from "../page-inspection-chat-context-tools.service";
 
@@ -32,7 +33,14 @@ class FakeSessions {
 }
 
 class FakeBrowser {
+  calls: Array<{
+    requestedUrl: string;
+    targetOrigin: string;
+    authentication?: { origin: string; cookies: string; headers: string };
+  }> = [];
+
   async inspect(input: { requestedUrl: string; targetOrigin: string }) {
+    this.calls.push(input);
     return {
       requestedUrl: input.requestedUrl,
       finalUrl: input.requestedUrl,
@@ -80,13 +88,67 @@ describe("PageInspectionChatContextToolsService", () => {
     expect(definitions).toHaveLength(1);
     expect(definitions[0]).toMatchObject({
       name: "inspect_page",
-      args: { url: { type: "string" } },
+      args: {
+        url: { type: "string" },
+        authenticationMode: { type: "string", isOptional: true },
+      },
     });
 
     await expect(service.inspectPage("conversation-one", { url: "https://target.example/app" })).resolves.toMatchObject({
       title: "Rendered page",
       visibleText: "Rendered after JavaScript.",
     });
+  });
+
+  test("forwards accepted-context selection while public remains default", async () => {
+    const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
+    permissions.grant("session-one");
+    const browser = new FakeBrowser();
+    const selection = new PageInspectionAuthenticationSelectionService();
+    selection.select("session-one", 1);
+    const pageInspection = new PageInspectionService(
+      permissions,
+      browser,
+      {
+        getAuthStateVersion: () => 1,
+        loadProtectedContext: async () => ({
+          origin: "https://target.example",
+          cookies: "session=never-returned",
+          headers: "Authorization: Bearer never-returned",
+          updatedAt: "2026-07-25T10:00:00.000Z",
+        }),
+      },
+      { isProceedAllowed: () => true },
+      selection,
+    );
+    const service = new PageInspectionChatContextToolsService(
+      new FakeAttachments(),
+      new FakeSessions(),
+      pageInspection,
+      new FakeSitemap(),
+    );
+
+    await service.inspectPage("conversation-one", { url: "https://target.example/app" });
+    await service.inspectPage("conversation-one", {
+      url: "https://target.example/app/private",
+      authenticationMode: "accepted_context",
+    });
+
+    expect(browser.calls).toEqual([
+      {
+        requestedUrl: "https://target.example/app",
+        targetOrigin: "https://target.example",
+      },
+      {
+        requestedUrl: "https://target.example/app/private",
+        targetOrigin: "https://target.example",
+        authentication: {
+          origin: "https://target.example",
+          cookies: "session=never-returned",
+          headers: "Authorization: Bearer never-returned",
+        },
+      },
+    ]);
   });
 
   test("keeps authenticated sitemap paths out of Page Inspection", async () => {

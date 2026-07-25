@@ -5,6 +5,7 @@ import { getAppDataDirectory } from "../../../session/services/session-database"
 import { getOpenCodeRuntimeEnvironment } from "../opencode-runtime.config";
 import { chatContextSystemPrompt } from "../opencode-chat-runtime.service";
 import { getAuthenticationRuntimeId } from "../../../authentication/services/authentication-runtime";
+import { pageInspectionAuthenticationSelectionService } from "../../../page-inspection/services/page-inspection-authentication-selection.service";
 
 function getDefaultPlaywrightBrowsersPath() {
   let directory = chromium.executablePath();
@@ -64,7 +65,21 @@ describe("getOpenCodeRuntimeEnvironment", () => {
 
     expect(config.permission.inspect_page).toBe("allow");
     expect(environment.NULLTRACE_PAGE_INSPECTION_SESSION_IDS).toBe("[]");
+    expect(environment.NULLTRACE_PAGE_INSPECTION_AUTH_SELECTIONS).toBe("{}");
     expect(chatContextSystemPrompt).toContain("inspect_page");
+    expect(chatContextSystemPrompt).toContain("operator has explicitly selected");
+  });
+
+  it("transfers each selected authentication context to one isolated runtime launch", () => {
+    pageInspectionAuthenticationSelectionService.select("session-one", 7);
+
+    const firstEnvironment = getOpenCodeRuntimeEnvironment();
+    const secondEnvironment = getOpenCodeRuntimeEnvironment();
+
+    expect(firstEnvironment.NULLTRACE_PAGE_INSPECTION_AUTH_SELECTIONS).toBe(
+      '{"session-one":7}',
+    );
+    expect(secondEnvironment.NULLTRACE_PAGE_INSPECTION_AUTH_SELECTIONS).toBe("{}");
   });
 
   it("guides chat to create FFUF action drafts", () => {

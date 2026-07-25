@@ -6,6 +6,12 @@ import {
   PageInspectionSnapshot,
 } from "../model/page-inspection.types";
 import { PageInspectionBrowserDependencies } from "../model/playwright-page-inspection-browser.types";
+import {
+  createPlaywrightPageInspectionAuthentication,
+  mergePlaywrightPageInspectionHeaders,
+  redactPlaywrightPageInspectionError,
+  redactPlaywrightPageInspectionSnapshot,
+} from "./playwright-page-inspection-authentication.helpers";
 import { getPageInspectionRequestDecision } from "./page-inspection-request-policy.helpers";
 import { isMissingChromiumError } from "./playwright-page-inspection-browser.helpers";
 import { extractPlaywrightPageInspectionSnapshot } from "./playwright-page-inspection-snapshot.helpers";
@@ -19,6 +25,9 @@ export class PlaywrightPageInspectionBrowser implements PageInspectionBrowser {
     input: PageInspectionInput,
     limits: PageInspectionLimits,
   ): Promise<PageInspectionSnapshot> {
+    if (input.authentication && input.authentication.origin !== input.targetOrigin) {
+      throw new Error("Page Inspection authentication context must match the target's exact origin.");
+    }
     let browser: Browser | null = null;
     let context: BrowserContext | null = null;
     let page: Page | null = null;
@@ -30,6 +39,12 @@ export class PlaywrightPageInspectionBrowser implements PageInspectionBrowser {
         acceptDownloads: false,
         serviceWorkers: "block",
       });
+      const authentication = input.authentication
+        ? createPlaywrightPageInspectionAuthentication(input.authentication)
+        : null;
+      if (authentication?.cookies.length) {
+        await context.addCookies(authentication.cookies);
+      }
       await context.route("**/*", async (route) => {
         const request = route.request();
         const decision = getPageInspectionRequestDecision({
@@ -40,6 +55,15 @@ export class PlaywrightPageInspectionBrowser implements PageInspectionBrowser {
           url: request.url(),
         });
         if (decision === "allow") {
+          if (authentication && new URL(request.url()).origin === input.targetOrigin) {
+            await route.continue({
+              headers: mergePlaywrightPageInspectionHeaders(
+                request.headers(),
+                authentication.headers,
+              ),
+            });
+            return;
+          }
           await route.continue();
           return;
         }
@@ -86,12 +110,15 @@ export class PlaywrightPageInspectionBrowser implements PageInspectionBrowser {
         isRenderWaitPartial = true;
       });
 
-      return await extractPlaywrightPageInspectionSnapshot(
-        page,
-        response,
-        input,
-        limits,
-        isRenderWaitPartial,
+      return redactPlaywrightPageInspectionSnapshot(
+        await extractPlaywrightPageInspectionSnapshot(
+          page,
+          response,
+          input,
+          limits,
+          isRenderWaitPartial,
+        ),
+        input.authentication,
       );
     } catch (error) {
       if (isMissingChromiumError(error)) {
@@ -99,9 +126,10 @@ export class PlaywrightPageInspectionBrowser implements PageInspectionBrowser {
           'Page Inspection unavailable: Chromium is not installed. Install it with "bunx playwright install chromium", then restart NullTrace.',
         );
       }
-      throw error;
+      throw redactPlaywrightPageInspectionError(error, input.authentication);
     } finally {
       if (context) {
+        await context.clearCookies().catch(() => {});
         await context.close().catch(() => {});
       }
       if (browser) {

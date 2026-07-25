@@ -6,8 +6,11 @@ interface PageInspectionPermissionModalProps {
   width: number;
   height: number;
   status: PageInspectionPermissionStatus | null;
+  hasAcceptedAuthenticationContext: boolean;
+  isAuthenticationContextSelected: boolean;
   onGrant: () => void;
   onRevoke: () => void;
+  onSelectAuthenticationContext: () => void;
   onClose: () => void;
 }
 
@@ -15,8 +18,11 @@ export function PageInspectionPermissionModal({
   width,
   height,
   status,
+  hasAcceptedAuthenticationContext,
+  isAuthenticationContextSelected,
   onGrant,
   onRevoke,
+  onSelectAuthenticationContext,
   onClose,
 }: PageInspectionPermissionModalProps) {
   const isBrowserMissing = status?.status === "browser_missing";
@@ -33,6 +39,15 @@ export function PageInspectionPermissionModal({
     }
     if (!isBrowserMissing && isAllowed && key.name === "r") {
       onRevoke();
+      return;
+    }
+    if (
+      !isBrowserMissing &&
+      isAllowed &&
+      hasAcceptedAuthenticationContext &&
+      key.name === "c"
+    ) {
+      onSelectAuthenticationContext();
     }
   });
 
@@ -67,9 +82,18 @@ export function PageInspectionPermissionModal({
         <box marginTop={1}>
           <text fg={theme.text.secondary}>
             Inspection opens one public exact-origin page in a fresh isolated browser. Results stay in
-            chat only.
+            chat only. Select accepted authentication for one inspection only.
           </text>
         </box>
+        {isAllowed && hasAcceptedAuthenticationContext ? (
+          <box marginTop={1}>
+            <text fg={isAuthenticationContextSelected ? theme.accent.primary : theme.text.secondary}>
+              {isAuthenticationContextSelected
+                ? "Accepted authentication selected for next inspection."
+                : "Authentication stays public until you select it."}
+            </text>
+          </box>
+        ) : null}
         {isBrowserMissing ? (
           <box marginTop={1}>
             <text fg={theme.accent.warning}>
@@ -86,6 +110,11 @@ export function PageInspectionPermissionModal({
           {!isBrowserMissing && isAllowed ? (
             <box onMouseDown={onRevoke}>
               <text fg={theme.accent.warning}>[R] Revoke inspection</text>
+            </box>
+          ) : null}
+          {!isBrowserMissing && isAllowed && hasAcceptedAuthenticationContext ? (
+            <box onMouseDown={onSelectAuthenticationContext}>
+              <text fg={theme.accent.primary}>[C] Select accepted context once</text>
             </box>
           ) : null}
           <box onMouseDown={onClose}>
