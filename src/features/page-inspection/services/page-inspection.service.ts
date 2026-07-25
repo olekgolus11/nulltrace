@@ -5,19 +5,19 @@ import { defaultPageInspectionLimits } from "../config/page-inspection.config";
 import {
   PageInspectionAuthentication,
   PageInspectionBrowser,
+  PageInspectionPermissionMode,
   PageInspectionRequest,
 } from "../model/page-inspection.types";
-import { PageInspectionPermissionService, pageInspectionPermissionService } from "./page-inspection-permission.service";
+import {
+  PageInspectionPermissionService,
+  pageInspectionPermissionService,
+} from "./page-inspection-permission.service";
 import { isPageInspectionProtectedUrl } from "./page-inspection-protected-path.helpers";
 import {
   applyPageInspectionBounds,
   excludePageInspectionProtectedPaths,
 } from "./page-inspection-snapshot.helpers";
 import { isRejectedPageInspectionAuthentication } from "./page-inspection-authentication.helpers";
-import {
-  PageInspectionAuthenticationSelectionService,
-  pageInspectionAuthenticationSelectionService,
-} from "./page-inspection-authentication-selection.service";
 import { PlaywrightPageInspectionBrowser } from "./playwright-page-inspection-browser.service";
 
 export class PageInspectionService {
@@ -26,7 +26,6 @@ export class PageInspectionService {
     private readonly browser: PageInspectionBrowser = new PlaywrightPageInspectionBrowser(),
     private readonly contextLoader: PageInspectionContextLoader = authenticatedRequestContextService,
     private readonly authenticationAcceptance: PageInspectionAuthenticationAcceptance = authCheckService,
-    private readonly authenticationSelection: PageInspectionAuthenticationSelection = pageInspectionAuthenticationSelectionService,
   ) {}
 
   async inspect(request: PageInspectionRequest) {
@@ -48,7 +47,11 @@ export class PageInspectionService {
     if (requestedUrl.origin !== targetOrigin) {
       throw new Error("Page Inspection only allows the exact target origin.");
     }
-    const authentication = await this.loadAuthentication(request, targetOrigin);
+    const authentication = await this.loadAuthentication(
+      request.sessionId,
+      targetOrigin,
+      permission.mode,
+    );
     if (
       !authentication &&
       isPageInspectionProtectedUrl(
@@ -92,37 +95,29 @@ export class PageInspectionService {
   }
 
   private async loadAuthentication(
-    request: PageInspectionRequest,
+    sessionId: string,
     targetOrigin: string,
+    permissionMode: PageInspectionPermissionMode,
   ): Promise<PageInspectionAuthentication | undefined> {
-    const mode = request.authenticationMode ?? "public";
-    if (mode === "public") {
+    if (permissionMode !== "authenticated") {
       return undefined;
     }
-    if (mode !== "accepted_context") {
-      throw new Error("Page Inspection authentication mode is invalid.");
-    }
-    const hasOperatorSelection = this.authenticationSelection.consume(
-      request.sessionId,
-      this.contextLoader.getAuthStateVersion(request.sessionId),
-    );
-    if (!this.authenticationAcceptance.isProceedAllowed(request.sessionId)) {
+    if (!this.authenticationAcceptance.isProceedAllowed(sessionId)) {
       throw new Error(
-        "Selected authentication context is not accepted. Run Auth Check or acknowledge its inconclusive result before inspecting with it.",
-      );
-    }
-    if (!hasOperatorSelection) {
-      throw new Error(
-        "Selected authentication context requires operator selection for this inspection. Open Page Inspection permission and select the accepted context.",
+        "Authenticated Page Inspection requires an accepted authentication context. Run Auth Check or acknowledge its inconclusive result.",
       );
     }
 
-    const context = await this.contextLoader.loadProtectedContext(request.sessionId);
+    const context = await this.contextLoader.loadProtectedContext(sessionId);
     if (!context) {
-      throw new Error("Selected authentication context is unavailable. Save a context before inspecting with it.");
+      throw new Error(
+        "Authenticated Page Inspection context is unavailable. Save an authentication context first.",
+      );
     }
     if (context.origin !== targetOrigin) {
-      throw new Error("Selected authentication context does not match the target's exact origin.");
+      throw new Error(
+        "Authenticated Page Inspection context does not match the target's exact origin.",
+      );
     }
 
     return {
@@ -136,14 +131,9 @@ export class PageInspectionService {
 export const pageInspectionService = new PageInspectionService();
 
 interface PageInspectionContextLoader {
-  getAuthStateVersion: (sessionId: string) => number;
   loadProtectedContext: (sessionId: string) => Promise<AuthenticatedRequestContext | null>;
 }
 
 interface PageInspectionAuthenticationAcceptance {
   isProceedAllowed: (sessionId: string) => boolean;
-}
-
-interface PageInspectionAuthenticationSelection {
-  consume: (sessionId: string, authStateVersion: number) => boolean;
 }

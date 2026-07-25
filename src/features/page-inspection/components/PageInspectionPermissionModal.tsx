@@ -7,10 +7,9 @@ interface PageInspectionPermissionModalProps {
   height: number;
   status: PageInspectionPermissionStatus | null;
   hasAcceptedAuthenticationContext: boolean;
-  isAuthenticationContextSelected: boolean;
-  onGrant: () => void;
-  onRevoke: () => void;
-  onSelectAuthenticationContext: () => void;
+  onAllowPublic: () => void;
+  onAllowAuthenticated: () => void;
+  onNoInspection: () => void;
   onClose: () => void;
 }
 
@@ -19,35 +18,28 @@ export function PageInspectionPermissionModal({
   height,
   status,
   hasAcceptedAuthenticationContext,
-  isAuthenticationContextSelected,
-  onGrant,
-  onRevoke,
-  onSelectAuthenticationContext,
+  onAllowPublic,
+  onAllowAuthenticated,
+  onNoInspection,
   onClose,
 }: PageInspectionPermissionModalProps) {
   const isBrowserMissing = status?.status === "browser_missing";
-  const isAllowed = status?.status === "ready";
 
   useKeyboard((key) => {
     if (key.name === "escape") {
       onClose();
       return;
     }
-    if (!isBrowserMissing && !isAllowed && key.name === "a") {
-      onGrant();
+    if (!isBrowserMissing && key.name === "p") {
+      onAllowPublic();
       return;
     }
-    if (!isBrowserMissing && isAllowed && key.name === "r") {
-      onRevoke();
+    if (!isBrowserMissing && hasAcceptedAuthenticationContext && key.name === "a") {
+      onAllowAuthenticated();
       return;
     }
-    if (
-      !isBrowserMissing &&
-      isAllowed &&
-      hasAcceptedAuthenticationContext &&
-      key.name === "c"
-    ) {
-      onSelectAuthenticationContext();
+    if (key.name === "n") {
+      onNoInspection();
     }
   });
 
@@ -75,22 +67,21 @@ export function PageInspectionPermissionModal({
         <text fg={theme.text.primary}>
           {isBrowserMissing
             ? "Unavailable: Chromium is not installed."
-            : isAllowed
-              ? "Allowed for this testing session."
-              : "Blocked until you allow it for this testing session."}
+            : status?.mode === "authenticated"
+              ? "Authenticated inspection allowed for this testing session."
+              : status?.mode === "public"
+                ? "Public inspection allowed for this testing session."
+                : "Inspection disabled for this testing session."}
         </text>
         <box marginTop={1}>
           <text fg={theme.text.secondary}>
-            Inspection opens one public exact-origin page in a fresh isolated browser. Results stay in
-            chat only. Select accepted authentication for one inspection only.
+            Choose one session-wide mode. Every inspection uses a fresh isolated browser context.
           </text>
         </box>
-        {isAllowed && hasAcceptedAuthenticationContext ? (
+        {!hasAcceptedAuthenticationContext ? (
           <box marginTop={1}>
-            <text fg={isAuthenticationContextSelected ? theme.accent.primary : theme.text.secondary}>
-              {isAuthenticationContextSelected
-                ? "Accepted authentication selected for next inspection."
-                : "Authentication stays public until you select it."}
+            <text fg={theme.text.secondary}>
+              Auth inspection requires an accepted Authentication Context.
             </text>
           </box>
         ) : null}
@@ -101,24 +92,44 @@ export function PageInspectionPermissionModal({
             </text>
           </box>
         ) : null}
-        <box flexDirection="row" gap={2} marginTop={2}>
-          {!isBrowserMissing && !isAllowed ? (
-            <box onMouseDown={onGrant}>
-              <text fg={theme.accent.primary}>[A] Allow inspection</text>
+        <box flexDirection="column" marginTop={1}>
+          {!isBrowserMissing ? (
+            <box onMouseDown={onAllowPublic}>
+              <text
+                fg={
+                  status?.mode === "public" ? theme.accent.primary : theme.text.secondary
+                }
+              >
+                Allow public inspection
+              </text>
             </box>
           ) : null}
-          {!isBrowserMissing && isAllowed ? (
-            <box onMouseDown={onRevoke}>
-              <text fg={theme.accent.warning}>[R] Revoke inspection</text>
+          {!isBrowserMissing ? (
+            <box
+              onMouseDown={
+                hasAcceptedAuthenticationContext ? onAllowAuthenticated : undefined
+              }
+            >
+              <text
+                fg={
+                  status?.mode === "authenticated"
+                    ? theme.accent.primary
+                    : hasAcceptedAuthenticationContext
+                      ? theme.text.secondary
+                      : theme.text.muted
+                }
+              >
+                Allow auth inspection
+              </text>
             </box>
           ) : null}
-          {!isBrowserMissing && isAllowed && hasAcceptedAuthenticationContext ? (
-            <box onMouseDown={onSelectAuthenticationContext}>
-              <text fg={theme.accent.primary}>[C] Select accepted context once</text>
-            </box>
-          ) : null}
-          <box onMouseDown={onClose}>
-            <text fg={theme.text.secondary}>[Esc] Close</text>
+          <box onMouseDown={onNoInspection}>
+            <text fg={status?.mode === "none" ? theme.accent.warning : theme.text.secondary}>
+              No inspection
+            </text>
+          </box>
+          <box onMouseDown={onClose} marginTop={1}>
+            <text fg={theme.text.muted}>[P] public | [A] auth | [N] none | [Esc] close</text>
           </box>
         </box>
       </box>

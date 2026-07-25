@@ -58,7 +58,7 @@ export class PlaywrightPageInspectionBrowser implements PageInspectionBrowser {
           if (authentication && new URL(request.url()).origin === input.targetOrigin) {
             await route.continue({
               headers: mergePlaywrightPageInspectionHeaders(
-                request.headers(),
+                await request.allHeaders(),
                 authentication.headers,
               ),
             });

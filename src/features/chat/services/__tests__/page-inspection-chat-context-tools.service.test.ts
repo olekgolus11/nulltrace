@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { ConversationAttachmentRecord } from "../../model/conversation-attachment.types";
 import { PageInspectionPermissionService } from "../../../page-inspection/services/page-inspection-permission.service";
-import { PageInspectionAuthenticationSelectionService } from "../../../page-inspection/services/page-inspection-authentication-selection.service";
 import { PageInspectionService } from "../../../page-inspection/services/page-inspection.service";
 import { PageInspectionChatContextToolsService } from "../page-inspection-chat-context-tools.service";
 
@@ -75,7 +74,7 @@ class FakeSitemap {
 describe("PageInspectionChatContextToolsService", () => {
   test("exposes read-only inspect_page only through a granted session", async () => {
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
+    permissions.allowPublic("session-one");
     const pageInspection = new PageInspectionService(permissions, new FakeBrowser());
     const service = new PageInspectionChatContextToolsService(
       new FakeAttachments(),
@@ -90,7 +89,6 @@ describe("PageInspectionChatContextToolsService", () => {
       name: "inspect_page",
       args: {
         url: { type: "string" },
-        authenticationMode: { type: "string", isOptional: true },
       },
     });
 
@@ -100,17 +98,14 @@ describe("PageInspectionChatContextToolsService", () => {
     });
   });
 
-  test("forwards accepted-context selection while public remains default", async () => {
+  test("uses authenticated inspection mode for the whole session", async () => {
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
+    permissions.allowAuthenticated("session-one");
     const browser = new FakeBrowser();
-    const selection = new PageInspectionAuthenticationSelectionService();
-    selection.select("session-one", 1);
     const pageInspection = new PageInspectionService(
       permissions,
       browser,
       {
-        getAuthStateVersion: () => 1,
         loadProtectedContext: async () => ({
           origin: "https://target.example",
           cookies: "session=never-returned",
@@ -119,7 +114,6 @@ describe("PageInspectionChatContextToolsService", () => {
         }),
       },
       { isProceedAllowed: () => true },
-      selection,
     );
     const service = new PageInspectionChatContextToolsService(
       new FakeAttachments(),
@@ -131,13 +125,17 @@ describe("PageInspectionChatContextToolsService", () => {
     await service.inspectPage("conversation-one", { url: "https://target.example/app" });
     await service.inspectPage("conversation-one", {
       url: "https://target.example/app/private",
-      authenticationMode: "accepted_context",
     });
 
     expect(browser.calls).toEqual([
       {
         requestedUrl: "https://target.example/app",
         targetOrigin: "https://target.example",
+        authentication: {
+          origin: "https://target.example",
+          cookies: "session=never-returned",
+          headers: "Authorization: Bearer never-returned",
+        },
       },
       {
         requestedUrl: "https://target.example/app/private",
@@ -153,7 +151,7 @@ describe("PageInspectionChatContextToolsService", () => {
 
   test("keeps authenticated sitemap paths out of Page Inspection", async () => {
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
+    permissions.allowPublic("session-one");
     const pageInspection = new PageInspectionService(permissions, new FakeBrowser());
     const service = new PageInspectionChatContextToolsService(
       new FakeAttachments(),
@@ -176,7 +174,7 @@ describe("PageInspectionChatContextToolsService", () => {
 
   test("loads protected paths after the first sitemap page", async () => {
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
+    permissions.allowPublic("session-one");
     const pageInspection = new PageInspectionService(permissions, new FakeBrowser());
     const firstPage = Array.from({ length: 500 }, (_, index) => ({
       normalizedUrl: `https://target.example/app/private-${index}`,

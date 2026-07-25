@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { PageInspectionSnapshot } from "../../model/page-inspection.types";
 import { PageInspectionPermissionService } from "../page-inspection-permission.service";
-import { PageInspectionAuthenticationSelectionService } from "../page-inspection-authentication-selection.service";
 import { PageInspectionService } from "../page-inspection.service";
 
 const snapshot: PageInspectionSnapshot = {
@@ -64,7 +63,7 @@ describe("PageInspectionService", () => {
   test("allows an exact-origin page after a grant", async () => {
     const browser = new FakePageInspectionBrowser();
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
+    permissions.allowPublic("session-one");
     const service = new PageInspectionService(permissions, browser);
 
     await expect(
@@ -82,17 +81,46 @@ describe("PageInspectionService", () => {
     ]);
   });
 
-  test("defaults to public inspection and injects an explicitly selected accepted context", async () => {
+  test("uses public mode without loading authentication", async () => {
     const browser = new FakePageInspectionBrowser();
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
-    const selection = new PageInspectionAuthenticationSelectionService();
-    selection.select("session-one", 1);
+    permissions.allowPublic("session-one");
+    let contextLoads = 0;
     const service = new PageInspectionService(
       permissions,
       browser,
       {
-        getAuthStateVersion: () => 1,
+        loadProtectedContext: async () => {
+          contextLoads += 1;
+          return null;
+        },
+      },
+      { isProceedAllowed: () => true },
+    );
+
+    await service.inspect({
+      sessionId: "session-one",
+      requestedUrl: "https://target.example/public",
+      targetOrigin: "https://target.example",
+    });
+
+    expect(browser.calls).toEqual([
+      {
+        requestedUrl: "https://target.example/public",
+        targetOrigin: "https://target.example",
+      },
+    ]);
+    expect(contextLoads).toBe(0);
+  });
+
+  test("uses one accepted context for every inspection in authenticated session mode", async () => {
+    const browser = new FakePageInspectionBrowser();
+    const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
+    permissions.allowAuthenticated("session-one");
+    const service = new PageInspectionService(
+      permissions,
+      browser,
+      {
         loadProtectedContext: async () => ({
           origin: "https://target.example",
           cookies: "session=secret-cookie",
@@ -101,29 +129,33 @@ describe("PageInspectionService", () => {
         }),
       },
       { isProceedAllowed: () => true },
-      selection,
     );
 
     await service.inspect({
       sessionId: "session-one",
-      requestedUrl: "https://target.example/public",
+      requestedUrl: "https://target.example/private",
       targetOrigin: "https://target.example",
+      protectedPaths: ["https://target.example/private"],
     });
     await service.inspect({
       sessionId: "session-one",
-      requestedUrl: "https://target.example/private",
+      requestedUrl: "https://target.example/private-two",
       targetOrigin: "https://target.example",
-      authenticationMode: "accepted_context",
       protectedPaths: ["https://target.example/private"],
     });
 
     expect(browser.calls).toEqual([
       {
-        requestedUrl: "https://target.example/public",
+        requestedUrl: "https://target.example/private",
         targetOrigin: "https://target.example",
+        authentication: {
+          origin: "https://target.example",
+          cookies: "session=secret-cookie",
+          headers: "Authorization: Bearer secret-header",
+        },
       },
       {
-        requestedUrl: "https://target.example/private",
+        requestedUrl: "https://target.example/private-two",
         targetOrigin: "https://target.example",
         authentication: {
           origin: "https://target.example",
@@ -134,14 +166,14 @@ describe("PageInspectionService", () => {
     ]);
   });
 
-  test("rejects rejected, missing, and incompatible selected contexts without public fallback", async () => {
+  test("rejects rejected, missing, and incompatible authenticated contexts without public fallback", async () => {
     const rejectedBrowser = new FakePageInspectionBrowser();
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
+    permissions.allowAuthenticated("session-one");
     const rejectedService = new PageInspectionService(
       permissions,
       rejectedBrowser,
-      { getAuthStateVersion: () => 1, loadProtectedContext: async () => null },
+      { loadProtectedContext: async () => null },
       { isProceedAllowed: () => false },
     );
     await expect(
@@ -149,39 +181,31 @@ describe("PageInspectionService", () => {
         sessionId: "session-one",
         requestedUrl: "https://target.example/private",
         targetOrigin: "https://target.example",
-        authenticationMode: "accepted_context",
       }),
-    ).rejects.toThrow("not accepted");
+    ).rejects.toThrow("requires an accepted authentication context");
     expect(rejectedBrowser.calls).toEqual([]);
 
     const missingBrowser = new FakePageInspectionBrowser();
-    const missingSelection = new PageInspectionAuthenticationSelectionService();
-    missingSelection.select("session-one", 1);
     const missingService = new PageInspectionService(
       permissions,
       missingBrowser,
-      { getAuthStateVersion: () => 1, loadProtectedContext: async () => null },
+      { loadProtectedContext: async () => null },
       { isProceedAllowed: () => true },
-      missingSelection,
     );
     await expect(
       missingService.inspect({
         sessionId: "session-one",
         requestedUrl: "https://target.example/private",
         targetOrigin: "https://target.example",
-        authenticationMode: "accepted_context",
       }),
     ).rejects.toThrow("unavailable");
     expect(missingBrowser.calls).toEqual([]);
 
     const incompatibleBrowser = new FakePageInspectionBrowser();
-    const incompatibleSelection = new PageInspectionAuthenticationSelectionService();
-    incompatibleSelection.select("session-one", 1);
     const incompatibleService = new PageInspectionService(
       permissions,
       incompatibleBrowser,
       {
-        getAuthStateVersion: () => 1,
         loadProtectedContext: async () => ({
           origin: "https://other.example",
           cookies: "session=wrong-context",
@@ -190,55 +214,20 @@ describe("PageInspectionService", () => {
         }),
       },
       { isProceedAllowed: () => true },
-      incompatibleSelection,
     );
     await expect(
       incompatibleService.inspect({
         sessionId: "session-one",
         requestedUrl: "https://target.example/private",
         targetOrigin: "https://target.example",
-        authenticationMode: "accepted_context",
       }),
     ).rejects.toThrow("exact origin");
     expect(incompatibleBrowser.calls).toEqual([]);
   });
 
-  test("requires operator selection before using an accepted context", async () => {
-    const browser = new FakePageInspectionBrowser();
+  test("allows authenticated mode to finish on a protected page", async () => {
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
-    const service = new PageInspectionService(
-      permissions,
-      browser,
-      {
-        getAuthStateVersion: () => 1,
-        loadProtectedContext: async () => ({
-          origin: "https://target.example",
-          cookies: "session=unselected-context",
-          headers: "",
-          updatedAt: "2026-07-25T10:00:00.000Z",
-        }),
-      },
-      { isProceedAllowed: () => true },
-      new PageInspectionAuthenticationSelectionService(),
-    );
-
-    await expect(
-      service.inspect({
-        sessionId: "session-one",
-        requestedUrl: "https://target.example/private",
-        targetOrigin: "https://target.example",
-        authenticationMode: "accepted_context",
-      }),
-    ).rejects.toThrow("requires operator selection");
-    expect(browser.calls).toEqual([]);
-  });
-
-  test("allows an accepted context to finish on its selected protected page", async () => {
-    const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
-    const selection = new PageInspectionAuthenticationSelectionService();
-    selection.select("session-one", 1);
+    permissions.allowAuthenticated("session-one");
     const service = new PageInspectionService(
       permissions,
       {
@@ -249,7 +238,6 @@ describe("PageInspectionService", () => {
         }),
       },
       {
-        getAuthStateVersion: () => 1,
         loadProtectedContext: async () => ({
           origin: "https://target.example",
           cookies: "session=selected-context",
@@ -258,7 +246,6 @@ describe("PageInspectionService", () => {
         }),
       },
       { isProceedAllowed: () => true },
-      selection,
     );
 
     await expect(
@@ -267,27 +254,23 @@ describe("PageInspectionService", () => {
         requestedUrl: "https://target.example/private",
         targetOrigin: "https://target.example",
         protectedPaths: ["https://target.example/private"],
-        authenticationMode: "accepted_context",
       }),
     ).resolves.toMatchObject({ finalUrl: "https://target.example/private" });
   });
 
-  test("reports a rejected selected context without falling back to public inspection", async () => {
+  test("reports a rejected authenticated context without falling back to public inspection", async () => {
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
-    const selection = new PageInspectionAuthenticationSelectionService();
-    selection.select("session-one", 1);
+    permissions.allowAuthenticated("session-one");
     const service = new PageInspectionService(
       permissions,
       {
         inspect: async () => ({
           ...snapshot,
-          finalUrl: "https://target.example/login",
+          finalUrl: "https://target.example/login.php",
           status: 200,
         }),
       },
       {
-        getAuthStateVersion: () => 1,
         loadProtectedContext: async () => ({
           origin: "https://target.example",
           cookies: "session=expired-context",
@@ -296,7 +279,6 @@ describe("PageInspectionService", () => {
         }),
       },
       { isProceedAllowed: () => true },
-      selection,
     );
 
     await expect(
@@ -304,7 +286,6 @@ describe("PageInspectionService", () => {
         sessionId: "session-one",
         requestedUrl: "https://target.example/private",
         targetOrigin: "https://target.example",
-        authenticationMode: "accepted_context",
       }),
     ).rejects.toThrow("rejected by the target");
   });
@@ -312,7 +293,7 @@ describe("PageInspectionService", () => {
   test("rejects cross-origin requests before browser navigation", async () => {
     const browser = new FakePageInspectionBrowser();
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
+    permissions.allowPublic("session-one");
     const service = new PageInspectionService(permissions, browser);
 
     await expect(
@@ -328,7 +309,7 @@ describe("PageInspectionService", () => {
   test("reports a Chromium installation action without calling the browser", async () => {
     const browser = new FakePageInspectionBrowser();
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => false });
-    permissions.grant("session-one");
+    permissions.allowPublic("session-one");
     const service = new PageInspectionService(permissions, browser);
 
     await expect(
@@ -343,7 +324,7 @@ describe("PageInspectionService", () => {
 
   test("rejects an out-of-origin final URL from the browser", async () => {
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
+    permissions.allowPublic("session-one");
     const service = new PageInspectionService(permissions, {
       inspect: async () => ({
         ...snapshot,
@@ -362,7 +343,7 @@ describe("PageInspectionService", () => {
 
   test("rejects a redirect that lands on a known protected path", async () => {
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
+    permissions.allowPublic("session-one");
     const service = new PageInspectionService(permissions, {
       inspect: async () => ({
         ...snapshot,
@@ -383,7 +364,7 @@ describe("PageInspectionService", () => {
   test("does not navigate to known protected paths", async () => {
     const browser = new FakePageInspectionBrowser();
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
+    permissions.allowPublic("session-one");
     const service = new PageInspectionService(permissions, browser);
 
     await expect(
@@ -399,7 +380,7 @@ describe("PageInspectionService", () => {
 
   test("removes known protected destinations from a public snapshot", async () => {
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
+    permissions.allowPublic("session-one");
     const service = new PageInspectionService(permissions, {
       inspect: async () => ({
         ...snapshot,

@@ -4,7 +4,7 @@ export function isRejectedPageInspectionAuthentication(snapshot: PageInspectionS
   if (snapshot.status === 401 || snapshot.status === 403) {
     return true;
   }
-  return /(?:^|\/)(?:login|log-in|signin|sign-in|sso|oauth|authorize)(?:\/|$)/i.test(
+  return /(?:^|\/)(?:login|log-in|signin|sign-in|sso|oauth|authorize)(?:\.[a-z0-9]+)?(?:\/|$)/i.test(
     new URL(snapshot.finalUrl).pathname,
   );
 }

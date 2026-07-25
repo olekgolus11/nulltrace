@@ -62,7 +62,6 @@ export function DashboardScreen({
   const pageInspection = usePageInspectionPermission(sessionId);
   const sessionChat = useSessionChat(sessionId, activeConversationId, {
     onPromptComplete: () => {
-      pageInspection.clearAuthenticationContextSelection();
       void refreshConversationTitles();
       refreshDrafts();
     },
@@ -250,15 +249,14 @@ export function DashboardScreen({
       {dashboardState.isPageInspectionOpen ? (
         <PageInspectionPermissionModal
           width={modalWidth}
-          height={Math.max(1, Math.min(16, height - 6))}
+          height={Math.max(1, Math.min(18, height - 6))}
           status={pageInspection.status}
           hasAcceptedAuthenticationContext={
             authenticationContext.metadata?.authCheck.isProceedAllowed ?? false
           }
-          isAuthenticationContextSelected={pageInspection.isAuthenticationContextSelected}
-          onGrant={pageInspection.grant}
-          onRevoke={pageInspection.revoke}
-          onSelectAuthenticationContext={pageInspection.selectAuthenticationContext}
+          onAllowPublic={pageInspection.allowPublic}
+          onAllowAuthenticated={pageInspection.allowAuthenticated}
+          onNoInspection={pageInspection.revoke}
           onClose={closePageInspection}
         />
       ) : null}

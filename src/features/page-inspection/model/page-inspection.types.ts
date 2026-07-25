@@ -1,7 +1,10 @@
 export type PageInspectionStatus = "blocked" | "ready" | "browser_missing";
+export type PageInspectionAllowedMode = "public" | "authenticated";
+export type PageInspectionPermissionMode = "none" | PageInspectionAllowedMode;
 
 export interface PageInspectionPermissionStatus {
   isAllowed: boolean;
+  mode: PageInspectionPermissionMode;
   status: PageInspectionStatus;
 }
 
@@ -41,10 +44,7 @@ export interface PageInspectionRequest {
   requestedUrl: string;
   targetOrigin: string;
   protectedPaths?: string[];
-  authenticationMode?: PageInspectionAuthenticationMode;
 }
-
-export type PageInspectionAuthenticationMode = "public" | "accepted_context";
 
 export interface PageInspectionAuthentication {
   origin: string;

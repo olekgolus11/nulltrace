@@ -6,6 +6,7 @@ import { PlaywrightPageInspectionBrowser } from "../playwright-page-inspection-b
 interface FakeRouteHandler {
   (route: {
     request: () => {
+      allHeaders: () => Promise<Record<string, string>>;
       frame: () => unknown;
       headers: () => Record<string, string>;
       method: () => string;
@@ -221,6 +222,10 @@ test("injects selected authentication only into exact-origin requests and clears
   const continued: Array<Record<string, string> | undefined> = [];
   await routeHandler?.({
     request: () => ({
+      allHeaders: async () => ({
+        accept: "application/javascript",
+        cookie: "session=secret-cookie; csrf=secret-csrf",
+      }),
       frame: () => ({}),
       headers: () => ({ accept: "application/javascript" }),
       method: () => "GET",
@@ -234,6 +239,7 @@ test("injects selected authentication only into exact-origin requests and clears
   });
   await routeHandler?.({
     request: () => ({
+      allHeaders: async () => ({ accept: "application/javascript" }),
       frame: () => ({}),
       headers: () => ({ accept: "application/javascript" }),
       method: () => "GET",
@@ -249,6 +255,7 @@ test("injects selected authentication only into exact-origin requests and clears
   const blockedRedirect: string[] = [];
   await routeHandler?.({
     request: () => ({
+      allHeaders: async () => ({ cookie: "session=secret-cookie" }),
       frame: () => ({}),
       headers: () => ({ cookie: "session=secret-cookie" }),
       method: () => "GET",
@@ -268,6 +275,7 @@ test("injects selected authentication only into exact-origin requests and clears
       accept: "application/javascript",
       Authorization: "Bearer secret-header",
       "X-CSRF-Token": "secret-token",
+      cookie: "session=secret-cookie; csrf=secret-csrf",
     },
     undefined,
   ]);
@@ -382,6 +390,7 @@ test("enforces request policy and cleans up after navigation failure", async () 
   const blocked: string[] = [];
   await routeHandler?.({
     request: () => ({
+      allHeaders: async () => ({}),
       frame: () => ({}),
       headers: () => ({}),
       method: () => "POST",
@@ -399,6 +408,7 @@ test("enforces request policy and cleans up after navigation failure", async () 
 
   await routeHandler?.({
     request: () => ({
+      allHeaders: async () => ({}),
       frame: () => ({}),
       headers: () => ({}),
       method: () => "GET",
