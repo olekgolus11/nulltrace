@@ -74,6 +74,63 @@ describe("niktoCommandService", () => {
     expect(prepared).not.toContain("9999s");
     expect(prepared).not.toContain("-Format csv");
     expect(prepared).not.toContain("/tmp/x");
+    expect(prepared).toContain("/nikto.json'");
+  });
+
+  it("collects Nikto 2.6 extension-appended multi-host JSON reports", async () => {
+    const reportPath = join(
+      appDataDirectory,
+      "artifacts/sessions/session-1/tool-runs/run-26/nikto.json.json",
+    );
+    mkdirSync(join(reportPath, ".."), { recursive: true });
+    writeFileSync(
+      reportPath,
+      JSON.stringify([
+        {
+          host: "localhost",
+          ip: "127.0.0.1",
+          port: "4280",
+          vulnerabilities: [
+            {
+              id: "013587",
+              method: "GET",
+              url: "/",
+              msg: "Suggested security header missing: content-security-policy.",
+            },
+            {
+              id: "006333",
+              method: "GET",
+              url: "/login.php",
+              msg: "Admin login page/section found.",
+            },
+          ],
+        },
+      ]),
+    );
+
+    const artifacts = await niktoCommandService.collectArtifacts({
+      sessionId: "session-1",
+      toolRunId: "run-26",
+      status: "success",
+      exitCode: 0,
+    });
+
+    expect(artifacts[0]?.payload).toMatchObject({
+      findings: [
+        {
+          id: "013587",
+          url: "http://localhost:4280/",
+          message: "Suggested security header missing: content-security-policy.",
+        },
+        {
+          id: "006333",
+          url: "http://localhost:4280/login.php",
+          message: "Admin login page/section found.",
+        },
+      ],
+      rejectedItemCount: 0,
+      parseWarning: null,
+    });
   });
 
   it("parses valid items and preserves malformed item context", async () => {

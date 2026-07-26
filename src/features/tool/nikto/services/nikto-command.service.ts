@@ -56,8 +56,8 @@ class NiktoCommandService {
     assertNiktoStandardCommand(command);
     if (!sessionId || !toolRunId) return command;
 
-    const outputPath = this.getOutputPath(sessionId, toolRunId);
-    mkdirSync(dirname(outputPath), { recursive: true });
+    const requestedOutputPath = this.getRequestedOutputPath(sessionId, toolRunId);
+    mkdirSync(dirname(requestedOutputPath), { recursive: true });
     const timeout = this.normalizeTimeout(
       (toolData as NiktoToolData | undefined)?.form.timeoutSeconds,
     );
@@ -65,13 +65,13 @@ class NiktoCommandService {
       .replace(controlledOutputPattern, " ")
       .replace(/\s+-maxtime(?:\s+|=)\S+/gi, " ")
       .trim();
-    return `${controlled} -maxtime ${timeout}s -Format json -output ${quoteNiktoShellValue(outputPath)}`;
+    return `${controlled} -maxtime ${timeout}s -Format json -output ${quoteNiktoShellValue(requestedOutputPath)}`;
   }
 
   async collectArtifacts(options: ToolRunCompleted): Promise<ToolRunArtifactInput[]> {
     const { sessionId, toolRunId, status, exitCode } = options;
     if (!sessionId || !toolRunId || status === "cancelled") return [];
-    const outputPath = this.getOutputPath(sessionId, toolRunId);
+    const outputPath = this.getExistingOutputPath(sessionId, toolRunId);
     if (!existsSync(outputPath)) {
       return [this.buildReportArtifact(status, exitCode, null, {
         findings: [],
@@ -123,7 +123,7 @@ class NiktoCommandService {
     return Math.max(1, Math.min(parsed, niktoMaximumTimeoutSeconds));
   }
 
-  private getOutputPath(sessionId: string, toolRunId: string) {
+  private getRequestedOutputPath(sessionId: string, toolRunId: string) {
     return join(
       getAppDataDirectory(),
       "artifacts",
@@ -133,6 +133,12 @@ class NiktoCommandService {
       toolRunId,
       "nikto.json",
     );
+  }
+
+  private getExistingOutputPath(sessionId: string, toolRunId: string) {
+    const requestedOutputPath = this.getRequestedOutputPath(sessionId, toolRunId);
+    const nikto26OutputPath = `${requestedOutputPath}.json`;
+    return existsSync(nikto26OutputPath) ? nikto26OutputPath : requestedOutputPath;
   }
 }
 

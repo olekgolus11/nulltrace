@@ -44,16 +44,9 @@ export function parseNiktoJsonReport(content: string) {
     };
   }
 
-  const root = getRecord(parsed);
-  const rawItems = Array.isArray(parsed)
-    ? parsed
-    : Array.isArray(root?.vulnerabilities)
-      ? root.vulnerabilities
-      : Array.isArray(root?.findings)
-        ? root.findings
-        : [];
+  const reportItems = getNiktoReportItems(parsed);
   let rejectedItemCount = 0;
-  const findings = rawItems.flatMap((item, index) => {
+  const findings = reportItems.flatMap(({ item, host }, index) => {
     const record = getRecord(item);
     if (!record) {
       rejectedItemCount += 1;
@@ -69,7 +62,7 @@ export function parseNiktoJsonReport(content: string) {
     return [{
       id: getString(record, ["id", "OSVDB", "osvdb"]),
       method: getString(record, ["method"]),
-      url,
+      url: getNiktoFindingUrl(url, host),
       message,
       severity: getString(record, ["severity"]),
       itemIndex: index,
@@ -83,6 +76,47 @@ export function parseNiktoJsonReport(content: string) {
       ? `Nikto report skipped ${rejectedItemCount} malformed item(s).`
       : null,
   };
+}
+
+function getNiktoReportItems(parsed: unknown) {
+  const root = getRecord(parsed);
+  if (!Array.isArray(parsed)) {
+    return getHostReportItems(root);
+  }
+
+  const hasHostReports = parsed.some((item) => {
+    const record = getRecord(item);
+    return Array.isArray(record?.vulnerabilities) || Array.isArray(record?.findings);
+  });
+  if (!hasHostReports) {
+    return parsed.map((item) => ({ item, host: null }));
+  }
+
+  return parsed.flatMap((item) => getHostReportItems(getRecord(item)));
+}
+
+function getHostReportItems(host: Record<string, unknown> | null) {
+  const items = Array.isArray(host?.vulnerabilities)
+    ? host.vulnerabilities
+    : Array.isArray(host?.findings)
+      ? host.findings
+      : [];
+  return items.map((item) => ({ item, host }));
+}
+
+function getNiktoFindingUrl(url: string, host: Record<string, unknown> | null) {
+  if (/^https?:\/\//i.test(url) || !host) return url;
+  const hostname = getString(host, ["host", "hostname", "ip"]);
+  if (!hostname) return url;
+  const port = getString(host, ["port"]);
+  const scheme = port === "443" ? "https" : "http";
+  const authority = port && !["80", "443"].includes(port) ? `${hostname}:${port}` : hostname;
+
+  try {
+    return new URL(url, `${scheme}://${authority}`).toString();
+  } catch {
+    return url;
+  }
 }
 
 function assertNoShellComposition(command: string) {
