@@ -21,6 +21,7 @@ interface ProcessCompletedRunInput {
   status: import("../types/tool-screen.types").ExecutionStatus;
   exitCode: number | null;
   command?: string;
+  toolData?: unknown;
   redactOutput?: (content: string) => string;
   redactArtifact?: (content: string) => string;
   onArtifactProcessingError?: (message: string) => void;
@@ -39,6 +40,7 @@ export class ToolArtifactPipelineService {
     status,
     exitCode,
     command,
+    toolData,
     redactOutput,
     redactArtifact,
     onArtifactProcessingError,
@@ -54,6 +56,7 @@ export class ToolArtifactPipelineService {
         status,
         exitCode,
         command,
+        toolData,
         ...(redactOutput ? { redactOutput } : {}),
         ...(redactArtifact ? { redactArtifact } : {}),
       });

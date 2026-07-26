@@ -67,4 +67,35 @@ describe("FfufSitemapEnrichmentService", () => {
 
     expect(service.upsertContentDiscoveryResults("missing", [createArtifact(["bad"])] )).toBe(0);
   });
+
+  test("does not turn Parameter Discovery candidates into sitemap entries", () => {
+    const upsertEntry = () => {
+      throw new Error("should not write");
+    };
+    const service = new FfufSitemapEnrichmentService(
+      {
+        getSessionById: () => ({
+          id: "session-1",
+          targetId: "target-1",
+          normalizedUrl: "https://example.com",
+          displayUrl: "https://example.com",
+          createdAt: "2026-07-25T10:00:00.000Z",
+          lastActivityAt: "2026-07-25T10:00:00.000Z",
+        }),
+      },
+      { upsertEntry },
+    );
+
+    expect(
+      service.upsertContentDiscoveryResults("session-1", [
+        {
+          ...createArtifact([]),
+          artifactType: "ffuf_parameter_discovery",
+          payload: {
+            candidates: [{ parameterName: "debug", requestLocation: "query" }],
+          },
+        },
+      ]),
+    ).toBe(0);
+  });
 });

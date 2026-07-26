@@ -1,4 +1,10 @@
-import { FfufArtifactResult, FfufSitemapMatch, ParsedFfufOutput } from "../types/ffuf.types";
+import {
+  FfufArtifactResult,
+  FfufParameterCandidate,
+  FfufParameterDiscoveryFormState,
+  FfufSitemapMatch,
+  ParsedFfufOutput,
+} from "../types/ffuf.types";
 
 interface FfufRawResult {
   [key: string]: unknown;
@@ -85,6 +91,42 @@ export function selectExactOriginFfufMatches(
     }
 
     return matches;
+  }, []);
+}
+
+export function mapFfufParameterCandidates(
+  results: FfufArtifactResult[],
+  form: FfufParameterDiscoveryFormState,
+  toolRunId: string,
+  maximumCandidateCount: number,
+): FfufParameterCandidate[] {
+  const candidateNames = new Set<string>();
+
+  return results.reduce<FfufParameterCandidate[]>((candidates, result) => {
+    if (candidates.length >= maximumCandidateCount) return candidates;
+
+    const parameterName = result.input.FUZZ?.trim();
+    if (!parameterName || candidateNames.has(parameterName)) return candidates;
+
+    candidateNames.add(parameterName);
+    candidates.push({
+      parameterName,
+      requestLocation: form.requestLocation,
+      response: {
+        status: result.status,
+        size: result.length,
+        signature: {
+          words: result.words,
+          lines: result.lines,
+        },
+      },
+      provenance: {
+        toolRunId,
+        endpoint: form.endpoint,
+        mode: "parameter_discovery",
+      },
+    });
+    return candidates;
   }, []);
 }
 

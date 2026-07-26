@@ -1,27 +1,24 @@
 import { theme } from "../../../../app/theme/theme";
-import { ffufFieldOrder } from "../config/ffuf.config";
+import { getFfufFieldOrder } from "../config/ffuf.config";
 import { FfufFieldId, FfufFormProps } from "../types/ffuf.types";
 
-type FfufTextField = Exclude<FfufFieldId, "recursion">;
+type FfufTextField = Exclude<FfufFieldId, "mode" | "recursion" | "requestLocation">;
 
-export function FfufForm({ form, selectedField, focused, onFieldChange }: FfufFormProps) {
-  const selectedId = ffufFieldOrder[selectedField];
+export function FfufForm({ toolData, focused, onFieldChange }: FfufFormProps) {
+  const fieldOrder = getFfufFieldOrder(toolData.mode);
+  const selectedId = fieldOrder[toolData.selectedField];
   const fieldLabel = (field: typeof selectedId, label: string) =>
     selectedId === field ? `> ${label}` : `  ${label}`;
   const fieldColor = (field: typeof selectedId) =>
     selectedId === field ? theme.accent.primary : theme.text.secondary;
-  const input = (
-    field: FfufTextField,
-    label: string,
-    placeholder: string,
-  ) => (
+  const input = (field: FfufTextField, label: string, placeholder: string) => (
     <box flexDirection="row" width="100%">
       <box width={20}>
         <text fg={fieldColor(field)}>{fieldLabel(field, label)}</text>
       </box>
       <box flexGrow={1} minWidth={0}>
         <input
-          value={form[field]}
+          value={toolData.form[field] as string}
           width="100%"
           onChange={(value) => onFieldChange(field, value)}
           placeholder={placeholder}
@@ -36,9 +33,34 @@ export function FfufForm({ form, selectedField, focused, onFieldChange }: FfufFo
     </box>
   );
 
+  if (toolData.mode === "parameter_discovery") {
+    return (
+      <box flexDirection="column">
+        <text fg={fieldColor("mode")}>{fieldLabel("mode", "Mode")}: Parameter Discovery</text>
+        <text fg={theme.text.dim}>  press Left/Right to switch modes</text>
+        {input("endpoint", "Endpoint", "https://example.com/search")}
+        <box flexDirection="row" width="100%">
+          <box width={20}>
+            <text fg={fieldColor("requestLocation")}>
+              {fieldLabel("requestLocation", "Request location")}
+            </text>
+          </box>
+          <text fg={fieldColor("requestLocation")}>[{toolData.form.requestLocation}]</text>
+          <text fg={theme.text.dim}>  press Left/Right</text>
+        </box>
+        {input("wordlist", "Wordlist", "/path/to/parameters.txt")}
+        {input("matchCodes", "Match codes", "200,204,301,302")}
+        {input("filterCodes", "Filter codes", "404")}
+        {input("rate", "Request rate", "25")}
+        {input("timeLimit", "Time limit", "10 seconds")}
+      </box>
+    );
+  }
+
   return (
     <box flexDirection="column">
-      <text fg={theme.accent.primary}>Mode: Content Discovery</text>
+      <text fg={fieldColor("mode")}>{fieldLabel("mode", "Mode")}: Content Discovery</text>
+      <text fg={theme.text.dim}>  press Left/Right to switch modes</text>
       {input("targetPattern", "Target pattern", "https://example.com/FUZZ")}
       {input("wordlist", "Wordlist", "/path/to/words.txt")}
       {input("extensions", "Extensions", ".php,.bak")}
@@ -46,7 +68,7 @@ export function FfufForm({ form, selectedField, focused, onFieldChange }: FfufFo
         <box width={20}>
           <text fg={fieldColor("recursion")}>{fieldLabel("recursion", "Recursion")}</text>
         </box>
-        <text fg={fieldColor("recursion")}>{form.recursion ? "[enabled]" : "disabled"}</text>
+        <text fg={fieldColor("recursion")}>{toolData.form.recursion ? "[enabled]" : "disabled"}</text>
         <text fg={theme.text.dim}>  press Enter</text>
       </box>
       {input("recursionDepth", "Recursion depth", "2")}

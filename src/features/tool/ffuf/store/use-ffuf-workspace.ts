@@ -1,9 +1,10 @@
 import { useToolWorkspaceStore } from "../../shared/store/tool-workspace.store";
 import {
   setFfufContentDiscoveryField,
+  setFfufParameterDiscoveryField,
 } from "../services/ffuf-command.helpers";
 import { getFfufWorkspaceToolData } from "./ffuf-workspace.helpers";
-import { FfufContentDiscoveryFormState } from "../types/ffuf.types";
+import { FfufFieldId } from "../types/ffuf.types";
 
 export function useFfufWorkspace() {
   const activePanel = useToolWorkspaceStore((state) => state.activePanel);
@@ -23,10 +24,22 @@ export function useFfufWorkspace() {
   const updateToolData = useToolWorkspaceStore((state) => state.updateToolData);
   const syncGeneratedCommand = useToolWorkspaceStore((state) => state.syncGeneratedCommand);
 
-  const setField = (field: keyof FfufContentDiscoveryFormState, value: string | boolean) => {
-    updateToolData((current) =>
-      setFfufContentDiscoveryField(getFfufWorkspaceToolData(current), field, value),
-    );
+  const setField = (field: Exclude<FfufFieldId, "mode">, value: string | boolean) => {
+    updateToolData((current) => {
+      const toolData = getFfufWorkspaceToolData(current);
+      if (toolData.mode === "parameter_discovery") {
+        return setFfufParameterDiscoveryField(
+          toolData,
+          field as keyof typeof toolData.form,
+          String(value),
+        );
+      }
+      return setFfufContentDiscoveryField(
+        toolData,
+        field as keyof typeof toolData.form,
+        value,
+      );
+    });
     syncGeneratedCommand();
   };
 

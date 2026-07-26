@@ -81,6 +81,7 @@ export interface ToolPrepareCommand {
   command: string;
   sessionId: string | null;
   toolRunId: string | null;
+  targetUrl?: string;
   toolData?: unknown;
 }
 
@@ -97,6 +98,7 @@ export interface ToolRunCompleted {
   command?: string;
   status: ExecutionStatus;
   exitCode: number | null;
+  toolData?: unknown;
   redactOutput?: (content: string) => string;
   redactArtifact?: (content: string) => string;
 }

@@ -1505,7 +1505,7 @@ export class ActionDraftChatContextToolsService {
           targetTool: {
             type: "string",
             description:
-              "Implemented scanner tool to draft for. Supported tools include nmap, nuclei, and ffuf. FFUF Content Discovery drafts use formStateJson targetPattern, wordlist, extensions, recursion, recursionDepth, matchCodes, filterCodes, rate, and timeLimit when relevant.",
+              "Implemented scanner tool to draft for. Supported tools include nmap, nuclei, and ffuf. FFUF drafts set mode to content_discovery with targetPattern, or parameter_discovery with endpoint, requestLocation, wordlist, matchCodes, filterCodes, rate, and timeLimit.",
           },
           title: {
             type: "string",

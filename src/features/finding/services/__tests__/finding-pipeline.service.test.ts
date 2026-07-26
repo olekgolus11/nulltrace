@@ -59,6 +59,30 @@ describe("FindingPipelineService", () => {
     expect(repository.upsertCandidates).not.toHaveBeenCalled();
   });
 
+  it("does not create Findings from FFUF Parameter Discovery artifacts", () => {
+    const repository = {
+      upsertCandidates: mock(() => []),
+    };
+    const service = new FindingPipelineService([nucleiFindingMapper], repository);
+
+    service.processArtifacts({
+      sessionId: "session-1",
+      artifacts: [
+        {
+          id: "artifact-parameter-1",
+          toolRunId: "run-1",
+          artifactType: "ffuf_parameter_discovery",
+          label: "FFUF Parameter Discovery",
+          source: "ffuf.json",
+          payload: { candidates: [{ parameterName: "debug", requestLocation: "query" }] },
+          createdAt: "2026-07-25T10:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(repository.upsertCandidates).not.toHaveBeenCalled();
+  });
+
   it("wraps nuclei finding candidates with the source artifact id", () => {
     const repository = {
       upsertCandidates: mock(() => []),
