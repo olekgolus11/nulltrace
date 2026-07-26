@@ -74,13 +74,13 @@ describe("niktoCommandService", () => {
     expect(prepared).not.toContain("9999s");
     expect(prepared).not.toContain("-Format csv");
     expect(prepared).not.toContain("/tmp/x");
-    expect(prepared).toContain("/nikto.json'");
+    expect(prepared).toContain("/nikto'");
   });
 
-  it("collects Nikto 2.6 extension-appended multi-host JSON reports", async () => {
+  it("collects Nikto 2.6 multi-host JSON reports", async () => {
     const reportPath = join(
       appDataDirectory,
-      "artifacts/sessions/session-1/tool-runs/run-26/nikto.json.json",
+      "artifacts/sessions/session-1/tool-runs/run-26/nikto.json",
     );
     mkdirSync(join(reportPath, ".."), { recursive: true });
     writeFileSync(

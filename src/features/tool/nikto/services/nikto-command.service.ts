@@ -56,8 +56,8 @@ class NiktoCommandService {
     assertNiktoStandardCommand(command);
     if (!sessionId || !toolRunId) return command;
 
-    const requestedOutputPath = this.getRequestedOutputPath(sessionId, toolRunId);
-    mkdirSync(dirname(requestedOutputPath), { recursive: true });
+    const outputPrefix = this.getOutputPrefix(sessionId, toolRunId);
+    mkdirSync(dirname(outputPrefix), { recursive: true });
     const timeout = this.normalizeTimeout(
       (toolData as NiktoToolData | undefined)?.form.timeoutSeconds,
     );
@@ -65,7 +65,7 @@ class NiktoCommandService {
       .replace(controlledOutputPattern, " ")
       .replace(/\s+-maxtime(?:\s+|=)\S+/gi, " ")
       .trim();
-    return `${controlled} -maxtime ${timeout}s -Format json -output ${quoteNiktoShellValue(requestedOutputPath)}`;
+    return `${controlled} -maxtime ${timeout}s -Format json -output ${quoteNiktoShellValue(outputPrefix)}`;
   }
 
   async collectArtifacts(options: ToolRunCompleted): Promise<ToolRunArtifactInput[]> {
@@ -123,7 +123,7 @@ class NiktoCommandService {
     return Math.max(1, Math.min(parsed, niktoMaximumTimeoutSeconds));
   }
 
-  private getRequestedOutputPath(sessionId: string, toolRunId: string) {
+  private getOutputPrefix(sessionId: string, toolRunId: string) {
     return join(
       getAppDataDirectory(),
       "artifacts",
@@ -131,14 +131,14 @@ class NiktoCommandService {
       sessionId,
       "tool-runs",
       toolRunId,
-      "nikto.json",
+      "nikto",
     );
   }
 
   private getExistingOutputPath(sessionId: string, toolRunId: string) {
-    const requestedOutputPath = this.getRequestedOutputPath(sessionId, toolRunId);
-    const nikto26OutputPath = `${requestedOutputPath}.json`;
-    return existsSync(nikto26OutputPath) ? nikto26OutputPath : requestedOutputPath;
+    const outputPrefix = this.getOutputPrefix(sessionId, toolRunId);
+    const jsonOutputPath = `${outputPrefix}.json`;
+    return existsSync(jsonOutputPath) ? jsonOutputPath : outputPrefix;
   }
 }
 
