@@ -2,6 +2,7 @@ import { useToolWorkspaceStore } from "../../shared/store/tool-workspace.store";
 import {
   setFfufContentDiscoveryField,
   setFfufParameterDiscoveryField,
+  setFfufValueFuzzingField,
 } from "../services/ffuf-command.helpers";
 import { getFfufWorkspaceToolData } from "./ffuf-workspace.helpers";
 import { FfufFieldId } from "../types/ffuf.types";
@@ -27,6 +28,13 @@ export function useFfufWorkspace() {
   const setField = (field: Exclude<FfufFieldId, "mode">, value: string | boolean) => {
     updateToolData((current) => {
       const toolData = getFfufWorkspaceToolData(current);
+      if (toolData.mode === "value_fuzzing") {
+        return setFfufValueFuzzingField(
+          toolData,
+          field as keyof typeof toolData.form,
+          String(value),
+        );
+      }
       if (toolData.mode === "parameter_discovery") {
         return setFfufParameterDiscoveryField(
           toolData,

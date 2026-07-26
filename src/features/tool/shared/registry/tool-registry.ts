@@ -79,13 +79,13 @@ export const toolRegistry: Record<string, ToolModule> = {
         return true;
       }
       if (
-        toolData.mode === "parameter_discovery" &&
+        (toolData.mode === "parameter_discovery" || toolData.mode === "value_fuzzing") &&
         isFfufRequestLocationField(selectedField) &&
         (key.name === "left" || key.name === "right")
       ) {
         api.updateToolData((current) =>
           cycleFfufRequestLocation(
-            current as Extract<FfufToolData, { mode: "parameter_discovery" }>,
+            current as Extract<FfufToolData, { mode: "parameter_discovery" | "value_fuzzing" }>,
             key.name === "left" ? -1 : 1,
           ),
         );

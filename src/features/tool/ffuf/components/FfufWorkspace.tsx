@@ -25,11 +25,17 @@ export function FfufWorkspace() {
   const focusPanel = (panel: typeof workspace.activePanel) => {
     if (!workspace.isHelpOpen) workspace.setActivePanel(panel);
   };
+  const modeTitle =
+    workspace.toolData.mode === "parameter_discovery"
+      ? "Parameter Discovery"
+      : workspace.toolData.mode === "value_fuzzing"
+        ? "Value Fuzzing"
+        : "Content Discovery";
 
   return (
     <box flexDirection="column" flexGrow={1}>
       <DashboardPanel
-        title={`FFUF ${workspace.toolData.mode === "parameter_discovery" ? "Parameter Discovery" : "Content Discovery"}`}
+        title={`FFUF ${modeTitle}`}
         panelNumber={getPanelDisplayNumber(toolPanels, "form")}
         height={layout.formPanelHeight}
         focused={workspace.activePanel === "form"}

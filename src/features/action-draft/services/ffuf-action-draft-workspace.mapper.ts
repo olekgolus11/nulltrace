@@ -1,6 +1,7 @@
 import {
   createInitialFfufParameterDiscoveryToolData,
   createInitialFfufToolData,
+  createInitialFfufValueFuzzingToolData,
 } from "../../tool/ffuf/services/ffuf-command.helpers";
 import {
   FfufParameterLocation,
@@ -24,6 +25,8 @@ export function mapFfufActionDraftFormState(
 
   return getActionDraftStringField(formState, "mode") === "parameter_discovery"
     ? mapParameterDiscoveryFormState(toolData, formState)
+    : getActionDraftStringField(formState, "mode") === "value_fuzzing"
+      ? mapValueFuzzingFormState(toolData, formState)
     : mapContentDiscoveryFormState(toolData, formState);
 }
 
@@ -74,7 +77,9 @@ function mapParameterDiscoveryFormState(
 ) {
   const endpoint =
     getActionDraftStringField(formState, "endpoint") ??
-    (toolData.mode === "parameter_discovery" ? toolData.form.endpoint : toolData.form.targetPattern.replace(/\/FUZZ$/, ""));
+    (toolData.mode === "content_discovery"
+      ? toolData.form.targetPattern.replace(/\/FUZZ$/, "")
+      : toolData.form.endpoint);
   const parameterToolData = createInitialFfufParameterDiscoveryToolData(endpoint);
   const form = { ...parameterToolData.form };
   let didApply = false;
@@ -103,4 +108,47 @@ function mapParameterDiscoveryFormState(
 
 function isFfufParameterLocation(value: string | undefined): value is FfufParameterLocation {
   return value === "query" || value === "body" || value === "header";
+}
+
+function mapValueFuzzingFormState(
+  toolData: FfufToolData,
+  formState: Record<string, unknown>,
+) {
+  const endpoint =
+    getActionDraftStringField(formState, "endpoint") ??
+    (toolData.mode === "content_discovery"
+      ? toolData.form.targetPattern.replace(/\/FUZZ$/, "")
+      : toolData.form.endpoint);
+  const valueToolData = createInitialFfufValueFuzzingToolData(endpoint);
+  const form = { ...valueToolData.form };
+  let didApply = false;
+
+  (
+    [
+      "endpoint",
+      "parameterName",
+      "wordlist",
+      "matchCodes",
+      "filterCodes",
+      "rate",
+      "timeLimit",
+    ] as const
+  ).forEach((field) => {
+    const value = getActionDraftStringField(formState, field);
+    if (value !== undefined) {
+      form[field] = value;
+      didApply = true;
+    }
+  });
+
+  const requestLocation = getActionDraftStringField(formState, "requestLocation");
+  if (isFfufParameterLocation(requestLocation)) {
+    form.requestLocation = requestLocation;
+    didApply = true;
+  }
+
+  return {
+    toolData: { ...valueToolData, selectedField: 0, form },
+    didApply,
+  };
 }
