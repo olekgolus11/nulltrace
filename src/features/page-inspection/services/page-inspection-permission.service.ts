@@ -1,33 +1,42 @@
 import {
+  PageInspectionAllowedMode,
   PageInspectionPermissionDependencies,
   PageInspectionPermissionStatus,
 } from "../model/page-inspection.types";
-import { readPageInspectionAllowedSessionIds } from "./page-inspection-permission.helpers";
+import { readPageInspectionPermissionModes } from "./page-inspection-permission.helpers";
 import { isChromiumAvailable } from "./playwright-page-inspection-browser.helpers";
 
 export class PageInspectionPermissionService {
-  private readonly allowedSessionIds = new Set<string>();
+  private readonly modes = new Map<string, PageInspectionAllowedMode>();
 
   constructor(
     private readonly dependencies: PageInspectionPermissionDependencies = {
       isChromiumAvailable,
     },
   ) {
-    readPageInspectionAllowedSessionIds().forEach((sessionId) => this.allowedSessionIds.add(sessionId));
+    Object.entries(readPageInspectionPermissionModes()).forEach(([sessionId, mode]) => {
+      this.modes.set(sessionId, mode);
+    });
   }
 
-  grant(sessionId: string) {
-    this.allowedSessionIds.add(sessionId);
+  allowPublic(sessionId: string) {
+    this.modes.set(sessionId, "public");
+  }
+
+  allowAuthenticated(sessionId: string) {
+    this.modes.set(sessionId, "authenticated");
   }
 
   revoke(sessionId: string) {
-    this.allowedSessionIds.delete(sessionId);
+    this.modes.delete(sessionId);
   }
 
   getStatus(sessionId: string): PageInspectionPermissionStatus {
-    const isAllowed = this.allowedSessionIds.has(sessionId);
+    const mode = this.modes.get(sessionId) ?? "none";
+    const isAllowed = mode !== "none";
     return {
       isAllowed,
+      mode,
       status: !this.dependencies.isChromiumAvailable()
         ? "browser_missing"
         : isAllowed
@@ -36,8 +45,8 @@ export class PageInspectionPermissionService {
     };
   }
 
-  listAllowedSessionIds() {
-    return [...this.allowedSessionIds];
+  listModes(): Record<string, PageInspectionAllowedMode> {
+    return Object.fromEntries(this.modes);
   }
 }
 

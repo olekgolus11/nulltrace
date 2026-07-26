@@ -61,6 +61,7 @@ test("shows ready page inspection", async () => {
     <Header
       pageInspectionStatus={{
         isAllowed: true,
+        mode: "authenticated",
         status: "ready",
       }}
     />,
@@ -68,7 +69,7 @@ test("shows ready page inspection", async () => {
   );
 
   await testSetup.renderOnce();
-  expect(testSetup.captureCharFrame()).toContain("Page: allowed / ready");
+  expect(testSetup.captureCharFrame()).toContain("Page: authenticated / ready");
 });
 
 test("shows missing Chromium page inspection", async () => {
@@ -76,6 +77,7 @@ test("shows missing Chromium page inspection", async () => {
     <Header
       pageInspectionStatus={{
         isAllowed: false,
+        mode: "none",
         status: "browser_missing",
       }}
     />,

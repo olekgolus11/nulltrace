@@ -6,9 +6,11 @@ import {
 } from "../authenticated-request-context.service";
 import { createRedactedAuthenticatedRequestContextPreview } from "../authenticated-request-context-redaction";
 import {
+  MacOSKeychainSecretStoreAdapter,
   PlatformSecretStore,
   PlatformSecretStoreAdapter,
   SecretStore,
+  SecretStoreCommandRunner,
   SecretStoreValue,
 } from "../platform-secret-store";
 import { AuthenticationContextMetadataRepository } from "../authentication-context-metadata.repository";
@@ -143,6 +145,31 @@ describe("authenticated request context redaction", () => {
 });
 
 describe("PlatformSecretStore", () => {
+  test("uses an explicit macOS keychain under an isolated home directory", async () => {
+    const commands: string[][] = [];
+    const runner: SecretStoreCommandRunner = {
+      run: async (command) => {
+        commands.push(command);
+        return {
+          exitCode: 0,
+          stdout: command.includes("find-generic-password") ? "protected-value\n" : "",
+          stderr: "",
+        };
+      },
+    };
+    const keychainPath = "/Users/operator/Library/Keychains/login.keychain-db";
+    const adapter = new MacOSKeychainSecretStoreAdapter(runner, keychainPath);
+
+    await adapter.save("session-1", "protected-value");
+    expect(await adapter.load("session-1")).toBe("protected-value");
+    await adapter.clear("session-1");
+
+    expect(commands).toHaveLength(3);
+    commands.forEach((command) => {
+      expect(command.at(-1)).toBe(keychainPath);
+    });
+  });
+
   test("uses the secure-store contract when an adapter is available", async () => {
     const values = new Map<string, string>();
     const adapter: PlatformSecretStoreAdapter = {

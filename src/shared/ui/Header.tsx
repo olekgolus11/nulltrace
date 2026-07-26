@@ -84,7 +84,7 @@ export function Header({
             }
           >
             {pageInspectionStatus?.status === "ready"
-              ? "allowed / ready"
+              ? `${pageInspectionStatus.mode} / ready`
               : pageInspectionStatus?.status === "browser_missing"
                 ? "unavailable / Chromium missing"
                 : "blocked"}

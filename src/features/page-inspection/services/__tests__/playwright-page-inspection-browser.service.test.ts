@@ -6,12 +6,14 @@ import { PlaywrightPageInspectionBrowser } from "../playwright-page-inspection-b
 interface FakeRouteHandler {
   (route: {
     request: () => {
+      allHeaders: () => Promise<Record<string, string>>;
       frame: () => unknown;
+      headers: () => Record<string, string>;
       method: () => string;
       resourceType: () => string;
       url: () => string;
     };
-    continue: () => Promise<void>;
+    continue: (options?: { headers?: Record<string, string> }) => Promise<void>;
     abort: () => Promise<void>;
   }): Promise<void>;
 }
@@ -20,6 +22,8 @@ function createFakeBrowserType(
   shouldFailNavigation = false,
   shouldFailRender = false,
   shouldDelayExtraction = false,
+  failureMessage = "network failed",
+  snapshotSecret = "",
 ) {
   let contextClosed = 0;
   let browserClosed = 0;
@@ -27,6 +31,8 @@ function createFakeBrowserType(
   let contextOptions: unknown = null;
   let routeHandler: FakeRouteHandler | null = null;
   let hasWebSocketRoute = false;
+  let addedCookies: unknown = null;
+  let clearedCookies = 0;
   let isContextClosed = false;
   let evaluateArguments: unknown = null;
   const pageEventNames: string[] = [];
@@ -43,7 +49,7 @@ function createFakeBrowserType(
     links: [{ url: "https://target.example/app/about", text: "About" }],
     scripts: [{ src: "https://cdn.example/app.js", type: "module" }],
     domOutline: [],
-    metadata: [{ name: "description", content: "Rendered application" }],
+    metadata: [{ name: "description", content: `Rendered application ${snapshotSecret}` }],
     hasPasswordFields: true,
     truncatedSections: [],
   };
@@ -54,7 +60,7 @@ function createFakeBrowserType(
     },
     goto: async () => {
       if (shouldFailNavigation) {
-        throw new Error("network failed");
+        throw new Error(failureMessage);
       }
       return {
         headers: () => ({
@@ -90,6 +96,12 @@ function createFakeBrowserType(
     routeWebSocket: async () => {
       hasWebSocketRoute = true;
     },
+    addCookies: async (cookies: unknown) => {
+      addedCookies = cookies;
+    },
+    clearCookies: async () => {
+      clearedCookies += 1;
+    },
     newPage: async () => page,
     close: async () => {
       isContextClosed = true;
@@ -118,7 +130,9 @@ function createFakeBrowserType(
       newContextCalls,
       contextOptions,
       hasWebSocketRoute,
+      addedCookies,
       pageEventNames,
+      clearedCookies,
       evaluateArguments,
       routeHandler,
     }),
@@ -175,6 +189,172 @@ test("uses an isolated context, renders JavaScript content, and cleans up", asyn
   });
 });
 
+test("injects selected authentication only into exact-origin requests and clears it after inspection", async () => {
+  const fake = createFakeBrowserType();
+  const browser = new PlaywrightPageInspectionBrowser({ browserType: fake.browserType });
+
+  await expect(
+    browser.inspect(
+      {
+        requestedUrl: "https://target.example/app",
+        targetOrigin: "https://target.example",
+        authentication: {
+          origin: "https://target.example",
+          cookies: "session=secret-cookie\ncsrf=secret-csrf",
+          headers: "Authorization: Bearer secret-header | X-CSRF-Token: secret-token",
+        },
+      },
+      defaultPageInspectionLimits,
+    ),
+  ).resolves.toMatchObject({
+    title: "Client rendered page",
+    visibleText: "Rendered by JavaScript.",
+  });
+
+  expect(fake.getState().addedCookies).toEqual([
+    { name: "session", value: "secret-cookie", url: "https://target.example" },
+    { name: "csrf", value: "secret-csrf", url: "https://target.example" },
+  ]);
+  expect(fake.getState().clearedCookies).toBe(1);
+
+  const routeHandler = fake.getState().routeHandler;
+  expect(routeHandler).not.toBeNull();
+  const continued: Array<Record<string, string> | undefined> = [];
+  await routeHandler?.({
+    request: () => ({
+      allHeaders: async () => ({
+        accept: "application/javascript",
+        cookie: "session=secret-cookie; csrf=secret-csrf",
+      }),
+      frame: () => ({}),
+      headers: () => ({ accept: "application/javascript" }),
+      method: () => "GET",
+      resourceType: () => "script",
+      url: () => "https://target.example/app/runtime.js",
+    }),
+    continue: async (options) => {
+      continued.push(options?.headers);
+    },
+    abort: async () => {},
+  });
+  await routeHandler?.({
+    request: () => ({
+      allHeaders: async () => ({ accept: "application/javascript" }),
+      frame: () => ({}),
+      headers: () => ({ accept: "application/javascript" }),
+      method: () => "GET",
+      resourceType: () => "script",
+      url: () => "https://cdn.example/runtime.js",
+    }),
+    continue: async (options) => {
+      continued.push(options?.headers);
+    },
+    abort: async () => {},
+  });
+
+  const blockedRedirect: string[] = [];
+  await routeHandler?.({
+    request: () => ({
+      allHeaders: async () => ({ cookie: "session=secret-cookie" }),
+      frame: () => ({}),
+      headers: () => ({ cookie: "session=secret-cookie" }),
+      method: () => "GET",
+      resourceType: () => "document",
+      url: () => "https://outside.example/redirected",
+    }),
+    continue: async () => {
+      blockedRedirect.push("continued");
+    },
+    abort: async () => {
+      blockedRedirect.push("aborted");
+    },
+  });
+
+  expect(continued).toEqual([
+    {
+      accept: "application/javascript",
+      Authorization: "Bearer secret-header",
+      "X-CSRF-Token": "secret-token",
+      cookie: "session=secret-cookie; csrf=secret-csrf",
+    },
+    undefined,
+  ]);
+  expect(blockedRedirect).toEqual(["aborted"]);
+});
+
+test("redacts authentication values from snapshots and browser errors", async () => {
+  const authentication = {
+    origin: "https://target.example",
+    cookies: "session=secret-cookie",
+    headers:
+      "Authorization: Bearer secret-header | X-CSRF-Token: secret-token | Cookie: reflected=header-cookie-secret",
+  };
+  const snapshotBrowser = new PlaywrightPageInspectionBrowser({
+    browserType: createFakeBrowserType(
+      false,
+      false,
+      false,
+      "network failed",
+      "secret-cookie Bearer secret-header secret-token header-cookie-secret",
+    ).browserType,
+  });
+
+  const snapshot = await snapshotBrowser.inspect(
+    {
+      requestedUrl: "https://target.example/app",
+      targetOrigin: "https://target.example",
+      authentication,
+    },
+    defaultPageInspectionLimits,
+  );
+  expect(JSON.stringify(snapshot)).not.toContain("secret-cookie");
+  expect(JSON.stringify(snapshot)).not.toContain("secret-header");
+  expect(JSON.stringify(snapshot)).not.toContain("secret-token");
+  expect(JSON.stringify(snapshot)).not.toContain("header-cookie-secret");
+
+  const errorBrowser = new PlaywrightPageInspectionBrowser({
+    browserType: createFakeBrowserType(
+      true,
+      false,
+      false,
+      "Navigation failed: Bearer secret-header",
+    ).browserType,
+  });
+  await expect(
+    errorBrowser.inspect(
+      {
+        requestedUrl: "https://target.example/app",
+        targetOrigin: "https://target.example",
+        authentication,
+      },
+      defaultPageInspectionLimits,
+    ),
+  ).rejects.toThrow("Navigation failed: [redacted]");
+});
+
+test("cleans authentication after an interrupted navigation", async () => {
+  const fake = createFakeBrowserType(true);
+  const browser = new PlaywrightPageInspectionBrowser({ browserType: fake.browserType });
+
+  await expect(
+    browser.inspect(
+      {
+        requestedUrl: "https://target.example/app",
+        targetOrigin: "https://target.example",
+        authentication: {
+          origin: "https://target.example",
+          cookies: "session=cleanup-secret",
+          headers: "Authorization: Bearer cleanup-secret",
+        },
+      },
+      defaultPageInspectionLimits,
+    ),
+  ).rejects.toThrow("network failed");
+  expect(fake.getState().clearedCookies).toBe(1);
+  expect(fake.getState().contextClosed).toBe(1);
+  expect(fake.getState().browserClosed).toBe(1);
+});
+
 test("keeps the context open until asynchronous snapshot extraction completes", async () => {
   const fake = createFakeBrowserType(false, false, true);
   const browser = new PlaywrightPageInspectionBrowser({ browserType: fake.browserType });
@@ -212,7 +392,9 @@ test("enforces request policy and cleans up after navigation failure", async () 
   const blocked: string[] = [];
   await routeHandler?.({
     request: () => ({
+      allHeaders: async () => ({}),
       frame: () => ({}),
+      headers: () => ({}),
       method: () => "POST",
       resourceType: () => "fetch",
       url: () => "https://target.example/api/beacon",
@@ -228,7 +410,9 @@ test("enforces request policy and cleans up after navigation failure", async () 
 
   await routeHandler?.({
     request: () => ({
+      allHeaders: async () => ({}),
       frame: () => ({}),
+      headers: () => ({}),
       method: () => "GET",
       resourceType: () => "document",
       url: () => "https://outside.example/redirected",
