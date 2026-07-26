@@ -249,10 +249,17 @@ export function DashboardScreen({
       {dashboardState.isPageInspectionOpen ? (
         <PageInspectionPermissionModal
           width={modalWidth}
-          height={Math.max(1, Math.min(16, height - 6))}
+          height={Math.max(1, Math.min(18, height - 6))}
           status={pageInspection.status}
-          onGrant={pageInspection.grant}
-          onRevoke={pageInspection.revoke}
+          hasAcceptedAuthenticationContext={
+            authenticationContext.metadata?.authCheck.isProceedAllowed ?? false
+          }
+          authenticationContextStorageMode={
+            authenticationContext.metadata?.storageMode ?? null
+          }
+          onAllowPublic={pageInspection.allowPublic}
+          onAllowAuthenticated={pageInspection.allowAuthenticated}
+          onNoInspection={pageInspection.revoke}
           onClose={closePageInspection}
         />
       ) : null}

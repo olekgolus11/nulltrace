@@ -21,11 +21,20 @@ export function usePageInspectionPermission(
     refresh();
   }, [refresh]);
 
-  const grant = useCallback(async () => {
+  const allowPublic = useCallback(async () => {
     if (!sessionId) {
       return;
     }
-    pageInspectionPermissionService.grant(sessionId);
+    pageInspectionPermissionService.allowPublic(sessionId);
+    refresh();
+    await openCodeChatRuntimeService.refreshPageInspectionTools();
+  }, [refresh, sessionId]);
+
+  const allowAuthenticated = useCallback(async () => {
+    if (!sessionId) {
+      return;
+    }
+    pageInspectionPermissionService.allowAuthenticated(sessionId);
     refresh();
     await openCodeChatRuntimeService.refreshPageInspectionTools();
   }, [refresh, sessionId]);
@@ -39,5 +48,11 @@ export function usePageInspectionPermission(
     await openCodeChatRuntimeService.refreshPageInspectionTools();
   }, [refresh, sessionId]);
 
-  return { status, grant, revoke, refresh };
+  return {
+    status,
+    allowPublic,
+    allowAuthenticated,
+    revoke,
+    refresh,
+  };
 }
