@@ -1,5 +1,6 @@
 import { useKeyboard } from "@opentui/react";
 import { theme } from "../../../app/theme/theme";
+import { AuthenticatedContextStorageMode } from "../../authentication/model/authenticated-request-context.types";
 import { PageInspectionPermissionStatus } from "../model/page-inspection.types";
 
 interface PageInspectionPermissionModalProps {
@@ -7,6 +8,7 @@ interface PageInspectionPermissionModalProps {
   height: number;
   status: PageInspectionPermissionStatus | null;
   hasAcceptedAuthenticationContext: boolean;
+  authenticationContextStorageMode: AuthenticatedContextStorageMode | null;
   onAllowPublic: () => void;
   onAllowAuthenticated: () => void;
   onNoInspection: () => void;
@@ -18,12 +20,15 @@ export function PageInspectionPermissionModal({
   height,
   status,
   hasAcceptedAuthenticationContext,
+  authenticationContextStorageMode,
   onAllowPublic,
   onAllowAuthenticated,
   onNoInspection,
   onClose,
 }: PageInspectionPermissionModalProps) {
   const isBrowserMissing = status?.status === "browser_missing";
+  const isAuthenticatedInspectionAvailable =
+    hasAcceptedAuthenticationContext && authenticationContextStorageMode === "secure";
 
   useKeyboard((key) => {
     if (key.name === "escape") {
@@ -34,7 +39,7 @@ export function PageInspectionPermissionModal({
       onAllowPublic();
       return;
     }
-    if (!isBrowserMissing && hasAcceptedAuthenticationContext && key.name === "a") {
+    if (!isBrowserMissing && isAuthenticatedInspectionAvailable && key.name === "a") {
       onAllowAuthenticated();
       return;
     }
@@ -85,6 +90,13 @@ export function PageInspectionPermissionModal({
             </text>
           </box>
         ) : null}
+        {hasAcceptedAuthenticationContext && authenticationContextStorageMode !== "secure" ? (
+          <box marginTop={1}>
+            <text fg={theme.text.secondary}>
+              Auth inspection requires a platform secure store.
+            </text>
+          </box>
+        ) : null}
         {isBrowserMissing ? (
           <box marginTop={1}>
             <text fg={theme.accent.warning}>
@@ -107,14 +119,14 @@ export function PageInspectionPermissionModal({
           {!isBrowserMissing ? (
             <box
               onMouseDown={
-                hasAcceptedAuthenticationContext ? onAllowAuthenticated : undefined
+                isAuthenticatedInspectionAvailable ? onAllowAuthenticated : undefined
               }
             >
               <text
                 fg={
                   status?.mode === "authenticated"
                     ? theme.accent.primary
-                    : hasAcceptedAuthenticationContext
+                    : isAuthenticatedInspectionAvailable
                       ? theme.text.secondary
                       : theme.text.muted
                 }

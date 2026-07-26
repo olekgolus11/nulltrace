@@ -254,6 +254,9 @@ export function DashboardScreen({
           hasAcceptedAuthenticationContext={
             authenticationContext.metadata?.authCheck.isProceedAllowed ?? false
           }
+          authenticationContextStorageMode={
+            authenticationContext.metadata?.storageMode ?? null
+          }
           onAllowPublic={pageInspection.allowPublic}
           onAllowAuthenticated={pageInspection.allowAuthenticated}
           onNoInspection={pageInspection.revoke}

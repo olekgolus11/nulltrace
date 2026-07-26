@@ -106,6 +106,7 @@ describe("PageInspectionChatContextToolsService", () => {
       permissions,
       browser,
       {
+        getMetadata: async () => ({ storageMode: "secure" }),
         loadProtectedContext: async () => ({
           origin: "https://target.example",
           cookies: "session=never-returned",

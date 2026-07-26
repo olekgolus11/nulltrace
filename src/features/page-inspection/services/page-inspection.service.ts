@@ -1,4 +1,7 @@
-import { AuthenticatedRequestContext } from "../../authentication/model/authenticated-request-context.types";
+import {
+  AuthenticatedRequestContext,
+  AuthenticatedRequestContextMetadata,
+} from "../../authentication/model/authenticated-request-context.types";
 import { authCheckService } from "../../authentication/services/auth-check.service";
 import { authenticatedRequestContextService } from "../../authentication/services/authenticated-request-context.service";
 import { defaultPageInspectionLimits } from "../config/page-inspection.config";
@@ -88,10 +91,14 @@ export class PageInspectionService {
       throw new Error("Page Inspection does not inspect known protected paths.");
     }
 
-    return applyPageInspectionBounds(
-      excludePageInspectionProtectedPaths(snapshot, targetOrigin, request.protectedPaths ?? []),
-      defaultPageInspectionLimits,
-    );
+    const snapshotForOutput = authentication
+      ? snapshot
+      : excludePageInspectionProtectedPaths(
+          snapshot,
+          targetOrigin,
+          request.protectedPaths ?? [],
+        );
+    return applyPageInspectionBounds(snapshotForOutput, defaultPageInspectionLimits);
   }
 
   private async loadAuthentication(
@@ -105,6 +112,17 @@ export class PageInspectionService {
     if (!this.authenticationAcceptance.isProceedAllowed(sessionId)) {
       throw new Error(
         "Authenticated Page Inspection requires an accepted authentication context. Run Auth Check or acknowledge its inconclusive result.",
+      );
+    }
+    const metadata = await this.contextLoader.getMetadata(sessionId);
+    if (!metadata) {
+      throw new Error(
+        "Authenticated Page Inspection context is unavailable. Save an authentication context first.",
+      );
+    }
+    if (metadata.storageMode !== "secure") {
+      throw new Error(
+        "Authenticated Page Inspection requires a platform secure store. Memory-only authentication contexts cannot cross the isolated inspection runtime.",
       );
     }
 
@@ -131,6 +149,9 @@ export class PageInspectionService {
 export const pageInspectionService = new PageInspectionService();
 
 interface PageInspectionContextLoader {
+  getMetadata: (
+    sessionId: string,
+  ) => Promise<Pick<AuthenticatedRequestContextMetadata, "storageMode"> | null>;
   loadProtectedContext: (sessionId: string) => Promise<AuthenticatedRequestContext | null>;
 }
 

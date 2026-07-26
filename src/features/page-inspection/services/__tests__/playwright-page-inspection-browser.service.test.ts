@@ -286,7 +286,8 @@ test("redacts authentication values from snapshots and browser errors", async ()
   const authentication = {
     origin: "https://target.example",
     cookies: "session=secret-cookie",
-    headers: "Authorization: Bearer secret-header | X-CSRF-Token: secret-token",
+    headers:
+      "Authorization: Bearer secret-header | X-CSRF-Token: secret-token | Cookie: reflected=header-cookie-secret",
   };
   const snapshotBrowser = new PlaywrightPageInspectionBrowser({
     browserType: createFakeBrowserType(
@@ -294,7 +295,7 @@ test("redacts authentication values from snapshots and browser errors", async ()
       false,
       false,
       "network failed",
-      "secret-cookie Bearer secret-header secret-token",
+      "secret-cookie Bearer secret-header secret-token header-cookie-secret",
     ).browserType,
   });
 
@@ -309,6 +310,7 @@ test("redacts authentication values from snapshots and browser errors", async ()
   expect(JSON.stringify(snapshot)).not.toContain("secret-cookie");
   expect(JSON.stringify(snapshot)).not.toContain("secret-header");
   expect(JSON.stringify(snapshot)).not.toContain("secret-token");
+  expect(JSON.stringify(snapshot)).not.toContain("header-cookie-secret");
 
   const errorBrowser = new PlaywrightPageInspectionBrowser({
     browserType: createFakeBrowserType(

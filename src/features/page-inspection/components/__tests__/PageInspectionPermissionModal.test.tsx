@@ -24,6 +24,7 @@ describe("PageInspectionPermissionModal", () => {
           status: "ready",
         }}
         hasAcceptedAuthenticationContext
+        authenticationContextStorageMode="secure"
         onAllowPublic={() => {}}
         onAllowAuthenticated={() => {}}
         onNoInspection={() => {}}
@@ -53,6 +54,7 @@ describe("PageInspectionPermissionModal", () => {
           status: "ready",
         }}
         hasAcceptedAuthenticationContext={false}
+        authenticationContextStorageMode={null}
         onAllowPublic={() => {}}
         onAllowAuthenticated={() => {
           authenticatedSelections += 1;
@@ -67,6 +69,41 @@ describe("PageInspectionPermissionModal", () => {
     expect(testSetup.captureCharFrame()).toContain("Allow auth inspection");
     expect(testSetup.captureCharFrame()).toContain(
       "Auth inspection requires an accepted Authentication Context.",
+    );
+
+    await act(async () => {
+      testSetup!.mockInput.pressKey("a");
+    });
+
+    expect(authenticatedSelections).toBe(0);
+  });
+
+  test("does not select auth mode for a memory-only context", async () => {
+    let authenticatedSelections = 0;
+    testSetup = await testRender(
+      <PageInspectionPermissionModal
+        width={88}
+        height={18}
+        status={{
+          isAllowed: true,
+          mode: "public",
+          status: "ready",
+        }}
+        hasAcceptedAuthenticationContext
+        authenticationContextStorageMode="memory"
+        onAllowPublic={() => {}}
+        onAllowAuthenticated={() => {
+          authenticatedSelections += 1;
+        }}
+        onNoInspection={() => {}}
+        onClose={() => {}}
+      />,
+      { width: 100, height: 24 },
+    );
+
+    await testSetup.renderOnce();
+    expect(testSetup.captureCharFrame()).toContain(
+      "Auth inspection requires a platform secure store.",
     );
 
     await act(async () => {

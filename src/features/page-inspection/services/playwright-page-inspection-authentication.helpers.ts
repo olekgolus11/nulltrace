@@ -169,19 +169,30 @@ function getPlaywrightPageInspectionSecretValues(
   authentication: PageInspectionAuthentication,
 ): string[] {
   const values = new Set<string>([authentication.cookies]);
-  splitAuthenticatedCookieEntries(authentication.cookies).forEach((entry) => {
+  addPlaywrightPageInspectionCookieSecretValues(values, authentication.cookies);
+  splitAuthenticatedHeaderEntries(authentication.headers).forEach((entry) => {
+    const separatorIndex = entry.indexOf(":");
+    const headerName = entry.slice(0, separatorIndex).trim();
+    const headerValue = entry.slice(separatorIndex + 1).trim();
+    if (separatorIndex > 0 && headerValue) {
+      values.add(headerValue);
+    }
+    if (headerName.toLowerCase() === "cookie") {
+      addPlaywrightPageInspectionCookieSecretValues(values, headerValue);
+    }
+  });
+  return [...values].filter(Boolean).sort((left, right) => right.length - left.length);
+}
+
+function addPlaywrightPageInspectionCookieSecretValues(
+  values: Set<string>,
+  cookies: string,
+) {
+  splitAuthenticatedCookieEntries(cookies).forEach((entry) => {
     const separatorIndex = entry.indexOf("=");
     const cookieValue = entry.slice(separatorIndex + 1).trim();
     if (separatorIndex > 0 && cookieValue) {
       values.add(cookieValue);
     }
   });
-  splitAuthenticatedHeaderEntries(authentication.headers).forEach((entry) => {
-    const separatorIndex = entry.indexOf(":");
-    const headerValue = entry.slice(separatorIndex + 1).trim();
-    if (separatorIndex > 0 && headerValue) {
-      values.add(headerValue);
-    }
-  });
-  return [...values].filter(Boolean).sort((left, right) => right.length - left.length);
 }

@@ -90,6 +90,7 @@ describe("PageInspectionService", () => {
       permissions,
       browser,
       {
+        getMetadata: async () => ({ storageMode: "secure" }),
         loadProtectedContext: async () => {
           contextLoads += 1;
           return null;
@@ -121,6 +122,7 @@ describe("PageInspectionService", () => {
       permissions,
       browser,
       {
+        getMetadata: async () => ({ storageMode: "secure" }),
         loadProtectedContext: async () => ({
           origin: "https://target.example",
           cookies: "session=secret-cookie",
@@ -173,7 +175,10 @@ describe("PageInspectionService", () => {
     const rejectedService = new PageInspectionService(
       permissions,
       rejectedBrowser,
-      { loadProtectedContext: async () => null },
+      {
+        getMetadata: async () => ({ storageMode: "secure" }),
+        loadProtectedContext: async () => null,
+      },
       { isProceedAllowed: () => false },
     );
     await expect(
@@ -186,10 +191,17 @@ describe("PageInspectionService", () => {
     expect(rejectedBrowser.calls).toEqual([]);
 
     const missingBrowser = new FakePageInspectionBrowser();
+    let missingContextLoads = 0;
     const missingService = new PageInspectionService(
       permissions,
       missingBrowser,
-      { loadProtectedContext: async () => null },
+      {
+        getMetadata: async () => null,
+        loadProtectedContext: async () => {
+          missingContextLoads += 1;
+          return null;
+        },
+      },
       { isProceedAllowed: () => true },
     );
     await expect(
@@ -200,12 +212,14 @@ describe("PageInspectionService", () => {
       }),
     ).rejects.toThrow("unavailable");
     expect(missingBrowser.calls).toEqual([]);
+    expect(missingContextLoads).toBe(0);
 
     const incompatibleBrowser = new FakePageInspectionBrowser();
     const incompatibleService = new PageInspectionService(
       permissions,
       incompatibleBrowser,
       {
+        getMetadata: async () => ({ storageMode: "secure" }),
         loadProtectedContext: async () => ({
           origin: "https://other.example",
           cookies: "session=wrong-context",
@@ -225,7 +239,36 @@ describe("PageInspectionService", () => {
     expect(incompatibleBrowser.calls).toEqual([]);
   });
 
-  test("allows authenticated mode to finish on a protected page", async () => {
+  test("rejects a memory-only context before browser inspection", async () => {
+    const browser = new FakePageInspectionBrowser();
+    const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
+    permissions.allowAuthenticated("session-one");
+    const service = new PageInspectionService(
+      permissions,
+      browser,
+      {
+        getMetadata: async () => ({ storageMode: "memory" }),
+        loadProtectedContext: async () => ({
+          origin: "https://target.example",
+          cookies: "session=memory-only-context",
+          headers: "",
+          updatedAt: "2026-07-25T10:00:00.000Z",
+        }),
+      },
+      { isProceedAllowed: () => true },
+    );
+
+    await expect(
+      service.inspect({
+        sessionId: "session-one",
+        requestedUrl: "https://target.example/private",
+        targetOrigin: "https://target.example",
+      }),
+    ).rejects.toThrow("platform secure store");
+    expect(browser.calls).toEqual([]);
+  });
+
+  test("preserves protected destinations in an authenticated snapshot", async () => {
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
     permissions.allowAuthenticated("session-one");
     const service = new PageInspectionService(
@@ -235,9 +278,17 @@ describe("PageInspectionService", () => {
           ...snapshot,
           requestedUrl: "https://target.example/private",
           finalUrl: "https://target.example/private",
+          forms: [
+            { method: "POST", action: "https://target.example/account", fields: [] },
+          ],
+          links: [{ url: "https://target.example/admin", text: "Admin" }],
+          scripts: [
+            { src: "https://target.example/admin/runtime.js", type: "module" },
+          ],
         }),
       },
       {
+        getMetadata: async () => ({ storageMode: "secure" }),
         loadProtectedContext: async () => ({
           origin: "https://target.example",
           cookies: "session=selected-context",
@@ -253,9 +304,24 @@ describe("PageInspectionService", () => {
         sessionId: "session-one",
         requestedUrl: "https://target.example/private",
         targetOrigin: "https://target.example",
-        protectedPaths: ["https://target.example/private"],
+        protectedPaths: [
+          "https://target.example/private",
+          "https://target.example/account",
+          "https://target.example/admin",
+        ],
       }),
-    ).resolves.toMatchObject({ finalUrl: "https://target.example/private" });
+    ).resolves.toMatchObject({
+      finalUrl: "https://target.example/private",
+      forms: [
+        { method: "POST", action: "https://target.example/account", fields: [] },
+      ],
+      links: [{ url: "https://target.example/admin", text: "Admin" }],
+      scripts: [
+        { src: "https://target.example/admin/runtime.js", type: "module" },
+      ],
+      isPartial: false,
+      truncatedSections: [],
+    });
   });
 
   test("reports a rejected authenticated context without falling back to public inspection", async () => {
@@ -271,6 +337,7 @@ describe("PageInspectionService", () => {
         }),
       },
       {
+        getMetadata: async () => ({ storageMode: "secure" }),
         loadProtectedContext: async () => ({
           origin: "https://target.example",
           cookies: "session=expired-context",
