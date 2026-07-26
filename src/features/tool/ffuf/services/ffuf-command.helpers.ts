@@ -16,8 +16,14 @@ import {
   FfufParameterDiscoveryToolData,
   FfufParameterLocation,
   FfufToolData,
+  FfufValueFuzzingFormState,
+  FfufValueFuzzingToolData,
 } from "../types/ffuf.types";
-import { mapFfufParameterCandidates, parseFfufOutput } from "./ffuf-output.helpers";
+import {
+  mapFfufParameterCandidates,
+  mapFfufValueFuzzingResults,
+  parseFfufOutput,
+} from "./ffuf-output.helpers";
 
 const ffufOutputFlagPattern = new RegExp(
   String.raw`\s+(?:(?:-json)(?:=(?:true|false))?(?=\s|$)|(?:-o|-output|-of|-output-format)(?:(?:\s+('[^']*'|"(?:\\.|[^"])*"|\S+))|=('(?:[^']*)'|"(?:\\.|[^"])*"|\S+)))`,
@@ -32,6 +38,7 @@ const maximumFfufRate = 100;
 const defaultFfufTimeLimit = 10;
 const maximumFfufTimeLimit = 60;
 const maximumParameterCandidateCount = 200;
+const maximumValueFuzzingResultCount = 200;
 
 export function createInitialFfufToolData(targetUrl: string): FfufContentDiscoveryToolData {
   return {
@@ -69,10 +76,29 @@ export function createInitialFfufParameterDiscoveryToolData(
   };
 }
 
+export function createInitialFfufValueFuzzingToolData(
+  endpoint: string,
+): FfufValueFuzzingToolData {
+  return {
+    mode: "value_fuzzing",
+    selectedField: 0,
+    form: {
+      endpoint,
+      parameterName: "",
+      requestLocation: "query",
+      wordlist: "",
+      matchCodes: "",
+      filterCodes: "",
+      rate: String(defaultFfufRate),
+      timeLimit: String(defaultFfufTimeLimit),
+    },
+  };
+}
+
 export function buildFfufCommand(toolData: FfufToolData): string {
-  return toolData.mode === "parameter_discovery"
-    ? buildFfufParameterDiscoveryCommand(toolData)
-    : buildFfufContentDiscoveryCommand(toolData);
+  if (toolData.mode === "parameter_discovery") return buildFfufParameterDiscoveryCommand(toolData);
+  if (toolData.mode === "value_fuzzing") return buildFfufValueFuzzingCommand(toolData);
+  return buildFfufContentDiscoveryCommand(toolData);
 }
 
 export function buildFfufContentDiscoveryCommand(toolData: FfufContentDiscoveryToolData): string {
@@ -115,6 +141,37 @@ export function buildFfufParameterDiscoveryCommand(
   return command.join(" ");
 }
 
+export function buildFfufValueFuzzingCommand(toolData: FfufValueFuzzingToolData): string {
+  const { form } = toolData;
+  const command = ["ffuf"];
+  const endpoint = form.endpoint.trim();
+  const parameterName = form.parameterName.trim();
+
+  if (endpoint && parameterName) {
+    if (form.requestLocation === "query") {
+      try {
+        const url = new URL(endpoint);
+        url.searchParams.set(parameterName, "FUZZ");
+        command.push("-u", shellQuoteFfufValue(url.toString()));
+        command.push("-enc", "FUZZ:urlencode");
+      } catch {
+        // Keep malformed draft/form input editable. Run preparation performs strict validation.
+      }
+    } else {
+      command.push("-u", shellQuoteFfufValue(endpoint));
+      if (form.requestLocation === "body") {
+        command.push("-X", "POST", "-d", shellQuoteFfufValue(`${parameterName}=FUZZ`));
+        command.push("-enc", "FUZZ:urlencode");
+      } else {
+        command.push("-H", shellQuoteFfufValue(`${parameterName}: FUZZ`));
+      }
+    }
+  }
+  if (form.wordlist.trim()) command.push("-w", form.wordlist.trim());
+  appendFfufMatcherAndLimitFlags(command, form);
+  return command.join(" ");
+}
+
 export function setFfufContentDiscoveryField(
   toolData: FfufContentDiscoveryToolData,
   field: keyof FfufContentDiscoveryFormState,
@@ -143,43 +200,68 @@ export function setFfufParameterDiscoveryField(
   };
 }
 
+export function setFfufValueFuzzingField(
+  toolData: FfufValueFuzzingToolData,
+  field: keyof FfufValueFuzzingFormState,
+  value: string,
+): FfufValueFuzzingToolData {
+  return {
+    ...toolData,
+    form: {
+      ...toolData.form,
+      [field]: value,
+    },
+  };
+}
+
 export function cycleFfufMode(toolData: FfufToolData, direction: -1 | 1): FfufToolData {
-  const nextMode: FfufMode =
-    toolData.mode === "content_discovery" && direction === 1
-      ? "parameter_discovery"
-      : toolData.mode === "parameter_discovery" && direction === -1
-        ? "content_discovery"
-        : toolData.mode;
+  const modes: readonly FfufMode[] = [
+    "content_discovery",
+    "parameter_discovery",
+    "value_fuzzing",
+  ];
+  const currentIndex = modes.indexOf(toolData.mode);
+  const nextMode = modes[(currentIndex + direction + modes.length) % modes.length] ?? toolData.mode;
   if (nextMode === toolData.mode) return toolData;
 
-  if (toolData.mode === "content_discovery") {
+  const endpoint =
+    toolData.mode === "content_discovery"
+      ? getFfufEndpointFromPattern(toolData.form.targetPattern)
+      : toolData.form.endpoint;
+  const sharedForm = {
+    wordlist: toolData.form.wordlist,
+    matchCodes: toolData.form.matchCodes,
+    filterCodes: toolData.form.filterCodes,
+    rate: toolData.form.rate,
+    timeLimit: toolData.form.timeLimit,
+  };
+  if (nextMode === "parameter_discovery") {
     const parameterToolData = createInitialFfufParameterDiscoveryToolData(
-      getFfufEndpointFromPattern(toolData.form.targetPattern),
+      endpoint,
     );
     return {
       ...parameterToolData,
+      form: { ...parameterToolData.form, ...sharedForm },
+    };
+  }
+  if (nextMode === "value_fuzzing") {
+    const valueToolData = createInitialFfufValueFuzzingToolData(endpoint);
+    return {
+      ...valueToolData,
       form: {
-        ...parameterToolData.form,
-        wordlist: toolData.form.wordlist,
-        matchCodes: toolData.form.matchCodes,
-        filterCodes: toolData.form.filterCodes,
-        rate: toolData.form.rate,
-        timeLimit: toolData.form.timeLimit,
+        ...valueToolData.form,
+        ...sharedForm,
+        requestLocation:
+          toolData.mode === "parameter_discovery"
+            ? toolData.form.requestLocation
+            : valueToolData.form.requestLocation,
       },
     };
   }
-
-  const contentToolData = createInitialFfufToolData(toolData.form.endpoint);
+  const contentToolData = createInitialFfufToolData(endpoint);
   return {
     ...contentToolData,
-    form: {
-      ...contentToolData.form,
-      wordlist: toolData.form.wordlist,
-      matchCodes: toolData.form.matchCodes,
-      filterCodes: toolData.form.filterCodes,
-      rate: toolData.form.rate,
-      timeLimit: toolData.form.timeLimit,
-    },
+    form: { ...contentToolData.form, ...sharedForm },
   };
 }
 
@@ -201,18 +283,20 @@ export function isFfufRequestLocationField(
   return field === "requestLocation";
 }
 
-export function cycleFfufRequestLocation(
-  toolData: FfufParameterDiscoveryToolData,
+export function cycleFfufRequestLocation<T extends FfufParameterDiscoveryToolData | FfufValueFuzzingToolData>(
+  toolData: T,
   direction: -1 | 1,
-): FfufParameterDiscoveryToolData {
+): T {
   const locations: readonly FfufParameterLocation[] = ["query", "body", "header"];
   const currentIndex = locations.indexOf(toolData.form.requestLocation);
   const nextIndex = (currentIndex + direction + locations.length) % locations.length;
-  return setFfufParameterDiscoveryField(
-    toolData,
-    "requestLocation",
-    locations[nextIndex] ?? "query",
-  );
+  return {
+    ...toolData,
+    form: {
+      ...toolData.form,
+      requestLocation: locations[nextIndex] ?? "query",
+    },
+  };
 }
 
 export function toggleFfufBooleanField(
@@ -253,6 +337,32 @@ export async function collectFfufArtifacts(
 
   const parsed = parseFfufOutput(json);
   const parsedToolData = readFfufToolData(toolData);
+  if (parsedToolData.mode === "value_fuzzing") {
+    const results = mapFfufValueFuzzingResults(
+      parsed.results,
+      parsedToolData.form,
+      toolRunId,
+      maximumValueFuzzingResultCount,
+    );
+    return [{
+      artifactType: "ffuf_value_fuzzing",
+      label: "FFUF Value Fuzzing",
+      source: "ffuf.json",
+      payload: {
+        source: getFfufArtifactSource(jsonOutputPath, json),
+        scanner: { name: "ffuf", mode: "value_fuzzing", status, exitCode },
+        runContext: {
+          endpoint: stripFfufEndpointQuery(parsedToolData.form.endpoint),
+          parameterName: parsedToolData.form.parameterName,
+          requestLocation: parsedToolData.form.requestLocation,
+          wordlist: parsedToolData.form.wordlist,
+        },
+        parseErrorCount: parsed.parseErrorCount,
+        results,
+        isTruncated: parsed.results.length > results.length,
+      },
+    }];
+  }
   if (parsedToolData.mode === "parameter_discovery") {
     const candidates = mapFfufParameterCandidates(
       parsed.results,
@@ -313,7 +423,7 @@ export async function collectFfufArtifacts(
 function appendFfufMatcherAndLimitFlags(
   command: string[],
   form: Pick<
-    FfufContentDiscoveryFormState | FfufParameterDiscoveryFormState,
+    FfufContentDiscoveryFormState | FfufParameterDiscoveryFormState | FfufValueFuzzingFormState,
     "matchCodes" | "filterCodes" | "rate" | "timeLimit"
   >,
 ) {
@@ -370,6 +480,15 @@ function readFfufToolData(toolData: unknown): FfufToolData {
   if (
     toolData &&
     typeof toolData === "object" &&
+    (toolData as { mode?: unknown }).mode === "value_fuzzing" &&
+    (toolData as { form?: unknown }).form &&
+    typeof (toolData as { form?: unknown }).form === "object"
+  ) {
+    return toolData as FfufValueFuzzingToolData;
+  }
+  if (
+    toolData &&
+    typeof toolData === "object" &&
     (toolData as { mode?: unknown }).mode === "parameter_discovery" &&
     (toolData as { form?: unknown }).form &&
     typeof (toolData as { form?: unknown }).form === "object"
@@ -409,13 +528,67 @@ function validateFfufCommandExactOrigin(command: string, targetUrl: string) {
 function validateFfufCommandMode(command: string, toolData: unknown) {
   const isParameterDiscoveryCommand =
     /(?:[?&]FUZZ=|-d\s+['"]?FUZZ=|-H\s+['"]?FUZZ\s*:)/.test(command);
-  const mode = readFfufToolData(toolData).mode;
+  const parsedToolData = readFfufToolData(toolData);
+  const mode = parsedToolData.mode;
 
   if (mode === "parameter_discovery" && !isParameterDiscoveryCommand) {
     throw new Error("FFUF command must keep the selected Parameter Discovery mode.");
   }
   if (mode === "content_discovery" && isParameterDiscoveryCommand) {
     throw new Error("FFUF command must keep the selected Content Discovery mode.");
+  }
+  if (
+    mode === "value_fuzzing" &&
+    !isMatchingFfufValueCommand(command, parsedToolData)
+  ) {
+    throw new Error("FFUF command must keep the selected Value Fuzzing mode.");
+  }
+}
+
+function isMatchingFfufValueCommand(
+  command: string,
+  toolData: FfufValueFuzzingToolData,
+) {
+  const parameterName = toolData.form.parameterName.trim();
+  if (!parameterName) return false;
+  const escapedParameter = escapeFfufPattern(parameterName);
+
+  if (toolData.form.requestLocation === "body") {
+    return new RegExp(`-d\\s+['"]?${escapedParameter}=FUZZ(?:['"]|\\s|$)`).test(command);
+  }
+  if (toolData.form.requestLocation === "header") {
+    return new RegExp(`-H\\s+['"]?${escapedParameter}\\s*:\\s*FUZZ(?:['"]|\\s|$)`).test(command);
+  }
+
+  const target = [...command.matchAll(ffufTargetPattern)]
+    .map((match) => match[1] ?? match[2] ?? match[3])
+    .find((value): value is string => Boolean(value));
+  if (!target) return false;
+  try {
+    const commandUrl = new URL(target);
+    const endpointUrl = new URL(toolData.form.endpoint);
+    return (
+      commandUrl.origin === endpointUrl.origin &&
+      commandUrl.pathname === endpointUrl.pathname &&
+      commandUrl.searchParams.get(parameterName) === "FUZZ"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function escapeFfufPattern(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function stripFfufEndpointQuery(value: string) {
+  try {
+    const url = new URL(value);
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return value.split(/[?#]/, 1)[0] ?? value;
   }
 }
 

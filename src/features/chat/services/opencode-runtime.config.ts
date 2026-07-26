@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAppDataDirectory } from "../../session/services/session-database";
 import { getAuthenticationRuntimeId } from "../../authentication/services/authentication-runtime";
+import { getMacOSLoginKeychainPath } from "../../authentication/services/platform-secret-store.helpers";
 import { pageInspectionPermissionService } from "../../page-inspection/services/page-inspection-permission.service";
 import { getPlaywrightBrowsersPath } from "../../page-inspection/services/playwright-page-inspection-browser.helpers";
 import { chatContextToolRegistry, createOpenCodeToolSource } from "./chat-context-tools.service";
@@ -121,9 +122,10 @@ export function getOpenCodeRuntimeEnvironment() {
     HOME: runtimeHome,
     NULLTRACE_APP_DATA_DIR: getAppDataDirectory(),
     NULLTRACE_RUNTIME_ID: getAuthenticationRuntimeId(),
-    NULLTRACE_PAGE_INSPECTION_SESSION_IDS: JSON.stringify(
-      pageInspectionPermissionService.listAllowedSessionIds(),
-    ),
+    NULLTRACE_PAGE_INSPECTION_MODES: JSON.stringify(pageInspectionPermissionService.listModes()),
+    ...(process.platform === "darwin"
+      ? { NULLTRACE_MACOS_KEYCHAIN_PATH: getMacOSLoginKeychainPath() }
+      : {}),
     ...(playwrightBrowsersPath ? { PLAYWRIGHT_BROWSERS_PATH: playwrightBrowsersPath } : {}),
     OPENCODE_CONFIG_CONTENT: JSON.stringify(openCodeConfig),
     OPENCODE_CONFIG_DIR: join(runtimeConfig, "opencode"),

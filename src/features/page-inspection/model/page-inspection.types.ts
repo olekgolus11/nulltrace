@@ -1,7 +1,10 @@
 export type PageInspectionStatus = "blocked" | "ready" | "browser_missing";
+export type PageInspectionAllowedMode = "public" | "authenticated";
+export type PageInspectionPermissionMode = "none" | PageInspectionAllowedMode;
 
 export interface PageInspectionPermissionStatus {
   isAllowed: boolean;
+  mode: PageInspectionPermissionMode;
   status: PageInspectionStatus;
 }
 
@@ -33,11 +36,20 @@ export interface PageInspectionRequestPolicyInput {
 export interface PageInspectionInput {
   requestedUrl: string;
   targetOrigin: string;
+  authentication?: PageInspectionAuthentication;
 }
 
-export interface PageInspectionRequest extends PageInspectionInput {
+export interface PageInspectionRequest {
   sessionId: string;
+  requestedUrl: string;
+  targetOrigin: string;
   protectedPaths?: string[];
+}
+
+export interface PageInspectionAuthentication {
+  origin: string;
+  cookies: string;
+  headers: string;
 }
 
 export interface PageInspectionFormField {

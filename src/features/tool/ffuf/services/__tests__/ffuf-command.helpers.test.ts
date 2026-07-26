@@ -10,10 +10,17 @@ const {
   collectFfufArtifacts,
   createInitialFfufToolData,
   createInitialFfufParameterDiscoveryToolData,
+  createInitialFfufValueFuzzingToolData,
+  buildFfufValueFuzzingCommand,
   prepareFfufCommandForRun,
   setFfufContentDiscoveryField,
 } = await import("../ffuf-command.helpers");
-const { parseFfufOutput, selectExactOriginFfufMatches } = await import("../ffuf-output.helpers");
+const {
+  classifyFfufValueAnomaly,
+  mapFfufValueFuzzingResults,
+  parseFfufOutput,
+  selectExactOriginFfufMatches,
+} = await import("../ffuf-output.helpers");
 const { getAppDataDirectory } = await import("../../../../session/services/session-database");
 
 describe("FFUF command helpers", () => {
@@ -66,6 +73,38 @@ describe("FFUF command helpers", () => {
     expect(buildFfufParameterDiscoveryCommand(configured)).toBe(
       "ffuf -u 'https://example.com/search?FUZZ=nulltrace' -w /tmp/parameters.txt -mc 200,302 -fc 404 -rate 20 -maxtime 15",
     );
+  });
+
+  test("builds Value Fuzzing commands for one named parameter and location", () => {
+    const initial = createInitialFfufValueFuzzingToolData("https://example.com/search");
+    const configured = {
+      ...initial,
+      form: {
+        ...initial.form,
+        parameterName: "q",
+        wordlist: "/tmp/payloads.txt",
+        matchCodes: "200,500",
+        filterCodes: "404",
+        rate: "20",
+        timeLimit: "15",
+      },
+    };
+
+    expect(buildFfufValueFuzzingCommand(configured)).toBe(
+      "ffuf -u 'https://example.com/search?q=FUZZ' -enc FUZZ:urlencode -w /tmp/payloads.txt -mc 200,500 -fc 404 -rate 20 -maxtime 15",
+    );
+    expect(
+      buildFfufValueFuzzingCommand({
+        ...configured,
+        form: { ...configured.form, requestLocation: "body" },
+      }),
+    ).toContain("-X POST -d 'q=FUZZ'");
+    expect(
+      buildFfufValueFuzzingCommand({
+        ...configured,
+        form: { ...configured.form, endpoint: "not a url" },
+      }),
+    ).not.toContain("-u");
   });
 
   test("quotes body and header endpoints before shell execution", () => {
@@ -155,6 +194,30 @@ describe("FFUF command helpers", () => {
         toolData,
       }),
     ).toThrow("Parameter Discovery mode");
+  });
+
+  test("rejects Value Fuzzing commands that do not target the selected parameter and location", () => {
+    const toolData = createInitialFfufValueFuzzingToolData("https://example.com/search");
+    toolData.form.parameterName = "q";
+
+    expect(() =>
+      prepareFfufCommandForRun({
+        command: "ffuf -u https://example.com/FUZZ -w /tmp/payloads.txt",
+        sessionId: "session-value-mode",
+        toolRunId: "run-value-mode",
+        targetUrl: "https://example.com",
+        toolData,
+      }),
+    ).toThrow("Value Fuzzing mode");
+    expect(() =>
+      prepareFfufCommandForRun({
+        command: "ffuf -u 'https://example.com/search?other=FUZZ' -w /tmp/payloads.txt",
+        sessionId: "session-value-parameter",
+        toolRunId: "run-value-parameter",
+        targetUrl: "https://example.com",
+        toolData,
+      }),
+    ).toThrow("Value Fuzzing mode");
   });
 
   test("keeps valid results from partial data and counts malformed records", () => {
@@ -304,5 +367,160 @@ describe("FFUF command helpers", () => {
         },
       },
     ]);
+  });
+
+  test("classifies only explicit security-relevant value anomalies", () => {
+    const base = {
+      url: "https://example.com/search?q=FUZZ",
+      status: 500,
+      input: { FUZZ: "' OR 1=1--" },
+      length: 100,
+      words: 10,
+      lines: 2,
+      redirectLocation: null,
+      position: 1,
+    };
+
+    expect(classifyFfufValueAnomaly(base, "' OR 1=1--", "https://example.com/search"))
+      .toEqual({ kind: "server_error", severity: "medium" });
+    expect(classifyFfufValueAnomaly(base, "ordinary", "https://example.com/search")).toBeNull();
+    expect(
+      classifyFfufValueAnomaly(
+        {
+          ...base,
+          status: 302,
+          redirectLocation: "https://attacker.test/path",
+        },
+        "https://attacker.test/path",
+        "https://example.com/search",
+      ),
+    ).toEqual({ kind: "external_redirect", severity: "medium" });
+    expect(
+      classifyFfufValueAnomaly(
+        { ...base, status: 302, redirectLocation: "/ordinary" },
+        "ordinary",
+        "https://example.com/search",
+      ),
+    ).toBeNull();
+  });
+
+  test("bounds and redacts Value Fuzzing artifact context", () => {
+    const results = mapFfufValueFuzzingResults(
+      [{
+        url: "https://example.com/search?q=FUZZ",
+        status: 500,
+        input: { FUZZ: `token=secret-value ${"x".repeat(300)}` },
+        length: 100,
+        words: 10,
+        lines: 2,
+        redirectLocation: "https://example.com/path?token=secret",
+        position: 1,
+      }],
+      {
+        endpoint: "https://example.com/search?existing=secret",
+        parameterName: "q",
+        requestLocation: "query",
+        wordlist: "/tmp/payloads.txt",
+        matchCodes: "500",
+        filterCodes: "",
+        rate: "10",
+        timeLimit: "10",
+      },
+      "run-value",
+      1,
+    );
+
+    expect(results[0]?.payload).toContain("token=[REDACTED]");
+    expect(results[0]?.payload.length).toBeLessThanOrEqual(257);
+    expect(results[0]?.response.redirectLocation).toBe("https://example.com/path");
+    expect(results[0]?.provenance.endpoint).toBe("https://example.com/search");
+  });
+
+  test("removes queries from relative redirect evidence", () => {
+    const results = mapFfufValueFuzzingResults(
+      [{
+        url: "https://example.com/search?q=FUZZ",
+        status: 302,
+        input: { FUZZ: "ordinary" },
+        length: 0,
+        words: 0,
+        lines: 0,
+        redirectLocation: "/next?token=secret",
+        position: 1,
+      }],
+      {
+        endpoint: "https://example.com/search",
+        parameterName: "q",
+        requestLocation: "query",
+        wordlist: "/tmp/payloads.txt",
+        matchCodes: "302",
+        filterCodes: "",
+        rate: "10",
+        timeLimit: "10",
+      },
+      "run-relative",
+      1,
+    );
+
+    expect(results[0]?.response.redirectLocation).toBe("https://example.com/next");
+  });
+
+  test("collects Value Fuzzing anomalies and ordinary matches from partial output", async () => {
+    const outputPath = join(
+      getAppDataDirectory(),
+      "artifacts",
+      "sessions",
+      "session-value",
+      "tool-runs",
+      "run-value",
+      "ffuf.json",
+    );
+    mkdirSync(dirname(outputPath), { recursive: true });
+    writeFileSync(
+      outputPath,
+      JSON.stringify({
+        results: [
+          {
+            url: "https://example.com/search?q=FUZZ",
+            status: 500,
+            input: { FUZZ: "' OR 1=1--" },
+            length: 120,
+          },
+          {
+            url: "https://example.com/search?q=FUZZ",
+            status: 200,
+            input: { FUZZ: "ordinary" },
+            length: 100,
+          },
+          { url: 42, status: "bad" },
+        ],
+      }),
+    );
+    const toolData = createInitialFfufValueFuzzingToolData("https://example.com/search");
+    toolData.form.parameterName = "q";
+    toolData.form.wordlist = "/tmp/payloads.txt";
+    toolData.form.endpoint = "https://example.com/search?token=secret";
+
+    const artifacts = await collectFfufArtifacts({
+      sessionId: "session-value",
+      toolRunId: "run-value",
+      command: "ffuf -u 'https://example.com/search?q=FUZZ' -w /tmp/payloads.txt",
+      status: "error",
+      exitCode: 1,
+      toolData,
+    });
+
+    expect(artifacts).toMatchObject([{
+      artifactType: "ffuf_value_fuzzing",
+      payload: {
+        scanner: { mode: "value_fuzzing", status: "error", exitCode: 1 },
+        runContext: { endpoint: "https://example.com/search" },
+        parseErrorCount: 1,
+        results: [
+          { payload: "' OR 1=1--", anomaly: { kind: "server_error" } },
+          { payload: "ordinary", anomaly: null },
+        ],
+      },
+    }]);
   });
 });

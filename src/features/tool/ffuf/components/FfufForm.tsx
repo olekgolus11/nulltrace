@@ -57,6 +57,31 @@ export function FfufForm({ toolData, focused, onFieldChange }: FfufFormProps) {
     );
   }
 
+  if (toolData.mode === "value_fuzzing") {
+    return (
+      <box flexDirection="column">
+        <text fg={fieldColor("mode")}>{fieldLabel("mode", "Mode")}: Value Fuzzing</text>
+        <text fg={theme.text.dim}>  press Left/Right to switch modes</text>
+        {input("endpoint", "Endpoint", "https://example.com/search")}
+        {input("parameterName", "Parameter", "q")}
+        <box flexDirection="row" width="100%">
+          <box width={20}>
+            <text fg={fieldColor("requestLocation")}>
+              {fieldLabel("requestLocation", "Request location")}
+            </text>
+          </box>
+          <text fg={fieldColor("requestLocation")}>[{toolData.form.requestLocation}]</text>
+          <text fg={theme.text.dim}>  press Left/Right</text>
+        </box>
+        {input("wordlist", "Payload wordlist", "/path/to/payloads.txt")}
+        {input("matchCodes", "Match codes", "200,302,500")}
+        {input("filterCodes", "Filter codes", "404")}
+        {input("rate", "Request rate", "25")}
+        {input("timeLimit", "Time limit", "10 seconds")}
+      </box>
+    );
+  }
+
   return (
     <box flexDirection="column">
       <text fg={fieldColor("mode")}>{fieldLabel("mode", "Mode")}: Content Discovery</text>

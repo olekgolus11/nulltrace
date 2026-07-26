@@ -1,6 +1,6 @@
 import { ToolData } from "../../shared/types/tool-screen.types";
 
-export type FfufMode = "content_discovery" | "parameter_discovery";
+export type FfufMode = "content_discovery" | "parameter_discovery" | "value_fuzzing";
 
 export type FfufParameterLocation = "query" | "body" | "header";
 
@@ -24,10 +24,21 @@ export type FfufParameterDiscoveryFieldId =
   | "rate"
   | "timeLimit";
 
+export type FfufValueFuzzingFieldId =
+  | "endpoint"
+  | "parameterName"
+  | "requestLocation"
+  | "wordlist"
+  | "matchCodes"
+  | "filterCodes"
+  | "rate"
+  | "timeLimit";
+
 export type FfufFieldId =
   | "mode"
   | FfufContentDiscoveryFieldId
-  | FfufParameterDiscoveryFieldId;
+  | FfufParameterDiscoveryFieldId
+  | FfufValueFuzzingFieldId;
 
 export interface FfufContentDiscoveryFormState extends Record<string, unknown> {
   targetPattern: string;
@@ -51,6 +62,17 @@ export interface FfufParameterDiscoveryFormState extends Record<string, unknown>
   timeLimit: string;
 }
 
+export interface FfufValueFuzzingFormState extends Record<string, unknown> {
+  endpoint: string;
+  parameterName: string;
+  requestLocation: FfufParameterLocation;
+  wordlist: string;
+  matchCodes: string;
+  filterCodes: string;
+  rate: string;
+  timeLimit: string;
+}
+
 export interface FfufContentDiscoveryToolData extends ToolData {
   mode: "content_discovery";
   form: FfufContentDiscoveryFormState;
@@ -63,7 +85,16 @@ export interface FfufParameterDiscoveryToolData extends ToolData {
   selectedField: number;
 }
 
-export type FfufToolData = FfufContentDiscoveryToolData | FfufParameterDiscoveryToolData;
+export interface FfufValueFuzzingToolData extends ToolData {
+  mode: "value_fuzzing";
+  form: FfufValueFuzzingFormState;
+  selectedField: number;
+}
+
+export type FfufToolData =
+  | FfufContentDiscoveryToolData
+  | FfufParameterDiscoveryToolData
+  | FfufValueFuzzingToolData;
 
 export interface FfufArtifactResult {
   url: string;
@@ -91,6 +122,30 @@ export interface FfufParameterCandidate {
     toolRunId: string;
     endpoint: string;
     mode: "parameter_discovery";
+  };
+}
+
+export type FfufValueAnomalyKind = "server_error" | "external_redirect";
+
+export interface FfufValueFuzzingResult {
+  payload: string;
+  requestLocation: FfufParameterLocation;
+  parameterName: string;
+  response: {
+    status: number;
+    size: number | null;
+    words: number | null;
+    lines: number | null;
+    redirectLocation: string | null;
+  };
+  anomaly: {
+    kind: FfufValueAnomalyKind;
+    severity: "medium";
+  } | null;
+  provenance: {
+    toolRunId: string;
+    endpoint: string;
+    mode: "value_fuzzing";
   };
 }
 

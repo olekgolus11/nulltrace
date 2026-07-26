@@ -27,7 +27,11 @@ const snapshot: PageInspectionSnapshot = {
 };
 
 class FakePageInspectionBrowser {
-  calls: Array<{ requestedUrl: string; targetOrigin: string }> = [];
+  calls: Array<{
+    requestedUrl: string;
+    targetOrigin: string;
+    authentication?: { origin: string; cookies: string; headers: string };
+  }> = [];
 
   async inspect(
     input: { requestedUrl: string; targetOrigin: string },
@@ -59,7 +63,7 @@ describe("PageInspectionService", () => {
   test("allows an exact-origin page after a grant", async () => {
     const browser = new FakePageInspectionBrowser();
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
+    permissions.allowPublic("session-one");
     const service = new PageInspectionService(permissions, browser);
 
     await expect(
@@ -77,10 +81,286 @@ describe("PageInspectionService", () => {
     ]);
   });
 
+  test("uses public mode without loading authentication", async () => {
+    const browser = new FakePageInspectionBrowser();
+    const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
+    permissions.allowPublic("session-one");
+    let contextLoads = 0;
+    const service = new PageInspectionService(
+      permissions,
+      browser,
+      {
+        getMetadata: async () => ({ storageMode: "secure" }),
+        loadProtectedContext: async () => {
+          contextLoads += 1;
+          return null;
+        },
+      },
+      { isProceedAllowed: () => true },
+    );
+
+    await service.inspect({
+      sessionId: "session-one",
+      requestedUrl: "https://target.example/public",
+      targetOrigin: "https://target.example",
+    });
+
+    expect(browser.calls).toEqual([
+      {
+        requestedUrl: "https://target.example/public",
+        targetOrigin: "https://target.example",
+      },
+    ]);
+    expect(contextLoads).toBe(0);
+  });
+
+  test("uses one accepted context for every inspection in authenticated session mode", async () => {
+    const browser = new FakePageInspectionBrowser();
+    const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
+    permissions.allowAuthenticated("session-one");
+    const service = new PageInspectionService(
+      permissions,
+      browser,
+      {
+        getMetadata: async () => ({ storageMode: "secure" }),
+        loadProtectedContext: async () => ({
+          origin: "https://target.example",
+          cookies: "session=secret-cookie",
+          headers: "Authorization: Bearer secret-header",
+          updatedAt: "2026-07-25T10:00:00.000Z",
+        }),
+      },
+      { isProceedAllowed: () => true },
+    );
+
+    await service.inspect({
+      sessionId: "session-one",
+      requestedUrl: "https://target.example/private",
+      targetOrigin: "https://target.example",
+      protectedPaths: ["https://target.example/private"],
+    });
+    await service.inspect({
+      sessionId: "session-one",
+      requestedUrl: "https://target.example/private-two",
+      targetOrigin: "https://target.example",
+      protectedPaths: ["https://target.example/private"],
+    });
+
+    expect(browser.calls).toEqual([
+      {
+        requestedUrl: "https://target.example/private",
+        targetOrigin: "https://target.example",
+        authentication: {
+          origin: "https://target.example",
+          cookies: "session=secret-cookie",
+          headers: "Authorization: Bearer secret-header",
+        },
+      },
+      {
+        requestedUrl: "https://target.example/private-two",
+        targetOrigin: "https://target.example",
+        authentication: {
+          origin: "https://target.example",
+          cookies: "session=secret-cookie",
+          headers: "Authorization: Bearer secret-header",
+        },
+      },
+    ]);
+  });
+
+  test("rejects rejected, missing, and incompatible authenticated contexts without public fallback", async () => {
+    const rejectedBrowser = new FakePageInspectionBrowser();
+    const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
+    permissions.allowAuthenticated("session-one");
+    const rejectedService = new PageInspectionService(
+      permissions,
+      rejectedBrowser,
+      {
+        getMetadata: async () => ({ storageMode: "secure" }),
+        loadProtectedContext: async () => null,
+      },
+      { isProceedAllowed: () => false },
+    );
+    await expect(
+      rejectedService.inspect({
+        sessionId: "session-one",
+        requestedUrl: "https://target.example/private",
+        targetOrigin: "https://target.example",
+      }),
+    ).rejects.toThrow("requires an accepted authentication context");
+    expect(rejectedBrowser.calls).toEqual([]);
+
+    const missingBrowser = new FakePageInspectionBrowser();
+    let missingContextLoads = 0;
+    const missingService = new PageInspectionService(
+      permissions,
+      missingBrowser,
+      {
+        getMetadata: async () => null,
+        loadProtectedContext: async () => {
+          missingContextLoads += 1;
+          return null;
+        },
+      },
+      { isProceedAllowed: () => true },
+    );
+    await expect(
+      missingService.inspect({
+        sessionId: "session-one",
+        requestedUrl: "https://target.example/private",
+        targetOrigin: "https://target.example",
+      }),
+    ).rejects.toThrow("unavailable");
+    expect(missingBrowser.calls).toEqual([]);
+    expect(missingContextLoads).toBe(0);
+
+    const incompatibleBrowser = new FakePageInspectionBrowser();
+    const incompatibleService = new PageInspectionService(
+      permissions,
+      incompatibleBrowser,
+      {
+        getMetadata: async () => ({ storageMode: "secure" }),
+        loadProtectedContext: async () => ({
+          origin: "https://other.example",
+          cookies: "session=wrong-context",
+          headers: "",
+          updatedAt: "2026-07-25T10:00:00.000Z",
+        }),
+      },
+      { isProceedAllowed: () => true },
+    );
+    await expect(
+      incompatibleService.inspect({
+        sessionId: "session-one",
+        requestedUrl: "https://target.example/private",
+        targetOrigin: "https://target.example",
+      }),
+    ).rejects.toThrow("exact origin");
+    expect(incompatibleBrowser.calls).toEqual([]);
+  });
+
+  test("rejects a memory-only context before browser inspection", async () => {
+    const browser = new FakePageInspectionBrowser();
+    const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
+    permissions.allowAuthenticated("session-one");
+    const service = new PageInspectionService(
+      permissions,
+      browser,
+      {
+        getMetadata: async () => ({ storageMode: "memory" }),
+        loadProtectedContext: async () => ({
+          origin: "https://target.example",
+          cookies: "session=memory-only-context",
+          headers: "",
+          updatedAt: "2026-07-25T10:00:00.000Z",
+        }),
+      },
+      { isProceedAllowed: () => true },
+    );
+
+    await expect(
+      service.inspect({
+        sessionId: "session-one",
+        requestedUrl: "https://target.example/private",
+        targetOrigin: "https://target.example",
+      }),
+    ).rejects.toThrow("platform secure store");
+    expect(browser.calls).toEqual([]);
+  });
+
+  test("preserves protected destinations in an authenticated snapshot", async () => {
+    const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
+    permissions.allowAuthenticated("session-one");
+    const service = new PageInspectionService(
+      permissions,
+      {
+        inspect: async () => ({
+          ...snapshot,
+          requestedUrl: "https://target.example/private",
+          finalUrl: "https://target.example/private",
+          forms: [
+            { method: "POST", action: "https://target.example/account", fields: [] },
+          ],
+          links: [{ url: "https://target.example/admin", text: "Admin" }],
+          scripts: [
+            { src: "https://target.example/admin/runtime.js", type: "module" },
+          ],
+        }),
+      },
+      {
+        getMetadata: async () => ({ storageMode: "secure" }),
+        loadProtectedContext: async () => ({
+          origin: "https://target.example",
+          cookies: "session=selected-context",
+          headers: "",
+          updatedAt: "2026-07-25T10:00:00.000Z",
+        }),
+      },
+      { isProceedAllowed: () => true },
+    );
+
+    await expect(
+      service.inspect({
+        sessionId: "session-one",
+        requestedUrl: "https://target.example/private",
+        targetOrigin: "https://target.example",
+        protectedPaths: [
+          "https://target.example/private",
+          "https://target.example/account",
+          "https://target.example/admin",
+        ],
+      }),
+    ).resolves.toMatchObject({
+      finalUrl: "https://target.example/private",
+      forms: [
+        { method: "POST", action: "https://target.example/account", fields: [] },
+      ],
+      links: [{ url: "https://target.example/admin", text: "Admin" }],
+      scripts: [
+        { src: "https://target.example/admin/runtime.js", type: "module" },
+      ],
+      isPartial: false,
+      truncatedSections: [],
+    });
+  });
+
+  test("reports a rejected authenticated context without falling back to public inspection", async () => {
+    const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
+    permissions.allowAuthenticated("session-one");
+    const service = new PageInspectionService(
+      permissions,
+      {
+        inspect: async () => ({
+          ...snapshot,
+          finalUrl: "https://target.example/login.php",
+          status: 200,
+        }),
+      },
+      {
+        getMetadata: async () => ({ storageMode: "secure" }),
+        loadProtectedContext: async () => ({
+          origin: "https://target.example",
+          cookies: "session=expired-context",
+          headers: "",
+          updatedAt: "2026-07-25T10:00:00.000Z",
+        }),
+      },
+      { isProceedAllowed: () => true },
+    );
+
+    await expect(
+      service.inspect({
+        sessionId: "session-one",
+        requestedUrl: "https://target.example/private",
+        targetOrigin: "https://target.example",
+      }),
+    ).rejects.toThrow("rejected by the target");
+  });
+
   test("rejects cross-origin requests before browser navigation", async () => {
     const browser = new FakePageInspectionBrowser();
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
+    permissions.allowPublic("session-one");
     const service = new PageInspectionService(permissions, browser);
 
     await expect(
@@ -96,7 +376,7 @@ describe("PageInspectionService", () => {
   test("reports a Chromium installation action without calling the browser", async () => {
     const browser = new FakePageInspectionBrowser();
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => false });
-    permissions.grant("session-one");
+    permissions.allowPublic("session-one");
     const service = new PageInspectionService(permissions, browser);
 
     await expect(
@@ -111,7 +391,7 @@ describe("PageInspectionService", () => {
 
   test("rejects an out-of-origin final URL from the browser", async () => {
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
+    permissions.allowPublic("session-one");
     const service = new PageInspectionService(permissions, {
       inspect: async () => ({
         ...snapshot,
@@ -130,7 +410,7 @@ describe("PageInspectionService", () => {
 
   test("rejects a redirect that lands on a known protected path", async () => {
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
+    permissions.allowPublic("session-one");
     const service = new PageInspectionService(permissions, {
       inspect: async () => ({
         ...snapshot,
@@ -151,7 +431,7 @@ describe("PageInspectionService", () => {
   test("does not navigate to known protected paths", async () => {
     const browser = new FakePageInspectionBrowser();
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
+    permissions.allowPublic("session-one");
     const service = new PageInspectionService(permissions, browser);
 
     await expect(
@@ -167,7 +447,7 @@ describe("PageInspectionService", () => {
 
   test("removes known protected destinations from a public snapshot", async () => {
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
-    permissions.grant("session-one");
+    permissions.allowPublic("session-one");
     const service = new PageInspectionService(permissions, {
       inspect: async () => ({
         ...snapshot,

@@ -98,4 +98,36 @@ describe("FfufSitemapEnrichmentService", () => {
       ]),
     ).toBe(0);
   });
+
+  test("does not turn Value Fuzzing payload URLs into sitemap entries", () => {
+    const upsertEntry = () => {
+      throw new Error("should not write");
+    };
+    const service = new FfufSitemapEnrichmentService(
+      {
+        getSessionById: () => ({
+          id: "session-1",
+          targetId: "target-1",
+          normalizedUrl: "https://example.com",
+          displayUrl: "https://example.com",
+          createdAt: "2026-07-26T10:00:00.000Z",
+          lastActivityAt: "2026-07-26T10:00:00.000Z",
+        }),
+      },
+      { upsertEntry },
+    );
+
+    expect(
+      service.upsertContentDiscoveryResults("session-1", [{
+        ...createArtifact([]),
+        artifactType: "ffuf_value_fuzzing",
+        payload: {
+          results: [{
+            payload: "https://attacker.test",
+            generatedUrl: "https://example.com/search?next=https://attacker.test",
+          }],
+        },
+      }]),
+    ).toBe(0);
+  });
 });

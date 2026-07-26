@@ -59,12 +59,12 @@ export class PageInspectionChatContextToolsService {
       {
         name: "inspect_page",
         description:
-          "Inspect one public exact-origin page after JavaScript rendering. This read-only tool returns a bounded structured snapshot without HTML, screenshots, cookies, storage, raw response bodies, or hidden secret inputs. It is available only while the operator has granted Page Inspection for the active testing session.",
+          "Inspect one exact-origin page after JavaScript rendering using the active testing session's operator-selected Page Inspection mode. This read-only tool returns a bounded structured snapshot without HTML, screenshots, cookies, storage, raw response bodies, or hidden secret inputs.",
         args: {
           url: {
             type: "string",
             description:
-              "Exact-origin public page URL to inspect. Cross-origin navigation and redirects are blocked.",
+              "Exact-origin page URL to inspect. Cross-origin navigation and redirects are blocked.",
           },
         },
         execute: ({ opencodeConversationId, args }) =>

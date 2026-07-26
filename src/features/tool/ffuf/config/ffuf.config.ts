@@ -24,6 +24,20 @@ const parameterDiscoveryFieldOrder = [
   "timeLimit",
 ] as const satisfies readonly FfufFieldId[];
 
+const valueFuzzingFieldOrder = [
+  "mode",
+  "endpoint",
+  "parameterName",
+  "requestLocation",
+  "wordlist",
+  "matchCodes",
+  "filterCodes",
+  "rate",
+  "timeLimit",
+] as const satisfies readonly FfufFieldId[];
+
 export function getFfufFieldOrder(mode: FfufMode): readonly FfufFieldId[] {
-  return mode === "parameter_discovery" ? parameterDiscoveryFieldOrder : contentDiscoveryFieldOrder;
+  if (mode === "parameter_discovery") return parameterDiscoveryFieldOrder;
+  if (mode === "value_fuzzing") return valueFuzzingFieldOrder;
+  return contentDiscoveryFieldOrder;
 }

@@ -1,4 +1,8 @@
 import { AuthenticatedContextStorageMode } from "../model/authenticated-request-context.types";
+import {
+  appendMacOSKeychainPath,
+  getConfiguredMacOSKeychainPath,
+} from "./platform-secret-store.helpers";
 
 export interface SecretStoreValue {
   value: string;
@@ -60,7 +64,10 @@ const bunSecretStoreCommandRunner: SecretStoreCommandRunner = {
 };
 
 export class MacOSKeychainSecretStoreAdapter implements PlatformSecretStoreAdapter {
-  constructor(private readonly commandRunner: SecretStoreCommandRunner) {}
+  constructor(
+    private readonly commandRunner: SecretStoreCommandRunner,
+    private readonly keychainPath: string | undefined = getConfiguredMacOSKeychainPath(),
+  ) {}
 
   async isAvailable() {
     const result = await this.commandRunner.run(["security", "list-keychains"]);
@@ -68,32 +75,42 @@ export class MacOSKeychainSecretStoreAdapter implements PlatformSecretStoreAdapt
   }
 
   async save(key: string, value: string) {
-    const result = await this.commandRunner.run([
-      "security",
-      "add-generic-password",
-      "-U",
-      "-s",
-      serviceName,
-      "-a",
-      key,
-      "-w",
-      value,
-    ]);
+    const result = await this.commandRunner.run(
+      appendMacOSKeychainPath(
+        [
+          "security",
+          "add-generic-password",
+          "-U",
+          "-s",
+          serviceName,
+          "-a",
+          key,
+          "-w",
+          value,
+        ],
+        this.keychainPath,
+      ),
+    );
     if (result.exitCode !== 0) {
       throw createCommandError("save", result);
     }
   }
 
   async load(key: string) {
-    const result = await this.commandRunner.run([
-      "security",
-      "find-generic-password",
-      "-s",
-      serviceName,
-      "-a",
-      key,
-      "-w",
-    ]);
+    const result = await this.commandRunner.run(
+      appendMacOSKeychainPath(
+        [
+          "security",
+          "find-generic-password",
+          "-s",
+          serviceName,
+          "-a",
+          key,
+          "-w",
+        ],
+        this.keychainPath,
+      ),
+    );
     if (result.exitCode !== 0) {
       return null;
     }
@@ -101,14 +118,19 @@ export class MacOSKeychainSecretStoreAdapter implements PlatformSecretStoreAdapt
   }
 
   async clear(key: string) {
-    const result = await this.commandRunner.run([
-      "security",
-      "delete-generic-password",
-      "-s",
-      serviceName,
-      "-a",
-      key,
-    ]);
+    const result = await this.commandRunner.run(
+      appendMacOSKeychainPath(
+        [
+          "security",
+          "delete-generic-password",
+          "-s",
+          serviceName,
+          "-a",
+          key,
+        ],
+        this.keychainPath,
+      ),
+    );
     if (result.exitCode !== 0) {
       throw createCommandError("clear", result);
     }
