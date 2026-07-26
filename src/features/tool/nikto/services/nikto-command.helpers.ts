@@ -1,5 +1,4 @@
-const prohibitedOptionPattern =
-  /(?:^|\s)-(?:Tuning|mutate|mutate-options|evasion)(?:\s|=|$)/i;
+const prohibitedOptions = ["-tuning", "-mutate", "-mutate-options", "-evasion"];
 
 function getRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -21,18 +20,25 @@ export function quoteNiktoShellValue(value: string) {
 }
 
 export function assertNiktoStandardCommand(command: string) {
-  assertNoShellComposition(command);
-  if (prohibitedOptionPattern.test(command)) {
+  const tokens = parseNiktoShellWords(command);
+  if (
+    tokens.some((token) => {
+      const normalized = token.toLowerCase();
+      return prohibitedOptions.some(
+        (option) => normalized === option || normalized.startsWith(`${option}=`),
+      );
+    })
+  ) {
     throw new Error(
       "Nikto Standard rejects -Tuning, -mutate, -mutate-options, and -evasion.",
     );
   }
-  if (!/^\s*nikto(?:\s|$)/i.test(command)) {
+  if (tokens[0]?.toLowerCase() !== "nikto") {
     throw new Error("Nikto workspace only runs nikto commands.");
   }
 }
 
-export function parseNiktoJsonReport(content: string) {
+export function parseNiktoJsonReport(content: string, requestedTarget?: string) {
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
@@ -62,7 +68,7 @@ export function parseNiktoJsonReport(content: string) {
     return [{
       id: getString(record, ["id", "OSVDB", "osvdb"]),
       method: getString(record, ["method"]),
-      url: getNiktoFindingUrl(url, host),
+      url: getNiktoFindingUrl(url, host, requestedTarget),
       message,
       severity: getString(record, ["severity"]),
       itemIndex: index,
@@ -104,8 +110,20 @@ function getHostReportItems(host: Record<string, unknown> | null) {
   return items.map((item) => ({ item, host }));
 }
 
-function getNiktoFindingUrl(url: string, host: Record<string, unknown> | null) {
-  if (/^https?:\/\//i.test(url) || !host) return url;
+function getNiktoFindingUrl(
+  url: string,
+  host: Record<string, unknown> | null,
+  requestedTarget?: string,
+) {
+  if (/^https?:\/\//i.test(url)) return url;
+  if (requestedTarget) {
+    try {
+      return new URL(url, new URL(requestedTarget).origin).toString();
+    } catch {
+      // Fall back to scanner report host metadata.
+    }
+  }
+  if (!host) return url;
   const hostname = getString(host, ["host", "hostname", "ip"]);
   if (!hostname) return url;
   const port = getString(host, ["port"]);
@@ -119,27 +137,73 @@ function getNiktoFindingUrl(url: string, host: Record<string, unknown> | null) {
   }
 }
 
-function assertNoShellComposition(command: string) {
+function parseNiktoShellWords(command: string) {
+  const tokens: string[] = [];
+  let token = "";
+  let hasToken = false;
   let quote: "'" | '"' | null = null;
 
-  for (const character of command) {
-    if (quote) {
-      if (character === quote) quote = null;
-      if (quote === '"' && (character === "$" || character === "`" || character === "\\")) {
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index]!;
+    if (quote === "'") {
+      if (character === "'") {
+        quote = null;
+      } else {
+        token += character;
+      }
+      continue;
+    }
+    if (quote === '"') {
+      if (character === '"') {
+        quote = null;
+      } else if (character === "$" || character === "`") {
         throw new Error("Nikto Standard rejects shell expansion and composed commands.");
+      } else if (character === "\\") {
+        const next = command[index + 1];
+        if (!next) {
+          throw new Error("Nikto Standard rejects commands with unterminated escapes.");
+        }
+        token += next;
+        index += 1;
+      } else {
+        token += character;
       }
       continue;
     }
     if (character === "'" || character === '"') {
       quote = character;
+      hasToken = true;
       continue;
     }
-    if (";&|`$<>\n\r(){}\\".includes(character)) {
+    if (/\s/.test(character)) {
+      if (hasToken) {
+        tokens.push(token);
+        token = "";
+        hasToken = false;
+      }
+      continue;
+    }
+    if (character === "\\") {
+      const next = command[index + 1];
+      if (!next) {
+        throw new Error("Nikto Standard rejects commands with unterminated escapes.");
+      }
+      token += next;
+      hasToken = true;
+      index += 1;
+      continue;
+    }
+    if ("#;&|`$<>\n\r(){}".includes(character)) {
       throw new Error("Nikto Standard rejects shell expansion and composed commands.");
     }
+    token += character;
+    hasToken = true;
   }
 
   if (quote) {
     throw new Error("Nikto Standard rejects commands with unterminated quotes.");
   }
+  if (hasToken) tokens.push(token);
+
+  return tokens;
 }

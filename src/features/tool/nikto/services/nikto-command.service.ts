@@ -69,7 +69,7 @@ class NiktoCommandService {
   }
 
   async collectArtifacts(options: ToolRunCompleted): Promise<ToolRunArtifactInput[]> {
-    const { sessionId, toolRunId, status, exitCode } = options;
+    const { sessionId, toolRunId, status, exitCode, toolData } = options;
     if (!sessionId || !toolRunId || status === "cancelled") return [];
     const outputPath = this.getExistingOutputPath(sessionId, toolRunId);
     if (!existsSync(outputPath)) {
@@ -87,7 +87,8 @@ class NiktoCommandService {
         parseWarning: "Nikto produced an empty JSON report.",
       })];
     }
-    const report = parseNiktoJsonReport(content);
+    const requestedTarget = (toolData as NiktoToolData | undefined)?.form.target;
+    const report = parseNiktoJsonReport(content, requestedTarget);
 
     return [this.buildReportArtifact(status, exitCode, {
       format: "nikto_json",

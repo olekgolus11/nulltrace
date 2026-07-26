@@ -28,7 +28,14 @@ describe("niktoCommandService", () => {
   });
 
   it("rejects prohibited options from manual commands", () => {
-    for (const option of ["-Tuning 6", "-mutate 1", "-mutate-options a", "-evasion 1"]) {
+    for (const option of [
+      "-Tuning 6",
+      "'-Tuning' 6",
+      "-Tun''ing 6",
+      "-mutate 1",
+      "-mutate-options a",
+      "-evasion 1",
+    ]) {
       expect(() =>
         niktoCommandService.prepareCommandForRun({
           command: `nikto -h https://example.com ${option}`,
@@ -45,6 +52,7 @@ describe("niktoCommandService", () => {
       "nikto -h https://example.com $(printf -- -Tuning)",
       "nikto -h $TARGET",
       "nikto -h https://example.com | sh",
+      "nikto -h https://example.com # skip enforced controls",
     ]) {
       expect(() =>
         niktoCommandService.prepareCommandForRun({
@@ -54,6 +62,22 @@ describe("niktoCommandService", () => {
         }),
       ).toThrow("shell expansion and composed commands");
     }
+  });
+
+  it("accepts apostrophes escaped by guided form quoting", () => {
+    const data = niktoCommandService.createInitialToolData(
+      "https://example.com/O'Reilly",
+    );
+    const command = niktoCommandService.buildCommand(data);
+
+    expect(() =>
+      niktoCommandService.prepareCommandForRun({
+        command,
+        sessionId: "session-1",
+        toolRunId: "run-apostrophe",
+        toolData: data,
+      }),
+    ).not.toThrow();
   });
 
   it("replaces output and runtime controls with controlled values", () => {
@@ -113,18 +137,21 @@ describe("niktoCommandService", () => {
       toolRunId: "run-26",
       status: "success",
       exitCode: 0,
+      toolData: niktoCommandService.createInitialToolData(
+        "https://localhost:4280",
+      ),
     });
 
     expect(artifacts[0]?.payload).toMatchObject({
       findings: [
         {
           id: "013587",
-          url: "http://localhost:4280/",
+          url: "https://localhost:4280/",
           message: "Suggested security header missing: content-security-policy.",
         },
         {
           id: "006333",
-          url: "http://localhost:4280/login.php",
+          url: "https://localhost:4280/login.php",
           message: "Admin login page/section found.",
         },
       ],
