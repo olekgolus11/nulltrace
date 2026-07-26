@@ -76,9 +76,9 @@ export const scannerCatalog: Record<ScannerToolId, ScannerCatalogTool> = {
   },
   nikto: {
     id: "nikto",
-    name: "nikto",
-    description: null,
-    isImplemented: false,
+    name: "Nikto",
+    description: "Web-server scanner with a bounded, non-disruptive Standard profile.",
+    isImplemented: true,
     helpContent: null,
   },
 };

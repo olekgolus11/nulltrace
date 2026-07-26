@@ -3,6 +3,7 @@ import { ToolRunArtifactRecord } from "../../session/model/session.repository.ty
 import { findingRepository } from "./finding.repository";
 import { nmapFindingMapper } from "./mappers/nmap-finding.mapper";
 import { nucleiFindingMapper } from "./mappers/nuclei-finding.mapper";
+import { niktoFindingMapper } from "./mappers/nikto-finding.mapper";
 import { ffufValueFindingMapper } from "./mappers/ffuf-value-finding.mapper";
 
 interface ProcessFindingArtifactsInput {
@@ -50,5 +51,6 @@ export class FindingPipelineService {
 export const findingPipelineService = new FindingPipelineService([
   nmapFindingMapper,
   nucleiFindingMapper,
+  niktoFindingMapper,
   ffufValueFindingMapper,
 ]);
