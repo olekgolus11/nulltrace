@@ -183,6 +183,49 @@ describe("mapActionDraftToWorkspaceState", () => {
     });
   });
 
+  it("maps a Value Fuzzing draft into an editable FFUF workspace without running it", () => {
+    const currentToolData = createInitialFfufToolData("https://example.com");
+    const result = mapActionDraftToWorkspaceState({
+      draft: createDraft({
+        targetTool: "ffuf",
+        title: "Fuzz search value",
+        payload: {
+          formState: {
+            mode: "value_fuzzing",
+            endpoint: "https://example.com/search",
+            parameterName: "q",
+            requestLocation: "query",
+            wordlist: "/tmp/payloads.txt",
+            matchCodes: "200,302,500",
+            filterCodes: "404",
+            rate: "20",
+            timeLimit: "15",
+          },
+        },
+      }),
+      currentToolName: "ffuf",
+      currentToolData,
+      buildGeneratedCommand: (toolData) => buildFfufCommand(toolData as typeof currentToolData),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      application: {
+        commandInput:
+          "ffuf -u 'https://example.com/search?q=FUZZ' -enc FUZZ:urlencode -w /tmp/payloads.txt -mc 200,302,500 -fc 404 -rate 20 -maxtime 15",
+        commandSource: "generated",
+      },
+    });
+    expect(result.ok && result.application.toolData).toMatchObject({
+      mode: "value_fuzzing",
+      form: {
+        endpoint: "https://example.com/search",
+        parameterName: "q",
+        requestLocation: "query",
+      },
+    });
+  });
+
   it("rejects mismatched tool and unusable payloads", () => {
     const currentToolData = nmapCommandService.createInitialToolData("https://example.com");
 
