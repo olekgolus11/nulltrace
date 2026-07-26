@@ -67,8 +67,9 @@ describe("getOpenCodeRuntimeEnvironment", () => {
     expect(chatContextSystemPrompt).toContain("inspect_page");
   });
 
-  it("guides chat to create FFUF action drafts", () => {
-    expect(chatContextSystemPrompt).toContain("nmap, nuclei, or ffuf");
+  it("guides chat to create FFUF and Nikto action drafts", () => {
+    expect(chatContextSystemPrompt).toContain("nmap, nuclei, ffuf, or Nikto");
+    expect(chatContextSystemPrompt).toContain("Nikto drafts must use the Standard profile");
     expect(chatContextSystemPrompt).toContain("create_action_draft");
   });
 });

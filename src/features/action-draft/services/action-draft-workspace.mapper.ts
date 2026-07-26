@@ -3,6 +3,7 @@ import { NmapToolData } from "../../tool/nmap/types/nmap.types";
 import { redactNucleiCommandForPersistence } from "../../tool/nuclei/services/nuclei-command-redaction.helpers";
 import { NucleiToolData } from "../../tool/nuclei/types/nuclei.types";
 import { FfufToolData } from "../../tool/ffuf/types/ffuf.types";
+import { NiktoToolData } from "../../tool/nikto/types/nikto.types";
 import {
   getActionDraftBooleanField,
   getActionDraftCommand,
@@ -17,6 +18,7 @@ import {
 import { mapNmapActionDraftFormState } from "./nmap-action-draft-workspace.mapper";
 import { mapNucleiActionDraftFormState } from "./nuclei-action-draft-workspace.mapper";
 import { mapFfufActionDraftFormState } from "./ffuf-action-draft-workspace.mapper";
+import { mapNiktoActionDraftFormState } from "./nikto-action-draft-workspace.mapper";
 
 export function mapActionDraftToWorkspaceState({
   draft,
@@ -32,7 +34,12 @@ export function mapActionDraftToWorkspaceState({
     };
   }
 
-  if (draft.targetTool !== "nmap" && draft.targetTool !== "nuclei" && draft.targetTool !== "ffuf") {
+  if (
+    draft.targetTool !== "nmap" &&
+    draft.targetTool !== "nuclei" &&
+    draft.targetTool !== "ffuf" &&
+    draft.targetTool !== "nikto"
+  ) {
     return {
       ok: false,
       reason: `Draft target ${draft.targetTool} is not an implemented scanner workspace.`,
@@ -85,7 +92,9 @@ export function mapActionDraftToWorkspaceState({
             formState,
             authenticatedContext,
           )
-        : mapFfufActionDraftFormState(currentToolData as FfufToolData, formState);
+        : currentToolName === "ffuf"
+          ? mapFfufActionDraftFormState(currentToolData as FfufToolData, formState)
+          : mapNiktoActionDraftFormState(currentToolData as NiktoToolData, formState);
 
   if (!command && !didApply) {
     return {

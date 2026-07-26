@@ -1505,7 +1505,7 @@ export class ActionDraftChatContextToolsService {
           targetTool: {
             type: "string",
             description:
-              "Implemented scanner tool to draft for. Supported tools include nmap, nuclei, and ffuf. FFUF drafts set mode to content_discovery with targetPattern, or parameter_discovery with endpoint, requestLocation, wordlist, matchCodes, filterCodes, rate, and timeLimit.",
+              "Implemented scanner tool to draft for. Supported tools include nmap, nuclei, ffuf, and nikto. Nikto drafts use profile standard with target, optional rootPath/vhost, and timeoutSeconds. FFUF drafts set mode to content_discovery with targetPattern, or parameter_discovery with endpoint, requestLocation, wordlist, matchCodes, filterCodes, rate, and timeLimit.",
           },
           title: {
             type: "string",
