@@ -29,15 +29,14 @@ export function FfufWorkspace() {
   return (
     <box flexDirection="column" flexGrow={1}>
       <DashboardPanel
-        title="FFUF Content Discovery"
+        title={`FFUF ${workspace.toolData.mode === "parameter_discovery" ? "Parameter Discovery" : "Content Discovery"}`}
         panelNumber={getPanelDisplayNumber(toolPanels, "form")}
         height={layout.formPanelHeight}
         focused={workspace.activePanel === "form"}
         onMouseDown={() => focusPanel("form")}
       >
         <FfufForm
-          form={workspace.toolData.form}
-          selectedField={workspace.toolData.selectedField}
+          toolData={workspace.toolData}
           focused={workspace.activePanel === "form"}
           onFieldChange={workspace.setField}
         />

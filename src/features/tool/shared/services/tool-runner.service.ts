@@ -37,6 +37,7 @@ interface RunToolCommandInput {
   command: string;
   commandSource: import("../types/tool-screen.types").CommandSource;
   toolModule: ToolModule | undefined;
+  targetUrl?: string;
   toolData?: unknown;
   onRunStarted?: (toolRunId: string | null) => void;
   onStdoutLines: (lines: string[]) => void;
@@ -66,6 +67,7 @@ export class ToolRunnerService {
     command,
     commandSource,
     toolModule,
+    targetUrl,
     toolData,
     onRunStarted,
     onStdoutLines,
@@ -108,6 +110,7 @@ export class ToolRunnerService {
           command,
           sessionId,
           toolRunId,
+          targetUrl,
           toolData,
         }) ?? command;
       const prepared =
@@ -155,6 +158,7 @@ export class ToolRunnerService {
             status: "cancelled",
             exitCode,
             command,
+            toolData,
             ...(redactPreparedOutput ? { redactOutput: redactPreparedOutput } : {}),
             redactArtifact: redactPreparedArtifact,
           });
@@ -180,6 +184,7 @@ export class ToolRunnerService {
         status,
         exitCode,
         command,
+        toolData,
         ...(redactPreparedOutput ? { redactOutput: redactPreparedOutput } : {}),
         ...(redactPreparedArtifact ? { redactArtifact: redactPreparedArtifact } : {}),
         onArtifactProcessingError: (artifactMessage) => {
@@ -202,6 +207,7 @@ export class ToolRunnerService {
             status: "cancelled",
             exitCode: null,
             command,
+            toolData,
             ...(redactPreparedOutput ? { redactOutput: redactPreparedOutput } : {}),
             redactArtifact: redactPreparedArtifact,
           });
@@ -225,6 +231,7 @@ export class ToolRunnerService {
         status: "error",
         exitCode: null,
         command,
+        toolData,
         ...(redactPreparedOutput ? { redactOutput: redactPreparedOutput } : {}),
         ...(redactPreparedArtifact ? { redactArtifact: redactPreparedArtifact } : {}),
         onArtifactProcessingError: (artifactMessage) => {

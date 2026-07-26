@@ -7,12 +7,15 @@ import { nucleiFieldOrder } from "../../nuclei/config/nuclei.config";
 import { nucleiCommandService } from "../../nuclei/services/nuclei-command.service";
 import { NucleiToolData } from "../../nuclei/types/nuclei.types";
 import { FfufWorkspace } from "../../ffuf/components/FfufWorkspace";
-import { ffufFieldOrder } from "../../ffuf/config/ffuf.config";
+import { getFfufFieldOrder } from "../../ffuf/config/ffuf.config";
 import {
-  buildFfufContentDiscoveryCommand,
+  buildFfufCommand,
   collectFfufArtifacts,
   createInitialFfufToolData,
+  cycleFfufMode,
+  cycleFfufRequestLocation,
   isFfufBooleanField,
+  isFfufRequestLocationField,
   moveFfufFieldSelection,
   prepareFfufCommandForRun,
   toggleFfufBooleanField,
@@ -38,7 +41,7 @@ export const toolRegistry: Record<string, ToolModule> = {
     Workspace: FfufWorkspace,
     createInitialToolData: (targetUrl: string) => createInitialFfufToolData(targetUrl),
     buildGeneratedCommand: (toolData: unknown) =>
-      buildFfufContentDiscoveryCommand(toolData as FfufToolData),
+      buildFfufCommand(toolData as FfufToolData),
     prepareCommandForRun: (options: ToolPrepareCommand) => prepareFfufCommandForRun(options),
     collectArtifacts: (options: ToolRunCompleted) => collectFfufArtifacts(options),
     processSavedArtifacts: ({ sessionId, artifacts }) => {
@@ -67,14 +70,39 @@ export const toolRegistry: Record<string, ToolModule> = {
         return true;
       }
 
-      const selectedField = ffufFieldOrder[toolData.selectedField];
+      const selectedField = getFfufFieldOrder(toolData.mode)[toolData.selectedField];
+      if (selectedField === "mode" && (key.name === "left" || key.name === "right")) {
+        api.updateToolData((current) =>
+          cycleFfufMode(current as FfufToolData, key.name === "left" ? -1 : 1),
+        );
+        api.syncGeneratedCommand();
+        return true;
+      }
       if (
+        toolData.mode === "parameter_discovery" &&
+        isFfufRequestLocationField(selectedField) &&
+        (key.name === "left" || key.name === "right")
+      ) {
+        api.updateToolData((current) =>
+          cycleFfufRequestLocation(
+            current as Extract<FfufToolData, { mode: "parameter_discovery" }>,
+            key.name === "left" ? -1 : 1,
+          ),
+        );
+        api.syncGeneratedCommand();
+        return true;
+      }
+      if (
+        toolData.mode === "content_discovery" &&
         selectedField &&
         isFfufBooleanField(selectedField) &&
         (key.name === "return" || key.name === "enter" || key.name === "space")
       ) {
         api.updateToolData((current) =>
-          toggleFfufBooleanField(current as FfufToolData, selectedField),
+          toggleFfufBooleanField(
+            current as Extract<FfufToolData, { mode: "content_discovery" }>,
+            selectedField,
+          ),
         );
         api.syncGeneratedCommand();
         return true;

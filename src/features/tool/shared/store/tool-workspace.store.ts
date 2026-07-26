@@ -182,6 +182,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       command,
       commandSource: state.commandSource,
       toolModule,
+      targetUrl: state.targetUrl,
       toolData: state.toolData,
       onRunStarted: (toolRunId) => {
         set({
