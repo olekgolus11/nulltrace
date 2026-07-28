@@ -1,3 +1,5 @@
+import { ScrollBoxRenderable } from "@opentui/core";
+import { useEffect, useRef } from "react";
 import { theme } from "../../../app/theme/theme";
 import { SessionSidebarRow } from "../model/session.types";
 import { SessionItem } from "./SessionItem";
@@ -32,6 +34,26 @@ export function SessionList({
   focused,
 }: SessionListProps) {
   const summary = getSummaryCounts(rows);
+  const rowsScrollRef = useRef<ScrollBoxRenderable | null>(null);
+
+  useEffect(() => {
+    const scrollbox = rowsScrollRef.current;
+    const selectedRow = scrollbox?.content.getChildren()[selectedIndex];
+    if (!scrollbox || !selectedRow) {
+      return;
+    }
+
+    const viewportTop = scrollbox.viewport.y;
+    const viewportBottom = viewportTop + scrollbox.viewport.height;
+    const selectedTop = selectedRow.y;
+    const selectedBottom = selectedTop + selectedRow.height;
+
+    if (selectedTop < viewportTop) {
+      scrollbox.scrollBy(selectedTop - viewportTop, "step");
+    } else if (selectedBottom > viewportBottom) {
+      scrollbox.scrollBy(selectedBottom - viewportBottom, "step");
+    }
+  }, [rows.length, selectedIndex]);
 
   return (
     <box flexDirection="column" flexGrow={1}>
@@ -41,7 +63,13 @@ export function SessionList({
         </text>
       </box>
 
-      <box flexDirection="column">
+      <scrollbox
+        ref={rowsScrollRef}
+        flexGrow={1}
+        scrollX={false}
+        scrollY={true}
+        stickyScroll={false}
+      >
         {rows.map((row, index) =>
           row.type === "target" ? (
             <SessionTargetItem
@@ -60,9 +88,8 @@ export function SessionList({
             />
           ),
         )}
-      </box>
+      </scrollbox>
 
-      <box flexGrow={1} />
       <box>
         <text fg={theme.text.dim}>{summary.targetCount} targets</text>
       </box>
