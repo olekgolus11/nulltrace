@@ -17,7 +17,10 @@ function createTemporaryDirectory() {
   return directory;
 }
 
-function createService(rootDirectory: string) {
+function createService(
+  rootDirectory: string,
+  headers = "Authorization: Bearer secret-token\nX-Tenant: tenant-1",
+) {
   return new FfufAuthenticatedRunService({
     rootDirectory,
     contextService: {
@@ -25,7 +28,7 @@ function createService(rootDirectory: string) {
       loadProtectedContext: async () => ({
         origin: "https://example.com:8443",
         cookies: "session=secret-cookie; preference=compact",
-        headers: "Authorization: Bearer secret-token\nX-Tenant: tenant-1",
+        headers,
         updatedAt: "2026-07-28T10:00:00.000Z",
       }),
     },
@@ -95,12 +98,16 @@ describe("FfufAuthenticatedRunService", () => {
 
   test("keeps Parameter Discovery and Value Fuzzing request shapes", async () => {
     const rootDirectory = createTemporaryDirectory();
+    const service = createService(
+      rootDirectory,
+      "Authorization: Bearer secret-token\nContent-Type: application/json\nX-Test: original-secret",
+    );
     const parameterData = createInitialFfufParameterDiscoveryToolData(
       "https://example.com:8443/search",
     );
     parameterData.form.isAuthenticatedContextEnabled = true;
     parameterData.form.requestLocation = "body";
-    const parameterRun = await createService(rootDirectory).prepare({
+    const parameterRun = await service.prepare({
       sessionId: "session-1",
       targetUrl: "https://example.com:8443/search",
       command:
@@ -114,7 +121,7 @@ describe("FfufAuthenticatedRunService", () => {
     valueData.form.isAuthenticatedContextEnabled = true;
     valueData.form.parameterName = "X-Test";
     valueData.form.requestLocation = "header";
-    const valueRun = await createService(rootDirectory).prepare({
+    const valueRun = await service.prepare({
       sessionId: "session-1",
       targetUrl: "https://example.com:8443/search?fixed=1",
       command:
@@ -123,16 +130,17 @@ describe("FfufAuthenticatedRunService", () => {
       artifactOutputPath: join(rootDirectory, "value.json"),
     });
 
-    expect(readFileSync(parameterRun.secretFilePath, "utf8")).toContain(
-      "POST /search HTTP/1.1",
-    );
-    expect(readFileSync(parameterRun.secretFilePath, "utf8")).toEndWith(
-      "\r\n\r\nFUZZ=nulltrace",
-    );
-    expect(readFileSync(valueRun.secretFilePath, "utf8")).toContain("X-Test: FUZZ");
-    expect(readFileSync(valueRun.secretFilePath, "utf8")).toContain(
-      "GET /search?fixed=1 HTTP/1.1",
-    );
+    const parameterRequest = readFileSync(parameterRun.secretFilePath, "utf8");
+    const valueRequest = readFileSync(valueRun.secretFilePath, "utf8");
+
+    expect(parameterRequest).toContain("POST /search HTTP/1.1");
+    expect(parameterRequest).toContain("Content-Type: application/x-www-form-urlencoded");
+    expect(parameterRequest).not.toContain("Content-Type: application/json");
+    expect(parameterRequest).toEndWith("\r\n\r\nFUZZ=nulltrace");
+    expect(valueRequest).toContain("X-Test: FUZZ");
+    expect(valueRequest).not.toContain("X-Test: original-secret");
+    expect(valueRequest.match(/^X-Test:/gm)).toHaveLength(1);
+    expect(valueRequest).toContain("GET /search?fixed=1 HTTP/1.1");
 
     parameterRun.cleanup();
     valueRun.cleanup();

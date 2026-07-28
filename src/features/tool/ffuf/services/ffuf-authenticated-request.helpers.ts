@@ -48,19 +48,23 @@ export function buildAuthenticatedFfufRawRequest(
       .filter((header) => header.name.toLowerCase() === "cookie")
       .flatMap((header) => splitAuthenticatedCookieEntries(header.value)),
   ];
-  const requestHeaders = headers.filter((header) => header.name.toLowerCase() !== "cookie");
   const requestShape = getFfufRawRequestShape(target, toolData);
-  const hasContentType = requestHeaders.some(
-    (header) => header.name.toLowerCase() === "content-type",
-  );
+  const fuzzHeaderName =
+    requestShape.fuzzHeader?.split(":", 1)[0]?.trim().toLowerCase() ?? null;
+  const requestHeaders = headers.filter((header) => {
+    const name = header.name.toLowerCase();
+    return (
+      name !== "cookie" &&
+      (!requestShape.body || name !== "content-type") &&
+      (!fuzzHeaderName || name !== fuzzHeaderName)
+    );
+  });
   const lines = [
     `${requestShape.method} ${requestShape.requestTarget} HTTP/1.1`,
     `Host: ${target.host}`,
     ...(cookieEntries.length > 0 ? [`Cookie: ${cookieEntries.join("; ")}`] : []),
     ...requestHeaders.map((header) => `${header.name}: ${header.value}`),
-    ...(requestShape.body && !hasContentType
-      ? ["Content-Type: application/x-www-form-urlencoded"]
-      : []),
+    ...(requestShape.body ? ["Content-Type: application/x-www-form-urlencoded"] : []),
     ...(requestShape.fuzzHeader ? [requestShape.fuzzHeader] : []),
     "",
     requestShape.body,
