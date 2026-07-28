@@ -16,4 +16,5 @@ export const initialDashboardState: DashboardState = {
   selectedFindingDetailId: null,
   isAuthenticationContextOpen: false,
   isPageInspectionOpen: false,
+  isReportExportOpen: false,
 };
