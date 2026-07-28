@@ -1,4 +1,15 @@
-const prohibitedOptions = ["-tuning", "-mutate", "-mutate-options", "-evasion"];
+import { niktoCustomTuning } from "../config/nikto.config";
+import { NiktoProfile, NiktoTuningCode } from "../types/nikto.types";
+
+const prohibitedOptionNames = ["mutate", "mutate-options", "evasion"];
+const allowedTuningCodes = new Set<string>(
+  niktoCustomTuning.map(({ code }) => code),
+);
+const disruptiveTuningCodes = new Set<string>(
+  niktoCustomTuning
+    .filter(({ isDisruptive }) => isDisruptive)
+    .map(({ code }) => code),
+);
 
 function getRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -19,23 +30,46 @@ export function quoteNiktoShellValue(value: string) {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
-export function assertNiktoStandardCommand(command: string) {
+export function assertNiktoCommand(command: string, profile: NiktoProfile) {
   const tokens = parseNiktoShellWords(command);
   if (
     tokens.some((token) => {
       const normalized = token.toLowerCase();
-      return prohibitedOptions.some(
-        (option) => normalized === option || normalized.startsWith(`${option}=`),
-      );
+      const option = normalized.split("=", 1)[0] ?? "";
+      return isNiktoOptionAbbreviation(option, prohibitedOptionNames);
     })
   ) {
     throw new Error(
-      "Nikto Standard rejects -Tuning, -mutate, -mutate-options, and -evasion.",
+      "Nikto Standard rejects -mutate, -mutate-options, and -evasion; Custom rejects them too.",
     );
   }
   if (tokens[0]?.toLowerCase() !== "nikto") {
     throw new Error("Nikto workspace only runs nikto commands.");
   }
+
+  const tuning = getNiktoCommandTuning(tokens);
+  if (
+    profile === "standard" &&
+    (tuning.length !== 2 || tuning[0] !== "x" || tuning[1] !== "6")
+  ) {
+    throw new Error("Nikto Standard requires -Tuning x6 to exclude denial-of-service checks.");
+  }
+  if (profile === "custom" && tuning.some((code) => !allowedTuningCodes.has(code))) {
+    throw new Error(
+      "Nikto Custom accepts only documented guided tuning codes 2, 3, 6, and b.",
+    );
+  }
+}
+
+export function getNiktoTuningFromCommand(command: string): NiktoTuningCode[] {
+  const codes = getNiktoCommandTuning(parseNiktoShellWords(command));
+  return codes.filter((code): code is NiktoTuningCode => allowedTuningCodes.has(code));
+}
+
+export function isNiktoCommandDisruptive(command: string) {
+  return getNiktoCommandTuning(parseNiktoShellWords(command)).some((code) =>
+    disruptiveTuningCodes.has(code),
+  );
 }
 
 export function parseNiktoJsonReport(content: string, requestedTarget?: string) {
@@ -206,4 +240,36 @@ function parseNiktoShellWords(command: string) {
   if (hasToken) tokens.push(token);
 
   return tokens;
+}
+
+function getNiktoCommandTuning(tokens: string[]) {
+  const tuning: string[] = [];
+  let hasTuningOption = false;
+  for (let index = 1; index < tokens.length; index += 1) {
+    const token = tokens[index]!.toLowerCase();
+    const equalsIndex = token.indexOf("=");
+    const option = equalsIndex >= 0 ? token.slice(0, equalsIndex) : token;
+    if (!isNiktoOptionAbbreviation(option, ["tuning"]) && option !== "-t") {
+      continue;
+    }
+    if (hasTuningOption) {
+      throw new Error("Nikto accepts exactly one tuning option per run.");
+    }
+    hasTuningOption = true;
+    const value = equalsIndex >= 0 ? token.slice(equalsIndex + 1) : tokens[index + 1];
+    if (!value) {
+      throw new Error("Nikto tuning requires at least one guided tuning code.");
+    }
+    tuning.push(...value.toLowerCase());
+    if (equalsIndex < 0) {
+      index += 1;
+    }
+  }
+  return tuning;
+}
+
+function isNiktoOptionAbbreviation(option: string, names: string[]) {
+  const name = option.replace(/^(?:-{1,2}|\+)/, "");
+  if (!name) return false;
+  return names.some((candidate) => candidate.startsWith(name));
 }

@@ -15,6 +15,10 @@ const initialOutputLines = [
   "Awaiting command.",
   "Use the form to build a scan or edit the full command manually.",
 ];
+const clearedRunConfirmationState = {
+  pendingRunConfirmation: null,
+  confirmedRunCommand: null,
+} as const;
 
 const initialWorkspaceState: ToolWorkspaceStoreState = {
   toolName: null,
@@ -34,9 +38,11 @@ const initialWorkspaceState: ToolWorkspaceStoreState = {
   selectedHistoryRun: null,
   isHistoricPreview: false,
   toolData: null,
+  pendingRunConfirmation: null,
 };
 
 interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
+  confirmedRunCommand: string | null;
   initializeWorkspace: (toolName: string, targetUrl: string, sessionId: string) => void;
   cyclePanel: (direction: PanelDirection) => void;
   setActivePanel: (panel: ToolPanel) => void;
@@ -49,6 +55,8 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
   resetCommandToGenerated: () => void;
   appendOutput: (lines: string[]) => void;
   runCommand: () => Promise<void>;
+  confirmPendingRun: () => Promise<void>;
+  cancelPendingRun: () => void;
   stopCommand: () => void;
   loadHistoryRuns: () => void;
   selectHistoryRun: (toolRunId: string) => void;
@@ -68,6 +76,7 @@ interface ToolWorkspaceStore extends ToolWorkspaceStoreState {
 
 export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
   ...initialWorkspaceState,
+  confirmedRunCommand: null,
 
   initializeWorkspace: (toolName, targetUrl, sessionId) => {
     const toolModule = toolRegistry[toolName];
@@ -92,6 +101,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       selectedHistoryRun: null,
       isHistoricPreview: false,
       toolData,
+      ...clearedRunConfirmationState,
     });
 
     get().loadHistoryRuns();
@@ -118,6 +128,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
           ? ("generated" satisfies CommandSource)
           : ("manual" satisfies CommandSource),
       isHistoricPreview: false,
+      ...clearedRunConfirmationState,
     })),
 
   refreshGeneratedCommand: (value) =>
@@ -125,12 +136,14 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       if (state.commandSource === "manual") {
         return {
           generatedCommand: value,
+          ...clearedRunConfirmationState,
         };
       }
 
       return {
         commandInput: value,
         generatedCommand: value,
+        ...clearedRunConfirmationState,
       };
     }),
 
@@ -150,6 +163,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
     set({
       commandInput: get().generatedCommand,
       commandSource: "generated",
+      ...clearedRunConfirmationState,
     });
   },
 
@@ -166,6 +180,20 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
     }
 
     const toolModule = state.toolName ? toolRegistry[state.toolName] : undefined;
+    const isConfirmed = state.confirmedRunCommand === command;
+    if (!isConfirmed) {
+      const confirmation = toolModule?.getRunConfirmation?.(command, state.toolData);
+      if (confirmation) {
+        set({
+          pendingRunConfirmation: {
+            ...confirmation,
+            command,
+          },
+        });
+        return;
+      }
+    }
+    set(clearedRunConfirmationState);
     const persistedCommand = toolModule?.redactCommandForPersistence?.(command) ?? command;
 
     set({
@@ -217,6 +245,23 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       },
     });
   },
+
+  confirmPendingRun: async () => {
+    const state = get();
+    const pending = state.pendingRunConfirmation;
+    if (!pending || pending.command !== state.commandInput.trim()) {
+      set(clearedRunConfirmationState);
+      return;
+    }
+    set({
+      pendingRunConfirmation: null,
+      confirmedRunCommand: pending.command,
+    });
+    await get().runCommand();
+  },
+
+  cancelPendingRun: () =>
+    set(clearedRunConfirmationState),
 
   stopCommand: () => {
     toolRunnerService.stop();
@@ -298,12 +343,14 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       selectedHistoryRun: null,
       selectedHistoryRunId: selectedHistoryRun.id,
       isHistoricPreview: false,
+      ...clearedRunConfirmationState,
     });
   },
 
   updateToolData: (updater) =>
     set((state) => ({
       toolData: updater(state.toolData),
+      ...clearedRunConfirmationState,
     })),
 
   applyActionDraftState: (draftState) => {
@@ -331,6 +378,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       currentToolRunId: null,
       selectedHistoryRun: null,
       isHistoricPreview: false,
+      ...clearedRunConfirmationState,
     });
     return true;
   },

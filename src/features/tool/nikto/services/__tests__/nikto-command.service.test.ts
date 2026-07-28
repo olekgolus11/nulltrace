@@ -10,6 +10,104 @@ afterEach(() => {
 });
 
 describe("niktoCommandService", () => {
+  it("switches between Standard and Custom without losing Custom selections", () => {
+    const standard = niktoCommandService.createInitialToolData("https://example.com");
+    const custom = niktoCommandService.setProfile(standard, "custom");
+    const tuned = {
+      ...custom,
+      form: {
+        ...custom.form,
+        tuning: ["6" as const],
+      },
+    };
+    const returnedToStandard = niktoCommandService.setProfile(tuned, "standard");
+
+    expect(returnedToStandard.form.profile).toBe("standard");
+    expect(returnedToStandard.form.tuning).toEqual(["6"]);
+    expect(niktoCommandService.buildCommand(returnedToStandard)).toContain(
+      "-Tuning 'x6'",
+    );
+    expect(
+      niktoCommandService.buildCommand(
+        niktoCommandService.setProfile(returnedToStandard, "custom"),
+      ),
+    ).toContain("-Tuning '6'");
+  });
+
+  it("builds constrained Custom tuning and request controls", () => {
+    const data = niktoCommandService.createInitialToolData("https://example.com");
+    const custom = niktoCommandService.setProfile(data, "custom");
+    const configured = {
+      ...niktoCommandService.toggleTuning(
+        niktoCommandService.toggleTuning(custom, "2"),
+        "b",
+      ),
+      form: {
+        ...custom.form,
+        tuning: ["2" as const, "b" as const],
+        requestTimeoutSeconds: "15",
+        pauseSeconds: "2",
+      },
+    };
+
+    expect(niktoCommandService.buildCommand(configured)).toBe(
+      "nikto -h 'https://example.com' -Tuning '2b' -timeout 15 -Pause 2 -maxtime 300s",
+    );
+  });
+
+  it("classifies denial-of-service tuning in generated and manually edited commands", () => {
+    const custom = niktoCommandService.setProfile(
+      niktoCommandService.createInitialToolData("https://example.com"),
+      "custom",
+    );
+
+    expect(
+      niktoCommandService.getRunConfirmation(
+        "nikto -h https://example.com -Tuning 26",
+        custom,
+      ),
+    ).toMatchObject({
+      title: "Confirm disruptive Nikto checks",
+      confirmationKey: "y",
+    });
+    expect(
+      niktoCommandService.getRunConfirmation(
+        "nikto -h https://example.com '-T' '6'",
+        custom,
+      ),
+    ).not.toBeNull();
+    expect(
+      niktoCommandService.getRunConfirmation(
+        "nikto -h https://example.com -Tun''ing=6",
+        custom,
+      ),
+    ).not.toBeNull();
+    expect(
+      niktoCommandService.getRunConfirmation(
+        "nikto -h https://example.com --Tun 6",
+        custom,
+      ),
+    ).not.toBeNull();
+    expect(
+      niktoCommandService.getRunConfirmation(
+        "nikto -h https://example.com +Tuning 6",
+        custom,
+      ),
+    ).not.toBeNull();
+    expect(
+      niktoCommandService.getRunConfirmation(
+        "nikto -h https://example.com -Tuning=2b",
+        custom,
+      ),
+    ).toBeNull();
+    expect(() =>
+      niktoCommandService.getRunConfirmation(
+        "nikto -h https://example.com -Tuning",
+        custom,
+      ),
+    ).not.toThrow();
+  });
+
   it("builds bounded Standard command from guided fields", () => {
     const data = niktoCommandService.createInitialToolData("https://example.com");
     const configured = {
@@ -23,8 +121,38 @@ describe("niktoCommandService", () => {
     };
 
     expect(niktoCommandService.buildCommand(configured)).toBe(
-      "nikto -h 'https://example.com' -root '/app' -vhost 'app.example.com' -maxtime 120s",
+      "nikto -h 'https://example.com' -Tuning 'x6' -root '/app' -vhost 'app.example.com' -maxtime 120s",
     );
+  });
+
+  it("requires explicit denial-of-service exclusion in manually edited Standard commands", () => {
+    const standard = niktoCommandService.createInitialToolData("https://example.com");
+
+    expect(() =>
+      niktoCommandService.prepareCommandForRun({
+        command: "nikto -h https://example.com",
+        sessionId: "session-1",
+        toolRunId: "run-standard-bypass",
+        toolData: standard,
+      }),
+    ).toThrow("Nikto Standard requires -Tuning x6");
+    expect(() =>
+      niktoCommandService.prepareCommandForRun({
+        command: "nikto -h https://example.com --Tun x6",
+        sessionId: null,
+        toolRunId: null,
+        toolData: standard,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      niktoCommandService.prepareCommandForRun({
+        command:
+          "nikto -h https://example.com -Tuning x -Tuning 6",
+        sessionId: "session-1",
+        toolRunId: "run-repeated-tuning-bypass",
+        toolData: standard,
+      }),
+    ).toThrow("Nikto accepts exactly one tuning option");
   });
 
   it("rejects prohibited options from manual commands", () => {
@@ -35,6 +163,8 @@ describe("niktoCommandService", () => {
       "-mutate 1",
       "-mutate-options a",
       "-evasion 1",
+      "--eva 1",
+      "+evasion 1",
     ]) {
       expect(() =>
         niktoCommandService.prepareCommandForRun({
@@ -42,7 +172,32 @@ describe("niktoCommandService", () => {
           sessionId: "session-1",
           toolRunId: "run-1",
         }),
-      ).toThrow("Nikto Standard rejects");
+      ).toThrow("Nikto Standard");
+    }
+  });
+
+  it("rejects unsupported Custom tuning, reverse tuning, mutation, and evasion", () => {
+    const custom = niktoCommandService.setProfile(
+      niktoCommandService.createInitialToolData("https://example.com"),
+      "custom",
+    );
+
+    for (const option of [
+      "-Tuning 8",
+      "-Tuning x2",
+      "-Tuning 2x6",
+      "-mutate 1",
+      "-mutate-options a",
+      "-evasion 1",
+    ]) {
+      expect(() =>
+        niktoCommandService.prepareCommandForRun({
+          command: `nikto -h https://example.com ${option}`,
+          sessionId: "session-1",
+          toolRunId: "run-custom",
+          toolData: custom,
+        }),
+      ).toThrow();
     }
   });
 
@@ -82,7 +237,8 @@ describe("niktoCommandService", () => {
 
   it("replaces output and runtime controls with controlled values", () => {
     const prepared = niktoCommandService.prepareCommandForRun({
-      command: "nikto -h https://example.com -maxtime 9999s -Format csv -output /tmp/x",
+      command:
+        "nikto -h https://example.com -Tuning x6 -maxtime 9999s -Format csv -output /tmp/x",
       sessionId: "session-1",
       toolRunId: "run-1",
       toolData: {
@@ -99,6 +255,32 @@ describe("niktoCommandService", () => {
     expect(prepared).not.toContain("-Format csv");
     expect(prepared).not.toContain("/tmp/x");
     expect(prepared).toContain("/nikto'");
+  });
+
+  it("bounds manually edited Custom request controls", () => {
+    const base = niktoCommandService.setProfile(
+      niktoCommandService.createInitialToolData("https://example.com"),
+      "custom",
+    );
+    const custom = {
+      ...base,
+      form: {
+        ...base.form,
+        requestTimeoutSeconds: "15",
+        pauseSeconds: "2",
+      },
+    };
+    const prepared = niktoCommandService.prepareCommandForRun({
+      command:
+        "nikto -h https://example.com -Tuning 2b -timeout 999 -Pause 999",
+      sessionId: "session-1",
+      toolRunId: "run-custom-controls",
+      toolData: custom,
+    });
+
+    expect(prepared).toContain("-Tuning 2b -timeout 15 -Pause 2 -maxtime 300s");
+    expect(prepared).not.toContain("-timeout 999");
+    expect(prepared).not.toContain("-Pause 999");
   });
 
   it("collects Nikto 2.6 multi-host JSON reports", async () => {
@@ -236,6 +418,33 @@ describe("niktoCommandService", () => {
       findings: [],
       rejectedItemCount: 0,
       parseWarning: "Nikto did not produce a JSON report.",
+    });
+  });
+
+  it("uses the same report artifact contract for Custom scans", async () => {
+    const custom = niktoCommandService.setProfile(
+      niktoCommandService.createInitialToolData("https://example.com"),
+      "custom",
+    );
+    const artifacts = await niktoCommandService.collectArtifacts({
+      sessionId: "session-1",
+      toolRunId: "missing-custom-run",
+      status: "error",
+      exitCode: 1,
+      toolData: custom,
+    });
+
+    expect(artifacts[0]).toMatchObject({
+      artifactType: "nikto_report",
+      label: "Nikto Custom report",
+      payload: {
+        runContext: {
+          profile: "custom",
+          status: "error",
+          exitCode: 1,
+        },
+        findings: [],
+      },
     });
   });
 });

@@ -1,39 +1,98 @@
 import { theme } from "../../../../app/theme/theme";
-import { niktoFieldOrder } from "../config/nikto.config";
-import { NiktoFormState } from "../types/nikto.types";
+import {
+  getNiktoFieldOrder,
+  niktoCustomTuning,
+} from "../config/nikto.config";
+import {
+  NiktoFormState,
+  NiktoProfile,
+  NiktoTuningCode,
+} from "../types/nikto.types";
 
 export function NiktoForm({
   form,
   selectedField,
   focused,
   onFieldChange,
-}: {
-  form: NiktoFormState;
-  selectedField: number;
-  focused: boolean;
-  onFieldChange: (field: keyof NiktoFormState, value: string) => void;
-}) {
-  const selectedId = niktoFieldOrder[selectedField];
-  const fields = [
-    ["target", "Target URL", "https://example.com"],
+  onProfileChange,
+  onToggleTuning,
+}: NiktoFormProps) {
+  const selectedId = getNiktoFieldOrder(form.profile)[selectedField];
+  const textFields = [
+    ["target", "Target", "https://example.com"],
+    ...(form.profile === "custom"
+      ? [
+          ["requestTimeoutSeconds", "Request timeout", "10"],
+          ["pauseSeconds", "Pause (sec)", "0"],
+        ]
+      : []),
     ["rootPath", "Root path", "/app"],
-    ["vhost", "Virtual host", "app.example.com"],
-    ["timeoutSeconds", "Timeout (sec)", "300"],
+    ["vhost", "Vhost", "app.example.com"],
+    ["timeoutSeconds", "Max run (sec)", "300"],
   ] as const;
 
   return (
     <box flexDirection="column">
-      <text fg={theme.text.dim}>Standard profile: no tuning, mutation, or evasion options.</text>
-      {fields.map(([field, label, placeholder]) => (
+      <box flexDirection="row" width="100%">
+        <box width={18}>
+          <text fg={selectedId === "profile" ? theme.accent.primary : theme.text.secondary}>
+            {selectedId === "profile" ? "> Profile" : "  Profile"}
+          </text>
+        </box>
+        <box onMouseDown={() => onProfileChange(form.profile === "standard" ? "custom" : "standard")}>
+          <text fg={form.profile === "custom" ? theme.accent.warning : theme.accent.low}>
+            {form.profile === "custom"
+              ? "CUSTOM — guided tuning + bounded requests"
+              : "STANDARD — broad, non-disruptive"}{" "}
+            (Left/Right)
+          </text>
+        </box>
+      </box>
+
+      {form.profile === "custom" ? (
+        <box flexDirection="row" width="100%">
+          <box width={10}>
+            <text fg={theme.text.secondary}>{"  Tuning"}</text>
+          </box>
+          {niktoCustomTuning.map(({ code, shortLabel, isDisruptive }) => {
+            const fieldId = `tuning:${code}` as const;
+            const isSelected = form.tuning.includes(code);
+            return (
+              <box
+                key={code}
+                flexDirection="row"
+                marginRight={2}
+                onMouseDown={() => onToggleTuning(code)}
+              >
+                <text
+                  fg={
+                    isDisruptive
+                      ? theme.accent.critical
+                      : selectedId === fieldId
+                        ? theme.accent.primary
+                        : theme.text.primary
+                  }
+                >
+                  {selectedId === fieldId ? ">" : ""}
+                  [{isSelected ? "x" : " "}] {code}{" "}
+                  {shortLabel}
+                </text>
+              </box>
+            );
+          })}
+        </box>
+      ) : null}
+
+      {textFields.map(([field, label, placeholder]) => (
         <box key={field} flexDirection="row" width="100%">
-          <box width={20}>
+          <box width={18}>
             <text fg={selectedId === field ? theme.accent.primary : theme.text.secondary}>
               {selectedId === field ? `> ${label}` : `  ${label}`}
             </text>
           </box>
           <box flexGrow={1} minWidth={0}>
             <input
-              value={form[field]}
+              value={String(form[field])}
               width="100%"
               onChange={(value) => onFieldChange(field, value)}
               placeholder={placeholder}
@@ -49,4 +108,13 @@ export function NiktoForm({
       ))}
     </box>
   );
+}
+
+interface NiktoFormProps {
+  form: NiktoFormState;
+  selectedField: number;
+  focused: boolean;
+  onFieldChange: (field: keyof NiktoFormState, value: string) => void;
+  onProfileChange: (profile: NiktoProfile) => void;
+  onToggleTuning: (code: NiktoTuningCode) => void;
 }

@@ -27,7 +27,7 @@ export function NiktoWorkspace() {
   return (
     <box flexDirection="column" flexGrow={1}>
       <DashboardPanel
-        title="Nikto Standard Controls"
+        title={`Nikto ${state.toolData.form.profile === "custom" ? "Custom" : "Standard"} Controls`}
         panelNumber={getPanelDisplayNumber(toolPanels, "form")}
         height={layout.formPanelHeight}
         focused={state.activePanel === "form"}
@@ -38,6 +38,8 @@ export function NiktoWorkspace() {
           selectedField={state.toolData.selectedField}
           focused={state.activePanel === "form"}
           onFieldChange={state.setField}
+          onProfileChange={state.setProfile}
+          onToggleTuning={state.toggleTuning}
         />
       </DashboardPanel>
       <DashboardPanel
@@ -74,7 +76,12 @@ export function NiktoWorkspace() {
           height={layout.outputScrollHeight}
         />
       </DashboardPanel>
-      <text fg={theme.text.dim}>Enter runs selected command. Review before execution.</text>
+      <text fg={theme.text.dim}>
+        {state.toolData.form.profile === "custom" &&
+        state.toolData.form.tuning.includes("6")
+          ? "Disruptive tuning selected. Run opens separate confirmation."
+          : "Enter runs selected command. Review before execution."}
+      </text>
     </box>
   );
 }

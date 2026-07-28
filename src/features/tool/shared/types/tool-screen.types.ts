@@ -32,6 +32,7 @@ export interface ToolWorkspaceStoreState {
   selectedHistoryRun: ToolRunDetail | null;
   isHistoricPreview: boolean;
   toolData: unknown;
+  pendingRunConfirmation: ToolPendingRunConfirmation | null;
 }
 
 export interface ToolKeyboardApi {
@@ -52,6 +53,10 @@ export interface ToolModule {
   Workspace: ComponentType;
   createInitialToolData: (targetUrl: string) => ToolData;
   buildGeneratedCommand: (toolData: unknown) => string;
+  getRunConfirmation?: (
+    command: string,
+    toolData: unknown,
+  ) => ToolRunConfirmation | null;
   handleFormKey?: (
     key: ToolKeyEvent,
     state: ToolWorkspaceStoreState,
@@ -63,6 +68,16 @@ export interface ToolModule {
   redactCommandForPersistence?: (command: string) => string;
   collectArtifacts?: (options: ToolRunCompleted) => Promise<ToolRunArtifactInput[]>;
   processSavedArtifacts?: (options: ToolArtifactsSaved) => void;
+}
+
+export interface ToolRunConfirmation {
+  title: string;
+  message: string;
+  confirmationKey: string;
+}
+
+export interface ToolPendingRunConfirmation extends ToolRunConfirmation {
+  command: string;
 }
 
 export interface ToolData {

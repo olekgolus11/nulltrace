@@ -26,6 +26,7 @@ import { useToolLayout } from "../hooks/use-tool-layout";
 import { ActiveToolWorkspace } from "../shared/components/ActiveToolWorkspace";
 import { ToolHelpDialog } from "../shared/components/ToolHelpDialog";
 import { ToolRunHistoryPanel } from "../shared/components/ToolRunHistoryPanel";
+import { ToolRunConfirmationDialog } from "../shared/components/ToolRunConfirmationDialog";
 import { useToolKeyboardNavigation } from "../shared/hooks/use-tool-keyboard-navigation";
 import { toolPanels, toolRegistry } from "../shared/registry/tool-registry";
 import { toolWorkspaceContextService } from "../shared/services/tool-workspace-context.service";
@@ -93,6 +94,9 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
   const layout = useToolLayout({ width, height });
   const activePanel = useToolWorkspaceStore((state) => state.activePanel);
   const isHelpOpen = useToolWorkspaceStore((state) => state.isHelpOpen);
+  const pendingRunConfirmation = useToolWorkspaceStore(
+    (state) => state.pendingRunConfirmation,
+  );
   const setActivePanel = useToolWorkspaceStore((state) => state.setActivePanel);
   const commandInput = useToolWorkspaceStore((state) => state.commandInput);
   const generatedCommand = useToolWorkspaceStore((state) => state.generatedCommand);
@@ -439,6 +443,15 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
 
       {isHelpOpen && Number.isFinite(toolData.selectedField) ? (
         <ToolHelpDialog toolName={toolName} fieldId={toolData.selectedField} />
+      ) : null}
+      {pendingRunConfirmation ? (
+        <ToolRunConfirmationDialog
+          confirmation={pendingRunConfirmation}
+          onConfirm={() => {
+            void useToolWorkspaceStore.getState().confirmPendingRun();
+          }}
+          onCancel={() => useToolWorkspaceStore.getState().cancelPendingRun()}
+        />
       ) : null}
 
       <StatusBar
