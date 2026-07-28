@@ -208,7 +208,7 @@ describe("SessionReportService", () => {
         artifactFindingIndex: 4,
         artifactItemPath: "$.findings[4]",
         templateId: "exposed-panel",
-        matchedAt: "https://example.test/admin",
+        matchedAt: "https://example.test/api/secrets/list",
         sourceSeverity: "high",
         description: "Administrative panel detected.",
         authorization: credential,
@@ -259,7 +259,9 @@ describe("SessionReportService", () => {
     expect(markdown).toContain("#### Source Context");
     expect(markdown).toContain("- Artifact Path: `$.findings[4]`");
     expect(markdown).toContain("- Template ID: `exposed-panel`");
-    expect(markdown).toContain("- Matched Target: `https://example.test/admin`");
+    expect(markdown).toContain(
+      "- Matched Target: `https://example.test/api/secrets/list`",
+    );
     expect(markdown).toContain("+9 more");
     expect(markdown).not.toContain(credential);
     expect(markdown).not.toContain(secretPath);
@@ -270,12 +272,17 @@ describe("SessionReportService", () => {
   it("redacts authentication values embedded in allowed report strings", async () => {
     const userInfoSecret = "userinfo-secret";
     const querySecret = "query-secret";
+    const refreshTokenSecret = "refresh-token-secret";
+    const idTokenSecret = "id-token-secret";
+    const clientSecret = "client-secret-value";
     const headerSecret = "header-secret";
     const cookieSecret = "cookie-secret";
-    const secretPath = "/private/tmp/nulltrace-auth-credential.yaml";
     const credentialTarget =
       `https://operator:${userInfoSecret}@example.test/admin` +
-      `?access_token=${querySecret}`;
+      `?access_token=${querySecret}` +
+      `&refresh_token=${refreshTokenSecret}` +
+      `&id_token=${idTokenSecret}` +
+      `&client_secret=${clientSecret}`;
     const finding = {
       ...createFinding("allowed-fields", "confirmed"),
       summary: `Authorization: Bearer ${headerSecret}`,
@@ -285,7 +292,6 @@ describe("SessionReportService", () => {
         templateId: "allowed-fields",
         matchedAt: credentialTarget,
         description: `Cookie: session=${cookieSecret}`,
-        host: secretPath,
       },
     };
     const writer = new FakeFileWriter();
@@ -308,9 +314,11 @@ describe("SessionReportService", () => {
     expect(markdown).toContain("[redacted]");
     expect(markdown).not.toContain(userInfoSecret);
     expect(markdown).not.toContain(querySecret);
+    expect(markdown).not.toContain(refreshTokenSecret);
+    expect(markdown).not.toContain(idTokenSecret);
+    expect(markdown).not.toContain(clientSecret);
     expect(markdown).not.toContain(headerSecret);
     expect(markdown).not.toContain(cookieSecret);
-    expect(markdown).not.toContain(secretPath);
   });
 
   it("returns readable feedback when the report file cannot be written", async () => {
