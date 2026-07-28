@@ -1,5 +1,5 @@
 import { AuthenticatedRequestContextMetadata } from "../../authentication/model/authenticated-request-context.types";
-import { normalizeExactOrigin } from "../../authentication/services/authenticated-request-context.service";
+import { isAcceptedAuthenticatedContextForTarget } from "../../authentication/services/authenticated-request-context-scope.helpers";
 import { nucleiSeverityOptions } from "../../tool/nuclei/config/nuclei.config";
 import { NucleiToolData } from "../../tool/nuclei/types/nuclei.types";
 import {
@@ -58,14 +58,10 @@ export function mapNucleiActionDraftFormState(
   const authenticatedOrigin = authenticatedContext?.authCheck.isProceedAllowed
     ? authenticatedContext.origin
     : null;
-  let isAuthenticationAvailable = false;
-  try {
-    isAuthenticationAvailable = Boolean(
-      authenticatedOrigin && normalizeExactOrigin(form.target) === authenticatedOrigin,
-    );
-  } catch {
-    isAuthenticationAvailable = false;
-  }
+  const isAuthenticationAvailable = isAcceptedAuthenticatedContextForTarget(
+    authenticatedContext,
+    form.target,
+  );
 
   return {
     toolData: {

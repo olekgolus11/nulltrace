@@ -1,14 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { FfufSitemapEnrichmentService } from "../ffuf-sitemap-enrichment.service";
 
-function createArtifact(results: unknown[]) {
+function createArtifact(results: unknown[], provenance: "public" | "authenticated" = "public") {
   return {
     id: "artifact-1",
     toolRunId: "run-1",
     artifactType: "ffuf_content_discovery",
     label: "FFUF Content Discovery",
     source: "ffuf.json",
-    payload: { results },
+    payload: { results, runContext: { provenance } },
     createdAt: "2026-07-24T10:00:00.000Z",
   };
 }
@@ -66,6 +66,44 @@ describe("FfufSitemapEnrichmentService", () => {
     );
 
     expect(service.upsertContentDiscoveryResults("missing", [createArtifact(["bad"])] )).toBe(0);
+  });
+
+  test("uses authenticated provenance without persisting authentication material", () => {
+    const inputs: unknown[] = [];
+    const service = new FfufSitemapEnrichmentService(
+      {
+        getSessionById: () => ({
+          id: "session-1",
+          targetId: "target-1",
+          normalizedUrl: "https://example.com",
+          displayUrl: "https://example.com",
+          createdAt: "2026-07-28T10:00:00.000Z",
+          lastActivityAt: "2026-07-28T10:00:00.000Z",
+        }),
+      },
+      {
+        upsertEntry: (input) => {
+          inputs.push(input);
+          return null as never;
+        },
+      },
+    );
+
+    service.upsertContentDiscoveryResults("session-1", [
+      createArtifact(
+        [{ url: "https://example.com/account", status: 200, input: { FUZZ: "account" } }],
+        "authenticated",
+      ),
+    ]);
+
+    expect(inputs).toEqual([
+      expect.objectContaining({
+        normalizedUrl: "https://example.com/account",
+        provenance: "authenticated",
+      }),
+    ]);
+    expect(JSON.stringify(inputs)).not.toContain("cookie");
+    expect(JSON.stringify(inputs)).not.toContain("Authorization");
   });
 
   test("does not turn Parameter Discovery candidates into sitemap entries", () => {

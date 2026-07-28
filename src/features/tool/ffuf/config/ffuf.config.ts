@@ -11,6 +11,7 @@ const contentDiscoveryFieldOrder = [
   "filterCodes",
   "rate",
   "timeLimit",
+  "isAuthenticatedContextEnabled",
 ] as const satisfies readonly FfufFieldId[];
 
 const parameterDiscoveryFieldOrder = [
@@ -22,6 +23,7 @@ const parameterDiscoveryFieldOrder = [
   "filterCodes",
   "rate",
   "timeLimit",
+  "isAuthenticatedContextEnabled",
 ] as const satisfies readonly FfufFieldId[];
 
 const valueFuzzingFieldOrder = [
@@ -34,6 +36,7 @@ const valueFuzzingFieldOrder = [
   "filterCodes",
   "rate",
   "timeLimit",
+  "isAuthenticatedContextEnabled",
 ] as const satisfies readonly FfufFieldId[];
 
 export function getFfufFieldOrder(mode: FfufMode): readonly FfufFieldId[] {

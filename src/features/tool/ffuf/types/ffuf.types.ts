@@ -36,6 +36,7 @@ export type FfufValueFuzzingFieldId =
 
 export type FfufFieldId =
   | "mode"
+  | "isAuthenticatedContextEnabled"
   | FfufContentDiscoveryFieldId
   | FfufParameterDiscoveryFieldId
   | FfufValueFuzzingFieldId;
@@ -50,6 +51,7 @@ export interface FfufContentDiscoveryFormState extends Record<string, unknown> {
   filterCodes: string;
   rate: string;
   timeLimit: string;
+  isAuthenticatedContextEnabled: boolean;
 }
 
 export interface FfufParameterDiscoveryFormState extends Record<string, unknown> {
@@ -60,6 +62,7 @@ export interface FfufParameterDiscoveryFormState extends Record<string, unknown>
   filterCodes: string;
   rate: string;
   timeLimit: string;
+  isAuthenticatedContextEnabled: boolean;
 }
 
 export interface FfufValueFuzzingFormState extends Record<string, unknown> {
@@ -71,24 +74,34 @@ export interface FfufValueFuzzingFormState extends Record<string, unknown> {
   filterCodes: string;
   rate: string;
   timeLimit: string;
+  isAuthenticatedContextEnabled: boolean;
+}
+
+export interface FfufAuthenticationState {
+  strategy: "none" | "session";
+  isAvailable: boolean;
+  origin: string | null;
 }
 
 export interface FfufContentDiscoveryToolData extends ToolData {
   mode: "content_discovery";
   form: FfufContentDiscoveryFormState;
   selectedField: number;
+  authentication: FfufAuthenticationState;
 }
 
 export interface FfufParameterDiscoveryToolData extends ToolData {
   mode: "parameter_discovery";
   form: FfufParameterDiscoveryFormState;
   selectedField: number;
+  authentication: FfufAuthenticationState;
 }
 
 export interface FfufValueFuzzingToolData extends ToolData {
   mode: "value_fuzzing";
   form: FfufValueFuzzingFormState;
   selectedField: number;
+  authentication: FfufAuthenticationState;
 }
 
 export type FfufToolData =
@@ -168,4 +181,5 @@ export interface FfufFormProps {
     field: Exclude<FfufFieldId, "mode">,
     value: string | boolean,
   ) => void;
+  onToggleAuthenticatedContext: () => void;
 }

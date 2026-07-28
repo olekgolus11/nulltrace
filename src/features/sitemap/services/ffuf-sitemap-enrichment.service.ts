@@ -1,7 +1,10 @@
 import { ToolRunArtifactRecord } from "../../session/model/session.repository.types";
 import { sessionRepository } from "../../session/services/session.repository";
 import { selectExactOriginFfufMatches } from "../../tool/ffuf/services/ffuf-output.helpers";
-import { readFfufArtifactResults } from "./ffuf-sitemap-enrichment.helpers";
+import {
+  readFfufArtifactProvenance,
+  readFfufArtifactResults,
+} from "./ffuf-sitemap-enrichment.helpers";
 import { sitemapRepository } from "./sitemap.repository";
 
 interface SessionContextRepository {
@@ -29,6 +32,7 @@ export class FfufSitemapEnrichmentService {
         readFfufArtifactResults(artifact.payload),
         session.normalizedUrl,
       );
+      const provenance = readFfufArtifactProvenance(artifact.payload);
       matches.forEach((match) => {
         this.sitemap.upsertEntry({
           targetId: session.targetId,
@@ -37,7 +41,7 @@ export class FfufSitemapEnrichmentService {
           method: "GET",
           httpStatus: match.httpStatus,
           source: "ffuf",
-          provenance: "public",
+          provenance,
           depth: match.depth,
         });
       });

@@ -1,8 +1,9 @@
-import { normalizeExactOrigin } from "../../authentication/services/authenticated-request-context.service";
+import { isAcceptedAuthenticatedContextForTarget } from "../../authentication/services/authenticated-request-context-scope.helpers";
 import { NmapToolData } from "../../tool/nmap/types/nmap.types";
 import { redactNucleiCommandForPersistence } from "../../tool/nuclei/services/nuclei-command-redaction.helpers";
 import { NucleiToolData } from "../../tool/nuclei/types/nuclei.types";
 import { FfufToolData } from "../../tool/ffuf/types/ffuf.types";
+import { validateAuthenticatedFfufTarget } from "../../tool/ffuf/services/ffuf-authenticated-request.helpers";
 import {
   getActionDraftBooleanField,
   getActionDraftCommand,
@@ -59,20 +60,59 @@ export function mapActionDraftToWorkspaceState({
     const target =
       getActionDraftStringField(formState ?? {}, "target") ??
       (currentToolData as NucleiToolData).form.target;
-    let isExactOriginAccepted = false;
-    try {
-      isExactOriginAccepted = Boolean(
-        authenticatedContext?.authCheck.isProceedAllowed &&
-        authenticatedContext.origin === normalizeExactOrigin(target),
-      );
-    } catch {
-      isExactOriginAccepted = false;
-    }
+    const isExactOriginAccepted = isAcceptedAuthenticatedContextForTarget(
+      authenticatedContext,
+      target,
+    );
     if (!isExactOriginAccepted) {
       return {
         ok: false,
         reason:
           "This draft requires an accepted authentication context for the target's exact origin.",
+      };
+    }
+  }
+  if (
+    currentToolName === "ffuf" &&
+    getActionDraftBooleanField(formState ?? {}, "useAuthenticatedContext") === true
+  ) {
+    const ffufToolData = currentToolData as FfufToolData;
+    const mode = getActionDraftStringField(formState ?? {}, "mode") ?? ffufToolData.mode;
+    const target =
+      mode === "content_discovery"
+        ? getActionDraftStringField(formState ?? {}, "targetPattern") ??
+          (ffufToolData.mode === "content_discovery"
+            ? ffufToolData.form.targetPattern
+            : ffufToolData.form.endpoint)
+        : getActionDraftStringField(formState ?? {}, "endpoint") ??
+          (ffufToolData.mode === "content_discovery"
+            ? ffufToolData.form.targetPattern.replace(/\/FUZZ$/, "")
+            : ffufToolData.form.endpoint);
+    let hasCredentialFreeTarget = false;
+    try {
+      validateAuthenticatedFfufTarget(target);
+      hasCredentialFreeTarget = true;
+    } catch {
+      hasCredentialFreeTarget = false;
+    }
+    const isExactOriginAccepted =
+      hasCredentialFreeTarget &&
+      isAcceptedAuthenticatedContextForTarget(authenticatedContext, target);
+    if (!isExactOriginAccepted) {
+      return {
+        ok: false,
+        reason:
+          "This draft requires an accepted authentication context for the target's exact origin.",
+      };
+    }
+    if (
+      rawCommand &&
+      /(?:^|\s)-(?:b|cookie|request(?:-proto)?)(?=\s|=|$)/.test(rawCommand)
+    ) {
+      return {
+        ok: false,
+        reason:
+          "Authenticated FFUF drafts must not include credential or raw-request command flags.",
       };
     }
   }
@@ -85,7 +125,11 @@ export function mapActionDraftToWorkspaceState({
             formState,
             authenticatedContext,
           )
-        : mapFfufActionDraftFormState(currentToolData as FfufToolData, formState);
+        : mapFfufActionDraftFormState(
+            currentToolData as FfufToolData,
+            formState,
+            authenticatedContext,
+          );
 
   if (!command && !didApply) {
     return {

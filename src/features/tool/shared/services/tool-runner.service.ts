@@ -103,6 +103,7 @@ export class ToolRunnerService {
     onRunStarted?.(toolRunId);
     let redactPreparedOutput: ((content: string) => string) | undefined;
     let redactPreparedArtifact: ((content: string) => string) | undefined;
+    let preparePreparedArtifacts: (() => void | Promise<void>) | undefined;
 
     try {
       const preparation =
@@ -120,6 +121,8 @@ export class ToolRunnerService {
       const preparedCommand = typeof prepared === "string" ? prepared : prepared.command;
       redactPreparedOutput = typeof prepared === "string" ? undefined : prepared.redactOutput;
       redactPreparedArtifact = typeof prepared === "string" ? undefined : prepared.redactArtifact;
+      preparePreparedArtifacts =
+        typeof prepared === "string" ? undefined : prepared.prepareArtifacts;
       let hasCleanedPreparedRun = false;
       activeRun.cleanupPreparedRun =
         typeof prepared === "string" || !prepared.cleanup
@@ -150,7 +153,7 @@ export class ToolRunnerService {
       );
 
       if (activeRun.cancelled) {
-        if (redactPreparedArtifact) {
+        if (redactPreparedArtifact || preparePreparedArtifacts) {
           await this.artifactPipeline.processCompletedRun({
             sessionId,
             toolRunId,
@@ -160,7 +163,8 @@ export class ToolRunnerService {
             command,
             toolData,
             ...(redactPreparedOutput ? { redactOutput: redactPreparedOutput } : {}),
-            redactArtifact: redactPreparedArtifact,
+            ...(redactPreparedArtifact ? { redactArtifact: redactPreparedArtifact } : {}),
+            ...(preparePreparedArtifacts ? { prepareArtifacts: preparePreparedArtifacts } : {}),
           });
         }
         return;
@@ -187,6 +191,7 @@ export class ToolRunnerService {
         toolData,
         ...(redactPreparedOutput ? { redactOutput: redactPreparedOutput } : {}),
         ...(redactPreparedArtifact ? { redactArtifact: redactPreparedArtifact } : {}),
+        ...(preparePreparedArtifacts ? { prepareArtifacts: preparePreparedArtifacts } : {}),
         onArtifactProcessingError: (artifactMessage) => {
           onSystemLines(["", artifactMessage]);
         },
@@ -199,7 +204,7 @@ export class ToolRunnerService {
       });
     } catch (error) {
       if (activeRun.cancelled) {
-        if (redactPreparedArtifact) {
+        if (redactPreparedArtifact || preparePreparedArtifacts) {
           await this.artifactPipeline.processCompletedRun({
             sessionId,
             toolRunId,
@@ -209,7 +214,8 @@ export class ToolRunnerService {
             command,
             toolData,
             ...(redactPreparedOutput ? { redactOutput: redactPreparedOutput } : {}),
-            redactArtifact: redactPreparedArtifact,
+            ...(redactPreparedArtifact ? { redactArtifact: redactPreparedArtifact } : {}),
+            ...(preparePreparedArtifacts ? { prepareArtifacts: preparePreparedArtifacts } : {}),
           });
         }
         return;
@@ -234,6 +240,7 @@ export class ToolRunnerService {
         toolData,
         ...(redactPreparedOutput ? { redactOutput: redactPreparedOutput } : {}),
         ...(redactPreparedArtifact ? { redactArtifact: redactPreparedArtifact } : {}),
+        ...(preparePreparedArtifacts ? { prepareArtifacts: preparePreparedArtifacts } : {}),
         onArtifactProcessingError: (artifactMessage) => {
           onSystemLines(["", artifactMessage]);
         },

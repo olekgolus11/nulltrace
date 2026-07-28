@@ -1,3 +1,5 @@
+import { AuthenticatedRequestContextMetadata } from "../../authentication/model/authenticated-request-context.types";
+import { isAcceptedAuthenticatedContextForTarget } from "../../authentication/services/authenticated-request-context-scope.helpers";
 import {
   createInitialFfufParameterDiscoveryToolData,
   createInitialFfufToolData,
@@ -15,19 +17,60 @@ import {
 export function mapFfufActionDraftFormState(
   toolData: FfufToolData,
   formState: Record<string, unknown> | null,
+  authenticatedContext: AuthenticatedRequestContextMetadata | null,
 ) {
   if (!formState) {
     return {
-      toolData,
+      toolData: setActionDraftAuthentication(toolData, false, authenticatedContext),
       didApply: false,
     };
   }
 
-  return getActionDraftStringField(formState, "mode") === "parameter_discovery"
+  const mapped = getActionDraftStringField(formState, "mode") === "parameter_discovery"
     ? mapParameterDiscoveryFormState(toolData, formState)
     : getActionDraftStringField(formState, "mode") === "value_fuzzing"
       ? mapValueFuzzingFormState(toolData, formState)
     : mapContentDiscoveryFormState(toolData, formState);
+  const requestedAuthentication =
+    getActionDraftBooleanField(formState, "useAuthenticatedContext") ?? false;
+  return {
+    toolData: setActionDraftAuthentication(
+      mapped.toolData,
+      requestedAuthentication,
+      authenticatedContext,
+    ),
+    didApply:
+      mapped.didApply ||
+      getActionDraftBooleanField(formState, "useAuthenticatedContext") !== undefined,
+  };
+}
+
+function setActionDraftAuthentication(
+  toolData: FfufToolData,
+  useAuthenticatedContext: boolean,
+  authenticatedContext: AuthenticatedRequestContextMetadata | null,
+): FfufToolData {
+  const target =
+    toolData.mode === "content_discovery"
+      ? toolData.form.targetPattern
+      : toolData.form.endpoint;
+  const isAvailable = isAcceptedAuthenticatedContextForTarget(
+    authenticatedContext,
+    target,
+  );
+  const isEnabled = useAuthenticatedContext && isAvailable;
+  return {
+    ...toolData,
+    form: {
+      ...toolData.form,
+      isAuthenticatedContextEnabled: isEnabled,
+    },
+    authentication: {
+      strategy: isEnabled ? "session" : "none",
+      isAvailable,
+      origin: isAvailable ? authenticatedContext?.origin ?? null : null,
+    },
+  } as FfufToolData;
 }
 
 function mapContentDiscoveryFormState(
