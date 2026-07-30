@@ -23,6 +23,7 @@ import { useSessionAuthenticatedRequestContext } from "../../authentication/hook
 import { createAuthCheckUrlSuggestions } from "../../authentication/services/auth-check.service";
 import { PageInspectionPermissionModal } from "../../page-inspection/components/PageInspectionPermissionModal";
 import { usePageInspectionPermission } from "../../page-inspection/hooks/use-page-inspection-permission";
+import { SessionReportExportModal } from "../../report/components/SessionReportExportModal";
 
 interface DashboardScreenProps {
   onSelectTool: (toolName: ToolName) => void;
@@ -87,6 +88,7 @@ export function DashboardScreen({
     findingDetailScrollRef,
     closeAuthenticationContext,
     closePageInspection,
+    closeReportExport,
   } = useDashboardShortcuts({
     onBack,
     onSelectTool,
@@ -197,6 +199,7 @@ export function DashboardScreen({
                 { key: "Ctrl+1-4", label: "jump" },
                 { key: "Ctrl+A", label: "auth" },
                 { key: "Ctrl+P", label: "inspect" },
+                { key: "Ctrl+E", label: "report" },
                 ...(dashboardState.activePanel === "chat"
                   ? [
                       { key: "Ctrl+←/→", label: "conversation" },
@@ -261,6 +264,14 @@ export function DashboardScreen({
           onAllowAuthenticated={pageInspection.allowAuthenticated}
           onNoInspection={pageInspection.revoke}
           onClose={closePageInspection}
+        />
+      ) : null}
+      {dashboardState.isReportExportOpen && sessionId ? (
+        <SessionReportExportModal
+          sessionId={sessionId}
+          width={modalWidth}
+          height={Math.max(1, Math.min(28, height - 4))}
+          onClose={closeReportExport}
         />
       ) : null}
     </box>
