@@ -25,6 +25,9 @@ import {
   toggleFfufAuthenticatedContext,
 } from "../../ffuf/services/ffuf-authentication.helpers";
 import { FfufToolData } from "../../ffuf/types/ffuf.types";
+import { NiktoWorkspace } from "../../nikto/components/NiktoWorkspace";
+import { niktoCommandService } from "../../nikto/services/nikto-command.service";
+import { NiktoToolData } from "../../nikto/types/nikto.types";
 import { ffufSitemapEnrichmentService } from "../../../sitemap/services/ffuf-sitemap-enrichment.service";
 import { PanelDefinition } from "../../../../shared/model/panel-navigation.types";
 import {
@@ -284,6 +287,33 @@ export const toolRegistry: Record<string, ToolModule> = {
         return true;
       }
 
+      return false;
+    },
+  },
+  nikto: {
+    id: scannerCatalog.nikto.id,
+    name: scannerCatalog.nikto.name,
+    description: scannerCatalog.nikto.description ?? "",
+    Workspace: NiktoWorkspace,
+    createInitialToolData: (targetUrl: string) =>
+      niktoCommandService.createInitialToolData(targetUrl),
+    buildGeneratedCommand: (toolData: unknown) =>
+      niktoCommandService.buildCommand(toolData as NiktoToolData),
+    prepareCommandForRun: (options: ToolPrepareCommand) =>
+      niktoCommandService.prepareCommandForRun(options),
+    collectArtifacts: (options: ToolRunCompleted) =>
+      niktoCommandService.collectArtifacts(options),
+    handleFormKey: (key, state, api) => {
+      if (state.activePanel !== "form") return false;
+      if (key.name === "up" || key.name === "down") {
+        api.updateToolData((current) =>
+          niktoCommandService.moveSelection(
+            current as NiktoToolData,
+            key.name === "up" ? -1 : 1,
+          ),
+        );
+        return true;
+      }
       return false;
     },
   },

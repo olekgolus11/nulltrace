@@ -7,6 +7,7 @@ import {
   buildFfufCommand,
   createInitialFfufToolData,
 } from "../../../tool/ffuf/services/ffuf-command.helpers";
+import { niktoCommandService } from "../../../tool/nikto/services/nikto-command.service";
 
 function createDraft(overrides: Partial<ActionDraftRecord> = {}): ActionDraftRecord {
   return {
@@ -261,6 +262,39 @@ describe("mapActionDraftToWorkspaceState", () => {
     ).toEqual({
       ok: false,
       reason: "This draft has no usable command or form state for the current workspace.",
+    });
+  });
+
+  it("applies Nikto Standard draft without running it", () => {
+    const currentToolData = niktoCommandService.createInitialToolData("https://example.com");
+    const result = mapActionDraftToWorkspaceState({
+      draft: createDraft({
+        targetTool: "nikto",
+        title: "Scan web server",
+        payload: {
+          formState: {
+            target: "https://example.com",
+            rootPath: "/app",
+            vhost: "app.example.com",
+            timeoutSeconds: "120",
+            profile: "standard",
+          },
+        },
+      }),
+      currentToolName: "nikto",
+      currentToolData,
+      buildGeneratedCommand: (data) =>
+        niktoCommandService.buildCommand(data as typeof currentToolData),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      application: {
+        commandInput:
+          "nikto -h 'https://example.com' -root '/app' -vhost 'app.example.com' -maxtime 120s",
+        commandSource: "generated",
+        message: "Applied action draft: Scan web server",
+      },
     });
   });
 });

@@ -21,7 +21,9 @@ type DashboardAction =
   | { type: "OPEN_AUTHENTICATION_CONTEXT" }
   | { type: "CLOSE_AUTHENTICATION_CONTEXT" }
   | { type: "OPEN_PAGE_INSPECTION" }
-  | { type: "CLOSE_PAGE_INSPECTION" };
+  | { type: "CLOSE_PAGE_INSPECTION" }
+  | { type: "OPEN_REPORT_EXPORT" }
+  | { type: "CLOSE_REPORT_EXPORT" };
 
 interface UseDashboardShortcutsProps {
   onBack: () => void;
@@ -143,6 +145,18 @@ function createDashboardReducer(counts: {
           ...state,
           isPageInspectionOpen: false,
         };
+
+      case "OPEN_REPORT_EXPORT":
+        return {
+          ...state,
+          isReportExportOpen: true,
+        };
+
+      case "CLOSE_REPORT_EXPORT":
+        return {
+          ...state,
+          isReportExportOpen: false,
+        };
     }
   };
 }
@@ -189,12 +203,18 @@ export function useDashboardShortcuts({
   }, [findings, state.selectedFindingDetailId]);
 
   useKeyboard((key) => {
-    if (state.isAuthenticationContextOpen || state.isPageInspectionOpen) {
+    if (
+      state.isAuthenticationContextOpen ||
+      state.isPageInspectionOpen ||
+      state.isReportExportOpen
+    ) {
       if (key.name === "escape") {
         dispatch({
           type: state.isAuthenticationContextOpen
             ? "CLOSE_AUTHENTICATION_CONTEXT"
-            : "CLOSE_PAGE_INSPECTION",
+            : state.isPageInspectionOpen
+              ? "CLOSE_PAGE_INSPECTION"
+              : "CLOSE_REPORT_EXPORT",
         });
       }
       return;
@@ -226,6 +246,11 @@ export function useDashboardShortcuts({
 
     if (key.ctrl && key.name === "p") {
       dispatch({ type: "OPEN_PAGE_INSPECTION" });
+      return;
+    }
+
+    if (key.ctrl && key.name === "e") {
+      dispatch({ type: "OPEN_REPORT_EXPORT" });
       return;
     }
 
@@ -399,12 +424,17 @@ export function useDashboardShortcuts({
     dispatch({ type: "CLOSE_PAGE_INSPECTION" });
   };
 
+  const closeReportExport = () => {
+    dispatch({ type: "CLOSE_REPORT_EXPORT" });
+  };
+
   return {
     dashboardState: state,
     setActivePanel,
     selectFinding,
     closeAuthenticationContext,
     closePageInspection,
+    closeReportExport,
     sitemapScrollRef,
     findingsScrollRef,
     findingDetailScrollRef,

@@ -10,6 +10,7 @@ export interface DashboardState {
   selectedFindingDetailId: string | null;
   isAuthenticationContextOpen: boolean;
   isPageInspectionOpen: boolean;
+  isReportExportOpen: boolean;
 }
 
 export interface UseDashboardLayoutResult {

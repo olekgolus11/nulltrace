@@ -37,6 +37,7 @@ function DashboardShortcutHarness({ isLocked = true }: { isLocked?: boolean }) {
       {dashboardState.activePanel}:
       {dashboardState.isAuthenticationContextOpen ? "auth-open" : "auth-closed"}
       :{dashboardState.isPageInspectionOpen ? "inspection-open" : "inspection-closed"}
+      :{dashboardState.isReportExportOpen ? "report-open" : "report-closed"}
     </text>
   );
 }
@@ -104,5 +105,22 @@ describe("useDashboardShortcuts", () => {
     await testSetup.renderOnce();
 
     expect(testSetup.captureCharFrame()).toContain("sitemap:auth-closed:inspection-open");
+  });
+
+  test("opens report export with Ctrl+E without cycling the active panel", async () => {
+    testSetup = await testRender(<DashboardShortcutHarness />, {
+      width: 60,
+      height: 10,
+    });
+
+    await testSetup.renderOnce();
+    await act(async () => {
+      testSetup!.mockInput.pressKey("e", { ctrl: true });
+    });
+    await testSetup.renderOnce();
+
+    expect(testSetup.captureCharFrame()).toContain(
+      "sitemap:auth-closed:inspection-closed:report-open",
+    );
   });
 });
