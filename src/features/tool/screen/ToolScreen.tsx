@@ -16,9 +16,12 @@ import { DashboardPanel } from "../../dashboard/components/DashboardPanel";
 import { useSessionFindings } from "../../finding/hooks/use-session-findings";
 import { useSessionContextStore } from "../../session/store/session-context.store";
 import { useSessionAuthenticatedRequestContext } from "../../authentication/hooks/use-session-authenticated-request-context";
+import { isAcceptedAuthenticatedContextForTarget } from "../../authentication/services/authenticated-request-context-scope.helpers";
 import { pageInspectionPermissionService } from "../../page-inspection/services/page-inspection-permission.service";
 import { nucleiCommandService } from "../nuclei/services/nuclei-command.service";
 import { NucleiToolData } from "../nuclei/types/nuclei.types";
+import { setFfufAuthenticationAvailability } from "../ffuf/services/ffuf-authentication.helpers";
+import { FfufToolData } from "../ffuf/types/ffuf.types";
 import { useToolLayout } from "../hooks/use-tool-layout";
 import { ActiveToolWorkspace } from "../shared/components/ActiveToolWorkspace";
 import { ToolHelpDialog } from "../shared/components/ToolHelpDialog";
@@ -230,36 +233,33 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
   }, [initializeWorkspace, sessionId, stopCommand, targetUrl, toolName]);
 
   useEffect(() => {
-    if (toolName !== "nuclei") {
+    if (toolName !== "nuclei" && toolName !== "ffuf") {
       return;
     }
     const metadata = authenticationContext.metadata;
-    let acceptedOrigin: string | null = null;
-    try {
-      acceptedOrigin =
-        metadata?.authCheck.isProceedAllowed && metadata.origin === new URL(targetUrl).origin
-          ? metadata.origin
-          : null;
-    } catch {
-      acceptedOrigin = null;
-    }
+    const acceptedOrigin = isAcceptedAuthenticatedContextForTarget(metadata, targetUrl)
+      ? metadata?.origin ?? null
+      : null;
     const state = useToolWorkspaceStore.getState();
     if (!state.toolData) {
       return;
     }
-    const current = state.toolData as NucleiToolData;
+    const current = state.toolData as NucleiToolData | FfufToolData;
     if (
       current.authentication.origin === acceptedOrigin &&
       current.authentication.isAvailable === Boolean(acceptedOrigin)
     ) {
       return;
     }
-    state.updateToolData((toolData) =>
-      nucleiCommandService.setAuthenticationAvailability(
-        toolData as NucleiToolData,
-        acceptedOrigin,
-      ),
-    );
+    state.updateToolData((toolData) => {
+      if (toolName === "nuclei") {
+        return nucleiCommandService.setAuthenticationAvailability(
+          toolData as NucleiToolData,
+          acceptedOrigin,
+        );
+      }
+      return setFfufAuthenticationAvailability(toolData as FfufToolData, acceptedOrigin);
+    });
   }, [authenticationContext.metadata, targetUrl, toolName]);
 
   useEffect(() => {

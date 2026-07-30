@@ -10,7 +10,6 @@ import { FfufWorkspace } from "../../ffuf/components/FfufWorkspace";
 import { getFfufFieldOrder } from "../../ffuf/config/ffuf.config";
 import {
   buildFfufCommand,
-  collectFfufArtifacts,
   createInitialFfufToolData,
   cycleFfufMode,
   cycleFfufRequestLocation,
@@ -20,6 +19,11 @@ import {
   prepareFfufCommandForRun,
   toggleFfufBooleanField,
 } from "../../ffuf/services/ffuf-command.helpers";
+import { collectFfufArtifacts } from "../../ffuf/services/ffuf-artifact.helpers";
+import {
+  isFfufAuthenticationField,
+  toggleFfufAuthenticatedContext,
+} from "../../ffuf/services/ffuf-authentication.helpers";
 import { FfufToolData } from "../../ffuf/types/ffuf.types";
 import { NiktoWorkspace } from "../../nikto/components/NiktoWorkspace";
 import { niktoCommandService } from "../../nikto/services/nikto-command.service";
@@ -91,6 +95,16 @@ export const toolRegistry: Record<string, ToolModule> = {
             current as Extract<FfufToolData, { mode: "parameter_discovery" | "value_fuzzing" }>,
             key.name === "left" ? -1 : 1,
           ),
+        );
+        api.syncGeneratedCommand();
+        return true;
+      }
+      if (
+        isFfufAuthenticationField(selectedField) &&
+        (key.name === "left" || key.name === "right")
+      ) {
+        api.updateToolData((current) =>
+          toggleFfufAuthenticatedContext(current as FfufToolData),
         );
         api.syncGeneratedCommand();
         return true;

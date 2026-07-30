@@ -24,6 +24,7 @@ interface ProcessCompletedRunInput {
   toolData?: unknown;
   redactOutput?: (content: string) => string;
   redactArtifact?: (content: string) => string;
+  prepareArtifacts?: () => void | Promise<void>;
   onArtifactProcessingError?: (message: string) => void;
 }
 
@@ -43,6 +44,7 @@ export class ToolArtifactPipelineService {
     toolData,
     redactOutput,
     redactArtifact,
+    prepareArtifacts,
     onArtifactProcessingError,
   }: ProcessCompletedRunInput) {
     if (!toolRunId || !toolModule?.collectArtifacts) {
@@ -50,6 +52,7 @@ export class ToolArtifactPipelineService {
     }
 
     try {
+      await prepareArtifacts?.();
       const artifacts = await toolModule.collectArtifacts({
         sessionId,
         toolRunId,

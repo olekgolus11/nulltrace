@@ -71,7 +71,7 @@ export function mapActionDraftChatPayload(
 }
 
 function normalizeFfufDraftFormState(formState: Record<string, unknown>, scannerTarget: string) {
-  if (formState.mode === "parameter_discovery") {
+  if (formState.mode === "parameter_discovery" || formState.mode === "value_fuzzing") {
     return {
       ...formState,
       ...(typeof formState.endpoint === "string"

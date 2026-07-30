@@ -88,6 +88,7 @@ export interface ToolPrepareCommand {
 export interface ToolPreparedCommand {
   command: string;
   cleanup?: () => void;
+  prepareArtifacts?: () => void | Promise<void>;
   redactOutput?: (content: string) => string;
   redactArtifact?: (content: string) => string;
 }

@@ -1084,6 +1084,94 @@ describe("ActionDraftChatContextToolsService", () => {
     });
   });
 
+  it("persists explicit authenticated FFUF selection without credential material", () => {
+    const { drafts, service } = createActionDraftService(
+      new FakeActionDraftRepository(),
+      true,
+    );
+
+    service.createActionDraft("opencode-1", {
+      targetTool: "ffuf",
+      title: "Authenticated value fuzzing",
+      formStateJson: JSON.stringify({
+        mode: "value_fuzzing",
+        endpoint: "{{TARGET}}/search",
+        parameterName: "q",
+        requestLocation: "query",
+        useAuthenticatedContext: true,
+      }),
+    });
+
+    expect(drafts.drafts[0]).toMatchObject({
+      payload: {
+        formState: {
+          mode: "value_fuzzing",
+          endpoint: "http://honey.scanme.sh/search",
+          useAuthenticatedContext: true,
+        },
+      },
+    });
+    expect(JSON.stringify(drafts.drafts[0])).not.toContain("Authorization");
+    expect(JSON.stringify(drafts.drafts[0])).not.toContain("Cookie");
+  });
+
+  it("rejects authenticated FFUF drafts without acceptance or with credential flags", () => {
+    const rejected = createActionDraftService();
+    const args = {
+      targetTool: "ffuf" as const,
+      title: "Authenticated content discovery",
+      formStateJson: JSON.stringify({
+        mode: "content_discovery",
+        targetPattern: "{{TARGET}}/FUZZ",
+        useAuthenticatedContext: true,
+      }),
+    };
+
+    expect(() => rejected.service.createActionDraft("opencode-1", args)).toThrow(
+      "Authenticated FFUF drafts require an accepted authentication context.",
+    );
+    expect(rejected.drafts.drafts).toHaveLength(0);
+
+    const accepted = createActionDraftService(new FakeActionDraftRepository(), true);
+    expect(() =>
+      accepted.service.createActionDraft("opencode-1", {
+        ...args,
+        command:
+          "ffuf -u http://honey.scanme.sh/FUZZ -b session=secret -w /tmp/content.txt",
+      }),
+    ).toThrow("source credentials only from selected session context");
+    expect(accepted.drafts.drafts).toHaveLength(0);
+    expect(() =>
+      accepted.service.createActionDraft("opencode-1", {
+        ...args,
+        formStateJson: JSON.stringify({
+          mode: "content_discovery",
+          targetPattern: "http://user:password@honey.scanme.sh/FUZZ",
+          useAuthenticatedContext: true,
+        }),
+      }),
+    ).toThrow("must not contain credentials");
+    expect(accepted.drafts.drafts).toHaveLength(0);
+  });
+
+  it("rejects credential-bearing public FFUF drafts before persistence", () => {
+    const { drafts, service } = createActionDraftService();
+
+    expect(() =>
+      service.createActionDraft("opencode-1", {
+        targetTool: "ffuf",
+        title: "Public content discovery",
+        command:
+          "ffuf -u http://honey.scanme.sh/FUZZ -H 'X-Api-Token: secret' -w /tmp/content.txt",
+        formStateJson: JSON.stringify({
+          mode: "content_discovery",
+          targetPattern: "{{TARGET}}/FUZZ",
+        }),
+      }),
+    ).toThrow("session context");
+    expect(drafts.drafts).toHaveLength(0);
+  });
+
   it("does not create tool runs when creating an action draft", () => {
     const toolRepository = new FakeToolRepository([], []);
     const drafts = new FakeActionDraftRepository();

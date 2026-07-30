@@ -24,6 +24,11 @@ import {
   scannerCatalog,
 } from "../../tool/shared/registry/scanner-catalog";
 import { assertSimpleShellCommand } from "../../tool/nuclei/services/nuclei-shell.helpers";
+import {
+  validateAuthenticatedFfufCommandForDraft,
+  validateAuthenticatedFfufTarget,
+  validateFfufCommandSecretInputs,
+} from "../../tool/ffuf/services/ffuf-authenticated-request.helpers";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { findingRepository } from "../../finding/services/finding.repository";
 import {
@@ -1475,12 +1480,35 @@ export class ActionDraftChatContextToolsService {
     ) {
       throw new Error("Authenticated Nuclei drafts require an accepted authentication context.");
     }
+    if (
+      targetTool === "ffuf" &&
+      formState?.useAuthenticatedContext === true &&
+      !this.authenticationAcceptance.isProceedAllowed(attachment.sessionId)
+    ) {
+      throw new Error("Authenticated FFUF drafts require an accepted authentication context.");
+    }
     if (targetTool === "nuclei" && formState?.useAuthenticatedContext === true) {
       if (typeof payload.command === "string") {
         assertSimpleShellCommand(payload.command);
       }
       if (typeof formState.extraArgs === "string") {
         assertSimpleShellCommand(formState.extraArgs);
+      }
+    }
+    if (targetTool === "ffuf") {
+      const ffufTarget =
+        formState?.mode === "content_discovery"
+          ? formState.targetPattern
+          : formState?.endpoint;
+      if (typeof ffufTarget === "string") {
+        validateAuthenticatedFfufTarget(ffufTarget);
+      }
+      if (typeof payload.command === "string") {
+        assertSimpleShellCommand(payload.command);
+        validateFfufCommandSecretInputs(payload.command);
+        if (formState?.useAuthenticatedContext === true) {
+          validateAuthenticatedFfufCommandForDraft(payload.command);
+        }
       }
     }
     const draft = this.drafts.createDraft({
@@ -1505,7 +1533,7 @@ export class ActionDraftChatContextToolsService {
           targetTool: {
             type: "string",
             description:
-              "Implemented scanner tool to draft for. Supported tools include nmap, nuclei, ffuf, and nikto. Nikto drafts use profile standard with target, optional rootPath/vhost, and timeoutSeconds. FFUF drafts set mode to content_discovery with targetPattern; parameter_discovery with endpoint and requestLocation; or value_fuzzing with one exact-origin endpoint, parameterName, requestLocation, payload wordlist, matchCodes, filterCodes, rate, and timeLimit.",
+              "Implemented scanner tool to draft for. Supported tools include nmap, nuclei, ffuf, and nikto. Nikto drafts use profile standard with target, optional rootPath/vhost, and timeoutSeconds. FFUF drafts set mode to content_discovery with targetPattern; parameter_discovery with endpoint and requestLocation; or value_fuzzing with one exact-origin endpoint, parameterName, requestLocation, payload wordlist, matchCodes, filterCodes, rate, and timeLimit. Set useAuthenticatedContext only for explicit accepted-context opt-in; never include authentication values.",
           },
           title: {
             type: "string",

@@ -66,6 +66,38 @@ describe("ToolArtifactPipelineService", () => {
     });
   });
 
+  it("materializes sanitized scanner output before artifact collection", async () => {
+    const events: string[] = [];
+    const service = new ToolArtifactPipelineService(
+      { processArtifacts: mock(() => {}) },
+      {
+        saveToolRunArtifact: mock((_toolRunId, artifact) => ({
+          id: "artifact-1",
+          toolRunId: "run-1",
+          ...artifact,
+          createdAt: "2026-07-28T10:00:00.000Z",
+        })),
+        appendToolRunLog: mock(() => {}),
+      },
+    );
+
+    await service.processCompletedRun({
+      sessionId: "session-1",
+      toolRunId: "run-1",
+      toolModule: createToolModule(async () => {
+        events.push("collect");
+        return [];
+      }),
+      status: "success",
+      exitCode: 0,
+      prepareArtifacts: () => {
+        events.push("prepare");
+      },
+    });
+
+    expect(events).toEqual(["prepare", "collect"]);
+  });
+
   it("returns without error when toolRunId is missing", async () => {
     const saveToolRunArtifact = mock(() => {
       throw new Error("should not be called");

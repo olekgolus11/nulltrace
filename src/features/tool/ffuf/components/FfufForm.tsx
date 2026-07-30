@@ -2,9 +2,17 @@ import { theme } from "../../../../app/theme/theme";
 import { getFfufFieldOrder } from "../config/ffuf.config";
 import { FfufFieldId, FfufFormProps } from "../types/ffuf.types";
 
-type FfufTextField = Exclude<FfufFieldId, "mode" | "recursion" | "requestLocation">;
+type FfufTextField = Exclude<
+  FfufFieldId,
+  "mode" | "recursion" | "requestLocation" | "isAuthenticatedContextEnabled"
+>;
 
-export function FfufForm({ toolData, focused, onFieldChange }: FfufFormProps) {
+export function FfufForm({
+  toolData,
+  focused,
+  onFieldChange,
+  onToggleAuthenticatedContext,
+}: FfufFormProps) {
   const fieldOrder = getFfufFieldOrder(toolData.mode);
   const selectedId = fieldOrder[toolData.selectedField];
   const fieldLabel = (field: typeof selectedId, label: string) =>
@@ -32,6 +40,27 @@ export function FfufForm({ toolData, focused, onFieldChange }: FfufFormProps) {
       </box>
     </box>
   );
+  const authentication = toolData.authentication.isAvailable ? (
+    <box
+      flexDirection="row"
+      width="100%"
+      onMouseDown={onToggleAuthenticatedContext}
+    >
+      <box width={20}>
+        <text fg={fieldColor("isAuthenticatedContextEnabled")}>
+          {fieldLabel("isAuthenticatedContextEnabled", "Session auth")}
+        </text>
+      </box>
+      <text fg={theme.text.primary}>
+        {toolData.form.isAuthenticatedContextEnabled ? "[enabled]  disabled" : "enabled  [disabled]"}
+      </text>
+      <text fg={theme.text.dim}>
+        {toolData.form.isAuthenticatedContextEnabled
+          ? `  raw request added at run  ${toolData.authentication.origin ?? ""}`
+          : `  use left/right  ${toolData.authentication.origin ?? ""}`}
+      </text>
+    </box>
+  ) : null;
 
   if (toolData.mode === "parameter_discovery") {
     return (
@@ -53,6 +82,7 @@ export function FfufForm({ toolData, focused, onFieldChange }: FfufFormProps) {
         {input("filterCodes", "Filter codes", "404")}
         {input("rate", "Request rate", "25")}
         {input("timeLimit", "Time limit", "10 seconds")}
+        {authentication}
       </box>
     );
   }
@@ -78,6 +108,7 @@ export function FfufForm({ toolData, focused, onFieldChange }: FfufFormProps) {
         {input("filterCodes", "Filter codes", "404")}
         {input("rate", "Request rate", "25")}
         {input("timeLimit", "Time limit", "10 seconds")}
+        {authentication}
       </box>
     );
   }
@@ -101,6 +132,7 @@ export function FfufForm({ toolData, focused, onFieldChange }: FfufFormProps) {
       {input("filterCodes", "Filter codes", "404")}
       {input("rate", "Request rate", "25")}
       {input("timeLimit", "Time limit", "10 seconds")}
+      {authentication}
     </box>
   );
 }

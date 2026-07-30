@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 process.env.XDG_DATA_HOME = "/private/tmp/nulltrace-test";
@@ -7,7 +7,6 @@ process.env.XDG_DATA_HOME = "/private/tmp/nulltrace-test";
 const {
   buildFfufContentDiscoveryCommand,
   buildFfufParameterDiscoveryCommand,
-  collectFfufArtifacts,
   createInitialFfufToolData,
   createInitialFfufParameterDiscoveryToolData,
   createInitialFfufValueFuzzingToolData,
@@ -15,6 +14,7 @@ const {
   prepareFfufCommandForRun,
   setFfufContentDiscoveryField,
 } = await import("../ffuf-command.helpers");
+const { collectFfufArtifacts } = await import("../ffuf-artifact.helpers");
 const {
   classifyFfufValueAnomaly,
   mapFfufValueFuzzingResults,
@@ -26,6 +26,7 @@ const { getAppDataDirectory } = await import("../../../../session/services/sessi
 describe("FFUF command helpers", () => {
   test("builds Content Discovery command from guided fields", () => {
     const initial = createInitialFfufToolData("https://example.com");
+    expect(initial.form.isAuthenticatedContextEnabled).toBe(false);
     const data = setFfufContentDiscoveryField(initial, "wordlist", "/tmp/common.txt");
     const withExtensions = setFfufContentDiscoveryField(data, "extensions", ".php,.bak");
     const withRecursion = setFfufContentDiscoveryField(withExtensions, "recursion", true);
@@ -166,6 +167,57 @@ describe("FFUF command helpers", () => {
     ).toThrow("exactly one target URL");
   });
 
+  test("rejects manual authentication material outside selected context", () => {
+    const toolData = createInitialFfufToolData("https://example.com");
+
+    for (const command of [
+      "ffuf -u https://user:secret@example.com/FUZZ -w /tmp/content.txt",
+      "ffuf -u https://example.com/FUZZ -b session=secret -w /tmp/content.txt",
+      "ffuf -u https://example.com/FUZZ -H 'Authorization: Bearer secret' -w /tmp/content.txt",
+      "ffuf -u https://example.com/FUZZ -H 'X-Api-Token: secret' -w /tmp/content.txt",
+      "ffuf -u https://example.com/FUZZ -H 'X-Api-Token: secret-FUZZ' -w /tmp/content.txt",
+      "ffuf -u https://example.com/FUZZ -H 'X-Access-Token: secret' -w /tmp/content.txt",
+      "ffuf -u https://example.com/FUZZ -H 'X-Auth: secret' -w /tmp/content.txt",
+      "ffuf -request /tmp/request.txt -request-proto https -w /tmp/content.txt",
+    ]) {
+      expect(() =>
+        prepareFfufCommandForRun({
+          command,
+          sessionId: "session-secret-boundary",
+          toolRunId: "run-secret-boundary",
+          targetUrl: "https://example.com",
+          toolData,
+        }),
+      ).toThrow();
+    }
+
+    expect(
+      prepareFfufCommandForRun({
+        command:
+          "ffuf -u https://example.com/FUZZ -H 'Accept: application/json' -w /tmp/content.txt",
+        sessionId: "session-public-header",
+        toolRunId: "run-public-header",
+        targetUrl: "https://example.com",
+        toolData,
+      }),
+    ).toContain("Accept: application/json");
+  });
+
+  test("does not silently downgrade selected authentication without run identity", () => {
+    const toolData = createInitialFfufToolData("https://example.com");
+    toolData.form.isAuthenticatedContextEnabled = true;
+
+    expect(() =>
+      prepareFfufCommandForRun({
+        command: "ffuf -u https://example.com/FUZZ -w /tmp/content.txt",
+        sessionId: null,
+        toolRunId: null,
+        targetUrl: "https://example.com",
+        toolData,
+      }),
+    ).toThrow("active persisted tool run");
+  });
+
   test("forces bounded rate and time limits after manual command edits", () => {
     const toolData = createInitialFfufParameterDiscoveryToolData("https://example.com/search");
     const prepared = prepareFfufCommandForRun({
@@ -303,11 +355,106 @@ describe("FFUF command helpers", () => {
         artifactType: "ffuf_content_discovery",
         payload: {
           scanner: { status: "error", exitCode: 1 },
-          runContext: { command: "ffuf -u https://example.com/FUZZ -w /tmp/common.txt" },
+          runContext: {
+            command: "ffuf -u https://example.com/FUZZ -w /tmp/common.txt",
+            provenance: "public",
+          },
           results: [{ url: "https://example.com/hidden", status: 200 }],
         },
       },
     ]);
+  });
+
+  test("redacts authenticated output before artifact parsing and records provenance only", async () => {
+    const outputPath = join(
+      getAppDataDirectory(),
+      "artifacts",
+      "sessions",
+      "session-authenticated",
+      "tool-runs",
+      "run-authenticated",
+      "ffuf.json",
+    );
+    mkdirSync(dirname(outputPath), { recursive: true });
+    writeFileSync(
+      outputPath,
+      JSON.stringify({
+        results: [{
+          url: "https://example.com/secret-cookie",
+          status: 200,
+          input: { FUZZ: "secret-token" },
+        }],
+      }),
+    );
+    const toolData = createInitialFfufToolData("https://example.com");
+    toolData.form.isAuthenticatedContextEnabled = true;
+
+    const artifacts = await collectFfufArtifacts({
+      sessionId: "session-authenticated",
+      toolRunId: "run-authenticated",
+      command: "ffuf -u https://example.com/FUZZ -w /tmp/common.txt",
+      status: "success",
+      exitCode: 0,
+      toolData,
+      redactArtifact: (content) =>
+        content.replaceAll("secret-cookie", "[redacted]").replaceAll("secret-token", "[redacted]"),
+    });
+
+    expect(readFileSync(outputPath, "utf8")).not.toContain("secret-cookie");
+    expect(readFileSync(outputPath, "utf8")).not.toContain("secret-token");
+    expect(JSON.stringify(artifacts)).not.toContain("secret-cookie");
+    expect(JSON.stringify(artifacts)).not.toContain("secret-token");
+    expect(artifacts).toMatchObject([{
+      artifactType: "ffuf_content_discovery",
+      payload: {
+        runContext: {
+          provenance: "authenticated",
+        },
+      },
+    }]);
+  });
+
+  test("redacts partial authenticated JSON after cancellation without saving an artifact", async () => {
+    const outputPath = join(
+      getAppDataDirectory(),
+      "artifacts",
+      "sessions",
+      "session-cancelled-auth",
+      "tool-runs",
+      "run-cancelled-auth",
+      "ffuf.json",
+    );
+    mkdirSync(dirname(outputPath), { recursive: true });
+    writeFileSync(
+      outputPath,
+      JSON.stringify({
+        config: {
+          headers: {
+            Authorization: "Bearer cancelled-secret",
+            Cookie: "session=cancelled-cookie",
+          },
+        },
+        results: [],
+      }),
+    );
+    const toolData = createInitialFfufToolData("https://example.com");
+    toolData.form.isAuthenticatedContextEnabled = true;
+
+    const artifacts = await collectFfufArtifacts({
+      sessionId: "session-cancelled-auth",
+      toolRunId: "run-cancelled-auth",
+      status: "cancelled",
+      exitCode: null,
+      toolData,
+      redactArtifact: (content) =>
+        content
+          .replaceAll("cancelled-secret", "[redacted]")
+          .replaceAll("cancelled-cookie", "[redacted]"),
+    });
+
+    expect(artifacts).toEqual([]);
+    expect(readFileSync(outputPath, "utf8")).not.toContain("cancelled-secret");
+    expect(readFileSync(outputPath, "utf8")).not.toContain("cancelled-cookie");
   });
 
   test("maps bounded parameter candidates from partial output", async () => {
@@ -425,6 +572,7 @@ describe("FFUF command helpers", () => {
         filterCodes: "",
         rate: "10",
         timeLimit: "10",
+        isAuthenticatedContextEnabled: false,
       },
       "run-value",
       1,
@@ -457,6 +605,7 @@ describe("FFUF command helpers", () => {
         filterCodes: "",
         rate: "10",
         timeLimit: "10",
+        isAuthenticatedContextEnabled: false,
       },
       "run-relative",
       1,

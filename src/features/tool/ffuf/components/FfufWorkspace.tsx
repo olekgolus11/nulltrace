@@ -45,6 +45,7 @@ export function FfufWorkspace() {
           toolData={workspace.toolData}
           focused={workspace.activePanel === "form"}
           onFieldChange={workspace.setField}
+          onToggleAuthenticatedContext={workspace.toggleAuthenticatedContext}
         />
       </DashboardPanel>
       <DashboardPanel

@@ -4,6 +4,7 @@ import {
   setFfufParameterDiscoveryField,
   setFfufValueFuzzingField,
 } from "../services/ffuf-command.helpers";
+import { toggleFfufAuthenticatedContext } from "../services/ffuf-authentication.helpers";
 import { getFfufWorkspaceToolData } from "./ffuf-workspace.helpers";
 import { FfufFieldId } from "../types/ffuf.types";
 
@@ -50,6 +51,12 @@ export function useFfufWorkspace() {
     });
     syncGeneratedCommand();
   };
+  const toggleAuthenticatedContext = () => {
+    updateToolData((current) =>
+      toggleFfufAuthenticatedContext(getFfufWorkspaceToolData(current)),
+    );
+    syncGeneratedCommand();
+  };
 
   return {
     activePanel,
@@ -65,6 +72,7 @@ export function useFfufWorkspace() {
     selectedHistoryRun,
     isHistoricPreview,
     setField,
+    toggleAuthenticatedContext,
     setManualCommandInput,
     runCommand,
   };

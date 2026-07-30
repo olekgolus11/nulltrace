@@ -1,9 +1,9 @@
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { ToolRunArtifactInput } from "../../../session/model/session.repository.types";
-import { getAppDataDirectory } from "../../../session/services/session-database";
-import { ToolPrepareCommand, ToolRunCompleted } from "../../shared/types/tool-screen.types";
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+import {
+  ToolPrepareCommand,
+  ToolPreparedCommand,
+} from "../../shared/types/tool-screen.types";
 import { getFfufFieldOrder } from "../config/ffuf.config";
 import {
   FfufContentDiscoveryFieldId,
@@ -19,11 +19,9 @@ import {
   FfufValueFuzzingFormState,
   FfufValueFuzzingToolData,
 } from "../types/ffuf.types";
-import {
-  mapFfufParameterCandidates,
-  mapFfufValueFuzzingResults,
-  parseFfufOutput,
-} from "./ffuf-output.helpers";
+import { ffufAuthenticatedRunService } from "./ffuf-authenticated-run.service";
+import { validateFfufCommandSecretInputs } from "./ffuf-authenticated-request.helpers";
+import { getFfufJsonOutputPath } from "./ffuf-artifact.helpers";
 
 const ffufOutputFlagPattern = new RegExp(
   String.raw`\s+(?:(?:-json)(?:=(?:true|false))?(?=\s|$)|(?:-o|-output|-of|-output-format)(?:(?:\s+('[^']*'|"(?:\\.|[^"])*"|\S+))|=('(?:[^']*)'|"(?:\\.|[^"])*"|\S+)))`,
@@ -37,13 +35,16 @@ const defaultFfufRate = 25;
 const maximumFfufRate = 100;
 const defaultFfufTimeLimit = 10;
 const maximumFfufTimeLimit = 60;
-const maximumParameterCandidateCount = 200;
-const maximumValueFuzzingResultCount = 200;
 
 export function createInitialFfufToolData(targetUrl: string): FfufContentDiscoveryToolData {
   return {
     mode: "content_discovery",
     selectedField: 0,
+    authentication: {
+      strategy: "none",
+      isAvailable: false,
+      origin: null,
+    },
     form: {
       targetPattern: `${targetUrl.replace(/\/$/, "")}/FUZZ`,
       wordlist: "",
@@ -54,6 +55,7 @@ export function createInitialFfufToolData(targetUrl: string): FfufContentDiscove
       filterCodes: "",
       rate: String(defaultFfufRate),
       timeLimit: String(defaultFfufTimeLimit),
+      isAuthenticatedContextEnabled: false,
     },
   };
 }
@@ -64,6 +66,11 @@ export function createInitialFfufParameterDiscoveryToolData(
   return {
     mode: "parameter_discovery",
     selectedField: 0,
+    authentication: {
+      strategy: "none",
+      isAvailable: false,
+      origin: null,
+    },
     form: {
       endpoint,
       requestLocation: "query",
@@ -72,6 +79,7 @@ export function createInitialFfufParameterDiscoveryToolData(
       filterCodes: "",
       rate: String(defaultFfufRate),
       timeLimit: String(defaultFfufTimeLimit),
+      isAuthenticatedContextEnabled: false,
     },
   };
 }
@@ -82,6 +90,11 @@ export function createInitialFfufValueFuzzingToolData(
   return {
     mode: "value_fuzzing",
     selectedField: 0,
+    authentication: {
+      strategy: "none",
+      isAvailable: false,
+      origin: null,
+    },
     form: {
       endpoint,
       parameterName: "",
@@ -91,6 +104,7 @@ export function createInitialFfufValueFuzzingToolData(
       filterCodes: "",
       rate: String(defaultFfufRate),
       timeLimit: String(defaultFfufTimeLimit),
+      isAuthenticatedContextEnabled: false,
     },
   };
 }
@@ -234,6 +248,7 @@ export function cycleFfufMode(toolData: FfufToolData, direction: -1 | 1): FfufTo
     filterCodes: toolData.form.filterCodes,
     rate: toolData.form.rate,
     timeLimit: toolData.form.timeLimit,
+    isAuthenticatedContextEnabled: toolData.form.isAuthenticatedContextEnabled,
   };
   if (nextMode === "parameter_discovery") {
     const parameterToolData = createInitialFfufParameterDiscoveryToolData(
@@ -241,6 +256,7 @@ export function cycleFfufMode(toolData: FfufToolData, direction: -1 | 1): FfufTo
     );
     return {
       ...parameterToolData,
+      authentication: toolData.authentication,
       form: { ...parameterToolData.form, ...sharedForm },
     };
   }
@@ -248,6 +264,7 @@ export function cycleFfufMode(toolData: FfufToolData, direction: -1 | 1): FfufTo
     const valueToolData = createInitialFfufValueFuzzingToolData(endpoint);
     return {
       ...valueToolData,
+      authentication: toolData.authentication,
       form: {
         ...valueToolData.form,
         ...sharedForm,
@@ -261,6 +278,7 @@ export function cycleFfufMode(toolData: FfufToolData, direction: -1 | 1): FfufTo
   const contentToolData = createInitialFfufToolData(endpoint);
   return {
     ...contentToolData,
+    authentication: toolData.authentication,
     form: { ...contentToolData.form, ...sharedForm },
   };
 }
@@ -307,11 +325,22 @@ export function toggleFfufBooleanField(
   return setFfufContentDiscoveryField(toolData, field, !toolData.form[field]);
 }
 
-export function prepareFfufCommandForRun(options: ToolPrepareCommand): string {
+export function prepareFfufCommandForRun(
+  options: ToolPrepareCommand,
+): string | Promise<ToolPreparedCommand> {
   const { command, sessionId, targetUrl, toolData, toolRunId } = options;
+  validateFfufCommandSecretInputs(command);
   if (targetUrl) validateFfufCommandExactOrigin(command, targetUrl);
   validateFfufCommandMode(command, toolData);
-  if (!sessionId || !toolRunId) return command;
+  const parsedToolData = readFfufToolData(toolData);
+  if (!sessionId || !toolRunId) {
+    if (parsedToolData.form.isAuthenticatedContextEnabled) {
+      throw new Error(
+        "Authenticated FFUF runs require an active persisted tool run.",
+      );
+    }
+    return command;
+  }
 
   const jsonOutputPath = getFfufJsonOutputPath(sessionId, toolRunId);
   mkdirSync(dirname(jsonOutputPath), { recursive: true });
@@ -320,104 +349,19 @@ export function prepareFfufCommandForRun(options: ToolPrepareCommand): string {
     .replace(ffufExecutionLimitPattern, " ")
     .trim();
   const limits = getFfufExecutionLimits(toolData);
-  return `${strippedCommand} -rate ${limits.rate} -maxtime ${limits.timeLimit} -of json -o ${shellQuoteFfufValue(jsonOutputPath)}`;
-}
-
-export async function collectFfufArtifacts(
-  options: ToolRunCompleted,
-): Promise<ToolRunArtifactInput[]> {
-  const { sessionId, toolRunId, command, status, exitCode, toolData } = options;
-  if (!sessionId || !toolRunId || status === "cancelled") return [];
-
-  const jsonOutputPath = getFfufJsonOutputPath(sessionId, toolRunId);
-  if (!existsSync(jsonOutputPath)) return [];
-
-  const json = readFileSync(jsonOutputPath, "utf8");
-  if (!json.trim()) return [];
-
-  const parsed = parseFfufOutput(json);
-  const parsedToolData = readFfufToolData(toolData);
-  if (parsedToolData.mode === "value_fuzzing") {
-    const results = mapFfufValueFuzzingResults(
-      parsed.results,
-      parsedToolData.form,
-      toolRunId,
-      maximumValueFuzzingResultCount,
-    );
-    return [{
-      artifactType: "ffuf_value_fuzzing",
-      label: "FFUF Value Fuzzing",
-      source: "ffuf.json",
-      payload: {
-        source: getFfufArtifactSource(jsonOutputPath, json),
-        scanner: { name: "ffuf", mode: "value_fuzzing", status, exitCode },
-        runContext: {
-          endpoint: stripFfufEndpointQuery(parsedToolData.form.endpoint),
-          parameterName: parsedToolData.form.parameterName,
-          requestLocation: parsedToolData.form.requestLocation,
-          wordlist: parsedToolData.form.wordlist,
-        },
-        parseErrorCount: parsed.parseErrorCount,
-        results,
-        isTruncated: parsed.results.length > results.length,
-      },
-    }];
+  const controlledCommand = `${strippedCommand} -rate ${limits.rate} -maxtime ${limits.timeLimit} -of json -o ${shellQuoteFfufValue(jsonOutputPath)}`;
+  if (!parsedToolData.form.isAuthenticatedContextEnabled) return controlledCommand;
+  if (!targetUrl) {
+    throw new Error("Authenticated FFUF runs require a session target.");
   }
-  if (parsedToolData.mode === "parameter_discovery") {
-    const candidates = mapFfufParameterCandidates(
-      parsed.results,
-      parsedToolData.form,
-      toolRunId,
-      maximumParameterCandidateCount,
-    );
-    return [
-      {
-        artifactType: "ffuf_parameter_discovery",
-        label: "FFUF Parameter Discovery",
-        source: "ffuf.json",
-        payload: {
-          source: getFfufArtifactSource(jsonOutputPath, json),
-          scanner: {
-            name: "ffuf",
-            mode: "parameter_discovery",
-            status,
-            exitCode,
-          },
-          runContext: {
-            command: command ?? null,
-            endpoint: parsedToolData.form.endpoint,
-            requestLocation: parsedToolData.form.requestLocation,
-            wordlist: parsedToolData.form.wordlist,
-          },
-          parseErrorCount: parsed.parseErrorCount,
-          candidates,
-          isTruncated: parsed.results.length > candidates.length,
-        },
-      },
-    ];
-  }
-
-  return [
-    {
-      artifactType: "ffuf_content_discovery",
-      label: "FFUF Content Discovery",
-      source: "ffuf.json",
-      payload: {
-        source: getFfufArtifactSource(jsonOutputPath, json),
-        scanner: {
-          name: "ffuf",
-          mode: "content_discovery",
-          status,
-          exitCode,
-        },
-        runContext: {
-          command: command ?? null,
-        },
-        parseErrorCount: parsed.parseErrorCount,
-        results: parsed.results,
-      },
-    },
-  ];
+  const commandTarget = extractFfufCommandTarget(command);
+  return ffufAuthenticatedRunService.prepare({
+    sessionId,
+    targetUrl: commandTarget,
+    command: controlledCommand,
+    toolData: parsedToolData,
+    artifactOutputPath: jsonOutputPath,
+  });
 }
 
 function appendFfufMatcherAndLimitFlags(
@@ -453,27 +397,6 @@ function getBoundedPositiveInteger(value: string, fallback: number, maximum: num
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.min(parsed, maximum);
-}
-
-function getFfufArtifactSource(jsonOutputPath: string, json: string) {
-  return {
-    format: "ffuf_json",
-    path: jsonOutputPath,
-    bytes: statSync(jsonOutputPath).size,
-    sha256: createHash("sha256").update(json).digest("hex"),
-  };
-}
-
-function getFfufJsonOutputPath(sessionId: string, toolRunId: string) {
-  return join(
-    getAppDataDirectory(),
-    "artifacts",
-    "sessions",
-    sessionId,
-    "tool-runs",
-    toolRunId,
-    "ffuf.json",
-  );
 }
 
 function readFfufToolData(toolData: unknown): FfufToolData {
@@ -514,15 +437,33 @@ function validateFfufCommandExactOrigin(command: string, targetUrl: string) {
   }
 
   try {
-    if (new URL(targets[0]).origin !== new URL(targetUrl).origin) {
+    const commandTarget = new URL(targets[0]);
+    if (commandTarget.username || commandTarget.password) {
+      throw new Error("FFUF command target must not contain credentials.");
+    }
+    if (commandTarget.origin !== new URL(targetUrl).origin) {
       throw new Error("FFUF command target must use the session exact target origin.");
     }
   } catch (error) {
-    if (error instanceof Error && error.message.includes("exact target origin")) {
+    if (
+      error instanceof Error &&
+      (error.message.includes("exact target origin") ||
+        error.message.includes("must not contain credentials"))
+    ) {
       throw error;
     }
     throw new Error("FFUF command must use a valid URL on the session exact target origin.");
   }
+}
+
+function extractFfufCommandTarget(command: string) {
+  const target = [...command.matchAll(ffufTargetPattern)]
+    .map((match) => match[1] ?? match[2] ?? match[3])
+    .find((value): value is string => Boolean(value));
+  if (!target) {
+    throw new Error("FFUF command must include exactly one target URL with -u.");
+  }
+  return target;
 }
 
 function validateFfufCommandMode(command: string, toolData: unknown) {
@@ -579,17 +520,6 @@ function isMatchingFfufValueCommand(
 
 function escapeFfufPattern(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function stripFfufEndpointQuery(value: string) {
-  try {
-    const url = new URL(value);
-    url.search = "";
-    url.hash = "";
-    return url.toString();
-  } catch {
-    return value.split(/[?#]/, 1)[0] ?? value;
-  }
 }
 
 function shellQuoteFfufValue(value: string) {
