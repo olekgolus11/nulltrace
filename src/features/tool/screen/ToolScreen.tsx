@@ -30,6 +30,7 @@ import { ToolRunConfirmationDialog } from "../shared/components/ToolRunConfirmat
 import { useToolKeyboardNavigation } from "../shared/hooks/use-tool-keyboard-navigation";
 import { toolPanels, toolRegistry } from "../shared/registry/tool-registry";
 import { toolWorkspaceContextService } from "../shared/services/tool-workspace-context.service";
+import { getOwnedToolWorkspaceData } from "../shared/store/tool-workspace-data.helpers";
 import { useToolWorkspaceStore } from "../shared/store/tool-workspace.store";
 import { ToolData, ToolName } from "../shared/types/tool-screen.types";
 
@@ -44,13 +45,23 @@ const emptyToolData: ToolData = {
   selectedField: 0,
 };
 
-function getToolData(toolName: ToolName, targetUrl: string, toolData: unknown): ToolData {
+function getToolData(
+  toolName: ToolName,
+  activeToolName: string | null,
+  targetUrl: string,
+  toolData: unknown,
+): ToolData {
   const toolModule = toolRegistry[toolName];
   if (!toolModule) {
     return emptyToolData;
   }
 
-  return (toolData as ToolData | null) ?? toolModule.createInitialToolData(targetUrl);
+  return getOwnedToolWorkspaceData(
+    activeToolName,
+    toolName,
+    toolData,
+    () => toolModule.createInitialToolData(targetUrl),
+  );
 }
 
 export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: ToolScreenProps) {
@@ -116,9 +127,9 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
   const reportActionDraftApplyError = useToolWorkspaceStore(
     (state) => state.reportActionDraftApplyError,
   );
-  const toolData = useToolWorkspaceStore((state) =>
-    getToolData(toolName, targetUrl, state.toolData),
-  );
+  const activeToolName = useToolWorkspaceStore((state) => state.toolName);
+  const activeToolData = useToolWorkspaceStore((state) => state.toolData);
+  const toolData = getToolData(toolName, activeToolName, targetUrl, activeToolData);
   const toolActionDrafts = drafts.filter((draft) => draft.targetTool === toolName);
   const visibleToolActionDrafts = toolActionDrafts.filter(
     (draft) => draft.status !== "dismissed" && draft.status !== "superseded",
@@ -245,7 +256,7 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
       ? metadata?.origin ?? null
       : null;
     const state = useToolWorkspaceStore.getState();
-    if (!state.toolData) {
+    if (state.toolName !== toolName || !state.toolData) {
       return;
     }
     const current = state.toolData as NucleiToolData | FfufToolData;

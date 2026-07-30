@@ -1,14 +1,31 @@
 import { useToolWorkspaceStore } from "../../shared/store/tool-workspace.store";
+import { getOwnedToolWorkspaceData } from "../../shared/store/tool-workspace-data.helpers";
 import { nucleiCommandService } from "../services/nuclei-command.service";
 import { NucleiFormState, NucleiSeverityPreset, NucleiToolData } from "../types/nuclei.types";
 
-function getNucleiToolData(toolData: unknown): NucleiToolData {
-  return (toolData as NucleiToolData | null) ?? nucleiCommandService.createInitialToolData("");
+function getNucleiToolData(
+  activeToolName: string | null,
+  toolData: unknown,
+  targetUrl: string,
+): NucleiToolData {
+  return getOwnedToolWorkspaceData(
+    activeToolName,
+    "nuclei",
+    toolData,
+    () => nucleiCommandService.createInitialToolData(targetUrl),
+  );
 }
 
 export function useNucleiWorkspace() {
   const activePanel = useToolWorkspaceStore((state) => state.activePanel);
-  const toolData = useToolWorkspaceStore((state) => getNucleiToolData(state.toolData));
+  const activeToolName = useToolWorkspaceStore((state) => state.toolName);
+  const activeToolData = useToolWorkspaceStore((state) => state.toolData);
+  const targetUrl = useToolWorkspaceStore((state) => state.targetUrl);
+  const toolData = getNucleiToolData(
+    activeToolName,
+    activeToolData,
+    targetUrl,
+  );
   const commandInput = useToolWorkspaceStore((state) => state.commandInput);
   const generatedCommand = useToolWorkspaceStore((state) => state.generatedCommand);
   const commandSource = useToolWorkspaceStore((state) => state.commandSource);
@@ -25,16 +42,30 @@ export function useNucleiWorkspace() {
   const syncGeneratedCommand = useToolWorkspaceStore((state) => state.syncGeneratedCommand);
 
   const setField = (field: keyof NucleiFormState, value: string | NucleiSeverityPreset) => {
-    updateToolData((current) =>
-      nucleiCommandService.setField(getNucleiToolData(current), field, value),
-    );
+    if (useToolWorkspaceStore.getState().toolName !== "nuclei") {
+      return;
+    }
+    updateToolData((current) => {
+      const state = useToolWorkspaceStore.getState();
+      return nucleiCommandService.setField(
+        getNucleiToolData(state.toolName, current, state.targetUrl),
+        field,
+        value,
+      );
+    });
     syncGeneratedCommand();
   };
 
   const toggleAuthenticatedContext = () => {
-    updateToolData((current) =>
-      nucleiCommandService.toggleAuthenticatedContext(getNucleiToolData(current)),
-    );
+    if (useToolWorkspaceStore.getState().toolName !== "nuclei") {
+      return;
+    }
+    updateToolData((current) => {
+      const state = useToolWorkspaceStore.getState();
+      return nucleiCommandService.toggleAuthenticatedContext(
+        getNucleiToolData(state.toolName, current, state.targetUrl),
+      );
+    });
     syncGeneratedCommand();
   };
 
