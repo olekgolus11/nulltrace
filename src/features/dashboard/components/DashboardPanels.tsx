@@ -44,6 +44,7 @@ export const LeftDashboardPanel = ({
   sitemapScrollRef,
   findingsScrollRef,
   setActivePanel,
+  selectSitemapEntry,
   selectFinding,
 }: {
   dashboardState: DashboardState;
@@ -61,6 +62,7 @@ export const LeftDashboardPanel = ({
   sitemapScrollRef: React.RefObject<ScrollBoxRenderable | null>;
   findingsScrollRef: React.RefObject<ScrollBoxRenderable | null>;
   setActivePanel: (panel: DashboardPanelId) => void;
+  selectSitemapEntry: (index: number) => void;
   selectFinding: (index: number) => void;
 }) => {
   const sitemapLedgerWidth = Math.max(1, layout.sitemapScrollWidth - 1);
@@ -160,6 +162,7 @@ export const LeftDashboardPanel = ({
             selectedIndex={dashboardState.selectedSitemapItem}
             isFocused={dashboardState.activePanel === "sitemap"}
             availableWidth={sitemapLedgerWidth}
+            onSelectEntry={selectSitemapEntry}
             emptyMessage={
               sitemapEntryCount > 0 ? "No routes match current filters." : "No routes discovered."
             }
