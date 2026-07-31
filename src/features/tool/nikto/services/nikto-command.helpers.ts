@@ -59,6 +59,9 @@ export function assertNiktoCommand(command: string, profile: NiktoProfile) {
       "Nikto Custom accepts only documented guided tuning codes 2, 3, 6, and b.",
     );
   }
+  if (profile === "custom" && tuning.length === 0) {
+    throw new Error("Nikto Custom requires at least one guided tuning code.");
+  }
 }
 
 export function getNiktoTuningFromCommand(command: string): NiktoTuningCode[] {

@@ -20,7 +20,7 @@ export function getNiktoActionDraftValidationError(
   const effectiveProfile =
     profile === "standard" || profile === "custom" ? profile : currentProfile;
   if (formState?.tuning !== undefined && !getNiktoDraftTuning(formState.tuning)) {
-    return "Nikto Action Draft tuning must use guided codes 2, 3, 6, or b.";
+    return "Nikto Action Draft tuning requires at least one guided code: 2, 3, 6, or b.";
   }
   if (command) {
     try {
@@ -33,7 +33,7 @@ export function getNiktoActionDraftValidationError(
 }
 
 export function getNiktoDraftTuning(value: unknown): NiktoTuningCode[] | null {
-  if (!Array.isArray(value)) return null;
+  if (!Array.isArray(value) || value.length === 0) return null;
   const allowed = new Set<string>(niktoCustomTuning.map(({ code }) => code));
   if (!value.every((code) => typeof code === "string" && allowed.has(code))) {
     return null;

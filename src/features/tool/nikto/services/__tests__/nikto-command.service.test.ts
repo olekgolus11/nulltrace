@@ -55,6 +55,41 @@ describe("niktoCommandService", () => {
     );
   });
 
+  it("keeps at least one guided Custom tuning selection", () => {
+    const custom = niktoCommandService.setProfile(
+      niktoCommandService.createInitialToolData("https://example.com"),
+      "custom",
+    );
+    const oneSelection = {
+      ...custom,
+      form: {
+        ...custom.form,
+        tuning: ["2" as const],
+      },
+    };
+
+    const unchanged = niktoCommandService.toggleTuning(oneSelection, "2");
+
+    expect(unchanged.form.tuning).toEqual(["2"]);
+    expect(niktoCommandService.buildCommand(unchanged)).toContain("-Tuning '2'");
+  });
+
+  it("falls back to explicit safe tuning for invalid empty Custom state", () => {
+    const custom = niktoCommandService.setProfile(
+      niktoCommandService.createInitialToolData("https://example.com"),
+      "custom",
+    );
+    const invalid = {
+      ...custom,
+      form: {
+        ...custom.form,
+        tuning: [],
+      },
+    };
+
+    expect(niktoCommandService.buildCommand(invalid)).toContain("-Tuning '23b'");
+  });
+
   it("classifies denial-of-service tuning in generated and manually edited commands", () => {
     const custom = niktoCommandService.setProfile(
       niktoCommandService.createInitialToolData("https://example.com"),
@@ -199,6 +234,22 @@ describe("niktoCommandService", () => {
         }),
       ).toThrow();
     }
+  });
+
+  it("rejects manually edited Custom commands without explicit tuning", () => {
+    const custom = niktoCommandService.setProfile(
+      niktoCommandService.createInitialToolData("https://example.com"),
+      "custom",
+    );
+
+    expect(() =>
+      niktoCommandService.prepareCommandForRun({
+        command: "nikto -h https://example.com",
+        sessionId: "session-1",
+        toolRunId: "run-custom-empty-tuning",
+        toolData: custom,
+      }),
+    ).toThrow("Nikto Custom requires at least one guided tuning code");
   });
 
   it("rejects shell composition and expansion from manual commands", () => {

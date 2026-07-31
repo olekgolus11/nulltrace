@@ -67,9 +67,10 @@ class NiktoCommandService {
     if (profile === "standard") {
       command.push("-Tuning", quoteNiktoShellValue("x6"));
     } else {
-      if (tuning.length > 0) {
-        command.push("-Tuning", quoteNiktoShellValue(tuning.join("")));
-      }
+      const selectedTuning = tuning.length > 0
+        ? tuning.join("")
+        : niktoDefaultCustomTuning.join("");
+      command.push("-Tuning", quoteNiktoShellValue(selectedTuning));
       command.push(
         "-timeout",
         String(this.normalizeRequestTimeout(requestTimeoutSeconds)),
@@ -106,6 +107,9 @@ class NiktoCommandService {
   }
 
   toggleTuning(toolData: NiktoToolData, code: NiktoTuningCode): NiktoToolData {
+    if (toolData.form.tuning.length === 1 && toolData.form.tuning[0] === code) {
+      return toolData;
+    }
     const tuning = toolData.form.tuning.includes(code)
       ? toolData.form.tuning.filter((item) => item !== code)
       : [...toolData.form.tuning, code];

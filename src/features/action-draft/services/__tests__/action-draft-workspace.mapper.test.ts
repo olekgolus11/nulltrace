@@ -336,6 +336,30 @@ describe("mapActionDraftToWorkspaceState", () => {
     expect(result.application).not.toHaveProperty("disruptiveConfirmed");
   });
 
+  it("rejects an empty Nikto Custom tuning draft", () => {
+    const currentToolData = niktoCommandService.createInitialToolData("https://example.com");
+    const result = mapActionDraftToWorkspaceState({
+      draft: createDraft({
+        targetTool: "nikto",
+        payload: {
+          formState: {
+            profile: "custom",
+            tuning: [],
+          },
+        },
+      }),
+      currentToolName: "nikto",
+      currentToolData,
+      buildGeneratedCommand: (data) =>
+        niktoCommandService.buildCommand(data as typeof currentToolData),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: "Nikto Action Draft tuning requires at least one guided code: 2, 3, 6, or b.",
+    });
+  });
+
   it("rejects Nikto Action Draft mutation and evasion bypass attempts", () => {
     const currentToolData = niktoCommandService.createInitialToolData("https://example.com");
 
