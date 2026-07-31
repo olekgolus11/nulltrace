@@ -23,8 +23,8 @@ import {
 } from "./sqlmap-command.helpers";
 import {
   getSensitiveSqlmapEnvironmentValues,
+  redactSqlmapCommandForPersistence,
   redactSqlmapOutput,
-  redactSqlmapPersistentText,
 } from "./sqlmap-output-redaction.helpers";
 
 interface SqlmapCommandDependencies {
@@ -180,7 +180,10 @@ class SqlmapCommandService {
   }
 
   redactCommandForPersistence(command: string) {
-    return redactSqlmapPersistentText(command, getSensitiveSqlmapEnvironmentValues());
+    return redactSqlmapCommandForPersistence(
+      command,
+      getSensitiveSqlmapEnvironmentValues(),
+    );
   }
 }
 

@@ -42,6 +42,19 @@ export function useToolKeyboardNavigation({
   useKeyboard((key) => {
     const state = useToolWorkspaceStore.getState();
 
+    if (state.pendingRunConfirmation) {
+      if (
+        key.name === state.pendingRunConfirmation.confirmationKey ||
+        key.name === "return" ||
+        key.name === "enter"
+      ) {
+        void state.confirmPendingRun();
+      } else if (key.name === "escape" || key.name === "n") {
+        state.cancelPendingRun();
+      }
+      return;
+    }
+
     if (state.isHelpOpen) {
       if (key.name === "escape" || (key.ctrl && key.name === "h")) {
         state.closeHelp();

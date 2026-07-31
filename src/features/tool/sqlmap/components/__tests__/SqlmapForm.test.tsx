@@ -35,6 +35,7 @@ function SqlmapInteractionHarness() {
         selectedHistoryRun: null,
         isHistoricPreview: false,
         toolData,
+        pendingRunConfirmation: null,
       },
       {
         updateToolData: (updater) => setToolData((current) => updater(current) as SqlmapToolData),

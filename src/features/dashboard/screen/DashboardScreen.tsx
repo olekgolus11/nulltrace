@@ -82,6 +82,7 @@ export function DashboardScreen({
   const {
     dashboardState,
     setActivePanel,
+    selectSitemapEntry,
     selectFinding,
     sitemapScrollRef,
     findingsScrollRef,
@@ -150,6 +151,7 @@ export function DashboardScreen({
           sitemapScrollRef={sitemapScrollRef}
           findingsScrollRef={findingsScrollRef}
           setActivePanel={setActivePanel}
+          selectSitemapEntry={selectSitemapEntry}
           selectFinding={selectFinding}
         />
         <CenterDashboardPanel

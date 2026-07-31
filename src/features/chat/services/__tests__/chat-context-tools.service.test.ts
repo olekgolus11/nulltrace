@@ -849,6 +849,52 @@ describe("ActiveToolWorkspaceChatContextToolsService", () => {
 });
 
 describe("ActionDraftChatContextToolsService", () => {
+  it("creates a Custom Nikto tuning draft without confirmation authority", () => {
+    const { drafts, service } = createActionDraftService();
+
+    service.createActionDraft("opencode-1", {
+      targetTool: "nikto",
+      title: "Focused Nikto checks",
+      formStateJson: JSON.stringify({
+        profile: "custom",
+        tuning: ["2", "6"],
+        disruptiveConfirmed: true,
+        requestTimeoutSeconds: "15",
+      }),
+    });
+
+    expect(drafts.drafts[0]?.payload).toMatchObject({
+      formState: {
+        target: "http://honey.scanme.sh",
+        profile: "custom",
+        tuning: ["2", "6"],
+        disruptiveConfirmed: true,
+        requestTimeoutSeconds: "15",
+      },
+    });
+  });
+
+  it("rejects mutation and evasion in Nikto chat drafts", () => {
+    const { drafts, service } = createActionDraftService();
+
+    for (const command of [
+      "nikto -h {{TARGET}} -mutate 1",
+      "nikto -h {{TARGET}} -evasion 1",
+      "nikto -h {{TARGET}} --eva 1",
+      "nikto -h {{TARGET}} +evasion 1",
+    ]) {
+      expect(() =>
+        service.createActionDraft("opencode-1", {
+          targetTool: "nikto",
+          title: "Prohibited Nikto draft",
+          command,
+          formStateJson: JSON.stringify({ profile: "custom" }),
+        }),
+      ).toThrow();
+    }
+    expect(drafts.drafts).toHaveLength(0);
+  });
+
   it("creates an action draft for the session attached to the OpenCode conversation", () => {
     const { drafts, service } = createActionDraftService(new FakeActionDraftRepository(), true);
 

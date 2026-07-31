@@ -32,3 +32,43 @@ it("redacts Nuclei authorization values from persisted workspace context", () =>
 
   toolWorkspaceContextService.clearActiveWorkspace("redaction-session");
 });
+
+it("redacts sqlmap POST bodies from persisted workspace and chat context", () => {
+  const snapshot = toolWorkspaceContextService.saveActiveWorkspace({
+    sessionId: "sqlmap-redaction-session",
+    toolName: "sqlmap",
+    activePanel: "command",
+    commandInput:
+      "sqlmap -u 'https://example.com/login' --method POST --data 'username=alice&password=secret-password' -p username",
+    generatedCommand:
+      "sqlmap -u 'https://example.com/login' --method POST --data 'username=alice&password=secret-password' -p username",
+    commandSource: "generated",
+    executionStatus: "idle",
+    currentToolRunId: null,
+    selectedHistoryRunId: null,
+    isHistoricPreview: false,
+    toolData: {
+      selectedField: 3,
+      form: {
+        targetUrl: "https://example.com/login",
+        method: "POST",
+        parameter: "username",
+        body: "username=alice&password=secret-password",
+      },
+    },
+  });
+
+  expect(snapshot.commandInput).toContain("--data '[request body redacted]'");
+  expect(snapshot.generatedCommand).toContain("--data '[request body redacted]'");
+  expect(snapshot.toolData.form.body).toBe("[request body redacted]");
+  expect(JSON.stringify(snapshot)).not.toContain("secret-password");
+  expect(JSON.stringify(snapshot)).not.toContain("username=alice");
+
+  const persisted = toolWorkspaceContextService.getActiveWorkspace(
+    "sqlmap-redaction-session",
+  );
+  expect(JSON.stringify(persisted)).not.toContain("secret-password");
+  expect(JSON.stringify(persisted)).not.toContain("username=alice");
+
+  toolWorkspaceContextService.clearActiveWorkspace("sqlmap-redaction-session");
+});

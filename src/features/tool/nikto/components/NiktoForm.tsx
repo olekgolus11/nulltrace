@@ -1,30 +1,76 @@
 import { theme } from "../../../../app/theme/theme";
-import { niktoFieldOrder } from "../config/nikto.config";
-import { NiktoFormState } from "../types/nikto.types";
+import {
+  getNiktoFieldOrder,
+  niktoCustomTuning,
+} from "../config/nikto.config";
+import {
+  NiktoFormState,
+  NiktoProfile,
+  NiktoTuningCode,
+} from "../types/nikto.types";
 
 export function NiktoForm({
   form,
   selectedField,
   focused,
   onFieldChange,
-}: {
-  form: NiktoFormState;
-  selectedField: number;
-  focused: boolean;
-  onFieldChange: (field: keyof NiktoFormState, value: string) => void;
-}) {
-  const selectedId = niktoFieldOrder[selectedField];
-  const fields = [
-    ["target", "Target URL", "https://example.com"],
+  onProfileChange,
+  onToggleTuning,
+}: NiktoFormProps) {
+  const selectedId = getNiktoFieldOrder(form.profile)[selectedField];
+  const textFields = [
+    ["target", "Target", "https://example.com"],
+    ...(form.profile === "custom"
+      ? [
+          ["requestTimeoutSeconds", "Request timeout", "10"],
+          ["pauseSeconds", "Pause (sec)", "0"],
+        ]
+      : []),
     ["rootPath", "Root path", "/app"],
-    ["vhost", "Virtual host", "app.example.com"],
-    ["timeoutSeconds", "Timeout (sec)", "300"],
+    ["vhost", "Vhost", "app.example.com"],
+    ["timeoutSeconds", "Max run (sec)", "300"],
   ] as const;
 
   return (
     <box flexDirection="column">
-      <text fg={theme.text.dim}>Standard profile: no tuning, mutation, or evasion options.</text>
-      {fields.map(([field, label, placeholder]) => (
+      <box
+        flexDirection="column"
+        width="100%"
+        onMouseDown={() =>
+          onProfileChange(form.profile === "standard" ? "custom" : "standard")
+        }
+      >
+        <text fg={selectedId === "profile" ? theme.accent.primary : theme.text.secondary}>
+          {selectedId === "profile" ? "> Mode" : "  Mode"}:{" "}
+          {form.profile === "custom" ? "Custom" : "Standard"}
+        </text>
+        <text fg={theme.text.dim}>{"  "}press Left/Right to switch modes</text>
+      </box>
+
+      {form.profile === "custom" ? (
+        <box flexDirection="column" width="100%">
+          <box flexDirection="row" alignItems="center">
+            <box width={20}>
+              <text fg={theme.text.secondary}>{"  "}Flags</text>
+            </box>
+          </box>
+          <box flexDirection="column" paddingLeft={2}>
+            {niktoCustomTuning.map(({ code, label, isDisruptive }) => (
+              <TuningFlagRow
+                key={code}
+                code={code}
+                label={label}
+                isDisruptive={isDisruptive}
+                value={form.tuning.includes(code)}
+                selected={focused && selectedId === `tuning:${code}`}
+                onToggle={() => onToggleTuning(code)}
+              />
+            ))}
+          </box>
+        </box>
+      ) : null}
+
+      {textFields.map(([field, label, placeholder]) => (
         <box key={field} flexDirection="row" width="100%">
           <box width={20}>
             <text fg={selectedId === field ? theme.accent.primary : theme.text.secondary}>
@@ -33,7 +79,7 @@ export function NiktoForm({
           </box>
           <box flexGrow={1} minWidth={0}>
             <input
-              value={form[field]}
+              value={String(form[field])}
               width="100%"
               onChange={(value) => onFieldChange(field, value)}
               placeholder={placeholder}
@@ -49,4 +95,49 @@ export function NiktoForm({
       ))}
     </box>
   );
+}
+
+interface NiktoFormProps {
+  form: NiktoFormState;
+  selectedField: number;
+  focused: boolean;
+  onFieldChange: (field: keyof NiktoFormState, value: string) => void;
+  onProfileChange: (profile: NiktoProfile) => void;
+  onToggleTuning: (code: NiktoTuningCode) => void;
+}
+
+function TuningFlagRow({
+  code,
+  label,
+  isDisruptive,
+  value,
+  selected,
+  onToggle,
+}: TuningFlagRowProps) {
+  const color = isDisruptive
+    ? theme.accent.critical
+    : selected
+      ? theme.accent.primary
+      : theme.text.secondary;
+
+  return (
+    <box flexDirection="row" alignItems="center" onMouseDown={onToggle}>
+      <box width={2}>
+        <text fg={color}>{selected ? ">" : " "}</text>
+      </box>
+      <text fg={color}>
+        [{value ? "x" : " "}] {label} (-Tuning {code})
+        {isDisruptive ? " [CONFIRM]" : ""}
+      </text>
+    </box>
+  );
+}
+
+interface TuningFlagRowProps {
+  code: NiktoTuningCode;
+  label: string;
+  isDisruptive: boolean;
+  value: boolean;
+  selected: boolean;
+  onToggle: () => void;
 }

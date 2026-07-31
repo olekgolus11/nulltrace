@@ -21,6 +21,9 @@ import {
 import { mapNmapActionDraftFormState } from "./nmap-action-draft-workspace.mapper";
 import { mapNucleiActionDraftFormState } from "./nuclei-action-draft-workspace.mapper";
 import { mapFfufActionDraftFormState } from "./ffuf-action-draft-workspace.mapper";
+import {
+  getNiktoActionDraftValidationError,
+} from "./nikto-action-draft-validation.helpers";
 import { mapNiktoActionDraftFormState } from "./nikto-action-draft-workspace.mapper";
 import { mapSqlmapActionDraftFormState } from "./sqlmap-action-draft-workspace.mapper";
 
@@ -58,6 +61,19 @@ export function mapActionDraftToWorkspaceState({
       ? redactNucleiCommandForPersistence(rawCommand)
       : rawCommand;
   const formState = getActionDraftFormState(payload);
+  if (currentToolName === "nikto") {
+    const validationError = getNiktoActionDraftValidationError(
+      rawCommand,
+      formState,
+      (currentToolData as NiktoToolData).form.profile,
+    );
+    if (validationError) {
+      return {
+        ok: false,
+        reason: validationError,
+      };
+    }
+  }
   if (
     currentToolName === "nuclei" &&
     getActionDraftBooleanField(formState ?? {}, "useAuthenticatedContext") === true

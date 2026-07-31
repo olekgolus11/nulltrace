@@ -13,6 +13,7 @@ interface SitemapLedgerProps {
   selectedIndex: number;
   isFocused: boolean;
   availableWidth: number;
+  onSelectEntry: (index: number) => void;
   emptyMessage?: string;
 }
 
@@ -28,6 +29,8 @@ interface SitemapLedgerItemProps {
   isFocused: boolean;
   availableWidth: number;
   columns: SitemapLedgerColumns;
+  entryIndexByNodeId: ReadonlyMap<string, number>;
+  onSelectEntry: (index: number) => void;
 }
 
 interface SitemapLedgerGroupProps {
@@ -81,8 +84,11 @@ function SitemapLedgerItem({
   isFocused,
   availableWidth,
   columns,
+  entryIndexByNodeId,
+  onSelectEntry,
 }: SitemapLedgerItemProps) {
   const isEntry = Boolean(node.entryId);
+  const entryIndex = entryIndexByNodeId.get(node.id);
   const childBranchCount =
     node.children?.filter((child) => countSitemapEntries(child) > 0).length ?? 0;
   const groupEntryCount =
@@ -116,6 +122,14 @@ function SitemapLedgerItem({
             width={availableWidth}
             height={1}
             backgroundColor={isSelected ? theme.bg.elevated : undefined}
+            onMouseDown={(event) => {
+              if (event.button !== 0 || entryIndex === undefined) {
+                return;
+              }
+
+              event.stopPropagation();
+              onSelectEntry(entryIndex);
+            }}
           >
             <box width={columns.method}>
               <text fg={isFocusedSelection ? theme.accent.primary : methodColor(method)}>
@@ -170,6 +184,8 @@ function SitemapLedgerItem({
           isFocused={isFocused}
           availableWidth={availableWidth}
           columns={columns}
+          entryIndexByNodeId={entryIndexByNodeId}
+          onSelectEntry={onSelectEntry}
         />
       ))}
     </box>
@@ -205,10 +221,12 @@ export function SitemapLedger({
   selectedIndex,
   isFocused,
   availableWidth,
+  onSelectEntry,
   emptyMessage = "No routes match current filters.",
 }: SitemapLedgerProps) {
   const columns = createSitemapLedgerColumns(availableWidth);
   const entries = flattenTree(nodes).filter((node) => node.entryId);
+  const entryIndexByNodeId = new Map(entries.map((node, index) => [node.id, index]));
   const selectedId = entries[selectedIndex]?.id ?? null;
 
   if (entries.length === 0) {
@@ -227,6 +245,8 @@ export function SitemapLedger({
           isFocused={isFocused}
           availableWidth={availableWidth}
           columns={columns}
+          entryIndexByNodeId={entryIndexByNodeId}
+          onSelectEntry={onSelectEntry}
         />
       ))}
     </box>

@@ -10,7 +10,14 @@ import { FfufFieldId } from "../types/ffuf.types";
 
 export function useFfufWorkspace() {
   const activePanel = useToolWorkspaceStore((state) => state.activePanel);
-  const toolData = useToolWorkspaceStore((state) => getFfufWorkspaceToolData(state.toolData));
+  const activeToolName = useToolWorkspaceStore((state) => state.toolName);
+  const activeToolData = useToolWorkspaceStore((state) => state.toolData);
+  const targetUrl = useToolWorkspaceStore((state) => state.targetUrl);
+  const toolData = getFfufWorkspaceToolData(
+    activeToolName,
+    activeToolData,
+    targetUrl,
+  );
   const commandInput = useToolWorkspaceStore((state) => state.commandInput);
   const generatedCommand = useToolWorkspaceStore((state) => state.generatedCommand);
   const commandSource = useToolWorkspaceStore((state) => state.commandSource);
@@ -27,8 +34,12 @@ export function useFfufWorkspace() {
   const syncGeneratedCommand = useToolWorkspaceStore((state) => state.syncGeneratedCommand);
 
   const setField = (field: Exclude<FfufFieldId, "mode">, value: string | boolean) => {
+    if (useToolWorkspaceStore.getState().toolName !== "ffuf") {
+      return;
+    }
     updateToolData((current) => {
-      const toolData = getFfufWorkspaceToolData(current);
+      const state = useToolWorkspaceStore.getState();
+      const toolData = getFfufWorkspaceToolData(state.toolName, current, state.targetUrl);
       if (toolData.mode === "value_fuzzing") {
         return setFfufValueFuzzingField(
           toolData,
@@ -52,9 +63,15 @@ export function useFfufWorkspace() {
     syncGeneratedCommand();
   };
   const toggleAuthenticatedContext = () => {
-    updateToolData((current) =>
-      toggleFfufAuthenticatedContext(getFfufWorkspaceToolData(current)),
-    );
+    if (useToolWorkspaceStore.getState().toolName !== "ffuf") {
+      return;
+    }
+    updateToolData((current) => {
+      const state = useToolWorkspaceStore.getState();
+      return toggleFfufAuthenticatedContext(
+        getFfufWorkspaceToolData(state.toolName, current, state.targetUrl),
+      );
+    });
     syncGeneratedCommand();
   };
 

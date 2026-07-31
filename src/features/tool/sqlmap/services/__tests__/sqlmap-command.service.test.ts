@@ -86,10 +86,10 @@ describe("sqlmapCommandService", () => {
     try {
       expect(
         sqlmapCommandService.redactCommandForPersistence(
-          "sqlmap -u 'http://127.0.0.1/a?id=1' -p id --string '/custom/private/check environment-secret-value'",
+          "sqlmap -u 'http://127.0.0.1/a' --method POST --data 'username=alice&password=environment-secret-value' -p username --string '/custom/private/check environment-secret-value'",
         ),
       ).toBe(
-        "sqlmap -u 'http://127.0.0.1/a?id=1' -p id --string '[local path redacted] [redacted]'",
+        "sqlmap -u 'http://127.0.0.1/a' --method POST --data '[request body redacted]' -p username --string '[local path redacted] [redacted]'",
       );
     } finally {
       if (previousSecret === undefined) delete process.env.NULLTRACE_SQLMAP_TEST_SECRET;

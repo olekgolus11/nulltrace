@@ -14,6 +14,7 @@ type DashboardAction =
   | { type: "SET_ACTIVE_PANEL"; panel: DashboardPanelId }
   | { type: "MOVE_TOOL_SELECTION"; delta: -1 | 1 }
   | { type: "MOVE_SITEMAP_SELECTION"; delta: -1 | 1 }
+  | { type: "SELECT_SITEMAP_ENTRY"; index: number }
   | { type: "MOVE_FINDING_SELECTION"; delta: -1 | 1 }
   | { type: "SELECT_FINDING"; index: number }
   | { type: "OPEN_FINDING_DETAIL"; findingId: string }
@@ -91,6 +92,13 @@ function createDashboardReducer(counts: {
             0,
             Math.max(0, counts.sitemapCount - 1),
           ),
+        };
+
+      case "SELECT_SITEMAP_ENTRY":
+        return {
+          ...state,
+          activePanel: "sitemap",
+          selectedSitemapItem: clamp(action.index, 0, Math.max(0, counts.sitemapCount - 1)),
         };
 
       case "MOVE_FINDING_SELECTION":
@@ -416,6 +424,14 @@ export function useDashboardShortcuts({
     dispatch({ type: "SELECT_FINDING", index });
   };
 
+  const selectSitemapEntry = (index: number) => {
+    if (index < 0 || index >= sitemapCount) {
+      return;
+    }
+
+    dispatch({ type: "SELECT_SITEMAP_ENTRY", index });
+  };
+
   const closeAuthenticationContext = () => {
     dispatch({ type: "CLOSE_AUTHENTICATION_CONTEXT" });
   };
@@ -431,6 +447,7 @@ export function useDashboardShortcuts({
   return {
     dashboardState: state,
     setActivePanel,
+    selectSitemapEntry,
     selectFinding,
     closeAuthenticationContext,
     closePageInspection,

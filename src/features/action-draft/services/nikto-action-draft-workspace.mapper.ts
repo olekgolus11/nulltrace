@@ -1,5 +1,6 @@
 import { NiktoToolData } from "../../tool/nikto/types/nikto.types";
 import { getActionDraftStringField } from "./action-draft-payload.helpers";
+import { getNiktoDraftTuning } from "./nikto-action-draft-validation.helpers";
 
 export function mapNiktoActionDraftFormState(
   toolData: NiktoToolData,
@@ -8,7 +9,14 @@ export function mapNiktoActionDraftFormState(
   if (!formState) return { toolData, didApply: false };
   let didApply = false;
   const form = { ...toolData.form };
-  (["target", "rootPath", "vhost", "timeoutSeconds"] as const).forEach((field) => {
+  ([
+    "target",
+    "rootPath",
+    "vhost",
+    "timeoutSeconds",
+    "requestTimeoutSeconds",
+    "pauseSeconds",
+  ] as const).forEach((field) => {
     const value = getActionDraftStringField(formState, field);
     if (value !== undefined) {
       form[field] = value;
@@ -16,10 +24,18 @@ export function mapNiktoActionDraftFormState(
     }
   });
   const profile = getActionDraftStringField(formState, "profile");
-  if (profile === "standard") didApply = true;
+  if (profile === "standard" || profile === "custom") {
+    form.profile = profile;
+    didApply = true;
+  }
+  const tuning = getNiktoDraftTuning(formState.tuning);
+  if (tuning) {
+    form.tuning = tuning;
+    didApply = true;
+  }
 
   return {
-    toolData: { ...toolData, selectedField: 0, form: { ...form, profile: "standard" as const } },
+    toolData: { ...toolData, selectedField: 0, form },
     didApply,
   };
 }

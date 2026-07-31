@@ -24,6 +24,17 @@ export function redactSqlmapPersistentText(
     );
 }
 
+export function redactSqlmapCommandForPersistence(
+  command: string,
+  protectedValues: string[] = [],
+) {
+  const redactedRequestBody = command.replace(
+    /(--data(?:=|\s+))(?:"(?:\\.|[^"\\])*"|'(?:'\\''|[^'])*'|[^\s]+)/gi,
+    "$1'[request body redacted]'",
+  );
+  return redactSqlmapPersistentText(redactedRequestBody, protectedValues);
+}
+
 export function redactSqlmapOutput(
   content: string,
   controlledDirectory: string,

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { MouseButtons } from "@opentui/core/testing";
 import { testRender } from "@opentui/react/test-utils";
 import { act } from "react";
 import { SitemapNode } from "../../model/sitemap.types";
@@ -12,6 +13,32 @@ afterEach(async () => {
   });
   testSetup = null;
 });
+
+function createBranchingSitemapNodes(): SitemapNode[] {
+  return [
+    {
+      id: "api-group",
+      path: "/api",
+      status: 0,
+      children: [
+        {
+          id: "users-route",
+          entryId: "entry-users",
+          path: "/api/users",
+          method: "GET",
+          status: 200,
+        },
+        {
+          id: "orders-route",
+          entryId: "entry-orders",
+          path: "/api/orders",
+          method: "GET",
+          status: 200,
+        },
+      ],
+    },
+  ];
+}
 
 describe("SitemapLedger", () => {
   it("shows a compact long route and its complete value when selected", async () => {
@@ -36,7 +63,13 @@ describe("SitemapLedger", () => {
     ];
 
     testSetup = await testRender(
-      <SitemapLedger nodes={nodes} selectedIndex={0} isFocused availableWidth={35} />,
+      <SitemapLedger
+        nodes={nodes}
+        selectedIndex={0}
+        isFocused
+        availableWidth={35}
+        onSelectEntry={() => {}}
+      />,
       { width: 35, height: 10 },
     );
 
@@ -81,7 +114,13 @@ describe("SitemapLedger", () => {
     ];
 
     testSetup = await testRender(
-      <SitemapLedger nodes={nodes} selectedIndex={1} isFocused={false} availableWidth={35} />,
+      <SitemapLedger
+        nodes={nodes}
+        selectedIndex={1}
+        isFocused={false}
+        availableWidth={35}
+        onSelectEntry={() => {}}
+      />,
       { width: 35, height: 10 },
     );
 
@@ -90,5 +129,82 @@ describe("SitemapLedger", () => {
 
     expect(frame).toContain("\u25c6 /vulnerabilities/* \u00b7 2 routes");
     expect(frame.indexOf("/vulnerabilities/*")).toBeLessThan(frame.indexOf("/sqli"));
+  });
+
+  it("selects a nested entry using its flattened visible entry index", async () => {
+    const selectedIndexes: number[] = [];
+    const nodes = createBranchingSitemapNodes();
+
+    testSetup = await testRender(
+      <SitemapLedger
+        nodes={nodes}
+        selectedIndex={0}
+        isFocused
+        availableWidth={35}
+        onSelectEntry={(index) => selectedIndexes.push(index)}
+      />,
+      { width: 35, height: 10 },
+    );
+
+    await testSetup.renderOnce();
+    await act(async () => {
+      await testSetup!.mockMouse.click(5, 5);
+    });
+
+    expect(selectedIndexes).toEqual([1]);
+  });
+
+  it("does not select an entry when a group row is clicked", async () => {
+    const selectedIndexes: number[] = [];
+    const nodes = createBranchingSitemapNodes();
+
+    testSetup = await testRender(
+      <SitemapLedger
+        nodes={nodes}
+        selectedIndex={0}
+        isFocused
+        availableWidth={35}
+        onSelectEntry={(index) => selectedIndexes.push(index)}
+      />,
+      { width: 35, height: 10 },
+    );
+
+    await testSetup.renderOnce();
+    await act(async () => {
+      await testSetup!.mockMouse.click(5, 0);
+    });
+
+    expect(selectedIndexes).toEqual([]);
+  });
+
+  it("ignores non-primary mouse buttons on concrete entries", async () => {
+    const selectedIndexes: number[] = [];
+    const nodes: SitemapNode[] = [
+      {
+        id: "route-1",
+        entryId: "entry-1",
+        path: "/api/users",
+        method: "GET",
+        status: 200,
+      },
+    ];
+
+    testSetup = await testRender(
+      <SitemapLedger
+        nodes={nodes}
+        selectedIndex={0}
+        isFocused
+        availableWidth={35}
+        onSelectEntry={(index) => selectedIndexes.push(index)}
+      />,
+      { width: 35, height: 10 },
+    );
+
+    await testSetup.renderOnce();
+    await act(async () => {
+      await testSetup!.mockMouse.click(5, 0, MouseButtons.RIGHT);
+    });
+
+    expect(selectedIndexes).toEqual([]);
   });
 });
