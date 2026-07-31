@@ -63,8 +63,8 @@ export const scannerCatalog: Record<ScannerToolId, ScannerCatalogTool> = {
   sqlmap: {
     id: "sqlmap",
     name: "sqlmap",
-    description: null,
-    isImplemented: false,
+    description: "Targeted SQL injection verification for one endpoint and parameter.",
+    isImplemented: true,
     helpContent: null,
   },
   zap: {

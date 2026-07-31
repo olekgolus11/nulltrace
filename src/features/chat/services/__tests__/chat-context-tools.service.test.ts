@@ -1029,7 +1029,7 @@ describe("ActionDraftChatContextToolsService", () => {
     );
   });
 
-  it("creates FFUF drafts but rejects catalog-only scanner tools before persistence", () => {
+  it("creates implemented FFUF and targeted sqlmap drafts", () => {
     const { drafts, service } = createActionDraftService();
 
     expect(
@@ -1049,13 +1049,67 @@ describe("ActionDraftChatContextToolsService", () => {
         },
       },
     });
+    expect(
+      service.createActionDraft("opencode-1", {
+        targetTool: "sqlmap",
+        title: "Verify selected id parameter",
+        formStateJson: JSON.stringify({
+          targetUrl: "{{TARGET}}/products?id=1",
+          method: "GET",
+          parameter: "id",
+          level: "1",
+          risk: "1",
+          timeLimitSeconds: "120",
+        }),
+      }),
+    ).toMatchObject({
+      actionDraft: {
+        targetTool: "sqlmap",
+        status: "draft",
+      },
+    });
+    expect(drafts.drafts[1]).toMatchObject({
+      payload: {
+        formState: {
+          targetUrl: "http://honey.scanme.sh/products?id=1",
+          method: "GET",
+          parameter: "id",
+        },
+      },
+    });
+    expect(drafts.drafts).toHaveLength(2);
+  });
+
+  it("rejects excluded sqlmap capabilities before draft persistence", () => {
+    const { drafts, service } = createActionDraftService();
+
     expect(() =>
       service.createActionDraft("opencode-1", {
         targetTool: "sqlmap",
-        title: "SQL injection probe",
+        title: "Unsafe database dump",
+        command: "sqlmap -u '{{TARGET}}/products?id=1' -p id --dump-all",
       }),
-    ).toThrow("create_action_draft targetTool must be an implemented scanner tool: sqlmap");
-    expect(drafts.drafts).toHaveLength(1);
+    ).toThrow("Targeted sqlmap verification rejects option --dump-all.");
+    expect(drafts.drafts).toHaveLength(0);
+  });
+
+  it("rejects excluded sqlmap form state when a separate command is safe", () => {
+    const { drafts, service } = createActionDraftService();
+
+    expect(() =>
+      service.createActionDraft("opencode-1", {
+        targetTool: "sqlmap",
+        title: "Mixed unsafe draft",
+        command: "sqlmap -u '{{TARGET}}/products?id=1' -p id",
+        formStateJson: JSON.stringify({
+          targetUrl: "{{TARGET}}/products?id=1",
+          method: "GET",
+          parameter: "id",
+          extraSafeOptions: "--dump-all",
+        }),
+      }),
+    ).toThrow("Targeted sqlmap verification rejects option --dump-all.");
+    expect(drafts.drafts).toHaveLength(0);
   });
 
   it("creates a Parameter Discovery FFUF draft with the selected session endpoint", () => {

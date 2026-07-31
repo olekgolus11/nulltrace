@@ -8,6 +8,7 @@ import {
   createInitialFfufToolData,
 } from "../../../tool/ffuf/services/ffuf-command.helpers";
 import { niktoCommandService } from "../../../tool/nikto/services/nikto-command.service";
+import { sqlmapCommandService } from "../../../tool/sqlmap/services/sqlmap-command.service";
 
 function createDraft(overrides: Partial<ActionDraftRecord> = {}): ActionDraftRecord {
   return {
@@ -295,6 +296,96 @@ describe("mapActionDraftToWorkspaceState", () => {
         commandSource: "generated",
         message: "Applied action draft: Scan web server",
       },
+    });
+  });
+
+  it("applies a targeted sqlmap draft as editable generated state without running it", () => {
+    const currentToolData = sqlmapCommandService.createInitialToolData(
+      "http://127.0.0.1:3000/products?id=1",
+    );
+    const result = mapActionDraftToWorkspaceState({
+      draft: createDraft({
+        targetTool: "sqlmap",
+        title: "Verify product id",
+        payload: {
+          formState: {
+            targetUrl: "http://127.0.0.1:3000/products?id=1",
+            method: "GET",
+            parameter: "id",
+            body: "",
+            level: "2",
+            risk: "1",
+            timeLimitSeconds: "120",
+            extraSafeOptions: "--technique=BE --smart",
+          },
+        },
+      }),
+      currentToolName: "sqlmap",
+      currentToolData,
+      buildGeneratedCommand: (data) =>
+        sqlmapCommandService.buildCommand(data as typeof currentToolData),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      application: {
+        commandInput:
+          "sqlmap -u 'http://127.0.0.1:3000/products?id=1' --method GET -p 'id' --level 2 --risk 1 --timeout 10 --retries 1 --threads 1 --batch --disable-coloring --technique=BE --smart",
+        commandSource: "generated",
+        message: "Applied action draft: Verify product id",
+      },
+    });
+  });
+
+  it("rejects a sqlmap draft that attempts excluded capabilities", () => {
+    const currentToolData = sqlmapCommandService.createInitialToolData(
+      "http://127.0.0.1:3000/products?id=1",
+    );
+
+    expect(
+      mapActionDraftToWorkspaceState({
+        draft: createDraft({
+          targetTool: "sqlmap",
+          payload: {
+            command:
+              "sqlmap -u 'http://127.0.0.1:3000/products?id=1' -p id --dump-all",
+          },
+        }),
+        currentToolName: "sqlmap",
+        currentToolData,
+        buildGeneratedCommand: (data) =>
+          sqlmapCommandService.buildCommand(data as typeof currentToolData),
+      }),
+    ).toEqual({
+      ok: false,
+      reason: "Targeted sqlmap verification rejects option --dump-all.",
+    });
+  });
+
+  it("rejects prohibited sqlmap form state even when the draft command is safe", () => {
+    const currentToolData = sqlmapCommandService.createInitialToolData(
+      "http://127.0.0.1:3000/products?id=1",
+    );
+
+    expect(
+      mapActionDraftToWorkspaceState({
+        draft: createDraft({
+          targetTool: "sqlmap",
+          payload: {
+            command: "sqlmap -u 'http://127.0.0.1:3000/products?id=1' -p id",
+            formState: {
+              extraSafeOptions: "--dump-all",
+            },
+          },
+        }),
+        currentToolName: "sqlmap",
+        currentToolData,
+        buildGeneratedCommand: (data) =>
+          sqlmapCommandService.buildCommand(data as typeof currentToolData),
+      }),
+    ).toEqual({
+      ok: false,
+      reason: "Targeted sqlmap verification rejects option --dump-all.",
     });
   });
 });

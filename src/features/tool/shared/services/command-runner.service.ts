@@ -1,3 +1,5 @@
+import { CommandRunOptions } from "../types/command-runner.types";
+
 function emitLines(lines: string[], onLines: (lines: string[]) => void) {
   if (lines.length > 0) {
     onLines(lines);
@@ -173,6 +175,7 @@ export class CommandRunnerService {
     command: string,
     onStdoutLines: (lines: string[]) => void,
     onStderrLines: (lines: string[]) => void,
+    options: CommandRunOptions = {},
   ) {
     this.stop();
 
@@ -184,15 +187,29 @@ export class CommandRunnerService {
     });
 
     this.currentProcess = proc;
+    let didTimeOut = false;
+    const timeout = options.timeoutMs
+      ? setTimeout(() => {
+          didTimeOut = true;
+          proc.kill("SIGTERM");
+        }, options.timeoutMs)
+      : null;
 
-    await Promise.all([
-      readStream(proc.stdout, onStdoutLines),
-      readStream(proc.stderr, onStderrLines),
-    ]);
+    try {
+      await Promise.all([
+        readStream(proc.stdout, onStdoutLines),
+        readStream(proc.stderr, onStderrLines),
+      ]);
 
-    const exitCode = await proc.exited;
-    this.currentProcess = null;
-    return exitCode;
+      const exitCode = await proc.exited;
+      if (didTimeOut) {
+        throw new Error(`Command timed out after ${options.timeoutMs} ms.`);
+      }
+      return exitCode;
+    } finally {
+      if (timeout) clearTimeout(timeout);
+      this.currentProcess = null;
+    }
   }
 }
 

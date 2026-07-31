@@ -195,8 +195,12 @@ describe("ActionDraftRepository", () => {
       targetTool: "ffuf",
       status: "draft",
     });
-    expect(() => createDraft("sqlmap")).toThrow(
-      "Action drafts can only target implemented scanner tools: sqlmap",
+    expect(createDraft("sqlmap")).toMatchObject({
+      targetTool: "sqlmap",
+      status: "draft",
+    });
+    expect(() => createDraft("zap")).toThrow(
+      "Action drafts can only target implemented scanner tools: zap",
     );
     expect(() => createDraft("not-real" as ScannerToolId)).toThrow(
       "Action drafts can only target implemented scanner tools: not-real",

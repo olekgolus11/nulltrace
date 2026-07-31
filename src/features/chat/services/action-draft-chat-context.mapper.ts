@@ -23,6 +23,8 @@ export function mapActionDraftChatPayload(
   const normalizedFormState = formStateRecord
     ? args.targetTool === "ffuf"
       ? normalizeFfufDraftFormState(formStateRecord, scannerTarget)
+      : args.targetTool === "sqlmap"
+        ? normalizeSqlmapDraftFormState(formStateRecord, scannerTarget)
       : {
           ...formStateRecord,
           ...(typeof formStateRecord.target === "string"
@@ -88,6 +90,20 @@ function normalizeFfufDraftFormState(formState: Record<string, unknown>, scanner
       ? { targetPattern: replaceTargetPlaceholders(formState.targetPattern, scannerTarget) }
       : scannerTarget
         ? { targetPattern: `${scannerTarget.replace(/\/$/, "")}/FUZZ` }
+        : {}),
+  };
+}
+
+function normalizeSqlmapDraftFormState(
+  formState: Record<string, unknown>,
+  scannerTarget: string,
+) {
+  return {
+    ...formState,
+    ...(typeof formState.targetUrl === "string"
+      ? { targetUrl: replaceTargetPlaceholders(formState.targetUrl, scannerTarget) }
+      : scannerTarget
+        ? { targetUrl: scannerTarget }
         : {}),
   };
 }

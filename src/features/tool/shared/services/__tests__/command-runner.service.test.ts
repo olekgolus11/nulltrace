@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { consumeTerminalText } from "../command-runner.service";
+import { CommandRunnerService, consumeTerminalText } from "../command-runner.service";
 
 describe("consumeTerminalText", () => {
   it("treats carriage returns as overwriting the current line", () => {
@@ -89,5 +89,15 @@ describe("consumeTerminalText", () => {
       controlSequence: null,
       pendingCarriageReturn: false,
     });
+  });
+});
+
+describe("CommandRunnerService", () => {
+  it("terminates a process after the prepared total time limit", async () => {
+    const service = new CommandRunnerService();
+
+    await expect(
+      service.run("sleep 1", () => {}, () => {}, { timeoutMs: 20 }),
+    ).rejects.toThrow("Command timed out after 20 ms.");
   });
 });

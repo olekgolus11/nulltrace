@@ -5,6 +5,8 @@ import { NucleiToolData } from "../../tool/nuclei/types/nuclei.types";
 import { FfufToolData } from "../../tool/ffuf/types/ffuf.types";
 import { validateAuthenticatedFfufTarget } from "../../tool/ffuf/services/ffuf-authenticated-request.helpers";
 import { NiktoToolData } from "../../tool/nikto/types/nikto.types";
+import { validateTargetedSqlmapCommand } from "../../tool/sqlmap/services/sqlmap-command.helpers";
+import { SqlmapToolData } from "../../tool/sqlmap/types/sqlmap.types";
 import {
   getActionDraftBooleanField,
   getActionDraftCommand,
@@ -20,6 +22,7 @@ import { mapNmapActionDraftFormState } from "./nmap-action-draft-workspace.mappe
 import { mapNucleiActionDraftFormState } from "./nuclei-action-draft-workspace.mapper";
 import { mapFfufActionDraftFormState } from "./ffuf-action-draft-workspace.mapper";
 import { mapNiktoActionDraftFormState } from "./nikto-action-draft-workspace.mapper";
+import { mapSqlmapActionDraftFormState } from "./sqlmap-action-draft-workspace.mapper";
 
 export function mapActionDraftToWorkspaceState({
   draft,
@@ -39,6 +42,7 @@ export function mapActionDraftToWorkspaceState({
     draft.targetTool !== "nmap" &&
     draft.targetTool !== "nuclei" &&
     draft.targetTool !== "ffuf" &&
+    draft.targetTool !== "sqlmap" &&
     draft.targetTool !== "nikto"
   ) {
     return {
@@ -138,7 +142,9 @@ export function mapActionDraftToWorkspaceState({
               formState,
               authenticatedContext,
             )
-          : mapNiktoActionDraftFormState(currentToolData as NiktoToolData, formState);
+          : currentToolName === "sqlmap"
+            ? mapSqlmapActionDraftFormState(currentToolData as SqlmapToolData, formState)
+            : mapNiktoActionDraftFormState(currentToolData as NiktoToolData, formState);
 
   if (!command && !didApply) {
     return {
@@ -149,6 +155,17 @@ export function mapActionDraftToWorkspaceState({
 
   const generatedCommand = buildGeneratedCommand(toolData);
   const commandInput = command ?? generatedCommand;
+  if (currentToolName === "sqlmap") {
+    try {
+      if (didApply) validateTargetedSqlmapCommand(generatedCommand);
+      validateTargetedSqlmapCommand(commandInput);
+    } catch (error) {
+      return {
+        ok: false,
+        reason: error instanceof Error ? error.message : "Invalid targeted sqlmap draft.",
+      };
+    }
+  }
 
   return {
     ok: true,

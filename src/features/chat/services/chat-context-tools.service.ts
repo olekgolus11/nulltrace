@@ -15,6 +15,7 @@ import {
 } from "../model/chat-context-tool.types";
 import { ActionDraftInput, ActionDraftRecord } from "../../action-draft/model/action-draft.types";
 import { actionDraftRepository } from "../../action-draft/services/action-draft.repository.instance";
+import { mapSqlmapActionDraftFormState } from "../../action-draft/services/sqlmap-action-draft-workspace.mapper";
 import { authCheckService } from "../../authentication/services/auth-check.service";
 import {
   ScannerCatalogContext,
@@ -29,6 +30,8 @@ import {
   validateAuthenticatedFfufTarget,
   validateFfufCommandSecretInputs,
 } from "../../tool/ffuf/services/ffuf-authenticated-request.helpers";
+import { validateTargetedSqlmapCommand } from "../../tool/sqlmap/services/sqlmap-command.helpers";
+import { sqlmapCommandService } from "../../tool/sqlmap/services/sqlmap-command.service";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { findingRepository } from "../../finding/services/finding.repository";
 import {
@@ -1511,6 +1514,24 @@ export class ActionDraftChatContextToolsService {
         }
       }
     }
+    if (targetTool === "sqlmap") {
+      if (formState) {
+        const initialData = sqlmapCommandService.createInitialToolData(
+          session?.normalizedUrl ?? session?.displayUrl ?? "",
+        );
+        const mapped = mapSqlmapActionDraftFormState(initialData, formState);
+        validateTargetedSqlmapCommand(sqlmapCommandService.buildCommand(mapped.toolData));
+      }
+      if (typeof payload.command === "string") {
+        validateTargetedSqlmapCommand(payload.command);
+      } else if (!formState) {
+        const initialData = sqlmapCommandService.createInitialToolData(
+          session?.normalizedUrl ?? session?.displayUrl ?? "",
+        );
+        const mapped = mapSqlmapActionDraftFormState(initialData, formState);
+        validateTargetedSqlmapCommand(sqlmapCommandService.buildCommand(mapped.toolData));
+      }
+    }
     const draft = this.drafts.createDraft({
       sessionId: attachment.sessionId,
       opencodeConversationId: attachment.opencodeConversationId,
@@ -1533,7 +1554,7 @@ export class ActionDraftChatContextToolsService {
           targetTool: {
             type: "string",
             description:
-              "Implemented scanner tool to draft for. Supported tools include nmap, nuclei, ffuf, and nikto. Nikto drafts use profile standard with target, optional rootPath/vhost, and timeoutSeconds. FFUF drafts set mode to content_discovery with targetPattern; parameter_discovery with endpoint and requestLocation; or value_fuzzing with one exact-origin endpoint, parameterName, requestLocation, payload wordlist, matchCodes, filterCodes, rate, and timeLimit. Set useAuthenticatedContext only for explicit accepted-context opt-in; never include authentication values.",
+              "Implemented scanner tool to draft for. Supported tools include nmap, nuclei, ffuf, sqlmap, and nikto. sqlmap drafts select one targetUrl, GET or POST method, one parameter present in the URL or body, level 1-3, risk 1, timeLimitSeconds, and optional safe detection options; excluded discovery, dumping, shell, takeover, and filesystem capabilities are rejected. Nikto drafts use profile standard with target, optional rootPath/vhost, and timeoutSeconds. FFUF drafts set mode to content_discovery with targetPattern; parameter_discovery with endpoint and requestLocation; or value_fuzzing with one exact-origin endpoint, parameterName, requestLocation, payload wordlist, matchCodes, filterCodes, rate, and timeLimit. Set useAuthenticatedContext only for explicit accepted-context opt-in; never include authentication values.",
           },
           title: {
             type: "string",

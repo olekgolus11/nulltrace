@@ -255,6 +255,101 @@ describe("ToolRunnerService", () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
+  it("redacts preparation failures before persisting or displaying them", async () => {
+    const recordToolRun = mock(() => createToolRunRecord());
+    const appendToolRunLog = mock(() => {});
+    const system = mock(() => {});
+    const service = new ToolRunnerService(
+      {
+        run: mock(async () => 0),
+        stop: mock(() => {}),
+      },
+      { processCompletedRun: mock(async () => {}) },
+      {
+        recordToolRun,
+        appendToolRunLog,
+        finishToolRun: mock(() => {}),
+        cancelToolRun: mock(() => {}),
+      },
+    );
+    const redact = (content: string) =>
+      content
+        .replaceAll("/Users/alice/private/targets.txt", "[local path redacted]")
+        .replaceAll("environment-secret-value", "[redacted]");
+
+    await service.run({
+      sessionId: "session-1",
+      toolName: "sqlmap",
+      command:
+        "sqlmap -u 'http://example.test/?id=1' -p id -m /Users/alice/private/targets.txt --string environment-secret-value",
+      commandSource: "manual",
+      toolModule: createToolModule(
+        () => {
+          throw new Error(
+            "Rejected /Users/alice/private/targets.txt environment-secret-value",
+          );
+        },
+        redact,
+      ),
+      onStdoutLines: mock(() => {}),
+      onStderrLines: mock(() => {}),
+      onSystemLines: system,
+    });
+
+    expect(recordToolRun).toHaveBeenCalledWith(
+      "session-1",
+      expect.objectContaining({
+        command: expect.not.stringContaining("/Users/alice"),
+      }),
+    );
+    expect(appendToolRunLog).toHaveBeenCalledWith("run-1", [
+      "",
+      "[execution failed] Rejected [local path redacted] [redacted]",
+    ]);
+    expect(system).toHaveBeenCalledWith([
+      "",
+      "[execution failed] Rejected [local path redacted] [redacted]",
+    ]);
+  });
+
+  it("passes a prepared total time limit to the execution boundary", async () => {
+    const run = mock(async () => 0);
+    const service = new ToolRunnerService(
+      {
+        run,
+        stop: mock(() => {}),
+      },
+      { processCompletedRun: mock(async () => {}) },
+      {
+        recordToolRun: mock(() => createToolRunRecord()),
+        appendToolRunLog: mock(() => {}),
+        finishToolRun: mock(() => {}),
+        cancelToolRun: mock(() => {}),
+      },
+    );
+
+    await service.run({
+      sessionId: "session-1",
+      toolName: "sqlmap",
+      command: "sqlmap -u 'http://example.test/?id=1' -p id",
+      commandSource: "generated",
+      toolModule: createToolModule(() => ({
+        command: "sqlmap -u 'http://example.test/?id=1' -p id --batch",
+        timeoutMs: 120_000,
+      })),
+      onStdoutLines: mock(() => {}),
+      onStderrLines: mock(() => {}),
+      onSystemLines: mock(() => {}),
+    });
+
+    expect(run).toHaveBeenCalledWith(
+      "sqlmap -u 'http://example.test/?id=1' -p id --batch",
+      expect.any(Function),
+      expect.any(Function),
+      { timeoutMs: 120_000 },
+    );
+  });
+
   it("redacts authenticated output before displaying or persisting it", async () => {
     const appendToolRunLog = mock(() => {});
     const stdout = mock(() => {});

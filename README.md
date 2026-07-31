@@ -18,8 +18,8 @@ Today the app includes:
 - persisted target and session records backed by local SQLite storage
 - a dashboard layout with sitemap, chat, findings summary, and tool catalog panels
 - a reusable tool system with workspace state, command editing, persisted output logs, and keyboard navigation
-- an implemented `nmap` workflow with guided scan options and generated commands
-- catalog-only placeholders for future tools such as `nuclei`, `ffuf`, `sqlmap`, `zap`, and `nikto`
+- implemented `nmap`, `nuclei`, `ffuf`, `nikto`, and targeted `sqlmap` workflows
+- a catalog-only placeholder for `zap`
 
 Some views are still powered by mock data, several tools are not implemented yet, and the command orchestration model is still evolving. Local persistence exists for sessions, tool runs, output logs, and finding snapshots, but dashboard panels do not yet consume that stored data end to end.
 
@@ -32,7 +32,7 @@ This repository is shared primarily for research visibility and project document
 - a dashboard that combines chat, sitemap, findings summary, and tool discovery panels
 - a shared tool workspace shell with command editing, persisted run records, and output logging
 - keyboard-driven navigation patterns across the TUI
-- an `nmap` tool flow that generates and runs commands from guided form inputs
+- guided scanner flows that generate editable commands, including targeted `sqlmap` verification
 
 <img width="1470" height="912" alt="image" src="https://github.com/user-attachments/assets/de63473c-99ff-4146-9188-517b8b24c66a" />
 
@@ -51,6 +51,7 @@ This repository is shared primarily for research visibility and project document
 
 - [Bun](https://bun.sh/)
 - A terminal supported by OpenTUI
+- External scanner binaries for the tool workflows you intend to run, including `sqlmap`
 
 ### Install
 
