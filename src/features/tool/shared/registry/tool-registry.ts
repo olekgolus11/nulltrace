@@ -26,8 +26,9 @@ import {
 } from "../../ffuf/services/ffuf-authentication.helpers";
 import { FfufToolData } from "../../ffuf/types/ffuf.types";
 import { NiktoWorkspace } from "../../nikto/components/NiktoWorkspace";
+import { getNiktoFieldOrder } from "../../nikto/config/nikto.config";
 import { niktoCommandService } from "../../nikto/services/nikto-command.service";
-import { NiktoToolData } from "../../nikto/types/nikto.types";
+import { NiktoToolData, NiktoTuningCode } from "../../nikto/types/nikto.types";
 import { ffufSitemapEnrichmentService } from "../../../sitemap/services/ffuf-sitemap-enrichment.service";
 import { PanelDefinition } from "../../../../shared/model/panel-navigation.types";
 import {
@@ -299,12 +300,15 @@ export const toolRegistry: Record<string, ToolModule> = {
       niktoCommandService.createInitialToolData(targetUrl),
     buildGeneratedCommand: (toolData: unknown) =>
       niktoCommandService.buildCommand(toolData as NiktoToolData),
+    getRunConfirmation: (command: string, toolData: unknown) =>
+      niktoCommandService.getRunConfirmation(command, toolData as NiktoToolData),
     prepareCommandForRun: (options: ToolPrepareCommand) =>
       niktoCommandService.prepareCommandForRun(options),
     collectArtifacts: (options: ToolRunCompleted) =>
       niktoCommandService.collectArtifacts(options),
     handleFormKey: (key, state, api) => {
       if (state.activePanel !== "form") return false;
+      const toolData = state.toolData as NiktoToolData;
       if (key.name === "up" || key.name === "down") {
         api.updateToolData((current) =>
           niktoCommandService.moveSelection(
@@ -312,6 +316,28 @@ export const toolRegistry: Record<string, ToolModule> = {
             key.name === "up" ? -1 : 1,
           ),
         );
+        return true;
+      }
+      const selectedField = getNiktoFieldOrder(toolData.form.profile)[toolData.selectedField];
+      if (
+        selectedField === "profile" &&
+        (key.name === "left" || key.name === "right")
+      ) {
+        api.updateToolData((current) =>
+          niktoCommandService.cycleProfile(current as NiktoToolData),
+        );
+        api.syncGeneratedCommand();
+        return true;
+      }
+      if (
+        selectedField?.startsWith("tuning:") &&
+        (key.name === "return" || key.name === "enter" || key.name === "space")
+      ) {
+        const code = selectedField.slice("tuning:".length) as NiktoTuningCode;
+        api.updateToolData((current) =>
+          niktoCommandService.toggleTuning(current as NiktoToolData, code),
+        );
+        api.syncGeneratedCommand();
         return true;
       }
       return false;

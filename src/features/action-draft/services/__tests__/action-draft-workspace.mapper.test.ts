@@ -291,10 +291,98 @@ describe("mapActionDraftToWorkspaceState", () => {
       ok: true,
       application: {
         commandInput:
-          "nikto -h 'https://example.com' -root '/app' -vhost 'app.example.com' -maxtime 120s",
+          "nikto -h 'https://example.com' -Tuning 'x6' -root '/app' -vhost 'app.example.com' -maxtime 120s",
         commandSource: "generated",
         message: "Applied action draft: Scan web server",
       },
     });
+  });
+
+  it("applies disruptive Nikto Custom draft without satisfying confirmation", () => {
+    const currentToolData = niktoCommandService.createInitialToolData("https://example.com");
+    const result = mapActionDraftToWorkspaceState({
+      draft: createDraft({
+        targetTool: "nikto",
+        title: "Focused disruptive checks",
+        payload: {
+          formState: {
+            target: "https://example.com",
+            profile: "custom",
+            tuning: ["2", "6"],
+            disruptiveConfirmed: true,
+          },
+        },
+      }),
+      currentToolName: "nikto",
+      currentToolData,
+      buildGeneratedCommand: (data) =>
+        niktoCommandService.buildCommand(data as typeof currentToolData),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      application: {
+        commandInput: "nikto -h 'https://example.com' -Tuning '26' -timeout 10 -maxtime 300s",
+        commandSource: "generated",
+      },
+    });
+    if (!result.ok) throw new Error(result.reason);
+    expect(
+      niktoCommandService.getRunConfirmation(
+        result.application.commandInput,
+        result.application.toolData as typeof currentToolData,
+      ),
+    ).not.toBeNull();
+    expect(result.application).not.toHaveProperty("disruptiveConfirmed");
+  });
+
+  it("rejects an empty Nikto Custom tuning draft", () => {
+    const currentToolData = niktoCommandService.createInitialToolData("https://example.com");
+    const result = mapActionDraftToWorkspaceState({
+      draft: createDraft({
+        targetTool: "nikto",
+        payload: {
+          formState: {
+            profile: "custom",
+            tuning: [],
+          },
+        },
+      }),
+      currentToolName: "nikto",
+      currentToolData,
+      buildGeneratedCommand: (data) =>
+        niktoCommandService.buildCommand(data as typeof currentToolData),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: "Nikto Action Draft tuning requires at least one guided code: 2, 3, 6, or b.",
+    });
+  });
+
+  it("rejects Nikto Action Draft mutation and evasion bypass attempts", () => {
+    const currentToolData = niktoCommandService.createInitialToolData("https://example.com");
+
+    for (const command of [
+      "nikto -h https://example.com -mutate 1",
+      "nikto -h https://example.com -evasion 1",
+      "nikto -h https://example.com --eva 1",
+      "nikto -h https://example.com +evasion 1",
+    ]) {
+      expect(
+        mapActionDraftToWorkspaceState({
+          draft: createDraft({
+            targetTool: "nikto",
+            payload: { command, formState: { profile: "custom" } },
+          }),
+          currentToolName: "nikto",
+          currentToolData,
+          buildGeneratedCommand: (data) =>
+            niktoCommandService.buildCommand(data as typeof currentToolData),
+        }),
+      ).toMatchObject({
+        ok: false,
+      });
+    }
   });
 });
