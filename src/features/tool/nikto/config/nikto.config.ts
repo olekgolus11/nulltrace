@@ -61,6 +61,12 @@ export const niktoDefaultCustomTuning = [
   "b",
 ] as const satisfies readonly NiktoTuningCode[];
 
-export function getNiktoFieldOrder(profile: NiktoProfile) {
-  return profile === "custom" ? niktoCustomFieldOrder : niktoStandardFieldOrder;
+export function getNiktoFieldOrder(
+  profile: NiktoProfile,
+  isAuthenticationAvailable = false,
+) {
+  const fields = profile === "custom" ? niktoCustomFieldOrder : niktoStandardFieldOrder;
+  return isAuthenticationAvailable
+    ? [...fields, "useAuthenticatedContext" as const]
+    : fields;
 }

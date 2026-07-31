@@ -33,6 +33,9 @@ function collectSecretValues(context: AuthenticatedRequestContext) {
     .filter(Boolean);
   const headerEntries = splitAuthenticatedHeaderEntries(context.headers);
   const headerValues = headerEntries.map(getValueAfterSeparator(":"));
+  const decodedBasicValues = headerValues
+    .map(decodeBasicAuthenticationValue)
+    .filter(Boolean);
   const literalValues = [context.cookies.trim(), ...cookieEntries, ...headerEntries].filter(
     Boolean,
   );
@@ -40,6 +43,7 @@ function collectSecretValues(context: AuthenticatedRequestContext) {
     ...cookieEntries.map(getValueAfterSeparator("=")),
     ...headerValues,
     ...headerValues.map(stripAuthenticationScheme),
+    ...decodedBasicValues,
   ].filter(Boolean);
 
   return {
@@ -48,6 +52,16 @@ function collectSecretValues(context: AuthenticatedRequestContext) {
     ),
     shortValues: [...new Set(standaloneValues.filter((value) => !isLongSecret(value)))],
   };
+}
+
+function decodeBasicAuthenticationValue(value: string) {
+  const match = /^Basic\s+([A-Za-z0-9+/]+={0,2})$/i.exec(value);
+  if (!match) return "";
+  try {
+    return Buffer.from(match[1]!, "base64").toString("utf8");
+  } catch {
+    return "";
+  }
 }
 
 function redactJsonValueText(content: string, redactOutput: (value: string) => string) {

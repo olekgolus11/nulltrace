@@ -9,8 +9,11 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { getAppDataDirectory } from "../../../session/services/session-database";
-import { redactNucleiCommandForPersistence } from "../../nuclei/services/nuclei-command-redaction.helpers";
-import { redactSqlmapCommandForPersistence } from "../../sqlmap/services/sqlmap-output-redaction.helpers";
+import { sanitizeToolWorkspaceContext } from "./tool-workspace-context.helpers";
+import {
+  ToolWorkspaceContextInput,
+  ToolWorkspaceContextSnapshot,
+} from "./tool-workspace-context.types";
 import {
   CommandSource,
   ExecutionStatus,
@@ -18,35 +21,6 @@ import {
   ToolName,
   ToolPanel,
 } from "../types/tool-screen.types";
-
-export interface ToolWorkspaceContextSnapshot {
-  sessionId: string;
-  toolName: ToolName;
-  activePanel: ToolPanel;
-  commandInput: string;
-  generatedCommand: string;
-  commandSource: CommandSource;
-  executionStatus: ExecutionStatus;
-  currentToolRunId: string | null;
-  selectedHistoryRunId: string | null;
-  isHistoricPreview: boolean;
-  toolData: ToolData;
-  updatedAt: string;
-}
-
-interface ToolWorkspaceContextInput {
-  sessionId: string;
-  toolName: ToolName;
-  activePanel: ToolPanel;
-  commandInput: string;
-  generatedCommand: string;
-  commandSource: CommandSource;
-  executionStatus: ExecutionStatus;
-  currentToolRunId: string | null;
-  selectedHistoryRunId: string | null;
-  isHistoricPreview: boolean;
-  toolData: ToolData;
-}
 
 function getContextDirectory() {
   return join(getAppDataDirectory(), "tool-workspace-context");
@@ -122,40 +96,7 @@ function readSnapshot(value: unknown): ToolWorkspaceContextSnapshot | null {
 export const toolWorkspaceContextService = {
   saveActiveWorkspace(input: ToolWorkspaceContextInput) {
     mkdirSync(getContextDirectory(), { recursive: true });
-    let sanitizedInput = input;
-    if (input.toolName === "nuclei") {
-      sanitizedInput = {
-        ...input,
-        commandInput: redactNucleiCommandForPersistence(input.commandInput),
-        generatedCommand: redactNucleiCommandForPersistence(input.generatedCommand),
-        toolData: {
-          ...input.toolData,
-          form: {
-            ...input.toolData.form,
-            ...(typeof input.toolData.form.extraArgs === "string"
-              ? {
-                  extraArgs: redactNucleiCommandForPersistence(input.toolData.form.extraArgs),
-                }
-              : {}),
-          },
-        },
-      };
-    } else if (input.toolName === "sqlmap") {
-      sanitizedInput = {
-        ...input,
-        commandInput: redactSqlmapCommandForPersistence(input.commandInput),
-        generatedCommand: redactSqlmapCommandForPersistence(input.generatedCommand),
-        toolData: {
-          ...input.toolData,
-          form: {
-            ...input.toolData.form,
-            ...(typeof input.toolData.form.body === "string" && input.toolData.form.body
-              ? { body: "[request body redacted]" }
-              : {}),
-          },
-        },
-      };
-    }
+    const sanitizedInput = sanitizeToolWorkspaceContext(input);
     const snapshot: ToolWorkspaceContextSnapshot = {
       ...sanitizedInput,
       updatedAt: new Date().toISOString(),

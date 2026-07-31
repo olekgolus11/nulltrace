@@ -75,6 +75,19 @@ export function mapActionDraftToWorkspaceState({
     }
   }
   if (
+    currentToolName === "nikto" &&
+    getActionDraftBooleanField(formState ?? {}, "useAuthenticatedContext") === true
+  ) {
+    const target =
+      getActionDraftStringField(formState ?? {}, "target") ??
+      (currentToolData as NiktoToolData).form.target;
+    const authenticationError = getAuthenticatedDraftTargetError(
+      authenticatedContext,
+      target,
+    );
+    if (authenticationError) return authenticationError;
+  }
+  if (
     currentToolName === "nuclei" &&
     getActionDraftBooleanField(formState ?? {}, "useAuthenticatedContext") === true
   ) {
@@ -87,17 +100,11 @@ export function mapActionDraftToWorkspaceState({
     const target =
       getActionDraftStringField(formState ?? {}, "target") ??
       (currentToolData as NucleiToolData).form.target;
-    const isExactOriginAccepted = isAcceptedAuthenticatedContextForTarget(
+    const authenticationError = getAuthenticatedDraftTargetError(
       authenticatedContext,
       target,
     );
-    if (!isExactOriginAccepted) {
-      return {
-        ok: false,
-        reason:
-          "This draft requires an accepted authentication context for the target's exact origin.",
-      };
-    }
+    if (authenticationError) return authenticationError;
   }
   if (
     currentToolName === "ffuf" &&
@@ -160,7 +167,11 @@ export function mapActionDraftToWorkspaceState({
             )
           : currentToolName === "sqlmap"
             ? mapSqlmapActionDraftFormState(currentToolData as SqlmapToolData, formState)
-            : mapNiktoActionDraftFormState(currentToolData as NiktoToolData, formState);
+            : mapNiktoActionDraftFormState(
+                currentToolData as NiktoToolData,
+                formState,
+                authenticatedContext,
+              );
 
   if (!command && !didApply) {
     return {
@@ -192,5 +203,19 @@ export function mapActionDraftToWorkspaceState({
       commandSource: command && command !== generatedCommand ? "manual" : "generated",
       message: `Applied action draft: ${draft.title}`,
     },
+  };
+}
+
+function getAuthenticatedDraftTargetError(
+  authenticatedContext: ActionDraftWorkspaceMapInput["authenticatedContext"],
+  target: string,
+): ActionDraftWorkspaceApplyResult | null {
+  if (isAcceptedAuthenticatedContextForTarget(authenticatedContext ?? null, target)) {
+    return null;
+  }
+  return {
+    ok: false,
+    reason:
+      "This draft requires an accepted authentication context for the target's exact origin.",
   };
 }

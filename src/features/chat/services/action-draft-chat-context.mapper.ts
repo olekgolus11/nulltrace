@@ -1,4 +1,5 @@
 import { redactNucleiCommandForPersistence } from "../../tool/nuclei/services/nuclei-command-redaction.helpers";
+import { redactNiktoCommandForPersistence } from "../../tool/nikto/services/nikto-authenticated-command.helpers";
 import { ScannerToolId } from "../../tool/shared/registry/scanner-catalog";
 import { redactActionDraftAuthorizationValues } from "./action-draft-chat-context.helpers";
 import {
@@ -13,7 +14,12 @@ export function mapActionDraftChatPayload(
   const scannerTarget = getScannerTargetForDraft(args.targetTool, session);
   const parsedFormState = parseOptionalJson(args.formStateJson, "formStateJson");
   const formState =
-    args.targetTool === "nuclei"
+    args.targetTool === "nikto"
+      ? redactActionDraftAuthorizationValues(
+          parsedFormState,
+          redactNiktoCommandForPersistence,
+        )
+      : args.targetTool === "nuclei"
       ? redactActionDraftAuthorizationValues(parsedFormState)
       : parsedFormState;
   const formStateRecord =
@@ -55,13 +61,22 @@ export function mapActionDraftChatPayload(
               ? redactNucleiCommandForPersistence(
                   replaceTargetPlaceholders(args.command, scannerTarget),
                 )
+              : args.targetTool === "nikto"
+                ? redactNiktoCommandForPersistence(
+                    replaceTargetPlaceholders(args.command, scannerTarget),
+                  )
               : replaceTargetPlaceholders(args.command, scannerTarget),
         }
       : {}),
     ...(args.intentJson
       ? {
           intent:
-            args.targetTool === "nuclei"
+            args.targetTool === "nikto"
+              ? redactActionDraftAuthorizationValues(
+                  parseOptionalJson(args.intentJson, "intentJson"),
+                  redactNiktoCommandForPersistence,
+                )
+              : args.targetTool === "nuclei"
               ? redactActionDraftAuthorizationValues(
                   parseOptionalJson(args.intentJson, "intentJson"),
                 )

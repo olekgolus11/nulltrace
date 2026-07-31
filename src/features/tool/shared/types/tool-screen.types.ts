@@ -65,6 +65,7 @@ export interface ToolModule {
   prepareCommandForRun?: (
     options: ToolPrepareCommand,
   ) => string | ToolPreparedCommand | Promise<string | ToolPreparedCommand>;
+  resetRunScopedState?: (toolData: unknown) => unknown;
   redactCommandForPersistence?: (command: string) => string;
   collectArtifacts?: (options: ToolRunCompleted) => Promise<ToolRunArtifactInput[]>;
   processSavedArtifacts?: (options: ToolArtifactsSaved) => void;

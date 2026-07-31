@@ -1,11 +1,16 @@
 import { redactNucleiCommandForPersistence } from "../../tool/nuclei/services/nuclei-command-redaction.helpers";
 
-export function redactActionDraftAuthorizationValues(value: unknown): unknown {
+export function redactActionDraftAuthorizationValues(
+  value: unknown,
+  redactString: (content: string) => string = redactNucleiCommandForPersistence,
+): unknown {
   if (typeof value === "string") {
-    return redactNucleiCommandForPersistence(value);
+    return redactString(value);
   }
   if (Array.isArray(value)) {
-    return value.map(redactActionDraftAuthorizationValues);
+    return value.map((entry) =>
+      redactActionDraftAuthorizationValues(entry, redactString),
+    );
   }
   if (!value || typeof value !== "object") {
     return value;
@@ -15,7 +20,7 @@ export function redactActionDraftAuthorizationValues(value: unknown): unknown {
       key,
       /authorization|cookie|header|password|secret|token/i.test(key)
         ? "[redacted]"
-        : redactActionDraftAuthorizationValues(entryValue),
+        : redactActionDraftAuthorizationValues(entryValue, redactString),
     ]),
   );
 }

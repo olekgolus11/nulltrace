@@ -394,7 +394,7 @@ describe("ToolRunnerService", () => {
     expect(JSON.stringify(appendToolRunLog.mock.calls)).not.toContain("secret-cookie");
   });
 
-  it("cleans prepared state after execution failure", async () => {
+  it("cleans authenticated Nikto temporary state after execution failure", async () => {
     const cleanup = mock(() => {});
     const service = new ToolRunnerService(
       {
@@ -414,11 +414,11 @@ describe("ToolRunnerService", () => {
 
     await service.run({
       sessionId: "session-1",
-      toolName: "nuclei",
-      command: "nuclei -u https://example.com",
+      toolName: "nikto",
+      command: "nikto -h https://example.com -Tuning x6",
       commandSource: "generated",
       toolModule: createToolModule(() => ({
-        command: "nuclei -sf /tmp/secret",
+        command: "nikto -h https://example.com -config /tmp/secret",
         cleanup,
       })),
       onStdoutLines: mock(() => {}),
@@ -429,7 +429,7 @@ describe("ToolRunnerService", () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
-  it("cleans prepared state immediately when an active run is cancelled", async () => {
+  it("cleans authenticated Nikto temporary state when cancelled", async () => {
     let finishProcess: (() => void) | null = null;
     const cleanup = mock(() => {});
     const service = new ToolRunnerService(
@@ -453,11 +453,11 @@ describe("ToolRunnerService", () => {
 
     const runPromise = service.run({
       sessionId: "session-1",
-      toolName: "nuclei",
-      command: "nuclei -u https://example.com",
+      toolName: "nikto",
+      command: "nikto -h https://example.com -Tuning x6",
       commandSource: "generated",
       toolModule: createToolModule(() => ({
-        command: "nuclei -sf /tmp/secret",
+        command: "nikto -h https://example.com -config /tmp/secret",
         cleanup,
       })),
       onStdoutLines: mock(() => {}),
