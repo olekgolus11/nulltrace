@@ -16,31 +16,26 @@ export const niktoCustomTuning = [
   {
     code: "2",
     label: "Misconfiguration / defaults",
-    shortLabel: "Defaults",
     isDisruptive: false,
   },
   {
     code: "3",
     label: "Information disclosure",
-    shortLabel: "Info",
     isDisruptive: false,
   },
   {
     code: "6",
     label: "Denial of service",
-    shortLabel: "DoS! CONFIRM",
     isDisruptive: true,
   },
   {
     code: "b",
     label: "Software identification",
-    shortLabel: "Software",
     isDisruptive: false,
   },
 ] as const satisfies ReadonlyArray<{
   code: NiktoTuningCode;
   label: string;
-  shortLabel: string;
   isDisruptive: boolean;
 }>;
 

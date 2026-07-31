@@ -13,6 +13,10 @@ export function NiktoWorkspace() {
   const dimensions = useTerminalDimensions();
   const layout = useToolLayout(dimensions);
   const state = useNiktoWorkspace();
+  const formPanelHeight =
+    state.toolData.form.profile === "custom"
+      ? layout.formPanelHeight + 3
+      : layout.formPanelHeight;
   const previewLines = state.selectedHistoryRun
     ? [
         `$ ${state.selectedHistoryRun.command}`,
@@ -29,7 +33,7 @@ export function NiktoWorkspace() {
       <DashboardPanel
         title={`Nikto ${state.toolData.form.profile === "custom" ? "Custom" : "Standard"} Controls`}
         panelNumber={getPanelDisplayNumber(toolPanels, "form")}
-        height={layout.formPanelHeight}
+        height={formPanelHeight}
         focused={state.activePanel === "form"}
         onMouseDown={() => focus("form")}
       >
