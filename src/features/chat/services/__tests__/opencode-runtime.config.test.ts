@@ -26,6 +26,12 @@ describe("getOpenCodeRuntimeEnvironment", () => {
 
     expect(environment.XDG_DATA_HOME).not.toBe(getAppDataDirectory());
     expect(environment.NULLTRACE_APP_DATA_DIR).toBe(getAppDataDirectory());
+    expect(environment.NULLTRACE_CHAT_CONTEXT_TOOLS_IMPORT_PATH).toEndWith(
+      "/src/features/chat/services/chat-context-tools.service.ts",
+    );
+    expect(environment.NULLTRACE_OPENCODE_PLUGIN_IMPORT_PATH).toEndWith(
+      "/node_modules/@opencode-ai/plugin/dist/index.js",
+    );
     expect(environment.NULLTRACE_RUNTIME_ID).toBe(getAuthenticationRuntimeId());
   });
 

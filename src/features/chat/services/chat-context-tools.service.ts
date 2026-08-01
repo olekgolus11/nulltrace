@@ -1654,11 +1654,7 @@ ${entries
   }`;
 }
 
-export function createOpenCodeToolSource(
-  toolName: string,
-  serviceImportPath: string,
-  pluginImportPath: string,
-) {
+export function createOpenCodeToolSource(toolName: string) {
   const definition = chatContextToolRegistry
     .listDefinitions()
     .find((candidate) => candidate.name === toolName);
@@ -1666,8 +1662,14 @@ export function createOpenCodeToolSource(
     throw new Error(`Unknown chat context tool: ${toolName}`);
   }
 
-  return `import { tool } from ${JSON.stringify(pluginImportPath)};
-import { chatContextToolRegistry } from ${JSON.stringify(serviceImportPath)};
+  return `const serviceImportPath = process.env.NULLTRACE_CHAT_CONTEXT_TOOLS_IMPORT_PATH;
+const pluginImportPath = process.env.NULLTRACE_OPENCODE_PLUGIN_IMPORT_PATH;
+if (!serviceImportPath || !pluginImportPath) {
+  throw new Error("NullTrace chat context tool imports are not configured.");
+}
+
+const { tool } = await import(pluginImportPath);
+const { chatContextToolRegistry } = await import(serviceImportPath);
 
 export default tool({
   description: ${JSON.stringify(definition.description)},

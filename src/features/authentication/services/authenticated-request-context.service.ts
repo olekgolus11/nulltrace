@@ -4,6 +4,10 @@ import {
   AuthenticatedRequestContextInput,
 } from "../model/authenticated-request-context.types";
 import {
+  normalizeAuthenticatedRequestCookies,
+  partitionAuthenticatedRequestCookieHeaders,
+} from "./authenticated-request-context-cookie.helpers";
+import {
   createAuthenticatedRequestContextMetadata,
   splitAuthenticatedHeaderEntries,
 } from "./authenticated-request-context-redaction";
@@ -149,12 +153,18 @@ export class AuthenticatedRequestContextService {
 
   async save(sessionId: string, targetUrl: string, input: AuthenticatedRequestContextInput) {
     const origin = validateAuthenticatedRequestContextOrigin(targetUrl, input.origin);
-    const cookies = input.cookies.trim();
-    const headers = input.headers.trim();
+    const rawHeaders = input.headers.trim();
+    if (!input.cookies.trim() && !rawHeaders) {
+      throw new Error("Enter at least one cookie or request header.");
+    }
+    validateHeaders(rawHeaders);
+    const { headerDerivedCookies, remainingHeaders } =
+      partitionAuthenticatedRequestCookieHeaders(rawHeaders);
+    const cookies = normalizeAuthenticatedRequestCookies(headerDerivedCookies, [input.cookies]);
+    const headers = remainingHeaders.join(" | ");
     if (!cookies && !headers) {
       throw new Error("Enter at least one cookie or request header.");
     }
-    validateHeaders(headers);
 
     const context: StoredAuthenticatedRequestContext = {
       version: 1,

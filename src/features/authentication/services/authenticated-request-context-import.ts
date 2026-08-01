@@ -1,4 +1,5 @@
 import { AuthenticatedRequestContextInput } from "../model/authenticated-request-context.types";
+import { normalizeAuthenticatedRequestCookies } from "./authenticated-request-context-cookie.helpers";
 import { normalizeExactOrigin } from "./authenticated-request-context.service";
 
 interface ParsedHeader {
@@ -296,14 +297,6 @@ function splitImportedHeaders(headers: ParsedHeader[]) {
   return { cookies, supportedHeaders };
 }
 
-function joinCookies(values: string[]) {
-  const entries = values
-    .flatMap((value) => value.split(";"))
-    .map((value) => value.trim())
-    .filter(Boolean);
-  return [...new Set(entries)].join("; ");
-}
-
 export function listHarAuthenticationRequests(
   input: string,
   targetUrl: string,
@@ -346,10 +339,10 @@ export function parseHarAuthenticationContextImport(
   }
 
   const { cookies: headerCookies, supportedHeaders } = splitImportedHeaders(request.headers);
-  const cookies = joinCookies([
-    ...headerCookies,
-    ...request.cookies.map(({ name, value }) => `${name}=${value}`),
-  ]);
+  const cookies = normalizeAuthenticatedRequestCookies(
+    headerCookies,
+    request.cookies.map(({ name, value }) => `${name}=${value}`),
+  );
   if (!cookies && supportedHeaders.length === 0) {
     throw new Error("The selected HAR request does not contain supported authentication material.");
   }
@@ -387,7 +380,8 @@ export function parseCurlAuthenticationContextImport(
   }
 
   const headers: ParsedHeader[] = [];
-  const cookies: string[] = [];
+  const headerCookies: string[] = [];
+  const structuredCookies: string[] = [];
   let requestUrl: string | null = null;
 
   for (let index = 1; index < tokens.length; index += 1) {
@@ -402,29 +396,29 @@ export function parseCurlAuthenticationContextImport(
       continue;
     }
     if (token === "-H" || token === "--header") {
-      collectImportedHeader(tokens[index + 1] ?? "", headers, cookies);
+      collectImportedHeader(tokens[index + 1] ?? "", headers, headerCookies);
       index += 1;
       continue;
     }
     if (token.startsWith("-H") && token.length > 2) {
-      collectImportedHeader(token.slice(2), headers, cookies);
+      collectImportedHeader(token.slice(2), headers, headerCookies);
       continue;
     }
     if (token.startsWith("--header=")) {
-      collectImportedHeader(token.slice("--header=".length), headers, cookies);
+      collectImportedHeader(token.slice("--header=".length), headers, headerCookies);
       continue;
     }
     if (token === "-b" || token === "--cookie") {
-      collectCurlCookie(tokens[index + 1] ?? "", cookies);
+      collectCurlCookie(tokens[index + 1] ?? "", structuredCookies);
       index += 1;
       continue;
     }
     if (token.startsWith("-b") && token.length > 2) {
-      collectCurlCookie(token.slice(2), cookies);
+      collectCurlCookie(token.slice(2), structuredCookies);
       continue;
     }
     if (token.startsWith("--cookie=")) {
-      collectCurlCookie(token.slice("--cookie=".length), cookies);
+      collectCurlCookie(token.slice("--cookie=".length), structuredCookies);
       continue;
     }
     if (includesOption(ignoredCurlBodyOptionsWithValues, token)) {
@@ -481,14 +475,14 @@ export function parseCurlAuthenticationContextImport(
   if (!requestOrigin || !verificationUrl || requestOrigin !== targetOrigin) {
     throw new Error("The curl request must use the session target's exact origin.");
   }
-  if (cookies.length === 0 && headers.length === 0) {
+  if (headerCookies.length === 0 && structuredCookies.length === 0 && headers.length === 0) {
     throw new Error("The curl command does not contain supported authentication material.");
   }
 
   return {
     context: {
       origin: targetOrigin,
-      cookies: joinCookies(cookies),
+      cookies: normalizeAuthenticatedRequestCookies(headerCookies, structuredCookies),
       headers: headers.map(({ name, value }) => `${name}: ${value}`).join(" | "),
     },
     verificationUrl: verificationUrl.toString(),

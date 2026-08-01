@@ -9,10 +9,11 @@ import {
   AuthenticatedRequestContextService,
   normalizeExactOrigin,
 } from "./authenticated-request-context.service";
+import { createUncheckedAuthCheckMetadata } from "./authenticated-request-context-redaction";
 import {
-  createUncheckedAuthCheckMetadata,
-  splitAuthenticatedHeaderEntries,
-} from "./authenticated-request-context-redaction";
+  normalizeAuthenticatedRequestCookies,
+  partitionAuthenticatedRequestCookieHeaders,
+} from "./authenticated-request-context-cookie.helpers";
 import {
   AuthenticationContextMetadataRepository,
   authenticationContextMetadataRepository,
@@ -177,15 +178,20 @@ function createRequestHeaders(cookies: string, headerLines: string) {
   const headers = new Headers({
     accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
   });
+  const { headerDerivedCookies, remainingHeaders } =
+    partitionAuthenticatedRequestCookieHeaders(headerLines);
 
-  splitAuthenticatedHeaderEntries(headerLines).forEach((entry) => {
+  remainingHeaders.forEach((entry) => {
     const separatorIndex = entry.indexOf(":");
     if (separatorIndex > 0) {
-      headers.set(entry.slice(0, separatorIndex).trim(), entry.slice(separatorIndex + 1).trim());
+      const name = entry.slice(0, separatorIndex).trim();
+      const value = entry.slice(separatorIndex + 1).trim();
+      headers.set(name, value);
     }
   });
-  if (cookies) {
-    headers.set("cookie", cookies);
+  const normalizedCookies = normalizeAuthenticatedRequestCookies(headerDerivedCookies, [cookies]);
+  if (normalizedCookies) {
+    headers.set("cookie", normalizedCookies);
   }
 
   return headers;
