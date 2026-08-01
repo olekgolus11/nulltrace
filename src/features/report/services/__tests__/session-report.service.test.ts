@@ -340,6 +340,35 @@ describe("SessionReportService", () => {
     });
   });
 
+  it("exports operator-edited draft Markdown without rebuilding or mutating it", async () => {
+    const writer = new FakeFileWriter();
+    const service = new SessionReportService(
+      new FakeSessionRepository(),
+      new FakeFindingRepository([createFinding("confirmed", "confirmed")]),
+      writer,
+    );
+    const editedMarkdown =
+      "# Operator-edited report draft\n\nVerified summary and recommendation wording.";
+
+    const result = await service.exportMarkdownContent({
+      markdown: editedMarkdown,
+      selectedFindingIds: ["confirmed"],
+      outputPath: "/tmp/edited-session-report.md",
+    });
+
+    expect(result).toEqual({
+      status: "success",
+      outputPath: "/tmp/edited-session-report.md",
+      findingCount: 1,
+    });
+    expect(writer.writes).toEqual([
+      {
+        outputPath: "/tmp/edited-session-report.md",
+        markdown: editedMarkdown,
+      },
+    ]);
+  });
+
   it("exports a portable empty state when no Findings are selected", async () => {
     const writer = new FakeFileWriter();
     const service = new SessionReportService(
