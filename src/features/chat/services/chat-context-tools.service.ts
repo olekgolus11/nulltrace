@@ -17,6 +17,7 @@ import { ActionDraftInput, ActionDraftRecord } from "../../action-draft/model/ac
 import { actionDraftRepository } from "../../action-draft/services/action-draft.repository.instance";
 import { mapSqlmapActionDraftFormState } from "../../action-draft/services/sqlmap-action-draft-workspace.mapper";
 import { getNiktoActionDraftValidationError } from "../../action-draft/services/nikto-action-draft-validation.helpers";
+import { validateAuthenticatedSqlmapDraftOrigin } from "../../action-draft/services/sqlmap-action-draft-validation.helpers";
 import { redactNiktoCommandForPersistence } from "../../tool/nikto/services/nikto-authenticated-command.helpers";
 import { authCheckService } from "../../authentication/services/auth-check.service";
 import {
@@ -1509,6 +1510,13 @@ export class ActionDraftChatContextToolsService {
     ) {
       throw new Error("Authenticated FFUF drafts require an accepted authentication context.");
     }
+    if (
+      targetTool === "sqlmap" &&
+      formState?.useAuthenticatedContext === true &&
+      !this.authenticationAcceptance.isProceedAllowed(attachment.sessionId)
+    ) {
+      throw new Error("Authenticated sqlmap drafts require an accepted authentication context.");
+    }
     if (targetTool === "nuclei" && formState?.useAuthenticatedContext === true) {
       if (typeof payload.command === "string") {
         assertSimpleShellCommand(payload.command);
@@ -1538,16 +1546,30 @@ export class ActionDraftChatContextToolsService {
         const initialData = sqlmapCommandService.createInitialToolData(
           session?.normalizedUrl ?? session?.displayUrl ?? "",
         );
-        const mapped = mapSqlmapActionDraftFormState(initialData, formState);
-        validateTargetedSqlmapCommand(sqlmapCommandService.buildCommand(mapped.toolData));
+        const mapped = mapSqlmapActionDraftFormState(initialData, formState, null);
+        const validated = validateTargetedSqlmapCommand(
+          sqlmapCommandService.buildCommand(mapped.toolData),
+        );
+        if (formState.useAuthenticatedContext === true) {
+          validateAuthenticatedSqlmapDraftOrigin(
+            validated.targetUrl,
+            session?.normalizedUrl ?? session?.displayUrl ?? null,
+          );
+        }
       }
       if (typeof payload.command === "string") {
-        validateTargetedSqlmapCommand(payload.command);
+        const validated = validateTargetedSqlmapCommand(payload.command);
+        if (formState?.useAuthenticatedContext === true) {
+          validateAuthenticatedSqlmapDraftOrigin(
+            validated.targetUrl,
+            session?.normalizedUrl ?? session?.displayUrl ?? null,
+          );
+        }
       } else if (!formState) {
         const initialData = sqlmapCommandService.createInitialToolData(
           session?.normalizedUrl ?? session?.displayUrl ?? "",
         );
-        const mapped = mapSqlmapActionDraftFormState(initialData, formState);
+        const mapped = mapSqlmapActionDraftFormState(initialData, formState, null);
         validateTargetedSqlmapCommand(sqlmapCommandService.buildCommand(mapped.toolData));
       }
     }
@@ -1582,7 +1604,7 @@ export class ActionDraftChatContextToolsService {
           targetTool: {
             type: "string",
             description:
-              "Implemented scanner tool to draft for. Supported tools include nmap, nuclei, ffuf, sqlmap, and nikto. sqlmap drafts select one targetUrl, GET or POST method, one parameter present in the URL or body, level 1-3, risk 1, timeLimitSeconds, and optional safe detection options; excluded discovery, dumping, shell, takeover, and filesystem capabilities are rejected. Nikto drafts use profile standard or custom with target, guided tuning codes 2/3/6/b, optional rootPath/vhost, requestTimeoutSeconds, pauseSeconds, and timeoutSeconds. Tuning 6 remains subject to separate operator confirmation at run time. FFUF drafts set mode to content_discovery with targetPattern; parameter_discovery with endpoint and requestLocation; or value_fuzzing with one exact-origin endpoint, parameterName, requestLocation, payload wordlist, matchCodes, filterCodes, rate, and timeLimit. Set useAuthenticatedContext only for explicit accepted-context opt-in; never include authentication values.",
+              "Implemented scanner tool to draft for. Supported tools include nmap, nuclei, ffuf, sqlmap, and nikto. sqlmap drafts select one targetUrl, GET or POST method, one parameter present in the URL or body, level 1-3, risk 1, timeLimitSeconds, and optional safe detection options; excluded discovery, dumping, shell, takeover, and filesystem capabilities are rejected. sqlmap authentication requires explicit useAuthenticatedContext selection for the exact target origin. Nikto drafts use profile standard or custom with target, guided tuning codes 2/3/6/b, optional rootPath/vhost, requestTimeoutSeconds, pauseSeconds, and timeoutSeconds. Tuning 6 remains subject to separate operator confirmation at run time. FFUF drafts set mode to content_discovery with targetPattern; parameter_discovery with endpoint and requestLocation; or value_fuzzing with one exact-origin endpoint, parameterName, requestLocation, payload wordlist, matchCodes, filterCodes, rate, and timeLimit. Set useAuthenticatedContext only for explicit accepted-context opt-in; never include authentication values.",
           },
           title: {
             type: "string",

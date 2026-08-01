@@ -1,11 +1,22 @@
+import { AuthenticatedRequestContextMetadata } from "../../authentication/model/authenticated-request-context.types";
+import { isAcceptedAuthenticatedContextForTarget } from "../../authentication/services/authenticated-request-context-scope.helpers";
 import { SqlmapToolData } from "../../tool/sqlmap/types/sqlmap.types";
-import { getActionDraftStringField } from "./action-draft-payload.helpers";
+import {
+  getActionDraftBooleanField,
+  getActionDraftStringField,
+} from "./action-draft-payload.helpers";
 
 export function mapSqlmapActionDraftFormState(
   toolData: SqlmapToolData,
   formState: Record<string, unknown> | null,
+  authenticatedContext: AuthenticatedRequestContextMetadata | null,
 ) {
-  if (!formState) return { toolData, didApply: false };
+  if (!formState) {
+    return {
+      toolData: setActionDraftAuthentication(toolData, false, authenticatedContext),
+      didApply: false,
+    };
+  }
   const form = { ...toolData.form };
   let didApply = false;
 
@@ -34,8 +45,42 @@ export function mapSqlmapActionDraftFormState(
     didApply = true;
   }
 
+  const requestedAuthentication =
+    getActionDraftBooleanField(formState, "useAuthenticatedContext") ?? false;
+  const mappedToolData = setActionDraftAuthentication(
+    { ...toolData, selectedField: 0, form },
+    requestedAuthentication,
+    authenticatedContext,
+  );
+
   return {
-    toolData: { ...toolData, selectedField: 0, form },
-    didApply,
+    toolData: mappedToolData,
+    didApply:
+      didApply ||
+      getActionDraftBooleanField(formState, "useAuthenticatedContext") !== undefined,
+  };
+}
+
+function setActionDraftAuthentication(
+  toolData: SqlmapToolData,
+  useAuthenticatedContext: boolean,
+  authenticatedContext: AuthenticatedRequestContextMetadata | null,
+): SqlmapToolData {
+  const isAvailable = isAcceptedAuthenticatedContextForTarget(
+    authenticatedContext,
+    toolData.form.targetUrl,
+  );
+  const isEnabled = useAuthenticatedContext && isAvailable;
+  return {
+    ...toolData,
+    form: {
+      ...toolData.form,
+      useAuthenticatedContext: isEnabled,
+    },
+    authentication: {
+      strategy: isEnabled ? "session" : "none",
+      isAvailable,
+      origin: isAvailable ? authenticatedContext?.origin ?? null : null,
+    },
   };
 }

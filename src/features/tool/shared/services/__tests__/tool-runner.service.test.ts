@@ -255,6 +255,39 @@ describe("ToolRunnerService", () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
+  it("cleans an authenticated sqlmap raw request after success", async () => {
+    const cleanup = mock(() => {});
+    const service = new ToolRunnerService(
+      {
+        run: mock(async () => 0),
+        stop: mock(() => {}),
+      },
+      { processCompletedRun: mock(async () => {}) },
+      {
+        recordToolRun: mock(() => createToolRunRecord()),
+        appendToolRunLog: mock(() => {}),
+        finishToolRun: mock(() => {}),
+        cancelToolRun: mock(() => {}),
+      },
+    );
+
+    await service.run({
+      sessionId: "session-1",
+      toolName: "sqlmap",
+      command: "sqlmap -u https://example.com/items?id=1 -p id",
+      commandSource: "generated",
+      toolModule: createToolModule(() => ({
+        command: "sqlmap -r /tmp/secret -p id",
+        cleanup,
+      })),
+      onStdoutLines: mock(() => {}),
+      onStderrLines: mock(() => {}),
+      onSystemLines: mock(() => {}),
+    });
+
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
   it("announces a prepared authenticated run without exposing credentials", async () => {
     const appendToolRunLog = mock(() => {});
     const system = mock(() => {});
@@ -431,84 +464,116 @@ describe("ToolRunnerService", () => {
     expect(JSON.stringify(appendToolRunLog.mock.calls)).not.toContain("secret-cookie");
   });
 
-  it("cleans authenticated Nikto temporary state after execution failure", async () => {
-    const cleanup = mock(() => {});
-    const service = new ToolRunnerService(
-      {
-        run: mock(async () => {
-          throw new Error("spawn failed");
-        }),
-        stop: mock(() => {}),
-      },
-      { processCompletedRun: mock(async () => {}) },
-      {
-        recordToolRun: mock(() => createToolRunRecord()),
-        appendToolRunLog: mock(() => {}),
-        finishToolRun: mock(() => {}),
-        cancelToolRun: mock(() => {}),
-      },
-    );
+  it.each([
+    [
+      "Nikto",
+      "nikto",
+      "nikto -h https://example.com -Tuning x6",
+      "nikto -h https://example.com -config /tmp/secret",
+    ],
+    [
+      "sqlmap",
+      "sqlmap",
+      "sqlmap -u https://example.com/items?id=1 -p id",
+      "sqlmap -r /tmp/secret -p id",
+    ],
+  ] as const)(
+    "cleans authenticated %s temporary state after execution failure",
+    async (_name, toolName, command, preparedCommand) => {
+      const cleanup = mock(() => {});
+      const service = new ToolRunnerService(
+        {
+          run: mock(async () => {
+            throw new Error("spawn failed");
+          }),
+          stop: mock(() => {}),
+        },
+        { processCompletedRun: mock(async () => {}) },
+        {
+          recordToolRun: mock(() => createToolRunRecord()),
+          appendToolRunLog: mock(() => {}),
+          finishToolRun: mock(() => {}),
+          cancelToolRun: mock(() => {}),
+        },
+      );
 
-    await service.run({
-      sessionId: "session-1",
-      toolName: "nikto",
-      command: "nikto -h https://example.com -Tuning x6",
-      commandSource: "generated",
-      toolModule: createToolModule(() => ({
-        command: "nikto -h https://example.com -config /tmp/secret",
-        cleanup,
-      })),
-      onStdoutLines: mock(() => {}),
-      onStderrLines: mock(() => {}),
-      onSystemLines: mock(() => {}),
-    });
+      await service.run({
+        sessionId: "session-1",
+        toolName,
+        command,
+        commandSource: "generated",
+        toolModule: createToolModule(() => ({
+          command: preparedCommand,
+          cleanup,
+        })),
+        onStdoutLines: mock(() => {}),
+        onStderrLines: mock(() => {}),
+        onSystemLines: mock(() => {}),
+      });
 
-    expect(cleanup).toHaveBeenCalledTimes(1);
-  });
+      expect(cleanup).toHaveBeenCalledTimes(1);
+    },
+  );
 
-  it("cleans authenticated Nikto temporary state when cancelled", async () => {
-    let finishProcess: (() => void) | null = null;
-    const cleanup = mock(() => {});
-    const service = new ToolRunnerService(
-      {
-        run: mock(
-          () =>
-            new Promise<number>((resolve) => {
-              finishProcess = () => resolve(130);
-            }),
-        ),
-        stop: mock(() => {}),
-      },
-      { processCompletedRun: mock(async () => {}) },
-      {
-        recordToolRun: mock(() => createToolRunRecord()),
-        appendToolRunLog: mock(() => {}),
-        finishToolRun: mock(() => {}),
-        cancelToolRun: mock(() => {}),
-      },
-    );
+  it.each([
+    [
+      "Nikto",
+      "nikto",
+      "nikto -h https://example.com -Tuning x6",
+      "nikto -h https://example.com -config /tmp/secret",
+    ],
+    [
+      "sqlmap",
+      "sqlmap",
+      "sqlmap -u https://example.com/items?id=1 -p id",
+      "sqlmap -r /tmp/secret -p id",
+    ],
+  ] as const)(
+    "cleans authenticated %s temporary state when cancelled",
+    async (_name, toolName, command, preparedCommand) => {
+      let finishProcess: (() => void) | null = null;
+      const cleanup = mock(() => {});
+      const service = new ToolRunnerService(
+        {
+          run: mock(
+            () =>
+              new Promise<number>((resolve) => {
+                finishProcess = () => resolve(130);
+              }),
+          ),
+          stop: mock(() => {}),
+        },
+        { processCompletedRun: mock(async () => {}) },
+        {
+          recordToolRun: mock(() => createToolRunRecord()),
+          appendToolRunLog: mock(() => {}),
+          finishToolRun: mock(() => {}),
+          cancelToolRun: mock(() => {}),
+        },
+      );
 
-    const runPromise = service.run({
-      sessionId: "session-1",
-      toolName: "nikto",
-      command: "nikto -h https://example.com -Tuning x6",
-      commandSource: "generated",
-      toolModule: createToolModule(() => ({
-        command: "nikto -h https://example.com -config /tmp/secret",
-        cleanup,
-      })),
-      onStdoutLines: mock(() => {}),
-      onStderrLines: mock(() => {}),
-      onSystemLines: mock(() => {}),
-    });
-    await Promise.resolve();
+      const runPromise = service.run({
+        sessionId: "session-1",
+        toolName,
+        command,
+        commandSource: "generated",
+        toolModule: createToolModule(() => ({
+          command: preparedCommand,
+          cleanup,
+        })),
+        onStdoutLines: mock(() => {}),
+        onStderrLines: mock(() => {}),
+        onSystemLines: mock(() => {}),
+      });
+      await Promise.resolve();
 
-    service.stop();
-    expect(cleanup).toHaveBeenCalledTimes(1);
-    (finishProcess as (() => void) | null)?.();
-    await runPromise;
-    expect(cleanup).toHaveBeenCalledTimes(1);
-  });
+      service.stop();
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      (finishProcess as (() => void) | null)?.();
+      await runPromise;
+      expect(cleanup).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("finalizes authenticated artifacts after a cancelled process stops", async () => {
     let finishProcess: (() => void) | null = null;

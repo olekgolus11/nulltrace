@@ -1,3 +1,8 @@
+import {
+  SqlmapValidatedCommand,
+  SqlmapValidatedCommandOption,
+} from "../types/sqlmap.types";
+
 const valueOptions = new Set([
   "-u",
   "--url",
@@ -26,25 +31,15 @@ const switchOptions = new Set([
   "--text-only",
   "--titles",
   "--parse-errors",
+  "--ignore-redirects",
+  "--ignore-stdin",
 ]);
-
-interface ParsedOption {
-  name: string;
-  value: string | null;
-}
-
-interface ValidatedSqlmapCommand {
-  options: ParsedOption[];
-  method: "GET" | "POST";
-  parameter: string;
-  targetUrl: string;
-}
 
 export function quoteSqlmapShellValue(value: string) {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
-export function validateTargetedSqlmapCommand(command: string): ValidatedSqlmapCommand {
+export function validateTargetedSqlmapCommand(command: string): SqlmapValidatedCommand {
   const tokens = parseSqlmapShellWords(command);
   if (tokens[0]?.toLowerCase() !== "sqlmap") {
     throw new Error("sqlmap workspace only runs sqlmap commands.");
@@ -129,6 +124,7 @@ export function validateTargetedSqlmapCommand(command: string): ValidatedSqlmapC
     method,
     parameter,
     targetUrl: parsedTarget.toString(),
+    body: dataOption?.value ?? null,
   };
 }
 
@@ -139,7 +135,7 @@ export function hasSqlmapOption(command: string, optionName: string) {
 }
 
 function parseOptions(tokens: string[]) {
-  const options: ParsedOption[] = [];
+  const options: SqlmapValidatedCommandOption[] = [];
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index]!;
     if (!token.startsWith("-")) {
@@ -182,12 +178,12 @@ function parseOptions(tokens: string[]) {
   return options;
 }
 
-function getSingleOption(options: ParsedOption[], name: string) {
+function getSingleOption(options: SqlmapValidatedCommandOption[], name: string) {
   return options.find((option) => option.name === name);
 }
 
 function assertIntegerBound(
-  options: ParsedOption[],
+  options: SqlmapValidatedCommandOption[],
   optionName: string,
   minimum: number,
   maximum: number,

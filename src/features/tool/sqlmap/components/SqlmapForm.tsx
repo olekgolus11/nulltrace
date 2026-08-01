@@ -1,25 +1,27 @@
 import { theme } from "../../../../app/theme/theme";
-import { sqlmapFieldOrder } from "../config/sqlmap.config";
-import { SqlmapFormState } from "../types/sqlmap.types";
+import { getSqlmapFieldOrder } from "../config/sqlmap.config";
+import {
+  SqlmapAuthenticationState,
+  SqlmapFormState,
+} from "../types/sqlmap.types";
 
 export function SqlmapForm({
   form,
+  authentication,
   selectedField,
   focused,
   onFieldChange,
 }: {
   form: SqlmapFormState;
+  authentication: SqlmapAuthenticationState;
   selectedField: number;
   focused: boolean;
   onFieldChange: (field: keyof SqlmapFormState, value: string) => void;
 }) {
-  const selectedId = sqlmapFieldOrder[selectedField];
-  const inputFields = [
-    ["targetUrl", "Target URL", "http://127.0.0.1/item?id=1"],
+  const selectedId = getSqlmapFieldOrder(authentication.isAvailable)[selectedField];
+  const requestInputFields = [
     ["parameter", "Parameter", "id"],
     ["body", "Body (POST)", "id=1&category=2"],
-    ["timeLimitSeconds", "Time limit (sec)", "300"],
-    ["extraSafeOptions", "Extra safe options", "--technique=BE --smart"],
   ] as const;
 
   return (
@@ -28,9 +30,9 @@ export function SqlmapForm({
         Targeted verification: one endpoint + one parameter. Risk locked to 1.
       </text>
       <InputRow
-        field={inputFields[0][0]}
-        label={inputFields[0][1]}
-        placeholder={inputFields[0][2]}
+        field="targetUrl"
+        label="Target URL"
+        placeholder="http://127.0.0.1/item?id=1"
         value={form.targetUrl}
         selected={selectedId === "targetUrl"}
         focused={focused}
@@ -41,7 +43,7 @@ export function SqlmapForm({
         value={`${form.method === "GET" ? "[GET]  POST" : "GET  [POST]"}  use left/right`}
         selected={selectedId === "method"}
       />
-      {inputFields.slice(1, 3).map(([field, label, placeholder]) => (
+      {requestInputFields.map(([field, label, placeholder]) => (
         <InputRow
           key={field}
           field={field}
@@ -59,18 +61,35 @@ export function SqlmapForm({
         selected={selectedId === "level"}
       />
       <ChoiceRow label="Risk" value="[1]  locked" selected={selectedId === "risk"} />
-      {inputFields.slice(3).map(([field, label, placeholder]) => (
-        <InputRow
-          key={field}
-          field={field}
-          label={label}
-          placeholder={placeholder}
-          value={form[field]}
-          selected={selectedId === field}
-          focused={focused}
-          onFieldChange={onFieldChange}
+      <InputRow
+        field="timeLimitSeconds"
+        label="Time limit (sec)"
+        placeholder="300"
+        value={form.timeLimitSeconds}
+        selected={selectedId === "timeLimitSeconds"}
+        focused={focused}
+        onFieldChange={onFieldChange}
+      />
+      <InputRow
+        field="extraSafeOptions"
+        label="Extra safe options"
+        placeholder="--technique=BE --smart"
+        value={form.extraSafeOptions}
+        selected={selectedId === "extraSafeOptions"}
+        focused={focused}
+        onFieldChange={onFieldChange}
+      />
+      {authentication.isAvailable ? (
+        <ChoiceRow
+          label="Session auth"
+          value={
+            form.useAuthenticatedContext
+              ? `[enabled]  disabled  raw request added at run  ${authentication.origin ?? ""}`
+              : `enabled  [disabled]  use left/right  ${authentication.origin ?? ""}`
+          }
+          selected={selectedId === "useAuthenticatedContext"}
         />
-      ))}
+      ) : null}
     </box>
   );
 }

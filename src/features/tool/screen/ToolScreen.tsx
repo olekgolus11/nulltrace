@@ -24,6 +24,9 @@ import { setFfufAuthenticationAvailability } from "../ffuf/services/ffuf-authent
 import { FfufToolData } from "../ffuf/types/ffuf.types";
 import { niktoCommandService } from "../nikto/services/nikto-command.service";
 import { NiktoToolData } from "../nikto/types/nikto.types";
+import { sqlmapCommandService } from "../sqlmap/services/sqlmap-command.service";
+import { setSqlmapAuthenticationAvailability } from "../sqlmap/services/sqlmap-authentication.helpers";
+import { SqlmapToolData } from "../sqlmap/types/sqlmap.types";
 import { useToolLayout } from "../hooks/use-tool-layout";
 import { ActiveToolWorkspace } from "../shared/components/ActiveToolWorkspace";
 import { ToolHelpDialog } from "../shared/components/ToolHelpDialog";
@@ -250,7 +253,12 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
   }, [initializeWorkspace, sessionId, stopCommand, targetUrl, toolName]);
 
   useEffect(() => {
-    if (toolName !== "nuclei" && toolName !== "ffuf" && toolName !== "nikto") {
+    if (
+      toolName !== "nuclei" &&
+      toolName !== "ffuf" &&
+      toolName !== "nikto" &&
+      toolName !== "sqlmap"
+    ) {
       return;
     }
     const metadata = authenticationContext.metadata;
@@ -261,7 +269,11 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
     if (state.toolName !== toolName || !state.toolData) {
       return;
     }
-    const current = state.toolData as NucleiToolData | FfufToolData | NiktoToolData;
+    const current = state.toolData as
+      | NucleiToolData
+      | FfufToolData
+      | NiktoToolData
+      | SqlmapToolData;
     if (
       current.authentication.origin === acceptedOrigin &&
       current.authentication.isAvailable === Boolean(acceptedOrigin)
@@ -278,6 +290,12 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
       if (toolName === "nikto") {
         return niktoCommandService.setAuthenticationAvailability(
           toolData as NiktoToolData,
+          acceptedOrigin,
+        );
+      }
+      if (toolName === "sqlmap") {
+        return setSqlmapAuthenticationAvailability(
+          toolData as SqlmapToolData,
           acceptedOrigin,
         );
       }

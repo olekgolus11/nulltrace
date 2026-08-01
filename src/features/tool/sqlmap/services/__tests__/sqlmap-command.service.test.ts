@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { existsSync } from "node:fs";
 import { sqlmapCommandService } from "../sqlmap-command.service";
+import {
+  setSqlmapAuthenticationAvailability,
+  toggleSqlmapAuthenticatedContext,
+} from "../sqlmap-authentication.helpers";
 
 const preparedCleanups: Array<() => void> = [];
 
@@ -61,11 +65,13 @@ describe("sqlmapCommandService", () => {
     });
 
     expect(typeof prepared).toBe("object");
+    if (prepared instanceof Promise) throw new Error("Expected public preparation metadata.");
     if (typeof prepared === "string") throw new Error("Expected prepared command metadata.");
     preparedCleanups.push(prepared.cleanup ?? (() => {}));
     expect(prepared.command).toContain("--output-dir '");
     expect(prepared.command).toContain("--disable-coloring");
     expect(prepared.command).toContain("--technique BEU");
+    expect(prepared.command).toContain("--ignore-stdin");
     expect(prepared.timeoutMs).toBe(120_000);
     const outputDirectory = prepared.command.match(/--output-dir '([^']+)'/)?.[1];
     expect(outputDirectory).toBeString();
@@ -78,6 +84,26 @@ describe("sqlmapCommandService", () => {
         "Traceback /Users/alice/tools/sqlmap.py SECRET_TOKEN=do-not-store",
       ),
     ).toBe("Traceback [local path redacted] SECRET_TOKEN=[redacted]");
+  });
+
+  it("requires a persisted run before execution-only authentication injection", () => {
+    let toolData = sqlmapCommandService.createInitialToolData(
+      "https://example.com/products?id=1",
+    );
+    toolData = setSqlmapAuthenticationAvailability(
+      toolData,
+      "https://example.com",
+    );
+    toolData = toggleSqlmapAuthenticatedContext(toolData);
+
+    expect(() =>
+      sqlmapCommandService.prepareCommandForRun({
+        command: sqlmapCommandService.buildCommand(toolData),
+        sessionId: null,
+        toolRunId: null,
+        toolData,
+      }),
+    ).toThrow("active persisted tool run");
   });
 
   it("redacts local paths and sensitive environment values from persisted command text", () => {
@@ -103,6 +129,9 @@ describe("sqlmapCommandService", () => {
     ["bulk targets", "-m targets.txt"],
     ["direct database target", "-d mysql://user:pass@localhost/db"],
     ["request files", "-r request.txt"],
+    ["manual cookies", "--cookie=session=secret"],
+    ["manual headers", "--headers='Authorization: Bearer secret'"],
+    ["manual authentication credentials", "--auth-cred=user:pass"],
     ["automatic dumping", "--dump-all"],
     ["database enumeration", "--dbs"],
     ["SQL shell", "--sql-shell"],

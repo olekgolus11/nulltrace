@@ -1,9 +1,12 @@
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { getAppDataDirectory } from "../../../session/services/session-database";
-import { ToolPrepareCommand } from "../../shared/types/tool-screen.types";
 import {
-  sqlmapFieldOrder,
+  ToolPrepareCommand,
+  ToolPreparedCommand,
+} from "../../shared/types/tool-screen.types";
+import {
+  getSqlmapFieldOrder,
   sqlmapDefaultTimeLimitSeconds,
   sqlmapMaximumTimeLimitSeconds,
   sqlmapMinimumTimeLimitSeconds,
@@ -26,11 +29,16 @@ import {
   redactSqlmapCommandForPersistence,
   redactSqlmapOutput,
 } from "./sqlmap-output-redaction.helpers";
+import {
+  setSqlmapAuthenticationAvailability,
+} from "./sqlmap-authentication.helpers";
+import { sqlmapAuthenticatedRunService } from "./sqlmap-authenticated-run.service";
 
 interface SqlmapCommandDependencies {
   getAppDataDirectory: typeof getAppDataDirectory;
   createDirectory: typeof mkdirSync;
   removeDirectory: typeof rmSync;
+  authenticatedRunService: Pick<typeof sqlmapAuthenticatedRunService, "prepare">;
 }
 
 class SqlmapCommandService {
@@ -39,12 +47,18 @@ class SqlmapCommandService {
       getAppDataDirectory,
       createDirectory: mkdirSync,
       removeDirectory: rmSync,
+      authenticatedRunService: sqlmapAuthenticatedRunService,
     },
   ) {}
 
   createInitialToolData(targetUrl: string): SqlmapToolData {
     return {
       selectedField: 0,
+      authentication: {
+        strategy: "none",
+        isAvailable: false,
+        origin: null,
+      },
       form: {
         targetUrl,
         method: "GET",
@@ -53,6 +67,7 @@ class SqlmapCommandService {
         level: "1",
         risk: "1",
         timeLimitSeconds: String(sqlmapDefaultTimeLimitSeconds),
+        useAuthenticatedContext: false,
         extraSafeOptions: "",
       },
     };
@@ -98,13 +113,19 @@ class SqlmapCommandService {
     value: string,
   ): SqlmapToolData {
     const nextValue = field === "method" ? normalizeSqlmapMethod(value) : value;
-    return {
+    const nextToolData = {
       ...toolData,
       form: {
         ...toolData.form,
         [field]: nextValue,
       },
     };
+    return field === "targetUrl"
+      ? setSqlmapAuthenticationAvailability(
+          nextToolData,
+          toolData.authentication.origin,
+        )
+      : nextToolData;
   }
 
   moveSelection(toolData: SqlmapToolData, delta: -1 | 1): SqlmapToolData {
@@ -112,7 +133,10 @@ class SqlmapCommandService {
       ...toolData,
       selectedField: Math.max(
         0,
-        Math.min(toolData.selectedField + delta, sqlmapFieldOrder.length - 1),
+        Math.min(
+          toolData.selectedField + delta,
+          getSqlmapFieldOrder(toolData.authentication.isAvailable).length - 1,
+        ),
       ),
     };
   }
@@ -131,7 +155,12 @@ class SqlmapCommandService {
     return this.setField(toolData, "level", String(next));
   }
 
-  prepareCommandForRun({ command, sessionId, toolRunId, toolData }: ToolPrepareCommand) {
+  prepareCommandForRun({
+    command,
+    sessionId,
+    toolRunId,
+    toolData,
+  }: ToolPrepareCommand): ToolPreparedCommand | Promise<ToolPreparedCommand> {
     validateTargetedSqlmapCommand(command);
     let preparedCommand = command.trim();
     if (!hasSqlmapOption(preparedCommand, "--batch")) preparedCommand += " --batch";
@@ -141,6 +170,9 @@ class SqlmapCommandService {
     if (!hasSqlmapOption(preparedCommand, "--technique")) {
       preparedCommand += " --technique BEU";
     }
+    if (!hasSqlmapOption(preparedCommand, "--ignore-stdin")) {
+      preparedCommand += " --ignore-stdin";
+    }
     const timeoutMs =
       normalizeSqlmapTimeLimit(
         (toolData as SqlmapToolData | undefined)?.form.timeLimitSeconds,
@@ -148,7 +180,15 @@ class SqlmapCommandService {
         sqlmapDefaultTimeLimitSeconds,
         sqlmapMaximumTimeLimitSeconds,
       ) * 1000;
+    const useAuthenticatedContext = Boolean(
+      (toolData as SqlmapToolData | undefined)?.form.useAuthenticatedContext,
+    );
     if (!sessionId || !toolRunId) {
+      if (useAuthenticatedContext) {
+        throw new Error(
+          "Authenticated sqlmap runs require an active persisted tool run.",
+        );
+      }
       return {
         command: preparedCommand,
         timeoutMs,
@@ -165,18 +205,71 @@ class SqlmapCommandService {
       "sqlmap",
     );
     this.dependencies.createDirectory(outputDirectory, { recursive: true });
-    preparedCommand += ` --output-dir ${quoteSqlmapShellValue(outputDirectory)}`;
     const protectedEnvironmentValues = getSensitiveSqlmapEnvironmentValues();
+    const publicRedactor = (content: string) =>
+      redactSqlmapOutput(content, outputDirectory, protectedEnvironmentValues);
+    if (useAuthenticatedContext) {
+      return this.prepareAuthenticatedCommand({
+        sessionId,
+        preparedCommand,
+        outputDirectory,
+        timeoutMs,
+        publicRedactor,
+      });
+    }
+
+    preparedCommand += ` --output-dir ${quoteSqlmapShellValue(outputDirectory)}`;
 
     return {
       command: preparedCommand,
       timeoutMs,
-      redactOutput: (content: string) =>
-        redactSqlmapOutput(content, outputDirectory, protectedEnvironmentValues),
+      redactOutput: publicRedactor,
       cleanup: () => {
         this.dependencies.removeDirectory(outputDirectory, { recursive: true, force: true });
       },
     };
+  }
+
+  private async prepareAuthenticatedCommand({
+    sessionId,
+    preparedCommand,
+    outputDirectory,
+    timeoutMs,
+    publicRedactor,
+  }: {
+    sessionId: string;
+    preparedCommand: string;
+    outputDirectory: string;
+    timeoutMs: number;
+    publicRedactor: (content: string) => string;
+  }) {
+    try {
+      const authenticated = await this.dependencies.authenticatedRunService.prepare({
+        sessionId,
+        command: preparedCommand,
+      });
+      return {
+        command:
+          `${authenticated.command} --output-dir ${quoteSqlmapShellValue(outputDirectory)}`,
+        timeoutMs,
+        redactOutput: (content: string) =>
+          authenticated.redactOutput(publicRedactor(content)),
+        redactArtifact: authenticated.redactArtifact,
+        cleanup: () => {
+          try {
+            authenticated.cleanup();
+          } finally {
+            this.dependencies.removeDirectory(outputDirectory, {
+              recursive: true,
+              force: true,
+            });
+          }
+        },
+      };
+    } catch (error) {
+      this.dependencies.removeDirectory(outputDirectory, { recursive: true, force: true });
+      throw error;
+    }
   }
 
   redactCommandForPersistence(command: string) {

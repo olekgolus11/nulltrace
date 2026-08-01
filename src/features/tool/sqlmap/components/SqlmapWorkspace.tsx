@@ -35,6 +35,7 @@ export function SqlmapWorkspace() {
       >
         <SqlmapForm
           form={state.toolData.form}
+          authentication={state.toolData.authentication}
           selectedField={state.toolData.selectedField}
           focused={state.activePanel === "form"}
           onFieldChange={state.setField}
