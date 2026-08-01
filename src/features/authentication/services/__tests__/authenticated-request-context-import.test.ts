@@ -40,6 +40,21 @@ describe("curl authentication context import", () => {
     });
   });
 
+  test("gives structured cookies precedence over header-derived cookies", () => {
+    const context = parseCurlAuthenticationContext(
+      "curl 'https://app.example.test/security.php' " +
+        "-b 'security=low; PHPSESSID=session-id' " +
+        "-H 'Cookie: security=impossible'",
+      "https://app.example.test",
+    );
+
+    expect(context).toEqual({
+      origin: "https://app.example.test",
+      cookies: "security=low; PHPSESSID=session-id",
+      headers: "",
+    });
+  });
+
   test("supports attached curl options and ignores URL-shaped body values", () => {
     expect(
       parseCurlAuthenticationContext(
@@ -204,6 +219,29 @@ describe("HAR authentication context import", () => {
     ]);
     expect(JSON.stringify(preview)).not.toContain("har-secret");
     expect(JSON.stringify(preview)).not.toContain("cookie-secret");
+  });
+
+  test("uses the last exact-name cookie while preserving distinct cookies", () => {
+    const input = JSON.stringify({
+      log: {
+        entries: [
+          {
+            request: {
+              method: "GET",
+              url: "https://app.example.test/security.php",
+              headers: [{ name: "Cookie", value: "security=impossible; PHPSESSID=session-id" }],
+              cookies: [{ name: "security", value: "low" }],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(parseHarAuthenticationContext(input, "https://app.example.test", 0)).toEqual({
+      origin: "https://app.example.test",
+      cookies: "PHPSESSID=session-id; security=low",
+      headers: "",
+    });
   });
 
   test("returns the selected same-origin request URL for verification", () => {

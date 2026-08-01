@@ -1,4 +1,8 @@
 import {
+  normalizeAuthenticatedRequestCookies,
+  partitionAuthenticatedRequestCookieHeaders,
+} from "../../authentication/services/authenticated-request-context-cookie.helpers";
+import {
   splitAuthenticatedCookieEntries,
   splitAuthenticatedHeaderEntries,
 } from "../../authentication/services/authenticated-request-context-redaction";
@@ -11,10 +15,11 @@ import {
 export function createPlaywrightPageInspectionAuthentication(
   authentication: PageInspectionAuthentication,
 ): PlaywrightPageInspectionAuthentication {
-  const cookieValues = [authentication.cookies];
+  const { headerDerivedCookies, remainingHeaders } =
+    partitionAuthenticatedRequestCookieHeaders(authentication.headers);
   const headers: Record<string, string> = {};
 
-  splitAuthenticatedHeaderEntries(authentication.headers).forEach((entry) => {
+  remainingHeaders.forEach((entry) => {
     const separatorIndex = entry.indexOf(":");
     if (separatorIndex <= 0) {
       return;
@@ -24,15 +29,14 @@ export function createPlaywrightPageInspectionAuthentication(
     if (!name || !value) {
       return;
     }
-    if (name.toLowerCase() === "cookie") {
-      cookieValues.push(value);
-      return;
-    }
     headers[name] = value;
   });
 
   return {
-    cookies: createPlaywrightPageInspectionCookies(authentication.origin, cookieValues),
+    cookies: createPlaywrightPageInspectionCookies(
+      authentication.origin,
+      normalizeAuthenticatedRequestCookies(headerDerivedCookies, [authentication.cookies]),
+    ),
     headers,
   };
 }
@@ -140,19 +144,17 @@ export function redactPlaywrightPageInspectionError(
 
 function createPlaywrightPageInspectionCookies(
   origin: string,
-  values: string[],
+  value: string,
 ): PlaywrightPageInspectionCookie[] {
-  return values.flatMap((value) =>
-    splitAuthenticatedCookieEntries(value).flatMap((entry) => {
-      const separatorIndex = entry.indexOf("=");
-      if (separatorIndex <= 0) {
-        return [];
-      }
-      const name = entry.slice(0, separatorIndex).trim();
-      const cookieValue = entry.slice(separatorIndex + 1).trim();
-      return name && cookieValue ? [{ name, value: cookieValue, url: origin }] : [];
-    }),
-  );
+  return splitAuthenticatedCookieEntries(value).flatMap((entry) => {
+    const separatorIndex = entry.indexOf("=");
+    if (separatorIndex <= 0) {
+      return [];
+    }
+    const name = entry.slice(0, separatorIndex).trim();
+    const cookieValue = entry.slice(separatorIndex + 1).trim();
+    return name ? [{ name, value: cookieValue, url: origin }] : [];
+  });
 }
 
 function redactPlaywrightPageInspectionValue(

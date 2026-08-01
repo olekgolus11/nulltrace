@@ -79,6 +79,34 @@ describe("AuthenticatedRequestContextService", () => {
     expect(metadataRepository.findBySessionId("session-1")).toEqual(metadata);
   });
 
+  test("normalizes duplicate cookie names before protected storage", async () => {
+    const metadataRepository = createMetadataRepository();
+    const service = new AuthenticatedRequestContextService(
+      new TestSecretStore(),
+      metadataRepository,
+    );
+
+    const metadata = await service.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies:
+        "security=impossible-cookie-secret; PHPSESSID=session-id; security=low-cookie-secret",
+      headers:
+        "Cookie: security=header-cookie-secret | Authorization: Bearer authorization-secret",
+    });
+
+    expect(await service.loadProtectedContext("session-1")).toMatchObject({
+      cookies: "PHPSESSID=session-id; security=low-cookie-secret",
+      headers: "Authorization: Bearer authorization-secret",
+    });
+    expect(metadata.cookieCount).toBe(2);
+    expect(metadata.headerNames).toEqual(["Authorization"]);
+    expect(JSON.stringify(metadata)).not.toContain("session-id");
+    expect(JSON.stringify(metadata)).not.toContain("header-cookie-secret");
+    expect(JSON.stringify(metadata)).not.toContain("authorization-secret");
+    expect(JSON.stringify(metadata)).not.toContain("impossible-cookie-secret");
+    expect(JSON.stringify(metadata)).not.toContain("low-cookie-secret");
+  });
+
   test("replacement and clearing invalidate dependent auth state", async () => {
     const metadataRepository = createMetadataRepository();
     const service = new AuthenticatedRequestContextService(

@@ -24,6 +24,7 @@ function createFakeBrowserType(
   shouldDelayExtraction = false,
   failureMessage = "network failed",
   snapshotSecret = "",
+  shouldReflectSecurityCookie = false,
 ) {
   let contextClosed = 0;
   let browserClosed = 0;
@@ -70,7 +71,10 @@ function createFakeBrowserType(
         status: () => 200,
       };
     },
-    url: () => "https://target.example/app",
+    url: () =>
+      shouldReflectSecurityCookie
+        ? "https://target.example/security.php"
+        : "https://target.example/app",
     waitForLoadState: async () => {
       if (shouldFailRender) {
         throw new Error("render timed out");
@@ -85,7 +89,14 @@ function createFakeBrowserType(
       if (isContextClosed) {
         throw new Error("Target page, context or browser has been closed");
       }
-      return extracted as T;
+      return {
+        ...extracted,
+        visibleText: shouldReflectSecurityCookie
+          ? hasCookie(addedCookies, "security", "low")
+            ? "Security Level: Low"
+            : "Security Level: Impossible"
+          : extracted.visibleText,
+      } as T;
     },
   };
   const context = {
@@ -137,6 +148,21 @@ function createFakeBrowserType(
       routeHandler,
     }),
   };
+}
+
+function hasCookie(cookies: unknown, name: string, value: string) {
+  return (
+    Array.isArray(cookies) &&
+    cookies.some(
+      (cookie) =>
+        cookie &&
+        typeof cookie === "object" &&
+        "name" in cookie &&
+        "value" in cookie &&
+        cookie.name === name &&
+        cookie.value === value,
+    )
+  );
 }
 
 test("uses an isolated context, renders JavaScript content, and cleans up", async () => {
@@ -282,12 +308,40 @@ test("injects selected authentication only into exact-origin requests and clears
   expect(blockedRedirect).toEqual(["aborted"]);
 });
 
+test("uses the effective low-security DVWA cookies for authenticated inspection", async () => {
+  const fake = createFakeBrowserType(false, false, false, "network failed", "", true);
+  const browser = new PlaywrightPageInspectionBrowser({ browserType: fake.browserType });
+
+  const snapshot = await browser.inspect(
+    {
+      requestedUrl: "https://target.example/security.php",
+      targetOrigin: "https://target.example",
+      authentication: {
+        origin: "https://target.example",
+        cookies: "security=impossible; PHPSESSID=session-id; security=low",
+        headers: "Cookie: security=header-value",
+      },
+    },
+    defaultPageInspectionLimits,
+  );
+
+  expect(fake.getState().addedCookies).toEqual([
+    { name: "PHPSESSID", value: "session-id", url: "https://target.example" },
+    { name: "security", value: "low", url: "https://target.example" },
+  ]);
+  expect(snapshot.visibleText).toBe("Security Level: Low");
+  expect(snapshot.finalUrl).toBe("https://target.example/security.php");
+  expect(JSON.stringify(snapshot)).not.toContain("session-id");
+  expect(JSON.stringify(snapshot)).not.toContain("impossible");
+});
+
 test("redacts authentication values from snapshots and browser errors", async () => {
   const authentication = {
     origin: "https://target.example",
-    cookies: "session=secret-cookie",
+    cookies:
+      "private-cookie-name=impossible-cookie-secret; session-cookie-name=session-cookie-secret; private-cookie-name=low-cookie-secret",
     headers:
-      "Authorization: Bearer secret-header | X-CSRF-Token: secret-token | Cookie: reflected=header-cookie-secret",
+      "Authorization: Bearer secret-header | X-CSRF-Token: secret-token | Cookie: private-cookie-name=header-cookie-secret",
   };
   const snapshotBrowser = new PlaywrightPageInspectionBrowser({
     browserType: createFakeBrowserType(
@@ -295,7 +349,7 @@ test("redacts authentication values from snapshots and browser errors", async ()
       false,
       false,
       "network failed",
-      "secret-cookie Bearer secret-header secret-token header-cookie-secret",
+      "private-cookie-name session-cookie-name impossible-cookie-secret session-cookie-secret low-cookie-secret Bearer secret-header secret-token header-cookie-secret",
     ).browserType,
   });
 
@@ -307,7 +361,11 @@ test("redacts authentication values from snapshots and browser errors", async ()
     },
     defaultPageInspectionLimits,
   );
-  expect(JSON.stringify(snapshot)).not.toContain("secret-cookie");
+  expect(JSON.stringify(snapshot)).not.toContain("impossible-cookie-secret");
+  expect(JSON.stringify(snapshot)).not.toContain("session-cookie-secret");
+  expect(JSON.stringify(snapshot)).not.toContain("low-cookie-secret");
+  expect(JSON.stringify(snapshot)).toContain("private-cookie-name");
+  expect(JSON.stringify(snapshot)).toContain("session-cookie-name");
   expect(JSON.stringify(snapshot)).not.toContain("secret-header");
   expect(JSON.stringify(snapshot)).not.toContain("secret-token");
   expect(JSON.stringify(snapshot)).not.toContain("header-cookie-secret");

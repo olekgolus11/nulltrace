@@ -574,11 +574,7 @@ describe("FindingChatContextToolsService", () => {
   });
 
   it("generates OpenCode wrappers that forward conversation context", () => {
-    const source = createOpenCodeToolSource(
-      "get_finding",
-      "/tmp/nulltrace/chat-context-tools.service.ts",
-      "/tmp/nulltrace/node_modules/@opencode-ai/plugin/dist/index.js",
-    );
+    const source = createOpenCodeToolSource("get_finding");
 
     expect(source).toContain("context.sessionID");
     expect(source).toContain('"get_finding"');
@@ -586,12 +582,16 @@ describe("FindingChatContextToolsService", () => {
     expect(source).not.toContain("sessionId");
   });
 
+  it("binds wrapper execution to the serving runtime instead of the checkout that wrote it", () => {
+    const source = createOpenCodeToolSource("get_finding");
+
+    expect(source).toContain("NULLTRACE_CHAT_CONTEXT_TOOLS_IMPORT_PATH");
+    expect(source).toContain("NULLTRACE_OPENCODE_PLUGIN_IMPORT_PATH");
+    expect(source).not.toContain(chatContextToolsImportPath);
+  });
+
   it("generates bounded list_findings wrappers without session ids", () => {
-    const source = createOpenCodeToolSource(
-      "list_findings",
-      "/tmp/nulltrace/chat-context-tools.service.ts",
-      "/tmp/nulltrace/node_modules/@opencode-ai/plugin/dist/index.js",
-    );
+    const source = createOpenCodeToolSource("list_findings");
 
     expect(source).toContain("context.sessionID");
     expect(source).toContain('"list_findings"');
@@ -723,11 +723,7 @@ describe("ToolRunArtifactChatContextToolsService", () => {
   });
 
   it("generates OpenCode wrappers that forward conversation context", () => {
-    const source = createOpenCodeToolSource(
-      "get_artifact",
-      "/tmp/nulltrace/chat-context-tools.service.ts",
-      "/tmp/nulltrace/node_modules/@opencode-ai/plugin/dist/index.js",
-    );
+    const source = createOpenCodeToolSource("get_artifact");
 
     expect(source).toContain("context.sessionID");
     expect(source).toContain('"get_artifact"');
@@ -835,11 +831,7 @@ describe("ActiveToolWorkspaceChatContextToolsService", () => {
   });
 
   it("generates an OpenCode wrapper for get_active_tool_workspace", () => {
-    const source = createOpenCodeToolSource(
-      "get_active_tool_workspace",
-      "/tmp/nulltrace/chat-context-tools.service.ts",
-      "/tmp/nulltrace/node_modules/@opencode-ai/plugin/dist/index.js",
-    );
+    const source = createOpenCodeToolSource("get_active_tool_workspace");
 
     expect(source).toContain("context.sessionID");
     expect(source).toContain('"get_active_tool_workspace"');
@@ -1451,11 +1443,7 @@ describe("ActionDraftChatContextToolsService", () => {
   });
 
   it("generates an OpenCode wrapper for create_action_draft", () => {
-    const source = createOpenCodeToolSource(
-      "create_action_draft",
-      "/tmp/nulltrace/chat-context-tools.service.ts",
-      "/tmp/nulltrace/node_modules/@opencode-ai/plugin/dist/index.js",
-    );
+    const source = createOpenCodeToolSource("create_action_draft");
 
     expect(source).toContain("context.sessionID");
     expect(source).toContain('"create_action_draft"');
@@ -1467,18 +1455,32 @@ describe("ActionDraftChatContextToolsService", () => {
 
 describe("createOpenCodeToolSource", () => {
   it("generates importable wrappers for every registered chat context tool", async () => {
-    for (const definition of chatContextToolRegistry.listDefinitions()) {
-      const source = createOpenCodeToolSource(
-        definition.name,
-        chatContextToolsImportPath,
-        openCodePluginImportPath,
-      );
-      const wrapperPath = `/tmp/nulltrace-${definition.name}-${Date.now()}.ts`;
+    const previousServiceImportPath = process.env.NULLTRACE_CHAT_CONTEXT_TOOLS_IMPORT_PATH;
+    const previousPluginImportPath = process.env.NULLTRACE_OPENCODE_PLUGIN_IMPORT_PATH;
+    process.env.NULLTRACE_CHAT_CONTEXT_TOOLS_IMPORT_PATH = chatContextToolsImportPath;
+    process.env.NULLTRACE_OPENCODE_PLUGIN_IMPORT_PATH = openCodePluginImportPath;
 
-      await Bun.write(wrapperPath, source);
+    try {
+      for (const definition of chatContextToolRegistry.listDefinitions()) {
+        const source = createOpenCodeToolSource(definition.name);
+        const wrapperPath = `/tmp/nulltrace-${definition.name}-${Date.now()}.ts`;
 
-      const module = await import(wrapperPath);
-      expect(module.default).toBeTruthy();
+        await Bun.write(wrapperPath, source);
+
+        const module = await import(wrapperPath);
+        expect(module.default).toBeTruthy();
+      }
+    } finally {
+      if (previousServiceImportPath) {
+        process.env.NULLTRACE_CHAT_CONTEXT_TOOLS_IMPORT_PATH = previousServiceImportPath;
+      } else {
+        delete process.env.NULLTRACE_CHAT_CONTEXT_TOOLS_IMPORT_PATH;
+      }
+      if (previousPluginImportPath) {
+        process.env.NULLTRACE_OPENCODE_PLUGIN_IMPORT_PATH = previousPluginImportPath;
+      } else {
+        delete process.env.NULLTRACE_OPENCODE_PLUGIN_IMPORT_PATH;
+      }
     }
   });
 });

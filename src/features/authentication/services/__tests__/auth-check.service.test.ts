@@ -182,6 +182,39 @@ describe("Auth Check URL selection", () => {
 });
 
 describe("Auth Check state", () => {
+  test("uses the same normalized cookie selection as Page Inspection", async () => {
+    const metadataRepository = createMetadataRepository();
+    const contextService = new AuthenticatedRequestContextService(
+      new TestSecretStore(),
+      metadataRepository,
+    );
+    await contextService.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "security=impossible; PHPSESSID=session-id; security=low",
+      headers: "Cookie: security=header-value",
+    });
+    const authenticatedCookies: string[] = [];
+    const authCheckService = new AuthCheckService({
+      contextService,
+      metadataRepository,
+      fetch: async (_url, init) => {
+        const cookies = new Headers(init?.headers).get("cookie");
+        if (cookies) {
+          authenticatedCookies.push(cookies);
+        }
+        return new Response("page", { status: 200 });
+      },
+    });
+
+    await authCheckService.run(
+      "session-1",
+      "https://app.example.test",
+      "https://app.example.test/security.php",
+    );
+
+    expect(authenticatedCookies).toEqual(["PHPSESSID=session-id; security=low"]);
+  });
+
   test("rechecks the stored verification URL with current runtime credentials", async () => {
     const metadataRepository = createMetadataRepository();
     const contextService = new AuthenticatedRequestContextService(

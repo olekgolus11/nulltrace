@@ -1,5 +1,9 @@
 import { AuthenticatedRequestContext } from "../model/authenticated-request-context.types";
-import { splitAuthenticatedHeaderEntries } from "./authenticated-request-context-redaction";
+import { partitionAuthenticatedRequestCookieHeaders } from "./authenticated-request-context-cookie.helpers";
+import {
+  splitAuthenticatedCookieEntries,
+  splitAuthenticatedHeaderEntries,
+} from "./authenticated-request-context-redaction";
 
 export function createAuthenticatedRequestContextOutputRedactor(
   context: AuthenticatedRequestContext,
@@ -27,11 +31,12 @@ export function createAuthenticatedRequestContextJsonRedactor(
 }
 
 function collectSecretValues(context: AuthenticatedRequestContext) {
-  const cookieEntries = context.cookies
-    .split(/[;\n\r]+/)
-    .map((entry) => entry.trim())
-    .filter(Boolean);
+  const { headerDerivedCookies } = partitionAuthenticatedRequestCookieHeaders(context.headers);
+  const cookieEntries = [context.cookies, ...headerDerivedCookies].flatMap(
+    splitAuthenticatedCookieEntries,
+  );
   const headerEntries = splitAuthenticatedHeaderEntries(context.headers);
+  const cookieNames = cookieEntries.map(getNameBeforeSeparator("="));
   const headerValues = headerEntries.map(getValueAfterSeparator(":"));
   const decodedBasicValues = headerValues
     .map(decodeBasicAuthenticationValue)
@@ -40,6 +45,7 @@ function collectSecretValues(context: AuthenticatedRequestContext) {
     Boolean,
   );
   const standaloneValues = [
+    ...cookieNames,
     ...cookieEntries.map(getValueAfterSeparator("=")),
     ...headerValues,
     ...headerValues.map(stripAuthenticationScheme),
@@ -85,7 +91,10 @@ function redactJsonValue(value: unknown, redactOutput: (content: string) => stri
     return redacted === primitive ? value : redacted;
   }
   return Object.fromEntries(
-    Object.entries(value).map(([key, entry]) => [key, redactJsonValue(entry, redactOutput)]),
+    Object.entries(value).map(([key, entry]) => [
+      redactOutput(key),
+      redactJsonValue(entry, redactOutput),
+    ]),
   );
 }
 
@@ -111,5 +120,12 @@ function getValueAfterSeparator(separator: string) {
   return (entry: string) => {
     const separatorIndex = entry.indexOf(separator);
     return separatorIndex === -1 ? "" : entry.slice(separatorIndex + 1).trim();
+  };
+}
+
+function getNameBeforeSeparator(separator: string) {
+  return (entry: string) => {
+    const separatorIndex = entry.indexOf(separator);
+    return separatorIndex === -1 ? "" : entry.slice(0, separatorIndex).trim();
   };
 }

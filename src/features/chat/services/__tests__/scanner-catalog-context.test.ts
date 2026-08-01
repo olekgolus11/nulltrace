@@ -253,11 +253,7 @@ describe("listAvailableScannerToolsFromCatalog", () => {
   });
 
   it("generates an OpenCode wrapper for list_available_scanner_tools", () => {
-    const source = createOpenCodeToolSource(
-      "list_available_scanner_tools",
-      "/tmp/nulltrace/chat-context-tools.service.ts",
-      "/tmp/nulltrace/node_modules/@opencode-ai/plugin/dist/index.js",
-    );
+    const source = createOpenCodeToolSource("list_available_scanner_tools");
 
     expect(source).toContain("context.sessionID");
     expect(source).toContain('"list_available_scanner_tools"');

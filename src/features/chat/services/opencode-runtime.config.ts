@@ -79,11 +79,7 @@ function ensureSessionChatContextTools(workspace: string) {
 
   for (const definition of chatContextToolRegistry.listDefinitions()) {
     const toolPath = join(toolsDirectory, `${definition.name}.ts`);
-    const source = createOpenCodeToolSource(
-      definition.name,
-      chatContextToolsImportPath,
-      openCodePluginImportPath,
-    );
+    const source = createOpenCodeToolSource(definition.name);
 
     if (!existsSync(toolPath) || readFileSync(toolPath, "utf8") !== source) {
       writeFileSync(toolPath, source, "utf8");
@@ -121,6 +117,8 @@ export function getOpenCodeRuntimeEnvironment() {
     ...inheritedEnvironment,
     HOME: runtimeHome,
     NULLTRACE_APP_DATA_DIR: getAppDataDirectory(),
+    NULLTRACE_CHAT_CONTEXT_TOOLS_IMPORT_PATH: chatContextToolsImportPath,
+    NULLTRACE_OPENCODE_PLUGIN_IMPORT_PATH: openCodePluginImportPath,
     NULLTRACE_RUNTIME_ID: getAuthenticationRuntimeId(),
     NULLTRACE_PAGE_INSPECTION_MODES: JSON.stringify(pageInspectionPermissionService.listModes()),
     ...(process.platform === "darwin"
