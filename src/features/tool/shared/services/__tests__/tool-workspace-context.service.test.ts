@@ -72,3 +72,35 @@ it("redacts sqlmap POST bodies from persisted workspace and chat context", () =>
 
   toolWorkspaceContextService.clearActiveWorkspace("sqlmap-redaction-session");
 });
+
+it("redacts Nikto authorization values from persisted workspace context", () => {
+  const snapshot = toolWorkspaceContextService.saveActiveWorkspace({
+    sessionId: "nikto-redaction-session",
+    toolName: "nikto",
+    activePanel: "command",
+    commandInput:
+      "nikto -h https://user:password@example.com -id admin:secret -Tuning x6",
+    generatedCommand: "nikto -h https://example.com -Tuning x6",
+    commandSource: "manual",
+    executionStatus: "idle",
+    currentToolRunId: null,
+    selectedHistoryRunId: null,
+    isHistoricPreview: false,
+    toolData: {
+      selectedField: 0,
+      form: {
+        target: "https://user:password@example.com",
+        useAuthenticatedContext: true,
+      },
+    },
+  });
+
+  expect(snapshot.commandInput).not.toContain("password");
+  expect(snapshot.commandInput).not.toContain("admin:secret");
+  expect(snapshot.toolData.form.target).toBe("https://[redacted]@example.com");
+  expect(snapshot.toolData.form.useAuthenticatedContext).toBe(false);
+  expect(JSON.stringify(snapshot)).not.toContain("password");
+  expect(JSON.stringify(snapshot)).not.toContain("admin:secret");
+
+  toolWorkspaceContextService.clearActiveWorkspace("nikto-redaction-session");
+});

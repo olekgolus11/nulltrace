@@ -16,8 +16,11 @@ export function NiktoForm({
   onFieldChange,
   onProfileChange,
   onToggleTuning,
+  authAvailable,
+  authOrigin,
+  onToggleAuthenticatedContext,
 }: NiktoFormProps) {
-  const selectedId = getNiktoFieldOrder(form.profile)[selectedField];
+  const selectedId = getNiktoFieldOrder(form.profile, authAvailable)[selectedField];
   const textFields = [
     ["target", "Target", "https://example.com"],
     ...(form.profile === "custom"
@@ -93,6 +96,34 @@ export function NiktoForm({
           </box>
         </box>
       ))}
+
+      {authAvailable ? (
+        <box
+          flexDirection="row"
+          width="100%"
+          onMouseDown={onToggleAuthenticatedContext}
+        >
+          <box width={20}>
+            <text
+              fg={
+                selectedId === "useAuthenticatedContext"
+                  ? theme.accent.primary
+                  : theme.text.secondary
+              }
+            >
+              {selectedId === "useAuthenticatedContext" ? "> Session auth" : "  Session auth"}
+            </text>
+          </box>
+          <text fg={theme.text.primary}>
+            {form.useAuthenticatedContext ? "[enabled]  disabled" : "enabled  [disabled]"}
+          </text>
+          <text fg={theme.text.dim}>
+            {form.useAuthenticatedContext
+              ? `  temp config added at run  ${authOrigin ?? ""}`
+              : `  use left/right  ${authOrigin ?? ""}`}
+          </text>
+        </box>
+      ) : null}
     </box>
   );
 }
@@ -104,6 +135,9 @@ interface NiktoFormProps {
   onFieldChange: (field: keyof NiktoFormState, value: string) => void;
   onProfileChange: (profile: NiktoProfile) => void;
   onToggleTuning: (code: NiktoTuningCode) => void;
+  authAvailable: boolean;
+  authOrigin: string | null;
+  onToggleAuthenticatedContext: () => void;
 }
 
 function TuningFlagRow({

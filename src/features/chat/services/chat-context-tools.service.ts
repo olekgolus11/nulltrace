@@ -17,6 +17,7 @@ import { ActionDraftInput, ActionDraftRecord } from "../../action-draft/model/ac
 import { actionDraftRepository } from "../../action-draft/services/action-draft.repository.instance";
 import { mapSqlmapActionDraftFormState } from "../../action-draft/services/sqlmap-action-draft-workspace.mapper";
 import { getNiktoActionDraftValidationError } from "../../action-draft/services/nikto-action-draft-validation.helpers";
+import { redactNiktoCommandForPersistence } from "../../tool/nikto/services/nikto-authenticated-command.helpers";
 import { authCheckService } from "../../authentication/services/auth-check.service";
 import {
   ScannerCatalogContext,
@@ -56,9 +57,9 @@ import {
 } from "../../sitemap/model/sitemap.types";
 import { sitemapRepository } from "../../sitemap/services/sitemap.repository";
 import {
-  ToolWorkspaceContextSnapshot,
   toolWorkspaceContextService,
 } from "../../tool/shared/services/tool-workspace-context.service";
+import { ToolWorkspaceContextSnapshot } from "../../tool/shared/services/tool-workspace-context.types";
 import { mapActionDraftChatPayload } from "./action-draft-chat-context.mapper";
 import { ActionDraftChatContextArgs } from "./action-draft-chat-context.types";
 import { ChatContextToolRegistry } from "./chat-context-tool-registry";
@@ -1470,6 +1471,21 @@ export class ActionDraftChatContextToolsService {
     const targetTool = normalizeActionDraftTargetTool(args.targetTool);
     const attachment = requireActiveAttachment(this.attachments, opencodeConversationId);
     const session = this.sessions.getSessionById(attachment.sessionId);
+    const commandForSecretValidation = args.command
+      ?.replaceAll("{{TARGET}}", "https://placeholder.invalid")
+      .replaceAll("<TARGET>", "https://placeholder.invalid")
+      .replaceAll("{TARGET}", "https://placeholder.invalid");
+    if (
+      targetTool === "nikto" &&
+      commandForSecretValidation &&
+      redactNiktoCommandForPersistence(commandForSecretValidation).startsWith(
+        "[redacted] prohibited Nikto",
+      )
+    ) {
+      throw new Error(
+        "Nikto authentication and configuration options must come from the explicitly selected session context.",
+      );
+    }
     const payload = mapActionDraftChatPayload(args, session);
     const formState =
       payload.formState &&
@@ -1478,11 +1494,13 @@ export class ActionDraftChatContextToolsService {
         ? (payload.formState as Record<string, unknown>)
         : null;
     if (
-      targetTool === "nuclei" &&
+      (targetTool === "nuclei" || targetTool === "nikto") &&
       formState?.useAuthenticatedContext === true &&
       !this.authenticationAcceptance.isProceedAllowed(attachment.sessionId)
     ) {
-      throw new Error("Authenticated Nuclei drafts require an accepted authentication context.");
+      throw new Error(
+        `Authenticated ${targetTool === "nuclei" ? "Nuclei" : "Nikto"} drafts require an accepted authentication context.`,
+      );
     }
     if (
       targetTool === "ffuf" &&

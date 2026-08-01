@@ -54,4 +54,30 @@ describe("tool run confirmation", () => {
     expect(useToolWorkspaceStore.getState().outputLines).toEqual(["unchanged"]);
     expect(useToolWorkspaceStore.getState().executionStatus).toBe("idle");
   });
+
+  it("consumes Nikto authentication selection when a run starts", async () => {
+    let data = niktoCommandService.createInitialToolData("https://example.com");
+    data = niktoCommandService.setAuthenticationAvailability(data, "https://example.com");
+    data = niktoCommandService.toggleAuthenticatedContext(data);
+    const command = niktoCommandService.buildCommand(data);
+    useToolWorkspaceStore.setState({
+      toolName: "nikto",
+      sessionId: null,
+      targetUrl: "https://example.com",
+      toolData: data,
+      commandInput: command,
+      generatedCommand: command,
+      commandSource: "generated",
+      outputLines: [],
+      executionStatus: "idle",
+      lastExitCode: null,
+      isHistoricPreview: false,
+    });
+
+    await useToolWorkspaceStore.getState().runCommand();
+
+    const current = useToolWorkspaceStore.getState().toolData as typeof data;
+    expect(current.form.useAuthenticatedContext).toBe(false);
+    expect(current.authentication.strategy).toBe("none");
+  });
 });

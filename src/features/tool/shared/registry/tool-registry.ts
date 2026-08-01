@@ -364,6 +364,10 @@ export const toolRegistry: Record<string, ToolModule> = {
       niktoCommandService.getRunConfirmation(command, toolData as NiktoToolData),
     prepareCommandForRun: (options: ToolPrepareCommand) =>
       niktoCommandService.prepareCommandForRun(options),
+    resetRunScopedState: (toolData: unknown) =>
+      niktoCommandService.resetRunScopedState(toolData as NiktoToolData),
+    redactCommandForPersistence: (command: string) =>
+      niktoCommandService.redactCommandForPersistence(command),
     collectArtifacts: (options: ToolRunCompleted) =>
       niktoCommandService.collectArtifacts(options),
     handleFormKey: (key, state, api) => {
@@ -378,13 +382,26 @@ export const toolRegistry: Record<string, ToolModule> = {
         );
         return true;
       }
-      const selectedField = getNiktoFieldOrder(toolData.form.profile)[toolData.selectedField];
+      const selectedField = getNiktoFieldOrder(
+        toolData.form.profile,
+        toolData.authentication.isAvailable,
+      )[toolData.selectedField];
       if (
         selectedField === "profile" &&
         (key.name === "left" || key.name === "right")
       ) {
         api.updateToolData((current) =>
           niktoCommandService.cycleProfile(current as NiktoToolData),
+        );
+        api.syncGeneratedCommand();
+        return true;
+      }
+      if (
+        selectedField === "useAuthenticatedContext" &&
+        (key.name === "left" || key.name === "right")
+      ) {
+        api.updateToolData((current) =>
+          niktoCommandService.toggleAuthenticatedContext(current as NiktoToolData),
         );
         api.syncGeneratedCommand();
         return true;

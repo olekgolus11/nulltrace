@@ -255,6 +255,43 @@ describe("ToolRunnerService", () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
+  it("announces a prepared authenticated run without exposing credentials", async () => {
+    const appendToolRunLog = mock(() => {});
+    const system = mock(() => {});
+    const service = new ToolRunnerService(
+      {
+        run: mock(async () => 0),
+        stop: mock(() => {}),
+      },
+      { processCompletedRun: mock(async () => {}) },
+      {
+        recordToolRun: mock(() => createToolRunRecord()),
+        appendToolRunLog,
+        finishToolRun: mock(() => {}),
+        cancelToolRun: mock(() => {}),
+      },
+    );
+    const confirmation = "[session authentication applied: https://example.com]";
+
+    await service.run({
+      sessionId: "session-1",
+      toolName: "nikto",
+      command: "nikto -h https://example.com -Tuning x6",
+      commandSource: "generated",
+      toolModule: createToolModule(async () => ({
+        command: "nikto -h https://example.com -config /tmp/owner-only",
+        systemLines: [confirmation],
+      })),
+      onStdoutLines: mock(() => {}),
+      onStderrLines: mock(() => {}),
+      onSystemLines: system,
+    });
+
+    expect(system).toHaveBeenCalledWith([confirmation]);
+    expect(appendToolRunLog).toHaveBeenCalledWith("run-1", [confirmation]);
+    expect(JSON.stringify(system.mock.calls)).not.toContain("owner-only");
+  });
+
   it("redacts preparation failures before persisting or displaying them", async () => {
     const recordToolRun = mock(() => createToolRunRecord());
     const appendToolRunLog = mock(() => {});
@@ -394,7 +431,7 @@ describe("ToolRunnerService", () => {
     expect(JSON.stringify(appendToolRunLog.mock.calls)).not.toContain("secret-cookie");
   });
 
-  it("cleans prepared state after execution failure", async () => {
+  it("cleans authenticated Nikto temporary state after execution failure", async () => {
     const cleanup = mock(() => {});
     const service = new ToolRunnerService(
       {
@@ -414,11 +451,11 @@ describe("ToolRunnerService", () => {
 
     await service.run({
       sessionId: "session-1",
-      toolName: "nuclei",
-      command: "nuclei -u https://example.com",
+      toolName: "nikto",
+      command: "nikto -h https://example.com -Tuning x6",
       commandSource: "generated",
       toolModule: createToolModule(() => ({
-        command: "nuclei -sf /tmp/secret",
+        command: "nikto -h https://example.com -config /tmp/secret",
         cleanup,
       })),
       onStdoutLines: mock(() => {}),
@@ -429,7 +466,7 @@ describe("ToolRunnerService", () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
-  it("cleans prepared state immediately when an active run is cancelled", async () => {
+  it("cleans authenticated Nikto temporary state when cancelled", async () => {
     let finishProcess: (() => void) | null = null;
     const cleanup = mock(() => {});
     const service = new ToolRunnerService(
@@ -453,11 +490,11 @@ describe("ToolRunnerService", () => {
 
     const runPromise = service.run({
       sessionId: "session-1",
-      toolName: "nuclei",
-      command: "nuclei -u https://example.com",
+      toolName: "nikto",
+      command: "nikto -h https://example.com -Tuning x6",
       commandSource: "generated",
       toolModule: createToolModule(() => ({
-        command: "nuclei -sf /tmp/secret",
+        command: "nikto -h https://example.com -config /tmp/secret",
         cleanup,
       })),
       onStdoutLines: mock(() => {}),

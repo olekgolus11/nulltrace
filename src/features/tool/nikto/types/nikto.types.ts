@@ -12,7 +12,14 @@ export type NiktoFieldId =
   | "timeoutSeconds"
   | "requestTimeoutSeconds"
   | "pauseSeconds"
+  | "useAuthenticatedContext"
   | `tuning:${NiktoTuningCode}`;
+
+export interface NiktoAuthenticationState {
+  strategy: "none" | "session";
+  isAvailable: boolean;
+  origin: string | null;
+}
 
 export interface NiktoFormState extends Record<string, unknown> {
   target: string;
@@ -23,9 +30,11 @@ export interface NiktoFormState extends Record<string, unknown> {
   pauseSeconds: string;
   profile: NiktoProfile;
   tuning: NiktoTuningCode[];
+  useAuthenticatedContext: boolean;
 }
 
 export interface NiktoToolData extends ToolData {
   form: NiktoFormState;
   selectedField: number;
+  authentication: NiktoAuthenticationState;
 }

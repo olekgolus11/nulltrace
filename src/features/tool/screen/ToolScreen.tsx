@@ -22,6 +22,8 @@ import { nucleiCommandService } from "../nuclei/services/nuclei-command.service"
 import { NucleiToolData } from "../nuclei/types/nuclei.types";
 import { setFfufAuthenticationAvailability } from "../ffuf/services/ffuf-authentication.helpers";
 import { FfufToolData } from "../ffuf/types/ffuf.types";
+import { niktoCommandService } from "../nikto/services/nikto-command.service";
+import { NiktoToolData } from "../nikto/types/nikto.types";
 import { useToolLayout } from "../hooks/use-tool-layout";
 import { ActiveToolWorkspace } from "../shared/components/ActiveToolWorkspace";
 import { ToolHelpDialog } from "../shared/components/ToolHelpDialog";
@@ -248,7 +250,7 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
   }, [initializeWorkspace, sessionId, stopCommand, targetUrl, toolName]);
 
   useEffect(() => {
-    if (toolName !== "nuclei" && toolName !== "ffuf") {
+    if (toolName !== "nuclei" && toolName !== "ffuf" && toolName !== "nikto") {
       return;
     }
     const metadata = authenticationContext.metadata;
@@ -259,7 +261,7 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
     if (state.toolName !== toolName || !state.toolData) {
       return;
     }
-    const current = state.toolData as NucleiToolData | FfufToolData;
+    const current = state.toolData as NucleiToolData | FfufToolData | NiktoToolData;
     if (
       current.authentication.origin === acceptedOrigin &&
       current.authentication.isAvailable === Boolean(acceptedOrigin)
@@ -270,6 +272,12 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
       if (toolName === "nuclei") {
         return nucleiCommandService.setAuthenticationAvailability(
           toolData as NucleiToolData,
+          acceptedOrigin,
+        );
+      }
+      if (toolName === "nikto") {
+        return niktoCommandService.setAuthenticationAvailability(
+          toolData as NiktoToolData,
           acceptedOrigin,
         );
       }

@@ -10,6 +10,89 @@ afterEach(() => {
 });
 
 describe("niktoCommandService", () => {
+  it("defaults to public execution and keeps authentication out of generated commands", () => {
+    let data = niktoCommandService.createInitialToolData("https://example.com");
+
+    expect(data.form.useAuthenticatedContext).toBe(false);
+    expect(data.authentication).toEqual({
+      strategy: "none",
+      isAvailable: false,
+      origin: null,
+    });
+
+    data = niktoCommandService.setAuthenticationAvailability(
+      data,
+      "https://example.com",
+    );
+    data = niktoCommandService.toggleAuthenticatedContext(data);
+
+    expect(data.form.useAuthenticatedContext).toBe(true);
+    expect(data.authentication.strategy).toBe("session");
+    expect(niktoCommandService.buildCommand(data)).not.toContain("secret");
+    expect(niktoCommandService.buildCommand(data)).not.toContain("-config");
+    expect(niktoCommandService.buildCommand(data)).not.toContain("-id");
+    expect(niktoCommandService.buildCommand(data)).not.toContain("-Add-header");
+  });
+
+  it("disables selected authentication when target origin no longer matches", () => {
+    let data = niktoCommandService.createInitialToolData("https://example.com/path");
+    data = niktoCommandService.setAuthenticationAvailability(
+      data,
+      "https://example.com",
+    );
+    data = niktoCommandService.toggleAuthenticatedContext(data);
+    data = niktoCommandService.setField(data, "target", "https://api.example.com");
+
+    expect(data.form.useAuthenticatedContext).toBe(false);
+    expect(data.authentication.isAvailable).toBe(false);
+    expect(data.authentication.strategy).toBe("none");
+  });
+
+  it("resets authentication selection after one run", () => {
+    let data = niktoCommandService.createInitialToolData("https://example.com");
+    data = niktoCommandService.setAuthenticationAvailability(data, "https://example.com");
+    data = niktoCommandService.toggleAuthenticatedContext(data);
+
+    const reset = niktoCommandService.resetRunScopedState(data);
+
+    expect(reset.form.useAuthenticatedContext).toBe(false);
+    expect(reset.authentication.strategy).toBe("none");
+    expect(reset.authentication.isAvailable).toBe(true);
+  });
+
+  it("keeps disruptive confirmation independent from authentication selection", () => {
+    let custom = niktoCommandService.setProfile(
+      niktoCommandService.createInitialToolData("https://example.com"),
+      "custom",
+    );
+    custom = niktoCommandService.setAuthenticationAvailability(
+      custom,
+      "https://example.com",
+    );
+    custom = niktoCommandService.toggleAuthenticatedContext(custom);
+
+    expect(
+      niktoCommandService.getRunConfirmation(
+        "nikto -h https://example.com -Tuning 6",
+        custom,
+      ),
+    ).not.toBeNull();
+    expect(() =>
+      niktoCommandService.prepareCommandForRun({
+        command: "nikto -h https://example.com",
+        sessionId: "session-1",
+        toolRunId: "run-standard-gate",
+        toolData: {
+          ...custom,
+          form: {
+            ...custom.form,
+            profile: "standard",
+          },
+        },
+      }),
+    ).toThrow("requires -Tuning x6");
+  });
+
   it("switches between Standard and Custom without losing Custom selections", () => {
     const standard = niktoCommandService.createInitialToolData("https://example.com");
     const custom = niktoCommandService.setProfile(standard, "custom");
@@ -208,6 +291,32 @@ describe("niktoCommandService", () => {
           toolRunId: "run-1",
         }),
       ).toThrow("Nikto Standard");
+    }
+  });
+
+  it("rejects URL credentials even in public mode", () => {
+    expect(() =>
+      niktoCommandService.prepareCommandForRun({
+        command: "nikto -h https://user:password@example.com -Tuning x6",
+        sessionId: "session-1",
+        toolRunId: "run-url-credentials",
+      }),
+    ).toThrow("selected session context");
+  });
+
+  it("rejects client certificates and proxy configuration outside selected context", () => {
+    for (const option of [
+      "-key /tmp/client.key",
+      "-RSAcert /tmp/client.crt",
+      "-useproxy http://127.0.0.1:8080",
+    ]) {
+      expect(() =>
+        niktoCommandService.prepareCommandForRun({
+          command: `nikto -h https://example.com -Tuning x6 ${option}`,
+          sessionId: "session-1",
+          toolRunId: "run-direct-auth",
+        }),
+      ).toThrow("selected session context");
     }
   });
 

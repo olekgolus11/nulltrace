@@ -46,6 +46,30 @@ export function assertNiktoCommand(command: string, profile: NiktoProfile) {
   if (tokens[0]?.toLowerCase() !== "nikto") {
     throw new Error("Nikto workspace only runs nikto commands.");
   }
+  if (
+    tokens.some((token) => {
+      try {
+        const url = new URL(token);
+        return Boolean(url.username || url.password);
+      } catch {
+        return false;
+      }
+    })
+  ) {
+    throw new Error(
+      "Nikto authentication values must come from the explicitly selected session context.",
+    );
+  }
+  if (
+    tokens.some((token) => {
+      const option = token.split("=", 1)[0]?.replace(/^-+/, "") ?? "";
+      return token.startsWith("-") && isNiktoDirectAuthenticationOrConfigOption(option);
+    })
+  ) {
+    throw new Error(
+      "Nikto authentication and configuration options must come from the explicitly selected session context.",
+    );
+  }
 
   const tuning = getNiktoCommandTuning(tokens);
   if (
@@ -174,7 +198,7 @@ function getNiktoFindingUrl(
   }
 }
 
-function parseNiktoShellWords(command: string) {
+export function parseNiktoShellWords(command: string) {
   const tokens: string[] = [];
   let token = "";
   let hasToken = false;
@@ -245,6 +269,19 @@ function parseNiktoShellWords(command: string) {
   return tokens;
 }
 
+export function isNiktoDirectAuthenticationOrConfigOption(name: string) {
+  const normalized = name.toLowerCase();
+  return (
+    normalized === "id" ||
+    ("add-header".startsWith(normalized) && normalized.length >= 2) ||
+    ("config".startsWith(normalized) && normalized.length >= 2) ||
+    ("option".startsWith(normalized) && normalized.length >= 2) ||
+    ("key".startsWith(normalized) && normalized.length >= 1) ||
+    ("rsacert".startsWith(normalized) && normalized.length >= 2) ||
+    ("useproxy".startsWith(normalized) && normalized.length >= 4)
+  );
+}
+
 function getNiktoCommandTuning(tokens: string[]) {
   const tuning: string[] = [];
   let hasTuningOption = false;
@@ -271,7 +308,7 @@ function getNiktoCommandTuning(tokens: string[]) {
   return tuning;
 }
 
-function isNiktoOptionAbbreviation(option: string, names: string[]) {
+export function isNiktoOptionAbbreviation(option: string, names: string[]) {
   const name = option.replace(/^(?:-{1,2}|\+)/, "");
   if (!name) return false;
   return names.some((candidate) => candidate.startsWith(name));

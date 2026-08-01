@@ -6,6 +6,7 @@ import { useToolLayout } from "../../hooks/use-tool-layout";
 import { CommandEditor } from "../../shared/components/CommandEditor";
 import { OutputLog } from "../../shared/components/OutputLog";
 import { toolPanels } from "../../shared/registry/tool-registry";
+import { niktoCommandService } from "../services/nikto-command.service";
 import { useNiktoWorkspace } from "../store/use-nikto-workspace";
 import { NiktoForm } from "./NiktoForm";
 
@@ -17,6 +18,8 @@ export function NiktoWorkspace() {
     state.toolData.form.profile === "custom"
       ? layout.formPanelHeight + 3
       : layout.formPanelHeight;
+  const authenticatedFormPanelHeight =
+    formPanelHeight + (state.toolData.authentication.isAvailable ? 1 : 0);
   const previewLines = state.selectedHistoryRun
     ? [
         `$ ${state.selectedHistoryRun.command}`,
@@ -24,6 +27,8 @@ export function NiktoWorkspace() {
         ...state.selectedHistoryRun.logs.map((log) => log.line),
       ]
     : state.outputLines;
+  const previewCommand = state.selectedHistoryRun?.command ??
+    niktoCommandService.redactCommandForPersistence(state.commandInput);
   const focus = (panel: typeof state.activePanel) => {
     if (!state.isHelpOpen) state.setActivePanel(panel);
   };
@@ -33,7 +38,7 @@ export function NiktoWorkspace() {
       <DashboardPanel
         title={`Nikto ${state.toolData.form.profile === "custom" ? "Custom" : "Standard"} Controls`}
         panelNumber={getPanelDisplayNumber(toolPanels, "form")}
-        height={formPanelHeight}
+        height={authenticatedFormPanelHeight}
         focused={state.activePanel === "form"}
         onMouseDown={() => focus("form")}
       >
@@ -44,6 +49,9 @@ export function NiktoWorkspace() {
           onFieldChange={state.setField}
           onProfileChange={state.setProfile}
           onToggleTuning={state.toggleTuning}
+          authAvailable={state.toolData.authentication.isAvailable}
+          authOrigin={state.toolData.authentication.origin}
+          onToggleAuthenticatedContext={state.toggleAuthenticatedContext}
         />
       </DashboardPanel>
       <DashboardPanel
@@ -55,7 +63,7 @@ export function NiktoWorkspace() {
         onMouseDown={() => focus("command")}
       >
         <CommandEditor
-          commandInput={state.selectedHistoryRun?.command ?? state.commandInput}
+          commandInput={previewCommand}
           generatedCommand={state.generatedCommand}
           commandSource={state.commandSource}
           focused={state.activePanel === "command"}

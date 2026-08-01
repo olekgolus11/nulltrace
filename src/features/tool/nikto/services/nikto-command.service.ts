@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { getAppDataDirectory } from "../../../session/services/session-database";
+import { normalizeExactOrigin } from "../../../authentication/services/authenticated-request-context.service";
 import { ToolRunArtifactInput } from "../../../session/model/session.repository.types";
 import {
   ToolPrepareCommand,
@@ -29,6 +30,11 @@ import {
   parseNiktoJsonReport,
   quoteNiktoShellValue,
 } from "./nikto-command.helpers";
+import {
+  redactNiktoCommandForPersistence,
+  validateAuthenticatedNiktoCommand,
+} from "./nikto-authenticated-command.helpers";
+import { niktoAuthenticatedRunService } from "./nikto-authenticated-run.service";
 
 const controlledOutputPattern =
   /\s+(?:-o|-output|-Format|-format)(?:\s+|=)(?:"[^"]*"|'[^']*'|\S+)/gi;
@@ -48,6 +54,12 @@ class NiktoCommandService {
         pauseSeconds: "0",
         profile: "standard",
         tuning: [...niktoDefaultCustomTuning],
+        useAuthenticatedContext: false,
+      },
+      authentication: {
+        strategy: "none",
+        isAvailable: false,
+        origin: null,
       },
     };
   }
@@ -85,7 +97,70 @@ class NiktoCommandService {
   }
 
   setField(toolData: NiktoToolData, field: keyof NiktoFormState, value: string): NiktoToolData {
-    return { ...toolData, form: { ...toolData.form, [field]: value } };
+    const updated = { ...toolData, form: { ...toolData.form, [field]: value } };
+    return field === "target"
+      ? this.setAuthenticationAvailability(updated, toolData.authentication.origin)
+      : updated;
+  }
+
+  setAuthenticationAvailability(toolData: NiktoToolData, origin: string | null): NiktoToolData {
+    let isAvailable = false;
+    try {
+      isAvailable = Boolean(origin && normalizeExactOrigin(toolData.form.target) === origin);
+    } catch {
+      isAvailable = false;
+    }
+    return {
+      ...toolData,
+      selectedField: isAvailable
+        ? toolData.selectedField
+        : Math.min(
+            toolData.selectedField,
+            getNiktoFieldOrder(toolData.form.profile).length - 1,
+          ),
+      form: {
+        ...toolData.form,
+        useAuthenticatedContext: isAvailable
+          ? toolData.form.useAuthenticatedContext
+          : false,
+      },
+      authentication: {
+        strategy:
+          isAvailable && toolData.form.useAuthenticatedContext ? "session" : "none",
+        isAvailable,
+        origin,
+      },
+    };
+  }
+
+  toggleAuthenticatedContext(toolData: NiktoToolData): NiktoToolData {
+    if (!toolData.authentication.isAvailable) return toolData;
+    const useAuthenticatedContext = !toolData.form.useAuthenticatedContext;
+    return {
+      ...toolData,
+      form: {
+        ...toolData.form,
+        useAuthenticatedContext,
+      },
+      authentication: {
+        ...toolData.authentication,
+        strategy: useAuthenticatedContext ? "session" : "none",
+      },
+    };
+  }
+
+  resetRunScopedState(toolData: NiktoToolData): NiktoToolData {
+    return {
+      ...toolData,
+      form: {
+        ...toolData.form,
+        useAuthenticatedContext: false,
+      },
+      authentication: {
+        ...toolData.authentication,
+        strategy: "none",
+      },
+    };
   }
 
   setProfile(toolData: NiktoToolData, profile: NiktoProfile): NiktoToolData {
@@ -123,11 +198,18 @@ class NiktoCommandService {
   }
 
   moveSelection(toolData: NiktoToolData, delta: -1 | 1): NiktoToolData {
-    const maximumIndex = getNiktoFieldOrder(toolData.form.profile).length - 1;
+    const maximumIndex = getNiktoFieldOrder(
+      toolData.form.profile,
+      toolData.authentication.isAvailable,
+    ).length - 1;
     return {
       ...toolData,
       selectedField: Math.max(0, Math.min(toolData.selectedField + delta, maximumIndex)),
     };
+  }
+
+  redactCommandForPersistence(command: string) {
+    return redactNiktoCommandForPersistence(command);
   }
 
   getRunConfirmation(
@@ -178,7 +260,7 @@ class NiktoCommandService {
               : []),
           ]
         : [];
-    return [
+    const controlledCommand = [
       controlled,
       ...requestControls,
       "-maxtime",
@@ -188,6 +270,26 @@ class NiktoCommandService {
       "-output",
       quoteNiktoShellValue(outputPrefix),
     ].join(" ");
+    if (!data?.form.useAuthenticatedContext) {
+      return controlledCommand;
+    }
+
+    const authenticatedTarget = validateAuthenticatedNiktoCommand(command);
+    return niktoAuthenticatedRunService.prepare({
+      sessionId,
+      targetUrl: authenticatedTarget,
+      command: controlledCommand,
+      artifactOutputPath: this.getJsonOutputPath(sessionId, toolRunId),
+    }).then((prepared) => ({
+      command: prepared.command,
+      systemLines: [
+        `[session authentication applied: ${prepared.authenticationOrigin}]`,
+      ],
+      cleanup: prepared.cleanup,
+      prepareArtifacts: prepared.prepareArtifacts,
+      redactOutput: prepared.redactOutput,
+      redactArtifact: prepared.redactArtifact,
+    }));
   }
 
   async collectArtifacts(options: ToolRunCompleted): Promise<ToolRunArtifactInput[]> {
@@ -276,6 +378,10 @@ class NiktoCommandService {
     const outputPrefix = this.getOutputPrefix(sessionId, toolRunId);
     const jsonOutputPath = `${outputPrefix}.json`;
     return existsSync(jsonOutputPath) ? jsonOutputPath : outputPrefix;
+  }
+
+  private getJsonOutputPath(sessionId: string, toolRunId: string) {
+    return `${this.getOutputPrefix(sessionId, toolRunId)}.json`;
   }
 }
 

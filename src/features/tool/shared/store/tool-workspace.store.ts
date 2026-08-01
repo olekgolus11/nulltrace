@@ -195,6 +195,8 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
     }
     set(clearedRunConfirmationState);
     const persistedCommand = toolModule?.redactCommandForPersistence?.(command) ?? command;
+    const runToolData = state.toolData;
+    const resetToolData = toolModule?.resetRunScopedState?.(runToolData);
 
     set({
       outputLines: [`$ ${persistedCommand}`, ""],
@@ -202,6 +204,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       lastExitCode: null,
       currentToolRunId: null,
       isHistoricPreview: false,
+      ...(resetToolData === undefined ? {} : { toolData: resetToolData }),
     });
 
     await toolRunnerService.run({
@@ -211,7 +214,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
       commandSource: state.commandSource,
       toolModule,
       targetUrl: state.targetUrl,
-      toolData: state.toolData,
+      toolData: runToolData,
       onRunStarted: (toolRunId) => {
         set({
           currentToolRunId: toolRunId,

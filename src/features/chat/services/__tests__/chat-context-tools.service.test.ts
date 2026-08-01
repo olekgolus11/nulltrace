@@ -20,7 +20,7 @@ import {
   SessionContextChatContextToolsService,
   ToolRunArtifactChatContextToolsService,
 } from "../chat-context-tools.service";
-import { ToolWorkspaceContextSnapshot } from "../../../tool/shared/services/tool-workspace-context.service";
+import { ToolWorkspaceContextSnapshot } from "../../../tool/shared/services/tool-workspace-context.types";
 import { ScannerToolId } from "../../../tool/shared/registry/scanner-catalog";
 
 const chatContextToolsImportPath = new URL("../chat-context-tools.service.ts", import.meta.url)
@@ -872,6 +872,69 @@ describe("ActionDraftChatContextToolsService", () => {
         requestTimeoutSeconds: "15",
       },
     });
+  });
+
+  it("persists Nikto auth opt-in without authentication values", () => {
+    const { drafts, service } = createActionDraftService(
+      new FakeActionDraftRepository(),
+      true,
+    );
+
+    service.createActionDraft("opencode-1", {
+      targetTool: "nikto",
+      title: "Authenticated Nikto checks",
+      command: "nikto -h {{TARGET}} -Tuning x6",
+      formStateJson: JSON.stringify({
+        useAuthenticatedContext: true,
+        cookie: "session=secret-cookie",
+      }),
+      intentJson: JSON.stringify({
+        authorization: "Basic secret-value",
+      }),
+    });
+
+    expect(drafts.drafts[0]?.payload).toMatchObject({
+      formState: {
+        target: "http://honey.scanme.sh",
+        useAuthenticatedContext: true,
+        cookie: "[redacted]",
+      },
+      intent: {
+        authorization: "[redacted]",
+      },
+    });
+    expect(JSON.stringify(drafts.drafts[0])).not.toContain("secret-cookie");
+    expect(JSON.stringify(drafts.drafts[0])).not.toContain("secret-value");
+  });
+
+  it("rejects Nikto auth opt-in without accepted authentication context", () => {
+    const { drafts, service } = createActionDraftService();
+
+    expect(() =>
+      service.createActionDraft("opencode-1", {
+        targetTool: "nikto",
+        title: "Authenticated Nikto checks",
+        formStateJson: JSON.stringify({ useAuthenticatedContext: true }),
+      }),
+    ).toThrow("Authenticated Nikto drafts require an accepted authentication context.");
+    expect(drafts.drafts).toHaveLength(0);
+  });
+
+  it("rejects direct Nikto credentials before draft persistence", () => {
+    const { drafts, service } = createActionDraftService(
+      new FakeActionDraftRepository(),
+      true,
+    );
+
+    expect(() =>
+      service.createActionDraft("opencode-1", {
+        targetTool: "nikto",
+        title: "Unsafe Nikto credentials",
+        command: "nikto -h {{TARGET}} -id admin:secret -Tuning x6",
+        formStateJson: JSON.stringify({ useAuthenticatedContext: true }),
+      }),
+    ).toThrow("must come from the explicitly selected session context");
+    expect(drafts.drafts).toHaveLength(0);
   });
 
   it("rejects mutation and evasion in Nikto chat drafts", () => {
