@@ -1,6 +1,8 @@
+import { useTerminalDimensions } from "@opentui/react";
 import { theme } from "../../app/theme/theme";
 import { PanelDefinition } from "../model/panel-navigation.types";
 import { ShortcutHint } from "./shortcut-hints.types";
+import { createStatusBarReadModel } from "./status-bar.helpers";
 import { ShortcutHints } from "./ShortcutHints";
 
 interface StatusBarProps {
@@ -10,35 +12,38 @@ interface StatusBarProps {
 }
 
 export function StatusBar({ activePanel, hints, panels }: StatusBarProps) {
+  const { width } = useTerminalDimensions();
+  const readModel = createStatusBarReadModel({
+    activePanel,
+    hints,
+    panels,
+    width,
+  });
+
   return (
     <box
+      width={width}
       height={1}
       flexDirection="row"
+      overflow="hidden"
       backgroundColor={theme.bg.panel}
       paddingLeft={1}
       paddingRight={1}
     >
-      {/* Left side - Keyboard shortcuts */}
-      <box flexGrow={1}>
-        <ShortcutHints hints={hints} />
+      <box flexGrow={1} overflow="hidden">
+        <ShortcutHints
+          hints={readModel.hints}
+          hasOmittedHints={readModel.hasOmittedHints}
+        />
       </box>
 
-      {/* Right side - Panel indicators */}
-      <box flexDirection="row" gap={1}>
-        {panels.map((panel, index) => {
-          const isActive = panel.id === activePanel;
-          return (
-            <text key={panel.id} fg={isActive ? theme.accent.primary : theme.text.dim}>
-              {isActive ? (
-                <strong>
-                  [{index + 1} {panel.label}]
-                </strong>
-              ) : (
-                `[${index + 1} ${panel.label}]`
-              )}
-            </text>
-          );
-        })}
+      <box
+        flexShrink={0}
+        marginLeft={readModel.hints.length > 0 || readModel.hasOmittedHints ? 1 : 0}
+      >
+        <text fg={theme.accent.primary}>
+          <strong>{readModel.activeIndicator}</strong>
+        </text>
       </box>
     </box>
   );
