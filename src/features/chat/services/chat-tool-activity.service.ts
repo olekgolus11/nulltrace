@@ -1,4 +1,5 @@
 import { ChatToolActivity, ChatToolActivityStatus } from "../model/chat-tool-activity.types";
+import { getInspectPageActivityLabel } from "./chat-tool-activity.helpers";
 
 const toolLabels: Record<string, string> = {
   get_sitemap_status: "Get sitemap status",
@@ -21,6 +22,7 @@ interface OpenCodeToolPart {
   tool?: unknown;
   state?: {
     status?: unknown;
+    input?: unknown;
   };
 }
 
@@ -53,7 +55,10 @@ export function toSafeChatToolActivity(part: unknown): ChatToolActivity | null {
     return null;
   }
 
-  const label = toolLabels[part.tool];
+  const label =
+    part.tool === "inspect_page"
+      ? getInspectPageActivityLabel(part.state?.input)
+      : toolLabels[part.tool];
   const status = getToolActivityStatus(part.state?.status);
   if (!label || !status) {
     return null;

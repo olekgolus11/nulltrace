@@ -28,6 +28,153 @@ describe("chat tool activity mapping", () => {
     });
   });
 
+  it("shows a running page inspection with only its normalized path", () => {
+    const activity = toSafeChatToolActivity({
+      id: "part-inspect-page",
+      type: "tool",
+      tool: "inspect_page",
+      state: {
+        status: "running",
+        input: {
+          url: "https://operator:password@example.test/admin/../security.php?token=protected#private",
+          authorization: "Bearer protected-value",
+        },
+      },
+    });
+
+    expect(activity).toEqual({
+      id: "part-inspect-page",
+      label: "Inspect page /security.php",
+      status: "running",
+    });
+    expect(JSON.stringify(activity)).not.toContain("operator");
+    expect(JSON.stringify(activity)).not.toContain("password");
+    expect(JSON.stringify(activity)).not.toContain("token");
+    expect(JSON.stringify(activity)).not.toContain("protected");
+    expect(JSON.stringify(activity)).not.toContain("private");
+  });
+
+  it("maps completed and failed page inspection states", () => {
+    const completed = toSafeChatToolActivity({
+      id: "part-inspect-completed",
+      type: "tool",
+      tool: "inspect_page",
+      state: {
+        status: "completed",
+        input: { url: "https://example.test/account" },
+        output: "protected page snapshot",
+      },
+    });
+    const failed = toSafeChatToolActivity({
+      id: "part-inspect-failed",
+      type: "tool",
+      tool: "inspect_page",
+      state: {
+        status: "error",
+        input: { url: "https://example.test/login" },
+        error: "protected failure detail",
+      },
+    });
+
+    expect([completed, failed]).toEqual([
+      {
+        id: "part-inspect-completed",
+        label: "Inspect page /account",
+        status: "completed",
+      },
+      {
+        id: "part-inspect-failed",
+        label: "Inspect page /login",
+        status: "failed",
+      },
+    ]);
+  });
+
+  it("uses a static page inspection label for unavailable or invalid URLs", () => {
+    const inputs = [
+      undefined,
+      {},
+      { url: null },
+      { url: "" },
+      { url: "/secret?token=protected" },
+      { url: "https://" },
+      { url: "javascript:protected-value" },
+    ];
+    const activities = inputs.map((input, index) =>
+      toSafeChatToolActivity({
+        id: `part-inspect-invalid-${index}`,
+        type: "tool",
+        tool: "inspect_page",
+        state: {
+          status: "completed",
+          input,
+        },
+      }),
+    );
+
+    expect(activities.map((activity) => activity?.label)).toEqual(
+      inputs.map(() => "Inspect page"),
+    );
+    expect(JSON.stringify(activities)).not.toContain("secret");
+    expect(JSON.stringify(activities)).not.toContain("protected");
+  });
+
+  it("does not expose path-carried secrets or unbounded paths", () => {
+    const urls = [
+      "https://example.test/account;jsessionid=protected-session",
+      "https://example.test/reset/protected-reset-token",
+      `https://example.test/${"a".repeat(300)}`,
+    ];
+    const activities = urls.map((url, index) =>
+      toSafeChatToolActivity({
+        id: `part-inspect-unsafe-${index}`,
+        type: "tool",
+        tool: "inspect_page",
+        state: {
+          status: "running",
+          input: { url },
+        },
+      }),
+    );
+
+    expect(activities.map((activity) => activity?.label)).toEqual(
+      urls.map(() => "Inspect page"),
+    );
+    expect(JSON.stringify(activities)).not.toContain("protected");
+    expect(JSON.stringify(activities).length).toBeLessThan(300);
+  });
+
+  it("reconstructs persisted page inspection history with the same safe mapping", () => {
+    const persistedActivities = readSafeChatToolActivities([
+      {
+        id: "part-inspect-history",
+        type: "tool",
+        tool: "inspect_page",
+        state: {
+          status: "completed",
+          input: {
+            url: "https://user:password@example.test/private/../security.php?api_key=protected#secret",
+            cookie: "session=protected-cookie",
+          },
+          output: "protected page contents",
+        },
+      },
+    ]);
+
+    expect(persistedActivities).toEqual([
+      {
+        id: "part-inspect-history",
+        label: "Inspect page /security.php",
+        status: "completed",
+      },
+    ]);
+    expect(JSON.stringify(persistedActivities)).not.toContain("user");
+    expect(JSON.stringify(persistedActivities)).not.toContain("password");
+    expect(JSON.stringify(persistedActivities)).not.toContain("api_key");
+    expect(JSON.stringify(persistedActivities)).not.toContain("protected");
+    expect(JSON.stringify(persistedActivities)).not.toContain("secret");
+  });
+
   it("updates a tool lifecycle without changing its original position", () => {
     const running = toSafeChatToolActivity({
       id: "part-findings",
