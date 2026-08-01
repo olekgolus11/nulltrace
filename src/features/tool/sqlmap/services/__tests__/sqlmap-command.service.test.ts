@@ -71,6 +71,7 @@ describe("sqlmapCommandService", () => {
     expect(prepared.command).toContain("--output-dir '");
     expect(prepared.command).toContain("--disable-coloring");
     expect(prepared.command).toContain("--technique BEU");
+    expect(prepared.command).toContain("--ignore-stdin");
     expect(prepared.timeoutMs).toBe(120_000);
     const outputDirectory = prepared.command.match(/--output-dir '([^']+)'/)?.[1];
     expect(outputDirectory).toBeString();

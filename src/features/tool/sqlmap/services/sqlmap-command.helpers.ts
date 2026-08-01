@@ -32,6 +32,7 @@ const switchOptions = new Set([
   "--titles",
   "--parse-errors",
   "--ignore-redirects",
+  "--ignore-stdin",
 ]);
 
 export function quoteSqlmapShellValue(value: string) {

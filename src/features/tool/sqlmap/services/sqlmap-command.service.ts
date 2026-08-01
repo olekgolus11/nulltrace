@@ -170,6 +170,9 @@ class SqlmapCommandService {
     if (!hasSqlmapOption(preparedCommand, "--technique")) {
       preparedCommand += " --technique BEU";
     }
+    if (!hasSqlmapOption(preparedCommand, "--ignore-stdin")) {
+      preparedCommand += " --ignore-stdin";
+    }
     const timeoutMs =
       normalizeSqlmapTimeLimit(
         (toolData as SqlmapToolData | undefined)?.form.timeLimitSeconds,

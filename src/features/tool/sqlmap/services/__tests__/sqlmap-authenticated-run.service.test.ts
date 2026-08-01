@@ -55,6 +55,7 @@ describe("SqlmapAuthenticatedRunService", () => {
     expect(prepared.command).not.toContain("-u ");
     expect(prepared.command).not.toContain("secret-cookie");
     expect(prepared.command).not.toContain("secret-token");
+    expect(prepared.command).toContain("--ignore-stdin");
     expect(rawRequest).toContain("GET /products?id=1 HTTP/1.1");
     expect(rawRequest).toContain("Host: example.com:8443");
     expect(rawRequest).toContain("Cookie: session=secret-cookie; preference=compact");

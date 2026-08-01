@@ -73,11 +73,15 @@ export function replaceSqlmapRequestWithRawRequest(
       option.name !== "--method" &&
       option.name !== "--data",
   );
+  const hasIgnoreStdin = retainedOptions.some(
+    (option) => option.name === "--ignore-stdin",
+  );
   return [
     "sqlmap",
     "-r",
     quoteSqlmapShellValue(secretFilePath),
     "--ignore-redirects",
+    ...(hasIgnoreStdin ? [] : ["--ignore-stdin"]),
     ...(isHttpsTarget ? ["--force-ssl"] : []),
     ...retainedOptions.flatMap(formatSqlmapOption),
   ].join(" ");
