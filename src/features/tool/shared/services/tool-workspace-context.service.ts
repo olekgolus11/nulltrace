@@ -10,6 +10,7 @@ import {
 import { join } from "node:path";
 import { getAppDataDirectory } from "../../../session/services/session-database";
 import { redactNucleiCommandForPersistence } from "../../nuclei/services/nuclei-command-redaction.helpers";
+import { redactSqlmapCommandForPersistence } from "../../sqlmap/services/sqlmap-output-redaction.helpers";
 import {
   CommandSource,
   ExecutionStatus,
@@ -121,25 +122,40 @@ function readSnapshot(value: unknown): ToolWorkspaceContextSnapshot | null {
 export const toolWorkspaceContextService = {
   saveActiveWorkspace(input: ToolWorkspaceContextInput) {
     mkdirSync(getContextDirectory(), { recursive: true });
-    const sanitizedInput =
-      input.toolName === "nuclei"
-        ? {
-            ...input,
-            commandInput: redactNucleiCommandForPersistence(input.commandInput),
-            generatedCommand: redactNucleiCommandForPersistence(input.generatedCommand),
-            toolData: {
-              ...input.toolData,
-              form: {
-                ...input.toolData.form,
-                ...(typeof input.toolData.form.extraArgs === "string"
-                  ? {
-                      extraArgs: redactNucleiCommandForPersistence(input.toolData.form.extraArgs),
-                    }
-                  : {}),
-              },
-            },
-          }
-        : input;
+    let sanitizedInput = input;
+    if (input.toolName === "nuclei") {
+      sanitizedInput = {
+        ...input,
+        commandInput: redactNucleiCommandForPersistence(input.commandInput),
+        generatedCommand: redactNucleiCommandForPersistence(input.generatedCommand),
+        toolData: {
+          ...input.toolData,
+          form: {
+            ...input.toolData.form,
+            ...(typeof input.toolData.form.extraArgs === "string"
+              ? {
+                  extraArgs: redactNucleiCommandForPersistence(input.toolData.form.extraArgs),
+                }
+              : {}),
+          },
+        },
+      };
+    } else if (input.toolName === "sqlmap") {
+      sanitizedInput = {
+        ...input,
+        commandInput: redactSqlmapCommandForPersistence(input.commandInput),
+        generatedCommand: redactSqlmapCommandForPersistence(input.generatedCommand),
+        toolData: {
+          ...input.toolData,
+          form: {
+            ...input.toolData.form,
+            ...(typeof input.toolData.form.body === "string" && input.toolData.form.body
+              ? { body: "[request body redacted]" }
+              : {}),
+          },
+        },
+      };
+    }
     const snapshot: ToolWorkspaceContextSnapshot = {
       ...sanitizedInput,
       updatedAt: new Date().toISOString(),

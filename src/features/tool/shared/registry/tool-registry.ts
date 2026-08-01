@@ -29,6 +29,11 @@ import { NiktoWorkspace } from "../../nikto/components/NiktoWorkspace";
 import { getNiktoFieldOrder } from "../../nikto/config/nikto.config";
 import { niktoCommandService } from "../../nikto/services/nikto-command.service";
 import { NiktoToolData, NiktoTuningCode } from "../../nikto/types/nikto.types";
+import { SqlmapWorkspace } from "../../sqlmap/components/SqlmapWorkspace";
+import { sqlmapFieldOrder } from "../../sqlmap/config/sqlmap.config";
+import { sqlmapArtifactService } from "../../sqlmap/services/sqlmap-artifact.service";
+import { sqlmapCommandService } from "../../sqlmap/services/sqlmap-command.service";
+import { SqlmapToolData } from "../../sqlmap/types/sqlmap.types";
 import { ffufSitemapEnrichmentService } from "../../../sitemap/services/ffuf-sitemap-enrichment.service";
 import { PanelDefinition } from "../../../../shared/model/panel-navigation.types";
 import {
@@ -288,6 +293,61 @@ export const toolRegistry: Record<string, ToolModule> = {
         return true;
       }
 
+      return false;
+    },
+  },
+  sqlmap: {
+    id: scannerCatalog.sqlmap.id,
+    name: scannerCatalog.sqlmap.name,
+    description: scannerCatalog.sqlmap.description ?? "",
+    Workspace: SqlmapWorkspace,
+    createInitialToolData: (targetUrl: string) =>
+      sqlmapCommandService.createInitialToolData(targetUrl),
+    buildGeneratedCommand: (toolData: unknown) =>
+      sqlmapCommandService.buildCommand(toolData as SqlmapToolData),
+    redactCommandForPersistence: (command: string) =>
+      sqlmapCommandService.redactCommandForPersistence(command),
+    prepareCommandForRun: (options: ToolPrepareCommand) =>
+      sqlmapCommandService.prepareCommandForRun(options),
+    collectArtifacts: (options: ToolRunCompleted) =>
+      sqlmapArtifactService.collectArtifacts(options),
+    handleFormKey: (key, state, api) => {
+      if (state.activePanel !== "form") return false;
+      const toolData = state.toolData as SqlmapToolData;
+      if (!toolData) return false;
+      if (key.name === "up" || key.name === "down") {
+        api.updateToolData((current) =>
+          sqlmapCommandService.moveSelection(
+            current as SqlmapToolData,
+            key.name === "up" ? -1 : 1,
+          ),
+        );
+        return true;
+      }
+      const selectedField = sqlmapFieldOrder[toolData.selectedField];
+      if (
+        selectedField === "method" &&
+        (key.name === "left" || key.name === "right")
+      ) {
+        api.updateToolData((current) =>
+          sqlmapCommandService.cycleMethod(current as SqlmapToolData),
+        );
+        api.syncGeneratedCommand();
+        return true;
+      }
+      if (
+        selectedField === "level" &&
+        (key.name === "left" || key.name === "right")
+      ) {
+        api.updateToolData((current) =>
+          sqlmapCommandService.cycleLevel(
+            current as SqlmapToolData,
+            key.name === "left" ? -1 : 1,
+          ),
+        );
+        api.syncGeneratedCommand();
+        return true;
+      }
       return false;
     },
   },

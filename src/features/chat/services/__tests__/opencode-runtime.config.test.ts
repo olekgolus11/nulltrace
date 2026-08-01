@@ -81,8 +81,10 @@ describe("getOpenCodeRuntimeEnvironment", () => {
     expect(chatContextSystemPrompt).toContain("operator controls");
   });
 
-  it("guides chat to create FFUF and Nikto action drafts", () => {
-    expect(chatContextSystemPrompt).toContain("nmap, nuclei, ffuf, or Nikto");
+  it("guides chat to create FFUF, targeted sqlmap, and Nikto action drafts", () => {
+    expect(chatContextSystemPrompt).toContain("nmap, nuclei, ffuf, sqlmap, or Nikto");
+    expect(chatContextSystemPrompt).toContain("one exact endpoint");
+    expect(chatContextSystemPrompt).toContain("Never draft sqlmap crawling");
     expect(chatContextSystemPrompt).toContain("Nikto drafts may use Standard or Custom profile");
     expect(chatContextSystemPrompt).toContain("no draft field can satisfy it");
     expect(chatContextSystemPrompt).toContain("create_action_draft");

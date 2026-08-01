@@ -5,6 +5,7 @@ import { nmapFindingMapper } from "./mappers/nmap-finding.mapper";
 import { nucleiFindingMapper } from "./mappers/nuclei-finding.mapper";
 import { niktoFindingMapper } from "./mappers/nikto-finding.mapper";
 import { ffufValueFindingMapper } from "./mappers/ffuf-value-finding.mapper";
+import { sqlmapFindingMapper } from "./mappers/sqlmap-finding.mapper";
 
 interface ProcessFindingArtifactsInput {
   sessionId: string;
@@ -53,4 +54,5 @@ export const findingPipelineService = new FindingPipelineService([
   nucleiFindingMapper,
   niktoFindingMapper,
   ffufValueFindingMapper,
+  sqlmapFindingMapper,
 ]);

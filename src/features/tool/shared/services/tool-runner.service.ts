@@ -123,6 +123,7 @@ export class ToolRunnerService {
       redactPreparedArtifact = typeof prepared === "string" ? undefined : prepared.redactArtifact;
       preparePreparedArtifacts =
         typeof prepared === "string" ? undefined : prepared.prepareArtifacts;
+      const timeoutMs = typeof prepared === "string" ? undefined : prepared.timeoutMs;
       let hasCleanedPreparedRun = false;
       activeRun.cleanupPreparedRun =
         typeof prepared === "string" || !prepared.cleanup
@@ -140,17 +141,22 @@ export class ToolRunnerService {
         return;
       }
 
-      const exitCode = await this.commandRunner.run(
-        preparedCommand,
-        (lines) => {
-          const redactedLines = redactPreparedOutput ? lines.map(redactPreparedOutput) : lines;
-          this.emitBoundedOutput(activeRun, redactedLines, "stdout", onStdoutLines);
-        },
-        (lines) => {
-          const redactedLines = redactPreparedOutput ? lines.map(redactPreparedOutput) : lines;
-          this.emitBoundedOutput(activeRun, redactedLines, "stderr", onStderrLines);
-        },
-      );
+      const handleStdout = (lines: string[]) => {
+        const redactedLines = redactPreparedOutput ? lines.map(redactPreparedOutput) : lines;
+        this.emitBoundedOutput(activeRun, redactedLines, "stdout", onStdoutLines);
+      };
+      const handleStderr = (lines: string[]) => {
+        const redactedLines = redactPreparedOutput ? lines.map(redactPreparedOutput) : lines;
+        this.emitBoundedOutput(activeRun, redactedLines, "stderr", onStderrLines);
+      };
+      const exitCode = timeoutMs
+        ? await this.commandRunner.run(
+            preparedCommand,
+            handleStdout,
+            handleStderr,
+            { timeoutMs },
+          )
+        : await this.commandRunner.run(preparedCommand, handleStdout, handleStderr);
 
       if (activeRun.cancelled) {
         if (redactPreparedArtifact || preparePreparedArtifacts) {
@@ -222,7 +228,10 @@ export class ToolRunnerService {
       }
 
       const rawMessage = error instanceof Error ? error.message : "Unknown execution error";
-      const message = redactPreparedOutput?.(rawMessage) ?? rawMessage;
+      const message =
+        redactPreparedOutput?.(rawMessage) ??
+        toolModule?.redactCommandForPersistence?.(rawMessage) ??
+        rawMessage;
       const failureMessage = `[execution failed] ${message}`;
       if (toolRunId) {
         this.repository.appendToolRunLog(toolRunId, ["", failureMessage]);
