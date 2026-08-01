@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { Database } from "bun:sqlite";
 import { createActionDraftsTable } from "../../action-draft/services/action-draft.schema";
 import { createAuthenticationContextMetadataTable } from "../../authentication/services/authentication-context-metadata.schema";
+import { createSessionReportDraftsTable } from "../../report/services/session-report-draft.schema";
 
 export function getAppDataDirectory() {
   if (process.env.NULLTRACE_APP_DATA_DIR) {
@@ -291,4 +292,5 @@ createFindingReviewsTable();
 createConversationAttachmentsTable();
 createActionDraftsTable(sessionDatabase);
 createAuthenticationContextMetadataTable(sessionDatabase);
+createSessionReportDraftsTable(sessionDatabase);
 createTargetSitemapTables();

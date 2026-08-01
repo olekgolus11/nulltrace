@@ -55,6 +55,12 @@ export interface SessionReportExportInput {
   outputPath: string;
 }
 
+export interface SessionReportMarkdownContentExportInput {
+  markdown: string;
+  selectedFindingIds: string[];
+  outputPath: string;
+}
+
 export type SessionReportExportResult =
   | {
       status: "success";

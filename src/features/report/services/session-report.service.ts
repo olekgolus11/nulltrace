@@ -5,6 +5,7 @@ import {
   SessionReportExportResult,
   SessionReportFileWriter,
   SessionReportFindingRepository,
+  SessionReportMarkdownContentExportInput,
   SessionReportSessionRepository,
 } from "../model/session-report.types";
 import { createSessionReportMarkdown } from "./session-report-markdown.helpers";
@@ -90,6 +91,44 @@ export class SessionReportService {
       findingCount: draft.findings.filter((finding) =>
         selectedFindingIds.includes(finding.id),
       ).length,
+    };
+  }
+
+  async exportMarkdownContent({
+    markdown,
+    selectedFindingIds,
+    outputPath,
+  }: SessionReportMarkdownContentExportInput): Promise<SessionReportExportResult> {
+    const trimmedOutputPath = outputPath.trim();
+    if (!trimmedOutputPath) {
+      return {
+        status: "error",
+        message: "Choose an output path for the Markdown report.",
+      };
+    }
+    if (!markdown.trim()) {
+      return {
+        status: "error",
+        message: "Report draft is empty. Add Markdown content before exporting.",
+      };
+    }
+
+    const resolvedOutputPath = resolve(trimmedOutputPath);
+    try {
+      await this.fileWriter.write(resolvedOutputPath, markdown);
+    } catch (error) {
+      return {
+        status: "error",
+        message: `Unable to export Markdown report: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      };
+    }
+
+    return {
+      status: "success",
+      outputPath: resolvedOutputPath,
+      findingCount: new Set(selectedFindingIds).size,
     };
   }
 }
