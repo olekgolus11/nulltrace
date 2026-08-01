@@ -65,6 +65,7 @@ export function replaceSqlmapRequestWithRawRequest(
   secretFilePath: string,
 ) {
   const validated = validateTargetedSqlmapCommand(command);
+  const isHttpsTarget = new URL(validated.targetUrl).protocol === "https:";
   const retainedOptions = validated.options.filter(
     (option) =>
       option.name !== "-u" &&
@@ -77,6 +78,7 @@ export function replaceSqlmapRequestWithRawRequest(
     "-r",
     quoteSqlmapShellValue(secretFilePath),
     "--ignore-redirects",
+    ...(isHttpsTarget ? ["--force-ssl"] : []),
     ...retainedOptions.flatMap(formatSqlmapOption),
   ].join(" ");
 }

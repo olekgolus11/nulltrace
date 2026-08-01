@@ -12,7 +12,11 @@ function createTemporaryDirectory() {
   return directory;
 }
 
-function createService(rootDirectory: string, sessionId = "session-1") {
+function createService(
+  rootDirectory: string,
+  sessionId = "session-1",
+  origin = "https://example.com:8443",
+) {
   return new SqlmapAuthenticatedRunService({
     rootDirectory,
     contextService: {
@@ -20,7 +24,7 @@ function createService(rootDirectory: string, sessionId = "session-1") {
       loadProtectedContext: async (requestedSessionId) =>
         requestedSessionId === sessionId
           ? {
-              origin: "https://example.com:8443",
+              origin,
               cookies: "session=secret-cookie; preference=compact",
               headers: "Authorization: Bearer secret-token\nX-Tenant: tenant-1",
               updatedAt: "2026-08-01T10:00:00.000Z",
@@ -85,7 +89,7 @@ describe("SqlmapAuthenticatedRunService", () => {
     prepared.cleanup();
   });
 
-  test("preserves JSON POST semantics and disables redirects", async () => {
+  test("preserves JSON POST semantics, disables redirects, and forces HTTPS", async () => {
     const rootDirectory = createTemporaryDirectory();
     const prepared = await createService(rootDirectory).prepare({
       sessionId: "session-1",
@@ -97,6 +101,23 @@ describe("SqlmapAuthenticatedRunService", () => {
     expect(rawRequest).toContain("Content-Type: application/json");
     expect(rawRequest).toEndWith('\r\n\r\n{"product":{"id":1}}');
     expect(prepared.command).toContain("--ignore-redirects");
+    expect(prepared.command).toContain("--force-ssl");
+
+    prepared.cleanup();
+  });
+
+  test("keeps authenticated HTTP raw requests on HTTP", async () => {
+    const rootDirectory = createTemporaryDirectory();
+    const prepared = await createService(
+      rootDirectory,
+      "session-1",
+      "http://example.com:8080",
+    ).prepare({
+      sessionId: "session-1",
+      command: "sqlmap -u 'http://example.com:8080/products?id=1' -p id",
+    });
+
+    expect(prepared.command).not.toContain("--force-ssl");
 
     prepared.cleanup();
   });
