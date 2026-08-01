@@ -1,5 +1,6 @@
 import {
   isNiktoDirectAuthenticationOrConfigOption,
+  isNiktoOptionAbbreviation,
   parseNiktoShellWords,
 } from "./nikto-command.helpers";
 
@@ -23,7 +24,7 @@ export function validateAuthenticatedNiktoCommand(command: string) {
       if (target) targets.push(target);
       if (flag.inlineValue === null) index += 1;
     }
-    if (flag.name.toLowerCase() === "vhost") {
+    if (isNiktoOptionAbbreviation(flag.name, ["vhost"])) {
       const vhost = flag.inlineValue ?? tokens[index + 1] ?? "";
       if (vhost) vhosts.push(vhost);
       if (flag.inlineValue === null) index += 1;
@@ -79,6 +80,7 @@ function isBlockedAuthenticatedOption(name: string) {
   const normalized = name.toLowerCase();
   return (
     isNiktoDirectAuthenticationOrConfigOption(normalized) ||
+    isNiktoOptionAbbreviation(normalized, ["save"]) ||
     ("followredirects".startsWith(normalized) && normalized.length >= 3)
   );
 }

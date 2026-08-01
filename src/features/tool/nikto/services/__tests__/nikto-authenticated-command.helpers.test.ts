@@ -27,6 +27,29 @@ describe("authenticated Nikto command validation", () => {
       expect(() => validateAuthenticatedNiktoCommand(command)).toThrow();
     }
   });
+
+  test("rejects authenticated response saving and accepted abbreviations", () => {
+    for (const option of ["-Save", "-Sav", "-Sa"]) {
+      expect(() =>
+        validateAuthenticatedNiktoCommand(
+          `nikto -h https://example.com ${option} /tmp/responses -Tuning x6`,
+        ),
+      ).toThrow();
+    }
+  });
+
+  test("validates abbreviated vhost options against the target authority", () => {
+    expect(() =>
+      validateAuthenticatedNiktoCommand(
+        "nikto -h https://example.com -vho attacker.example -Tuning x6",
+      ),
+    ).toThrow("exact authority");
+    expect(
+      validateAuthenticatedNiktoCommand(
+        "nikto -h https://example.com -vho example.com -Tuning x6",
+      ),
+    ).toBe("https://example.com");
+  });
 });
 
 describe("Nikto command persistence redaction", () => {

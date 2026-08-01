@@ -308,7 +308,7 @@ function getNiktoCommandTuning(tokens: string[]) {
   return tuning;
 }
 
-function isNiktoOptionAbbreviation(option: string, names: string[]) {
+export function isNiktoOptionAbbreviation(option: string, names: string[]) {
   const name = option.replace(/^(?:-{1,2}|\+)/, "");
   if (!name) return false;
   return names.some((candidate) => candidate.startsWith(name));
