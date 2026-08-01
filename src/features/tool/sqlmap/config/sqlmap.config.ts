@@ -11,6 +11,12 @@ export const sqlmapFieldOrder: SqlmapFieldId[] = [
   "extraSafeOptions",
 ];
 
+export function getSqlmapFieldOrder(isAuthenticationAvailable = false) {
+  return isAuthenticationAvailable
+    ? [...sqlmapFieldOrder, "useAuthenticatedContext" as const]
+    : sqlmapFieldOrder;
+}
+
 export const sqlmapDefaultTimeLimitSeconds = 300;
 export const sqlmapMinimumTimeLimitSeconds = 30;
 export const sqlmapMaximumTimeLimitSeconds = 900;

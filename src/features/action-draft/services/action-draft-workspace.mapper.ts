@@ -150,6 +150,19 @@ export function mapActionDraftToWorkspaceState({
       };
     }
   }
+  if (
+    currentToolName === "sqlmap" &&
+    getActionDraftBooleanField(formState ?? {}, "useAuthenticatedContext") === true
+  ) {
+    const target =
+      getActionDraftStringField(formState ?? {}, "targetUrl") ??
+      (currentToolData as SqlmapToolData).form.targetUrl;
+    const targetError = getAuthenticatedDraftTargetError(
+      authenticatedContext,
+      target,
+    );
+    if (targetError) return targetError;
+  }
   const { toolData, didApply } =
     currentToolName === "nmap"
       ? mapNmapActionDraftFormState(currentToolData as NmapToolData, formState)
@@ -166,7 +179,11 @@ export function mapActionDraftToWorkspaceState({
               authenticatedContext,
             )
           : currentToolName === "sqlmap"
-            ? mapSqlmapActionDraftFormState(currentToolData as SqlmapToolData, formState)
+            ? mapSqlmapActionDraftFormState(
+                currentToolData as SqlmapToolData,
+                formState,
+                authenticatedContext,
+              )
             : mapNiktoActionDraftFormState(
                 currentToolData as NiktoToolData,
                 formState,

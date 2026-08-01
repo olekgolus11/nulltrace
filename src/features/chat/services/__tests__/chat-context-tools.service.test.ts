@@ -1202,6 +1202,68 @@ describe("ActionDraftChatContextToolsService", () => {
     expect(drafts.drafts).toHaveLength(0);
   });
 
+  it("creates authenticated sqlmap drafts only after explicit accepted exact-origin opt-in", () => {
+    const { drafts, service } = createActionDraftService(
+      new FakeActionDraftRepository(),
+      true,
+    );
+
+    service.createActionDraft("opencode-1", {
+      targetTool: "sqlmap",
+      title: "Authenticated id verification",
+      formStateJson: JSON.stringify({
+        targetUrl: "{{TARGET}}/products?id=1",
+        method: "GET",
+        parameter: "id",
+        useAuthenticatedContext: true,
+        authorizationToken: "draft-secret-token",
+      }),
+    });
+
+    expect(drafts.drafts[0]).toMatchObject({
+      payload: {
+        formState: {
+          targetUrl: "http://honey.scanme.sh/products?id=1",
+          useAuthenticatedContext: true,
+          authorizationToken: "[redacted]",
+        },
+      },
+    });
+    expect(JSON.stringify(drafts.drafts[0]?.payload)).not.toContain("draft-secret-token");
+  });
+
+  it("rejects unavailable and cross-origin authenticated sqlmap drafts", () => {
+    const unavailable = createActionDraftService();
+    expect(() =>
+      unavailable.service.createActionDraft("opencode-1", {
+        targetTool: "sqlmap",
+        title: "Unavailable authenticated verification",
+        formStateJson: JSON.stringify({
+          targetUrl: "{{TARGET}}/products?id=1",
+          method: "GET",
+          parameter: "id",
+          useAuthenticatedContext: true,
+        }),
+      }),
+    ).toThrow("accepted authentication context");
+    expect(unavailable.drafts.drafts).toHaveLength(0);
+
+    const accepted = createActionDraftService(new FakeActionDraftRepository(), true);
+    expect(() =>
+      accepted.service.createActionDraft("opencode-1", {
+        targetTool: "sqlmap",
+        title: "Cross-origin authenticated verification",
+        formStateJson: JSON.stringify({
+          targetUrl: "https://outside.example/products?id=1",
+          method: "GET",
+          parameter: "id",
+          useAuthenticatedContext: true,
+        }),
+      }),
+    ).toThrow("session target's exact origin");
+    expect(accepted.drafts.drafts).toHaveLength(0);
+  });
+
   it("rejects excluded sqlmap form state when a separate command is safe", () => {
     const { drafts, service } = createActionDraftService();
 

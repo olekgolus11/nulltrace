@@ -30,8 +30,12 @@ import { getNiktoFieldOrder } from "../../nikto/config/nikto.config";
 import { niktoCommandService } from "../../nikto/services/nikto-command.service";
 import { NiktoToolData, NiktoTuningCode } from "../../nikto/types/nikto.types";
 import { SqlmapWorkspace } from "../../sqlmap/components/SqlmapWorkspace";
-import { sqlmapFieldOrder } from "../../sqlmap/config/sqlmap.config";
+import { getSqlmapFieldOrder } from "../../sqlmap/config/sqlmap.config";
 import { sqlmapArtifactService } from "../../sqlmap/services/sqlmap-artifact.service";
+import {
+  resetSqlmapRunScopedState,
+  toggleSqlmapAuthenticatedContext,
+} from "../../sqlmap/services/sqlmap-authentication.helpers";
 import { sqlmapCommandService } from "../../sqlmap/services/sqlmap-command.service";
 import { SqlmapToolData } from "../../sqlmap/types/sqlmap.types";
 import { ffufSitemapEnrichmentService } from "../../../sitemap/services/ffuf-sitemap-enrichment.service";
@@ -309,6 +313,8 @@ export const toolRegistry: Record<string, ToolModule> = {
       sqlmapCommandService.redactCommandForPersistence(command),
     prepareCommandForRun: (options: ToolPrepareCommand) =>
       sqlmapCommandService.prepareCommandForRun(options),
+    resetRunScopedState: (toolData: unknown) =>
+      resetSqlmapRunScopedState(toolData as SqlmapToolData),
     collectArtifacts: (options: ToolRunCompleted) =>
       sqlmapArtifactService.collectArtifacts(options),
     handleFormKey: (key, state, api) => {
@@ -324,7 +330,9 @@ export const toolRegistry: Record<string, ToolModule> = {
         );
         return true;
       }
-      const selectedField = sqlmapFieldOrder[toolData.selectedField];
+      const selectedField = getSqlmapFieldOrder(
+        toolData.authentication.isAvailable,
+      )[toolData.selectedField];
       if (
         selectedField === "method" &&
         (key.name === "left" || key.name === "right")
@@ -344,6 +352,16 @@ export const toolRegistry: Record<string, ToolModule> = {
             current as SqlmapToolData,
             key.name === "left" ? -1 : 1,
           ),
+        );
+        api.syncGeneratedCommand();
+        return true;
+      }
+      if (
+        selectedField === "useAuthenticatedContext" &&
+        (key.name === "left" || key.name === "right")
+      ) {
+        api.updateToolData((current) =>
+          toggleSqlmapAuthenticatedContext(current as SqlmapToolData),
         );
         api.syncGeneratedCommand();
         return true;

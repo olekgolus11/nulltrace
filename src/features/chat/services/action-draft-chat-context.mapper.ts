@@ -19,7 +19,7 @@ export function mapActionDraftChatPayload(
           parsedFormState,
           redactNiktoCommandForPersistence,
         )
-      : args.targetTool === "nuclei"
+      : args.targetTool === "nuclei" || args.targetTool === "sqlmap"
       ? redactActionDraftAuthorizationValues(parsedFormState)
       : parsedFormState;
   const formStateRecord =
@@ -76,7 +76,7 @@ export function mapActionDraftChatPayload(
                   parseOptionalJson(args.intentJson, "intentJson"),
                   redactNiktoCommandForPersistence,
                 )
-              : args.targetTool === "nuclei"
+              : args.targetTool === "nuclei" || args.targetTool === "sqlmap"
               ? redactActionDraftAuthorizationValues(
                   parseOptionalJson(args.intentJson, "intentJson"),
                 )
