@@ -94,6 +94,10 @@ describe("getOpenCodeRuntimeEnvironment", () => {
     expect(chatContextSystemPrompt).toContain(
       "sqlmap authentication requires explicit useAuthenticatedContext selection",
     );
+    expect(chatContextSystemPrompt).toContain("complete effective request");
+    expect(chatContextSystemPrompt).toContain("submitted control's name and value");
+    expect(chatContextSystemPrompt).toContain("Submit=Submit");
+    expect(chatContextSystemPrompt).toContain("Avoid --smart");
     expect(chatContextSystemPrompt).toContain("Nikto drafts may use Standard or Custom profile");
     expect(chatContextSystemPrompt).toContain("no draft field can satisfy it");
     expect(chatContextSystemPrompt).toContain("create_action_draft");
