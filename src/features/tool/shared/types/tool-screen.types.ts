@@ -103,6 +103,7 @@ export interface ToolPrepareCommand {
 
 export interface ToolPreparedCommand {
   command: string;
+  systemLines?: string[];
   timeoutMs?: number;
   cleanup?: () => void;
   prepareArtifacts?: () => void | Promise<void>;

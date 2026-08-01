@@ -116,6 +116,7 @@ export class NiktoAuthenticatedRunService {
 
       return {
         command: `${commandWithTemporaryOutput} -config ${quoteNiktoShellValue(secretFilePath)}`,
+        authenticationOrigin: normalizeExactOrigin(context.origin),
         secretFilePath,
         cleanup,
         prepareArtifacts: () => {

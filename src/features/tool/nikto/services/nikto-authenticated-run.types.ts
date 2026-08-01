@@ -1,5 +1,6 @@
 export interface PreparedAuthenticatedNiktoRun {
   command: string;
+  authenticationOrigin: string;
   secretFilePath: string;
   cleanup: () => void;
   prepareArtifacts: () => void;

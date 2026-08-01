@@ -125,6 +125,8 @@ describe("NiktoAuthenticatedRunService", () => {
     });
     const config = readFileSync(prepared.secretFilePath, "utf8");
 
+    expect(prepared.authenticationOrigin).toBe("https://example.com");
+    expect(prepared.authenticationOrigin).not.toContain("secret");
     expect(prepared.command).toContain(`-config '${prepared.secretFilePath}'`);
     expect(prepared.command).not.toContain("secret-cookie");
     expect(prepared.command).not.toContain("secret-token");

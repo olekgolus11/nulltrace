@@ -282,6 +282,9 @@ class NiktoCommandService {
       artifactOutputPath: this.getJsonOutputPath(sessionId, toolRunId),
     }).then((prepared) => ({
       command: prepared.command,
+      systemLines: [
+        `[session authentication applied: ${prepared.authenticationOrigin}]`,
+      ],
       cleanup: prepared.cleanup,
       prepareArtifacts: prepared.prepareArtifacts,
       redactOutput: prepared.redactOutput,

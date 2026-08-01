@@ -123,6 +123,8 @@ export class ToolRunnerService {
       redactPreparedArtifact = typeof prepared === "string" ? undefined : prepared.redactArtifact;
       preparePreparedArtifacts =
         typeof prepared === "string" ? undefined : prepared.prepareArtifacts;
+      const preparedSystemLines =
+        typeof prepared === "string" ? [] : prepared.systemLines ?? [];
       const timeoutMs = typeof prepared === "string" ? undefined : prepared.timeoutMs;
       let hasCleanedPreparedRun = false;
       activeRun.cleanupPreparedRun =
@@ -139,6 +141,16 @@ export class ToolRunnerService {
       if (activeRun.cancelled) {
         activeRun.cleanupPreparedRun?.();
         return;
+      }
+
+      if (preparedSystemLines.length > 0) {
+        const redactedSystemLines = redactPreparedOutput
+          ? preparedSystemLines.map(redactPreparedOutput)
+          : preparedSystemLines;
+        if (toolRunId) {
+          this.repository.appendToolRunLog(toolRunId, redactedSystemLines);
+        }
+        onSystemLines(redactedSystemLines);
       }
 
       const handleStdout = (lines: string[]) => {

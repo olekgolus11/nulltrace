@@ -255,6 +255,43 @@ describe("ToolRunnerService", () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
+  it("announces a prepared authenticated run without exposing credentials", async () => {
+    const appendToolRunLog = mock(() => {});
+    const system = mock(() => {});
+    const service = new ToolRunnerService(
+      {
+        run: mock(async () => 0),
+        stop: mock(() => {}),
+      },
+      { processCompletedRun: mock(async () => {}) },
+      {
+        recordToolRun: mock(() => createToolRunRecord()),
+        appendToolRunLog,
+        finishToolRun: mock(() => {}),
+        cancelToolRun: mock(() => {}),
+      },
+    );
+    const confirmation = "[session authentication applied: https://example.com]";
+
+    await service.run({
+      sessionId: "session-1",
+      toolName: "nikto",
+      command: "nikto -h https://example.com -Tuning x6",
+      commandSource: "generated",
+      toolModule: createToolModule(async () => ({
+        command: "nikto -h https://example.com -config /tmp/owner-only",
+        systemLines: [confirmation],
+      })),
+      onStdoutLines: mock(() => {}),
+      onStderrLines: mock(() => {}),
+      onSystemLines: system,
+    });
+
+    expect(system).toHaveBeenCalledWith([confirmation]);
+    expect(appendToolRunLog).toHaveBeenCalledWith("run-1", [confirmation]);
+    expect(JSON.stringify(system.mock.calls)).not.toContain("owner-only");
+  });
+
   it("redacts preparation failures before persisting or displaying them", async () => {
     const recordToolRun = mock(() => createToolRunRecord());
     const appendToolRunLog = mock(() => {});
