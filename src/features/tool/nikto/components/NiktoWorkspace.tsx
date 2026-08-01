@@ -9,6 +9,7 @@ import { toolPanels } from "../../shared/registry/tool-registry";
 import { niktoCommandService } from "../services/nikto-command.service";
 import { useNiktoWorkspace } from "../store/use-nikto-workspace";
 import { NiktoForm } from "./NiktoForm";
+import { getNiktoOutputScrollHeight } from "./nikto-workspace-layout.helpers";
 
 export function NiktoWorkspace() {
   const dimensions = useTerminalDimensions();
@@ -20,6 +21,11 @@ export function NiktoWorkspace() {
       : layout.formPanelHeight;
   const authenticatedFormPanelHeight =
     formPanelHeight + (state.toolData.authentication.isAvailable ? 1 : 0);
+  const outputScrollHeight = getNiktoOutputScrollHeight(
+    layout.contentHeight,
+    authenticatedFormPanelHeight,
+    layout.commandPanelHeight,
+  );
   const previewLines = state.selectedHistoryRun
     ? [
         `$ ${state.selectedHistoryRun.command}`,
@@ -85,7 +91,7 @@ export function NiktoWorkspace() {
         <OutputLog
           lines={previewLines}
           focused={state.activePanel === "output"}
-          height={layout.outputScrollHeight}
+          height={outputScrollHeight}
         />
       </DashboardPanel>
       <text fg={theme.text.dim}>
