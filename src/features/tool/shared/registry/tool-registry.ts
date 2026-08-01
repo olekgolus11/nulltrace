@@ -454,6 +454,5 @@ export const helpContent: Record<ToolName, Record<string, ToolHelpContent> | nul
   nuclei: scannerCatalog.nuclei.helpContent as Record<string, ToolHelpContent>,
   ffuf: scannerCatalog.ffuf.helpContent,
   sqlmap: scannerCatalog.sqlmap.helpContent,
-  zap: scannerCatalog.zap.helpContent,
   nikto: scannerCatalog.nikto.helpContent,
 };

@@ -58,13 +58,6 @@ describe("listAvailableScannerToolsFromCatalog", () => {
         isImplemented: false,
         helpContent: null,
       },
-      zap: {
-        id: "zap",
-        name: "zap",
-        description: null,
-        isImplemented: false,
-        helpContent: null,
-      },
       nikto: {
         id: "nikto",
         name: "nikto",
@@ -109,14 +102,6 @@ describe("listAvailableScannerToolsFromCatalog", () => {
           hasHelp: false,
         },
         {
-          id: "zap",
-          name: "zap",
-          description: null,
-          implementationStatus: "catalog_only",
-          isImplemented: false,
-          hasHelp: false,
-        },
-        {
           id: "nikto",
           name: "nikto",
           description: null,
@@ -126,9 +111,9 @@ describe("listAvailableScannerToolsFromCatalog", () => {
         },
       ],
       counts: {
-        total: 6,
+        total: 5,
         implemented: 2,
-        catalogOnly: 4,
+        catalogOnly: 3,
       },
     });
   });
@@ -155,13 +140,6 @@ describe("listAvailableScannerToolsFromCatalog", () => {
       sqlmap: {
         id: "sqlmap",
         name: "sqlmap",
-        description: null,
-        isImplemented: false,
-        helpContent: null,
-      },
-      zap: {
-        id: "zap",
-        name: "zap",
         description: null,
         isImplemented: false,
         helpContent: null,
@@ -207,13 +185,6 @@ describe("listAvailableScannerToolsFromCatalog", () => {
         isImplemented: false,
         helpContent: null,
       },
-      zap: {
-        id: "zap",
-        name: "zap",
-        description: null,
-        isImplemented: false,
-        helpContent: null,
-      },
       nikto: {
         id: "nikto",
         name: "nikto",
@@ -236,9 +207,9 @@ describe("listAvailableScannerToolsFromCatalog", () => {
     ]);
     expect(result).toMatchObject({
       counts: {
-        total: 6,
+        total: 5,
         implemented: 1,
-        catalogOnly: 5,
+        catalogOnly: 4,
       },
     });
     expect(result.tools.find((tool) => tool.id === "nmap")).toMatchObject({

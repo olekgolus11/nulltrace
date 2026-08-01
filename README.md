@@ -22,7 +22,7 @@ The current application includes:
 - normalized scanner findings, evidence links, severity summaries, and separate operator review states
 - deterministic Markdown report export and LLM-assisted editable report drafts
 
-ZAP is visible in the scanner catalog but does not have an implemented workspace yet. Some prototype UI data and workflows are still evolving.
+Some prototype UI data and workflows are still evolving.
 
 ## Application Tour
 
@@ -202,12 +202,3 @@ The project explores whether a context-aware language model can help a pentester
 - correlate routes, runs, artifacts, and findings across a session
 - move from conversational analysis to bounded, operator-approved actions
 - produce a useful first report draft without replacing human judgment
-
-## Roadmap
-
-- implement the remaining ZAP workspace
-- deepen result correlation and evidence presentation across scanners
-- improve report editing and export workflows
-- expand authentication coverage while preserving exact-origin scope and explicit consent
-- harden command validation, cancellation, recovery, and platform support
-- reduce the remaining prototype and mock-backed areas through end-to-end session data flows

@@ -6,7 +6,7 @@ import {
   ToolRunSummary,
 } from "../../../session/model/session.repository.types";
 
-export type ToolName = "nmap" | "nuclei" | "ffuf" | "sqlmap" | "zap" | "nikto";
+export type ToolName = "nmap" | "nuclei" | "ffuf" | "sqlmap" | "nikto";
 
 export type ToolPanel = "drafts" | "chat" | "form" | "command" | "output" | "history";
 

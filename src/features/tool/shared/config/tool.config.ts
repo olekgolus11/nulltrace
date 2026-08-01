@@ -6,6 +6,5 @@ export const fieldOrder = {
   nuclei: nucleiFieldOrder,
   ffuf: [""],
   sqlmap: [""],
-  zap: [""],
   nikto: [""],
 };

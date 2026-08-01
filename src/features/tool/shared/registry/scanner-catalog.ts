@@ -1,7 +1,7 @@
 import { nmapHelpContent } from "../../nmap/data/nmap-help";
 import { nucleiHelpContent } from "../../nuclei/data/nuclei-help";
 
-export type ScannerToolId = "nmap" | "nuclei" | "ffuf" | "sqlmap" | "zap" | "nikto";
+export type ScannerToolId = "nmap" | "nuclei" | "ffuf" | "sqlmap" | "nikto";
 
 export type ScannerToolImplementationStatus = "implemented" | "catalog_only";
 
@@ -65,13 +65,6 @@ export const scannerCatalog: Record<ScannerToolId, ScannerCatalogTool> = {
     name: "sqlmap",
     description: "Targeted SQL injection verification for one endpoint and parameter.",
     isImplemented: true,
-    helpContent: null,
-  },
-  zap: {
-    id: "zap",
-    name: "zap",
-    description: null,
-    isImplemented: false,
     helpContent: null,
   },
   nikto: {

@@ -12,6 +12,5 @@ export const tools: ToolCatalogItem[] = [
   { id: "nuclei", name: "Nuclei", description: "Template scan", icon: "🎯" },
   { id: "ffuf", name: "FFUF", description: "Fuzzing", icon: "🌪️" },
   { id: "sqlmap", name: "SQLMap", description: "SQL Inject", icon: "💉" },
-  { id: "zap", name: "ZAP", description: "Web scan", icon: "⚡" },
   { id: "nikto", name: "Nikto", description: "Server scan", icon: "🛡️" },
 ];

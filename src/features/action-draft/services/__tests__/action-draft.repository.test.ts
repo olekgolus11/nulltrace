@@ -180,7 +180,7 @@ describe("ActionDraftRepository", () => {
     expect(drafts.map((draft) => draft.id)).toEqual([newer.id, older.id]);
   });
 
-  it("accepts implemented tools and rejects catalog-only or unknown scanner tools", () => {
+  it("accepts implemented tools and rejects unknown scanner tools", () => {
     const repository = new ActionDraftRepository(createTestDatabase());
     const createDraft = (targetTool: ScannerToolId) =>
       repository.createDraft({
@@ -199,9 +199,6 @@ describe("ActionDraftRepository", () => {
       targetTool: "sqlmap",
       status: "draft",
     });
-    expect(() => createDraft("zap")).toThrow(
-      "Action drafts can only target implemented scanner tools: zap",
-    );
     expect(() => createDraft("not-real" as ScannerToolId)).toThrow(
       "Action drafts can only target implemented scanner tools: not-real",
     );
