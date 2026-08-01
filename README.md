@@ -1,7 +1,6 @@
 # NullTrace
 
-<!-- Screenshot: upload temp-photos/entry-screen.jpg to GitHub and replace the URL below. -->
-![NullTrace entry screen](UPLOAD_ENTRY_SCREEN_URL_HERE)
+<img width="1542" height="983" alt="Screenshot 2026-08-01 at 23 25 22" src="https://github.com/user-attachments/assets/ed95f607-5e6d-40c8-beec-412100eb2d77" />
 
 NullTrace is an AI-assisted penetration testing terminal UI built with Bun, React 19, and OpenTUI.
 
@@ -30,15 +29,13 @@ Some prototype UI data and workflows are still evolving.
 
 The dashboard combines the Route Ledger, findings, AI conversation, scanner catalog, and proposed action drafts. Layouts adapt to the terminal size, and the primary workflows are available from the keyboard.
 
-<!-- Screenshot: upload temp-photos/dashboard.jpg to GitHub and replace the URL below. -->
-![NullTrace session dashboard](UPLOAD_DASHBOARD_SCREEN_URL_HERE)
+<img width="1530" height="979" alt="image" src="https://github.com/user-attachments/assets/0cb224f1-1545-4da0-930b-a5dc011ecd17" />
 
 ### Guided scanner workspaces
 
 Each implemented scanner uses the shared tool shell: guided controls, an editable generated command, bounded output, persisted run history, artifacts, and run confirmation. Scanner output feeds the session's findings and reconnaissance context where supported.
 
-<!-- Screenshot: upload temp-photos/sqlmap-workspace.jpg to GitHub and replace the URL below. -->
-![NullTrace targeted sqlmap workspace](UPLOAD_SQLMAP_WORKSPACE_URL_HERE)
+<img width="1536" height="979" alt="image" src="https://github.com/user-attachments/assets/a70c5cd4-9646-4589-a94e-e10b3be5452c" />
 
 ## What Works Today
 
