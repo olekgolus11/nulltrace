@@ -2,10 +2,11 @@ import { theme } from "../../app/theme/theme";
 import { ShortcutHint } from "./shortcut-hints.types";
 
 interface ShortcutHintsProps {
+  hasOmittedHints?: boolean;
   hints: ShortcutHint[];
 }
 
-export function ShortcutHints({ hints }: ShortcutHintsProps) {
+export function ShortcutHints({ hasOmittedHints = false, hints }: ShortcutHintsProps) {
   return (
     <text fg={theme.text.dim}>
       {hints.map((hint, index) => (
@@ -17,6 +18,9 @@ export function ShortcutHints({ hints }: ShortcutHintsProps) {
           {hint.label}
         </span>
       ))}
+      {hasOmittedHints ? (
+        <span>{hints.length > 0 ? " | …" : "…"}</span>
+      ) : null}
     </text>
   );
 }
