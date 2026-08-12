@@ -841,6 +841,81 @@ describe("ActiveToolWorkspaceChatContextToolsService", () => {
 });
 
 describe("ActionDraftChatContextToolsService", () => {
+  it("creates a bounded exact-origin cURL JSON action draft", () => {
+    const { drafts, service } = createActionDraftService();
+
+    const result = service.createActionDraft("opencode-1", {
+      targetTool: "curl",
+      title: "Create API resource",
+      formStateJson: JSON.stringify({
+        targetUrl: "{{TARGET}}/api/resources",
+        method: "POST",
+        headers: "Accept: application/json\nX-Client: nulltrace",
+        bodyMode: "json",
+        body: '{"name":"Ada"}',
+      }),
+    });
+
+    expect(result.actionDraft).toMatchObject({
+      targetTool: "curl",
+      status: "draft",
+    });
+    expect(drafts.drafts[0]?.payload).toMatchObject({
+      formState: {
+        targetUrl: "http://honey.scanme.sh/api/resources",
+        method: "POST",
+        headers: "Accept: application/json\nX-Client: nulltrace",
+        bodyMode: "json",
+        body: '{"name":"Ada"}',
+      },
+    });
+  });
+
+  it("rejects unsafe cURL drafts before persistence", () => {
+    const { drafts, service } = createActionDraftService();
+
+    for (const formState of [
+      { targetUrl: "https://other.example/api" },
+      { bodyMode: "json", body: "{invalid" },
+      { headers: "Authorization: Bearer secret" },
+      { headers: "X-Api-Key: secret" },
+    ]) {
+      expect(() =>
+        service.createActionDraft("opencode-1", {
+          targetTool: "curl",
+          title: "Unsafe request",
+          formStateJson: JSON.stringify(formState),
+        }),
+      ).toThrow();
+    }
+    expect(drafts.drafts).toHaveLength(0);
+  });
+
+  it("requires accepted authentication before persisting an authenticated cURL draft", () => {
+    const rejected = createActionDraftService();
+    expect(() =>
+      rejected.service.createActionDraft("opencode-1", {
+        targetTool: "curl",
+        title: "Authenticated API request",
+        formStateJson: JSON.stringify({ useAuthenticatedContext: true }),
+      }),
+    ).toThrow("Authenticated cURL drafts require an accepted authentication context.");
+    expect(rejected.drafts.drafts).toHaveLength(0);
+
+    const accepted = createActionDraftService(new FakeActionDraftRepository(), true);
+    accepted.service.createActionDraft("opencode-1", {
+      targetTool: "curl",
+      title: "Authenticated API request",
+      formStateJson: JSON.stringify({ useAuthenticatedContext: true }),
+    });
+    expect(accepted.drafts.drafts[0]?.payload).toMatchObject({
+      formState: {
+        targetUrl: "http://honey.scanme.sh",
+        useAuthenticatedContext: true,
+      },
+    });
+  });
+
   it("creates a Custom Nikto tuning draft without confirmation authority", () => {
     const { drafts, service } = createActionDraftService();
 

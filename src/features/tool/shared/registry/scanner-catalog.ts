@@ -1,7 +1,7 @@
 import { nmapHelpContent } from "../../nmap/data/nmap-help";
 import { nucleiHelpContent } from "../../nuclei/data/nuclei-help";
 
-export type ScannerToolId = "nmap" | "nuclei" | "ffuf" | "sqlmap" | "nikto";
+export type ScannerToolId = "nmap" | "nuclei" | "ffuf" | "sqlmap" | "nikto" | "curl";
 
 export type ScannerToolImplementationStatus = "implemented" | "catalog_only";
 
@@ -72,6 +72,13 @@ export const scannerCatalog: Record<ScannerToolId, ScannerCatalogTool> = {
     name: "Nikto",
     description:
       "Web-server scanner with Standard and constrained Custom tuning profiles.",
+    isImplemented: true,
+    helpContent: null,
+  },
+  curl: {
+    id: "curl",
+    name: "cURL",
+    description: "Bounded exact-origin HTTP requests with optional session authentication.",
     isImplemented: true,
     helpContent: null,
   },

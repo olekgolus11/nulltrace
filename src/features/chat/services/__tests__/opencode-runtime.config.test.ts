@@ -87,8 +87,10 @@ describe("getOpenCodeRuntimeEnvironment", () => {
     expect(chatContextSystemPrompt).toContain("operator controls");
   });
 
-  it("guides chat to create FFUF, targeted sqlmap, and Nikto action drafts", () => {
-    expect(chatContextSystemPrompt).toContain("nmap, nuclei, ffuf, sqlmap, or Nikto");
+  it("guides chat to create FFUF, targeted sqlmap, Nikto, and cURL action drafts", () => {
+    expect(chatContextSystemPrompt).toContain("nmap, nuclei, ffuf, sqlmap, Nikto, or cURL");
+    expect(chatContextSystemPrompt).toContain("cURL drafts should use formStateJson");
+    expect(chatContextSystemPrompt).toContain("session target's exact origin");
     expect(chatContextSystemPrompt).toContain("one exact endpoint");
     expect(chatContextSystemPrompt).toContain("Never draft sqlmap crawling");
     expect(chatContextSystemPrompt).toContain(

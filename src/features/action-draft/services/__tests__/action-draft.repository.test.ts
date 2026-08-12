@@ -199,6 +199,10 @@ describe("ActionDraftRepository", () => {
       targetTool: "sqlmap",
       status: "draft",
     });
+    expect(createDraft("curl")).toMatchObject({
+      targetTool: "curl",
+      status: "draft",
+    });
     expect(() => createDraft("not-real" as ScannerToolId)).toThrow(
       "Action drafts can only target implemented scanner tools: not-real",
     );

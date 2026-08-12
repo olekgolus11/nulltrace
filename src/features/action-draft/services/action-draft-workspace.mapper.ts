@@ -7,6 +7,8 @@ import { validateAuthenticatedFfufTarget } from "../../tool/ffuf/services/ffuf-a
 import { NiktoToolData } from "../../tool/nikto/types/nikto.types";
 import { validateTargetedSqlmapCommand } from "../../tool/sqlmap/services/sqlmap-command.helpers";
 import { SqlmapToolData } from "../../tool/sqlmap/types/sqlmap.types";
+import { validateCurlCommand } from "../../tool/curl/services/curl-command.helpers";
+import { CurlToolData } from "../../tool/curl/types/curl.types";
 import {
   getActionDraftBooleanField,
   getActionDraftCommand,
@@ -26,6 +28,7 @@ import {
 } from "./nikto-action-draft-validation.helpers";
 import { mapNiktoActionDraftFormState } from "./nikto-action-draft-workspace.mapper";
 import { mapSqlmapActionDraftFormState } from "./sqlmap-action-draft-workspace.mapper";
+import { mapCurlActionDraftFormState } from "./curl-action-draft-workspace.mapper";
 
 export function mapActionDraftToWorkspaceState({
   draft,
@@ -46,7 +49,8 @@ export function mapActionDraftToWorkspaceState({
     draft.targetTool !== "nuclei" &&
     draft.targetTool !== "ffuf" &&
     draft.targetTool !== "sqlmap" &&
-    draft.targetTool !== "nikto"
+    draft.targetTool !== "nikto" &&
+    draft.targetTool !== "curl"
   ) {
     return {
       ok: false,
@@ -151,6 +155,19 @@ export function mapActionDraftToWorkspaceState({
     }
   }
   if (
+    currentToolName === "curl" &&
+    getActionDraftBooleanField(formState ?? {}, "useAuthenticatedContext") === true
+  ) {
+    const target =
+      getActionDraftStringField(formState ?? {}, "targetUrl") ??
+      (currentToolData as CurlToolData).form.targetUrl;
+    const authenticationError = getAuthenticatedDraftTargetError(
+      authenticatedContext,
+      target,
+    );
+    if (authenticationError) return authenticationError;
+  }
+  if (
     currentToolName === "sqlmap" &&
     getActionDraftBooleanField(formState ?? {}, "useAuthenticatedContext") === true
   ) {
@@ -163,8 +180,9 @@ export function mapActionDraftToWorkspaceState({
     );
     if (targetError) return targetError;
   }
-  const { toolData, didApply } =
-    currentToolName === "nmap"
+  let mapped;
+  try {
+    mapped = currentToolName === "nmap"
       ? mapNmapActionDraftFormState(currentToolData as NmapToolData, formState)
       : currentToolName === "nuclei"
         ? mapNucleiActionDraftFormState(
@@ -184,11 +202,24 @@ export function mapActionDraftToWorkspaceState({
                 formState,
                 authenticatedContext,
               )
-            : mapNiktoActionDraftFormState(
-                currentToolData as NiktoToolData,
-                formState,
-                authenticatedContext,
-              );
+            : currentToolName === "nikto"
+              ? mapNiktoActionDraftFormState(
+                  currentToolData as NiktoToolData,
+                  formState,
+                  authenticatedContext,
+                )
+              : mapCurlActionDraftFormState(
+                  currentToolData as CurlToolData,
+                  formState,
+                  authenticatedContext,
+                );
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error instanceof Error ? error.message : "Invalid action draft form state.",
+    };
+  }
+  const { toolData, didApply } = mapped;
 
   if (!command && !didApply) {
     return {
@@ -207,6 +238,18 @@ export function mapActionDraftToWorkspaceState({
       return {
         ok: false,
         reason: error instanceof Error ? error.message : "Invalid targeted sqlmap draft.",
+      };
+    }
+  }
+  if (currentToolName === "curl") {
+    try {
+      const sessionTarget = (currentToolData as CurlToolData).form.targetUrl;
+      validateCurlCommand(generatedCommand, sessionTarget);
+      validateCurlCommand(commandInput, sessionTarget);
+    } catch (error) {
+      return {
+        ok: false,
+        reason: error instanceof Error ? error.message : "Invalid cURL action draft.",
       };
     }
   }

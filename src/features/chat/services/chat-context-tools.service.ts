@@ -35,6 +35,9 @@ import {
 } from "../../tool/ffuf/services/ffuf-authenticated-request.helpers";
 import { validateTargetedSqlmapCommand } from "../../tool/sqlmap/services/sqlmap-command.helpers";
 import { sqlmapCommandService } from "../../tool/sqlmap/services/sqlmap-command.service";
+import { curlCommandService } from "../../tool/curl/services/curl-command.service";
+import { validateCurlCommand } from "../../tool/curl/services/curl-command.helpers";
+import { mapCurlActionDraftFormState } from "../../action-draft/services/curl-action-draft-workspace.mapper";
 import { SessionFindingRecord } from "../../finding/model/finding.types";
 import { findingRepository } from "../../finding/services/finding.repository";
 import {
@@ -1495,12 +1498,12 @@ export class ActionDraftChatContextToolsService {
         ? (payload.formState as Record<string, unknown>)
         : null;
     if (
-      (targetTool === "nuclei" || targetTool === "nikto") &&
+      (targetTool === "nuclei" || targetTool === "nikto" || targetTool === "curl") &&
       formState?.useAuthenticatedContext === true &&
       !this.authenticationAcceptance.isProceedAllowed(attachment.sessionId)
     ) {
       throw new Error(
-        `Authenticated ${targetTool === "nuclei" ? "Nuclei" : "Nikto"} drafts require an accepted authentication context.`,
+        `Authenticated ${targetTool === "nuclei" ? "Nuclei" : targetTool === "nikto" ? "Nikto" : "cURL"} drafts require an accepted authentication context.`,
       );
     }
     if (
@@ -1582,6 +1585,23 @@ export class ActionDraftChatContextToolsService {
         throw new Error(validationError);
       }
     }
+    if (targetTool === "curl") {
+      const sessionTarget = session?.normalizedUrl ?? session?.displayUrl;
+      if (!sessionTarget) {
+        throw new Error("cURL action drafts require an active HTTP session target.");
+      }
+      if (formState) {
+        const initialData = curlCommandService.createInitialToolData(sessionTarget);
+        const mapped = mapCurlActionDraftFormState(initialData, formState, null);
+        validateCurlCommand(curlCommandService.buildCommand(mapped.toolData), sessionTarget);
+      }
+      if (typeof payload.command === "string") {
+        validateCurlCommand(payload.command, sessionTarget);
+      } else if (!formState) {
+        const initialData = curlCommandService.createInitialToolData(sessionTarget);
+        validateCurlCommand(curlCommandService.buildCommand(initialData), sessionTarget);
+      }
+    }
     const draft = this.drafts.createDraft({
       sessionId: attachment.sessionId,
       opencodeConversationId: attachment.opencodeConversationId,
@@ -1599,31 +1619,31 @@ export class ActionDraftChatContextToolsService {
       {
         name: "create_action_draft",
         description:
-          "Create a session-level scanner action draft for operator inspection. This is the only mutating NullTrace chat tool: it may persist a proposal for implemented scanner tools only, but it never executes scanners, starts tool runs, or changes finding review state.",
+          "Create a session-level tool action draft for operator inspection. This is the only mutating NullTrace chat tool: it may persist a proposal for implemented tools only, but it never executes tools, starts tool runs, or changes finding review state.",
         args: {
           targetTool: {
             type: "string",
             description:
-              "Implemented scanner tool to draft for. Supported tools include nmap, nuclei, ffuf, sqlmap, and nikto. sqlmap drafts select one targetUrl, GET or POST method, one parameter present in the URL or body, level 1-3, risk 1, timeLimitSeconds, and optional safe detection options; excluded discovery, dumping, shell, takeover, and filesystem capabilities are rejected. sqlmap authentication requires explicit useAuthenticatedContext selection for the exact target origin. Nikto drafts use profile standard or custom with target, guided tuning codes 2/3/6/b, optional rootPath/vhost, requestTimeoutSeconds, pauseSeconds, and timeoutSeconds. Tuning 6 remains subject to separate operator confirmation at run time. FFUF drafts set mode to content_discovery with targetPattern; parameter_discovery with endpoint and requestLocation; or value_fuzzing with one exact-origin endpoint, parameterName, requestLocation, payload wordlist, matchCodes, filterCodes, rate, and timeLimit. Set useAuthenticatedContext only for explicit accepted-context opt-in; never include authentication values.",
+              "Implemented tool to draft for. Supported tools include nmap, nuclei, ffuf, sqlmap, nikto, and curl. cURL drafts use targetUrl, method GET/HEAD/POST/PUT/PATCH/DELETE/OPTIONS, headers as newline-separated non-secret values, bodyMode text or json, body, and optional useAuthenticatedContext. cURL targets must stay on the session's exact origin; never include Cookie, Authorization, credentials, local-file input, proxying, insecure TLS, or redirect flags. sqlmap drafts select one targetUrl, GET or POST method, one parameter present in the URL or body, level 1-3, risk 1, timeLimitSeconds, and optional safe detection options; excluded discovery, dumping, shell, takeover, and filesystem capabilities are rejected. sqlmap authentication requires explicit useAuthenticatedContext selection for the exact target origin. Nikto drafts use profile standard or custom with target, guided tuning codes 2/3/6/b, optional rootPath/vhost, requestTimeoutSeconds, pauseSeconds, and timeoutSeconds. Tuning 6 remains subject to separate operator confirmation at run time. FFUF drafts set mode to content_discovery with targetPattern; parameter_discovery with endpoint and requestLocation; or value_fuzzing with one exact-origin endpoint, parameterName, requestLocation, payload wordlist, matchCodes, filterCodes, rate, and timeLimit. Set useAuthenticatedContext only for explicit accepted-context opt-in; never include authentication values.",
           },
           title: {
             type: "string",
-            description: "Short human-readable title for the proposed scanner action.",
+            description: "Short human-readable title for the proposed tool action.",
           },
           command: {
             type: "string",
             description:
-              "Optional proposed scanner command text. This is persisted for review only and is never executed by the chat tool.",
+              "Optional proposed tool command text. This is persisted for review only and is never executed by the chat tool.",
             isOptional: true,
           },
           intentJson: {
             type: "string",
-            description: "Optional JSON object or value describing the scanner intent.",
+            description: "Optional JSON object or value describing the tool intent.",
             isOptional: true,
           },
           formStateJson: {
             type: "string",
-            description: "Optional JSON object or value with scanner form state to apply later.",
+            description: "Optional JSON object or value with tool form state to apply later.",
             isOptional: true,
           },
         },

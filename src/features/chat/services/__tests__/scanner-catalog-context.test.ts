@@ -65,6 +65,13 @@ describe("listAvailableScannerToolsFromCatalog", () => {
         isImplemented: false,
         helpContent: null,
       },
+      curl: {
+        id: "curl",
+        name: "cURL",
+        description: null,
+        isImplemented: false,
+        helpContent: null,
+      },
     });
 
     expect(context).toEqual({
@@ -109,11 +116,19 @@ describe("listAvailableScannerToolsFromCatalog", () => {
           isImplemented: false,
           hasHelp: false,
         },
+        {
+          id: "curl",
+          name: "cURL",
+          description: null,
+          implementationStatus: "catalog_only",
+          isImplemented: false,
+          hasHelp: false,
+        },
       ],
       counts: {
-        total: 5,
+        total: 6,
         implemented: 2,
-        catalogOnly: 3,
+        catalogOnly: 4,
       },
     });
   });
@@ -147,6 +162,13 @@ describe("listAvailableScannerToolsFromCatalog", () => {
       nikto: {
         id: "nikto",
         name: "nikto",
+        description: null,
+        isImplemented: false,
+        helpContent: null,
+      },
+      curl: {
+        id: "curl",
+        name: "cURL",
         description: null,
         isImplemented: false,
         helpContent: null,
@@ -192,6 +214,13 @@ describe("listAvailableScannerToolsFromCatalog", () => {
         isImplemented: false,
         helpContent: null,
       },
+      curl: {
+        id: "curl",
+        name: "cURL",
+        description: null,
+        isImplemented: false,
+        helpContent: null,
+      },
     });
     const registry = new ChatContextToolRegistry(service.createToolDefinitions());
 
@@ -207,9 +236,9 @@ describe("listAvailableScannerToolsFromCatalog", () => {
     ]);
     expect(result).toMatchObject({
       counts: {
-        total: 5,
+        total: 6,
         implemented: 1,
-        catalogOnly: 4,
+        catalogOnly: 5,
       },
     });
     expect(result.tools.find((tool) => tool.id === "nmap")).toMatchObject({

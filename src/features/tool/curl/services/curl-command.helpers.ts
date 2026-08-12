@@ -52,9 +52,12 @@ const blockedOptions = new Set([
   "-O",
 ]);
 const secretHeaderNames = new Set([
+  "api-key",
   "authorization",
   "cookie",
   "proxy-authorization",
+  "x-api-key",
+  "x-auth-token",
 ]);
 const blockedHeaderNames = new Set([
   ...secretHeaderNames,

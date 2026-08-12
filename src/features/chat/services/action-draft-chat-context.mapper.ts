@@ -31,6 +31,8 @@ export function mapActionDraftChatPayload(
       ? normalizeFfufDraftFormState(formStateRecord, scannerTarget)
       : args.targetTool === "sqlmap"
         ? normalizeSqlmapDraftFormState(formStateRecord, scannerTarget)
+        : args.targetTool === "curl"
+          ? normalizeCurlDraftFormState(formStateRecord, scannerTarget)
       : {
           ...formStateRecord,
           ...(typeof formStateRecord.target === "string"
@@ -80,7 +82,11 @@ export function mapActionDraftChatPayload(
               ? redactActionDraftAuthorizationValues(
                   parseOptionalJson(args.intentJson, "intentJson"),
                 )
-              : parseOptionalJson(args.intentJson, "intentJson"),
+              : args.targetTool === "curl"
+                ? redactActionDraftAuthorizationValues(
+                    parseOptionalJson(args.intentJson, "intentJson"),
+                  )
+                : parseOptionalJson(args.intentJson, "intentJson"),
         }
       : {}),
     ...(normalizedFormState !== undefined ? { formState: normalizedFormState } : {}),
@@ -110,6 +116,20 @@ function normalizeFfufDraftFormState(formState: Record<string, unknown>, scanner
 }
 
 function normalizeSqlmapDraftFormState(
+  formState: Record<string, unknown>,
+  scannerTarget: string,
+) {
+  return {
+    ...formState,
+    ...(typeof formState.targetUrl === "string"
+      ? { targetUrl: replaceTargetPlaceholders(formState.targetUrl, scannerTarget) }
+      : scannerTarget
+        ? { targetUrl: scannerTarget }
+        : {}),
+  };
+}
+
+function normalizeCurlDraftFormState(
   formState: Record<string, unknown>,
   scannerTarget: string,
 ) {

@@ -9,6 +9,7 @@ import {
 } from "../../../tool/ffuf/services/ffuf-command.helpers";
 import { niktoCommandService } from "../../../tool/nikto/services/nikto-command.service";
 import { sqlmapCommandService } from "../../../tool/sqlmap/services/sqlmap-command.service";
+import { curlCommandService } from "../../../tool/curl/services/curl-command.service";
 
 function createDraft(overrides: Partial<ActionDraftRecord> = {}): ActionDraftRecord {
   return {
@@ -27,6 +28,73 @@ function createDraft(overrides: Partial<ActionDraftRecord> = {}): ActionDraftRec
 }
 
 describe("mapActionDraftToWorkspaceState", () => {
+  it("maps a JSON cURL draft into editable generated state without running it", () => {
+    const currentToolData = curlCommandService.createInitialToolData("https://example.com");
+    const result = mapActionDraftToWorkspaceState({
+      draft: createDraft({
+        targetTool: "curl",
+        title: "Create API resource",
+        payload: {
+          formState: {
+            targetUrl: "https://example.com/api/resources",
+            method: "POST",
+            headers: "Accept: application/json",
+            bodyMode: "json",
+            body: '{"name":"Ada"}',
+          },
+        },
+      }),
+      currentToolName: "curl",
+      currentToolData,
+      buildGeneratedCommand: (toolData) =>
+        curlCommandService.buildCommand(toolData as typeof currentToolData),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      application: {
+        commandInput:
+          "curl -X POST 'https://example.com/api/resources' -H 'Accept: application/json' -H 'Content-Type: application/json' --data-raw '{\"name\":\"Ada\"}'",
+        commandSource: "generated",
+      },
+    });
+    expect(result.ok && result.application.toolData).toMatchObject({
+      form: {
+        method: "POST",
+        targetUrl: "https://example.com/api/resources",
+        bodyMode: "json",
+        body: '{"name":"Ada"}',
+      },
+    });
+  });
+
+  it("rejects unsafe cURL action drafts before they reach the workspace", () => {
+    const currentToolData = curlCommandService.createInitialToolData("https://example.com");
+    const mapDraft = (formState: Record<string, unknown>) =>
+      mapActionDraftToWorkspaceState({
+        draft: createDraft({ targetTool: "curl", payload: { formState } }),
+        currentToolName: "curl",
+        currentToolData,
+        buildGeneratedCommand: (toolData) =>
+          curlCommandService.buildCommand(toolData as typeof currentToolData),
+      });
+
+    expect(mapDraft({ targetUrl: "https://other.example/api" })).toMatchObject({
+      ok: false,
+      reason: "cURL target must match the session target's exact origin.",
+    });
+    expect(
+      mapDraft({ bodyMode: "json", body: "{invalid" }),
+    ).toMatchObject({
+      ok: false,
+      reason: "cURL JSON body must contain valid JSON.",
+    });
+    expect(mapDraft({ headers: "Authorization: Bearer secret" })).toMatchObject({
+      ok: false,
+      reason: "Sensitive or transport-level cURL headers are managed by NullTrace.",
+    });
+  });
+
   it("maps nmap form and command payloads into editable workspace state", () => {
     const currentToolData = nmapCommandService.createInitialToolData("https://example.com");
     const result = mapActionDraftToWorkspaceState({
