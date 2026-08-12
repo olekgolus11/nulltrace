@@ -4,7 +4,7 @@ import { useEffect, useRef, useReducer } from "react";
 import { tools } from "../data/tool-catalog";
 import { dashboardPanels, initialDashboardState } from "../model/dashboard.state";
 import { DashboardPanelId, DashboardState } from "../model/dashboard.types";
-import { cyclePanel, getPanelByShortcut } from "../../../shared/model/panel-navigation";
+import { cyclePanel } from "../../../shared/model/panel-navigation";
 import { FindingReviewStatus, SessionFindingRecord } from "../../finding/model/finding.types";
 import { ToolName } from "../../tool/shared/types/tool-screen.types";
 import { ActiveSessionConversation } from "../../chat/services/session-conversation.service";
@@ -273,12 +273,6 @@ export function useDashboardShortcuts({
         type: "CYCLE_PANEL",
         direction: key.shift ? -1 : 1,
       });
-      return;
-    }
-
-    const shortcutPanel = getPanelByShortcut(dashboardPanels, key.name, key.ctrl);
-    if (shortcutPanel) {
-      dispatch({ type: "SET_ACTIVE_PANEL", panel: shortcutPanel });
       return;
     }
 

@@ -15,12 +15,10 @@ import {
 } from "../../sitemap/model/sitemap.types";
 import { FindingList } from "../../finding/components/FindingList";
 import { tools } from "../data/tool-catalog";
-import { dashboardPanels } from "../model/dashboard.state";
 import { DashboardPanelId, DashboardState } from "../model/dashboard.types";
 import { UseDashboardLayoutResult } from "../model/dashboard.types";
 import { DashboardPanel } from "./DashboardPanel";
 import { ToolList } from "./ToolList";
-import { getPanelDisplayNumber } from "../../../shared/model/panel-navigation";
 import { SitemapCrawlControlPresentation } from "../../sitemap/model/sitemap-crawl-lifecycle";
 
 const dashboardScrollbarTrackOptions = {
@@ -101,7 +99,6 @@ export const LeftDashboardPanel = ({
     <box width={layout.leftPanelWidth} height={layout.contentHeight} flexDirection="column">
       <DashboardPanel
         title="Route Ledger"
-        panelNumber={getPanelDisplayNumber(dashboardPanels, "sitemap")}
         height={layout.leftPanelTopHeight}
         focused={dashboardState.activePanel === "sitemap"}
         paddingBottom={0}
@@ -172,7 +169,6 @@ export const LeftDashboardPanel = ({
 
       <DashboardPanel
         title="Findings"
-        panelNumber={getPanelDisplayNumber(dashboardPanels, "findings")}
         height={layout.leftPanelBottomHeight}
         focused={dashboardState.activePanel === "findings"}
         paddingBottom={0}
@@ -256,7 +252,6 @@ export const CenterDashboardPanel = ({
     <box width={layout.centerPanelWidth} height={layout.contentHeight} flexDirection="column">
       <DashboardPanel
         title="AI Assistant"
-        panelNumber={getPanelDisplayNumber(dashboardPanels, "chat")}
         flexGrow={1}
         focused={dashboardState.activePanel === "chat"}
         onMouseDown={() => setActivePanel("chat")}
@@ -307,7 +302,6 @@ export const RightDashboardPanel = ({
     <box width={layout.rightPanelWidth} height={layout.contentHeight} flexDirection="column">
       <DashboardPanel
         title="Tools"
-        panelNumber={getPanelDisplayNumber(dashboardPanels, "tools")}
         flexGrow={1}
         focused={dashboardState.activePanel === "tools"}
         onMouseDown={() => setActivePanel("tools")}
@@ -322,26 +316,14 @@ export const RightDashboardPanel = ({
         <box flexDirection="column">
           <box marginBottom={1}>
             <text fg={theme.accent.primary}>
-              <strong>Quick Actions</strong>
-            </text>
-          </box>
-          <box flexDirection="column" gap={0}>
-            <text fg={theme.text.secondary}>r Re-scan</text>
-            <text fg={theme.text.secondary}>e Export report</text>
-            <text fg={theme.text.secondary}>s Settings</text>
-          </box>
-        </box>
-        <box flexDirection="column" marginTop={2}>
-          <box marginBottom={1}>
-            <text fg={theme.accent.primary}>
               <strong>Action Drafts</strong>
             </text>
           </box>
           <scrollbox
-            height={Math.max(4, Math.min(10, layout.contentHeight - 18))}
+            height={Math.max(4, Math.min(16, layout.contentHeight - 12))}
             width={Math.max(1, layout.rightPanelWidth - 4)}
             viewportOptions={{
-              height: Math.max(3, Math.min(9, layout.contentHeight - 19)),
+              height: Math.max(3, Math.min(15, layout.contentHeight - 13)),
             }}
             contentOptions={{
               paddingRight: 1,

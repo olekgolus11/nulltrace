@@ -2,6 +2,8 @@ import { redactNucleiCommandForPersistence } from "../../nuclei/services/nuclei-
 import { redactNiktoCommandForPersistence } from "../../nikto/services/nikto-authenticated-command.helpers";
 import { NiktoToolData } from "../../nikto/types/nikto.types";
 import { redactSqlmapCommandForPersistence } from "../../sqlmap/services/sqlmap-output-redaction.helpers";
+import { redactCurlCommand } from "../../curl/services/curl-command.helpers";
+import { CurlToolData } from "../../curl/types/curl.types";
 import { ToolWorkspaceContextInput } from "./tool-workspace-context.types";
 
 export function sanitizeToolWorkspaceContext(input: ToolWorkspaceContextInput) {
@@ -12,7 +14,9 @@ export function sanitizeToolWorkspaceContext(input: ToolWorkspaceContextInput) {
         ? redactNiktoCommandForPersistence
         : input.toolName === "sqlmap"
           ? redactSqlmapCommandForPersistence
-        : null;
+          : input.toolName === "curl"
+            ? redactCurlCommand
+            : null;
   if (!redactCommand) return input;
 
   const form = { ...input.toolData.form };
@@ -28,6 +32,11 @@ export function sanitizeToolWorkspaceContext(input: ToolWorkspaceContextInput) {
   if (input.toolName === "sqlmap" && typeof form.body === "string" && form.body) {
     form.body = "[request body redacted]";
   }
+  if (input.toolName === "curl") {
+    form.headers = "[request headers redacted]";
+    form.body = form.body ? "[request body redacted]" : "";
+    form.useAuthenticatedContext = false;
+  }
   const toolData =
     input.toolName === "nikto"
       ? {
@@ -38,7 +47,16 @@ export function sanitizeToolWorkspaceContext(input: ToolWorkspaceContextInput) {
             strategy: "none" as const,
           },
         }
-      : {
+      : input.toolName === "curl"
+        ? {
+            ...(input.toolData as CurlToolData),
+            form,
+            authentication: {
+              ...(input.toolData as CurlToolData).authentication,
+              strategy: "none" as const,
+            },
+          }
+        : {
           ...input.toolData,
           form,
         };

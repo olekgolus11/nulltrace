@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { theme } from "../../../app/theme/theme";
 import { Header } from "../../../shared/ui/Header";
 import { StatusBar } from "../../../shared/ui/StatusBar";
-import { getPanelDisplayNumber } from "../../../shared/model/panel-navigation";
 import { ActionDraftList } from "../../action-draft/components/ActionDraftList";
 import { ActionDraftRecord } from "../../action-draft/model/action-draft.types";
 import { useSessionActionDrafts } from "../../action-draft/hooks/use-session-action-drafts";
@@ -27,6 +26,8 @@ import { NiktoToolData } from "../nikto/types/nikto.types";
 import { sqlmapCommandService } from "../sqlmap/services/sqlmap-command.service";
 import { setSqlmapAuthenticationAvailability } from "../sqlmap/services/sqlmap-authentication.helpers";
 import { SqlmapToolData } from "../sqlmap/types/sqlmap.types";
+import { curlCommandService } from "../curl/services/curl-command.service";
+import { CurlToolData } from "../curl/types/curl.types";
 import { useToolLayout } from "../hooks/use-tool-layout";
 import { ActiveToolWorkspace } from "../shared/components/ActiveToolWorkspace";
 import { ToolHelpDialog } from "../shared/components/ToolHelpDialog";
@@ -257,7 +258,8 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
       toolName !== "nuclei" &&
       toolName !== "ffuf" &&
       toolName !== "nikto" &&
-      toolName !== "sqlmap"
+      toolName !== "sqlmap" &&
+      toolName !== "curl"
     ) {
       return;
     }
@@ -273,7 +275,8 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
       | NucleiToolData
       | FfufToolData
       | NiktoToolData
-      | SqlmapToolData;
+      | SqlmapToolData
+      | CurlToolData;
     if (
       current.authentication.origin === acceptedOrigin &&
       current.authentication.isAvailable === Boolean(acceptedOrigin)
@@ -296,6 +299,12 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
       if (toolName === "sqlmap") {
         return setSqlmapAuthenticationAvailability(
           toolData as SqlmapToolData,
+          acceptedOrigin,
+        );
+      }
+      if (toolName === "curl") {
+        return curlCommandService.setAuthenticationAvailability(
+          toolData as CurlToolData,
           acceptedOrigin,
         );
       }
@@ -385,7 +394,6 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
         <box width={layout.leftPanelWidth} height={layout.contentHeight} flexDirection="column">
           <DashboardPanel
             title="Action Drafts"
-            panelNumber={getPanelDisplayNumber(toolPanels, "drafts")}
             height={Math.min(11, Math.max(8, layout.contentHeight - 12))}
             focused={activePanel === "drafts"}
             paddingBottom={0}
@@ -421,7 +429,6 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
           </DashboardPanel>
           <DashboardPanel
             title="Operator Chat"
-            panelNumber={getPanelDisplayNumber(toolPanels, "chat")}
             flexGrow={1}
             focused={activePanel === "chat"}
             onMouseDown={() => focusPanel("chat")}
@@ -498,7 +505,6 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
           isHistoricPreview
             ? [
                 { key: "Tab/Shift+Tab", label: "switch" },
-                { key: "Ctrl+1-6", label: "jump" },
                 { key: "Enter", label: "preview" },
                 { key: "Ctrl+C", label: "exit preview" },
                 { key: "ESC", label: "back" },
@@ -506,7 +512,6 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
               ]
             : [
                 { key: "Tab/Shift+Tab", label: "switch" },
-                { key: "Ctrl+1-6", label: "jump" },
                 ...(activePanel === "drafts"
                   ? [
                       { key: "Enter", label: "apply draft" },

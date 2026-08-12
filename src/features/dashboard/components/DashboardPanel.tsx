@@ -2,7 +2,6 @@ import { theme } from "../../../app/theme/theme";
 
 interface PanelProps {
   title?: string;
-  panelNumber?: number;
   children: React.ReactNode;
   width?: number;
   height?: number;
@@ -23,7 +22,6 @@ interface PanelProps {
 
 export function DashboardPanel({
   title,
-  panelNumber,
   children,
   width,
   height,
@@ -50,8 +48,6 @@ export function DashboardPanel({
     finalBorderColor = focused ? theme.accent.primary : borderColor;
     finalTitle = title;
   }
-  const numberedTitle = finalTitle && panelNumber ? `[${panelNumber}] ${finalTitle}` : finalTitle;
-
   return (
     <box
       width={width}
@@ -60,7 +56,7 @@ export function DashboardPanel({
       flexDirection={flexDirection}
       border={border}
       borderColor={finalBorderColor}
-      title={numberedTitle ? ` \u2726 ${numberedTitle} ` : undefined}
+      title={finalTitle ? ` \u2726 ${finalTitle} ` : undefined}
       titleAlignment="left"
       marginBottom={marginBottom}
       padding={padding}

@@ -2,8 +2,7 @@ import { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import { RefObject } from "react";
 import { useToolWorkspaceStore } from "../store/tool-workspace.store";
-import { toolPanels, toolRegistry } from "../registry/tool-registry";
-import { getPanelByShortcut } from "../../../../shared/model/panel-navigation";
+import { toolRegistry } from "../registry/tool-registry";
 import { ActiveSessionConversation } from "../../../chat/services/session-conversation.service";
 
 interface UseToolKeyboardNavigationProps {
@@ -69,12 +68,6 @@ export function useToolKeyboardNavigation({
 
     if (key.name === "tab") {
       state.cyclePanel(key.shift ? -1 : 1);
-      return;
-    }
-
-    const shortcutPanel = getPanelByShortcut(toolPanels, key.name, key.ctrl);
-    if (shortcutPanel) {
-      state.setActivePanel(shortcutPanel);
       return;
     }
 

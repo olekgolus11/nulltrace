@@ -97,7 +97,6 @@ export function EntryScreen({
             hints={[
               { key: "Ctrl+Q", label: "quit" },
               { key: "Tab/Shift+Tab", label: "switch" },
-              { key: "Ctrl+1-2", label: "jump" },
               { key: "Enter", label: "select" },
               { key: "Ctrl+N", label: "new session" },
             ]}

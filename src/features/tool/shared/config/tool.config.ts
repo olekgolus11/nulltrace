@@ -7,4 +7,5 @@ export const fieldOrder = {
   ffuf: [""],
   sqlmap: [""],
   nikto: [""],
+  curl: [""],
 };

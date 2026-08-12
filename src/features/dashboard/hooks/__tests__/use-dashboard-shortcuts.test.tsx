@@ -140,6 +140,23 @@ describe("useDashboardShortcuts", () => {
     );
   });
 
+  test("leaves Ctrl+number unbound", async () => {
+    testSetup = await testRender(<DashboardShortcutHarness />, {
+      width: 60,
+      height: 10,
+    });
+
+    await testSetup.renderOnce();
+    expect(testSetup.captureCharFrame()).toContain("sitemap:0:");
+
+    await act(async () => {
+      testSetup!.mockInput.pressKey("3", { ctrl: true });
+    });
+    await testSetup.renderOnce();
+
+    expect(testSetup.captureCharFrame()).toContain("sitemap:0:");
+  });
+
   test("mouse selection focuses Sitemap and keyboard navigation continues from it", async () => {
     testSetup = await testRender(<DashboardShortcutHarness sitemapCount={4} />, {
       width: 60,

@@ -29,6 +29,10 @@ import { NiktoWorkspace } from "../../nikto/components/NiktoWorkspace";
 import { getNiktoFieldOrder } from "../../nikto/config/nikto.config";
 import { niktoCommandService } from "../../nikto/services/nikto-command.service";
 import { NiktoToolData, NiktoTuningCode } from "../../nikto/types/nikto.types";
+import { CurlWorkspace } from "../../curl/components/CurlWorkspace";
+import { getCurlFieldOrder } from "../../curl/config/curl.config";
+import { curlCommandService } from "../../curl/services/curl-command.service";
+import { CurlToolData } from "../../curl/types/curl.types";
 import { SqlmapWorkspace } from "../../sqlmap/components/SqlmapWorkspace";
 import { getSqlmapFieldOrder } from "../../sqlmap/config/sqlmap.config";
 import { sqlmapArtifactService } from "../../sqlmap/services/sqlmap-artifact.service";
@@ -438,6 +442,72 @@ export const toolRegistry: Record<string, ToolModule> = {
       return false;
     },
   },
+  curl: {
+    id: "curl",
+    name: "cURL",
+    description: "Bounded exact-origin HTTP requests with editable commands.",
+    Workspace: CurlWorkspace,
+    createInitialToolData: (targetUrl: string) =>
+      curlCommandService.createInitialToolData(targetUrl),
+    buildGeneratedCommand: (toolData: unknown) =>
+      curlCommandService.buildCommand(toolData as CurlToolData),
+    prepareCommandForRun: (options: ToolPrepareCommand) =>
+      curlCommandService.prepareCommandForRun(options),
+    resetRunScopedState: (toolData: unknown) =>
+      curlCommandService.resetRunScopedState(toolData as CurlToolData),
+    redactCommandForPersistence: (command: string) =>
+      curlCommandService.redactCommandForPersistence(command),
+    handleFormKey: (key, state, api) => {
+      if (state.activePanel !== "form") return false;
+      const toolData = state.toolData as CurlToolData;
+      if (key.name === "up" || key.name === "down") {
+        api.updateToolData((current) =>
+          curlCommandService.moveSelection(
+            current as CurlToolData,
+            key.name === "up" ? -1 : 1,
+          ),
+        );
+        return true;
+      }
+      const selectedField = getCurlFieldOrder(
+        toolData.authentication.isAvailable,
+      )[toolData.selectedField];
+      if (
+        selectedField === "method" &&
+        (key.name === "left" || key.name === "right")
+      ) {
+        api.updateToolData((current) =>
+          curlCommandService.cycleMethod(
+            current as CurlToolData,
+            key.name === "left" ? -1 : 1,
+          ),
+        );
+        api.syncGeneratedCommand();
+        return true;
+      }
+      if (
+        selectedField === "bodyMode" &&
+        (key.name === "left" || key.name === "right")
+      ) {
+        api.updateToolData((current) =>
+          curlCommandService.cycleBodyMode(current as CurlToolData),
+        );
+        api.syncGeneratedCommand();
+        return true;
+      }
+      if (
+        selectedField === "useAuthenticatedContext" &&
+        (key.name === "left" || key.name === "right")
+      ) {
+        api.updateToolData((current) =>
+          curlCommandService.toggleAuthenticatedContext(current as CurlToolData),
+        );
+        api.syncGeneratedCommand();
+        return true;
+      }
+      return false;
+    },
+  },
 };
 
 export const toolPanels: Array<PanelDefinition<ToolPanel>> = [
@@ -455,4 +525,5 @@ export const helpContent: Record<ToolName, Record<string, ToolHelpContent> | nul
   ffuf: scannerCatalog.ffuf.helpContent,
   sqlmap: scannerCatalog.sqlmap.helpContent,
   nikto: scannerCatalog.nikto.helpContent,
+  curl: null,
 };

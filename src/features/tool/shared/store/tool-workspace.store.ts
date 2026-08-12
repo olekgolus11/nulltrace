@@ -13,7 +13,7 @@ import { PanelDirection } from "../../../../shared/model/panel-navigation.types"
 
 const initialOutputLines = [
   "Awaiting command.",
-  "Use the form to build a scan or edit the full command manually.",
+  "Use the form to build an operation or edit the full command manually.",
 ];
 const clearedRunConfirmationState = {
   pendingRunConfirmation: null,

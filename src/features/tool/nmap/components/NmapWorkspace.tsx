@@ -2,10 +2,8 @@ import { useTerminalDimensions } from "@opentui/react";
 import { theme } from "../../../../app/theme/theme";
 import { DashboardPanel } from "../../../dashboard/components/DashboardPanel";
 import { useToolLayout } from "../../hooks/use-tool-layout";
-import { getPanelDisplayNumber } from "../../../../shared/model/panel-navigation";
 import { CommandEditor } from "../../shared/components/CommandEditor";
 import { OutputLog } from "../../shared/components/OutputLog";
-import { toolPanels } from "../../shared/registry/tool-registry";
 import { useNmapWorkspace } from "../store/use-nmap-workspace";
 import { NmapForm } from "./NmapForm";
 
@@ -47,7 +45,6 @@ export function NmapWorkspace() {
     <box flexDirection="column" flexGrow={1}>
       <DashboardPanel
         title="Nmap Controls"
-        panelNumber={getPanelDisplayNumber(toolPanels, "form")}
         height={layout.formPanelHeight}
         focused={activePanel === "form"}
         onMouseDown={() => focusPanel("form")}
@@ -62,7 +59,6 @@ export function NmapWorkspace() {
 
       <DashboardPanel
         title={"Command"}
-        panelNumber={getPanelDisplayNumber(toolPanels, "command")}
         isHistoricPreview={isHistoricPreview}
         height={layout.commandPanelHeight}
         focused={activePanel === "command"}
@@ -83,7 +79,6 @@ export function NmapWorkspace() {
 
       <DashboardPanel
         title={"Raw Output"}
-        panelNumber={getPanelDisplayNumber(toolPanels, "output")}
         isHistoricPreview={isHistoricPreview}
         flexGrow={1}
         focused={activePanel === "output"}

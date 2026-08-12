@@ -7,7 +7,7 @@ import {
 import { useSessionContextStore } from "../../session/store/session-context.store";
 import { entryPanels, initialEntryState } from "../model/entry.state";
 import { EntryPanel, EntryState } from "../model/entry.types";
-import { cyclePanel, getPanelByShortcut } from "../../../shared/model/panel-navigation";
+import { cyclePanel } from "../../../shared/model/panel-navigation";
 import { TargetSummary } from "../../session/model/session.types";
 
 type EntryAction =
@@ -153,12 +153,6 @@ export function useEntryShortcuts({
         type: "CYCLE_PANEL",
         direction: key.shift ? -1 : 1,
       });
-      return;
-    }
-
-    const shortcutPanel = getPanelByShortcut(entryPanels, key.name, key.ctrl);
-    if (shortcutPanel) {
-      dispatch({ type: "SET_ACTIVE_PANEL", panel: shortcutPanel });
       return;
     }
 

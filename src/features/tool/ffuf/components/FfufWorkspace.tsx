@@ -1,10 +1,8 @@
 import { useTerminalDimensions } from "@opentui/react";
-import { getPanelDisplayNumber } from "../../../../shared/model/panel-navigation";
 import { DashboardPanel } from "../../../dashboard/components/DashboardPanel";
 import { useToolLayout } from "../../hooks/use-tool-layout";
 import { CommandEditor } from "../../shared/components/CommandEditor";
 import { OutputLog } from "../../shared/components/OutputLog";
-import { toolPanels } from "../../shared/registry/tool-registry";
 import { useFfufWorkspace } from "../store/use-ffuf-workspace";
 import { FfufForm } from "./FfufForm";
 
@@ -36,7 +34,6 @@ export function FfufWorkspace() {
     <box flexDirection="column" flexGrow={1}>
       <DashboardPanel
         title={`FFUF ${modeTitle}`}
-        panelNumber={getPanelDisplayNumber(toolPanels, "form")}
         height={layout.formPanelHeight}
         focused={workspace.activePanel === "form"}
         onMouseDown={() => focusPanel("form")}
@@ -50,7 +47,6 @@ export function FfufWorkspace() {
       </DashboardPanel>
       <DashboardPanel
         title="Command"
-        panelNumber={getPanelDisplayNumber(toolPanels, "command")}
         isHistoricPreview={workspace.isHistoricPreview}
         height={layout.commandPanelHeight}
         focused={workspace.activePanel === "command"}
@@ -70,7 +66,6 @@ export function FfufWorkspace() {
       </DashboardPanel>
       <DashboardPanel
         title="Raw Output"
-        panelNumber={getPanelDisplayNumber(toolPanels, "output")}
         isHistoricPreview={workspace.isHistoricPreview}
         flexGrow={1}
         focused={workspace.activePanel === "output"}

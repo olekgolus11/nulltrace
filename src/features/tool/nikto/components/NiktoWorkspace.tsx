@@ -1,11 +1,9 @@
 import { useTerminalDimensions } from "@opentui/react";
 import { theme } from "../../../../app/theme/theme";
 import { DashboardPanel } from "../../../dashboard/components/DashboardPanel";
-import { getPanelDisplayNumber } from "../../../../shared/model/panel-navigation";
 import { useToolLayout } from "../../hooks/use-tool-layout";
 import { CommandEditor } from "../../shared/components/CommandEditor";
 import { OutputLog } from "../../shared/components/OutputLog";
-import { toolPanels } from "../../shared/registry/tool-registry";
 import { niktoCommandService } from "../services/nikto-command.service";
 import { useNiktoWorkspace } from "../store/use-nikto-workspace";
 import { NiktoForm } from "./NiktoForm";
@@ -43,7 +41,6 @@ export function NiktoWorkspace() {
     <box flexDirection="column" flexGrow={1}>
       <DashboardPanel
         title={`Nikto ${state.toolData.form.profile === "custom" ? "Custom" : "Standard"} Controls`}
-        panelNumber={getPanelDisplayNumber(toolPanels, "form")}
         height={authenticatedFormPanelHeight}
         focused={state.activePanel === "form"}
         onMouseDown={() => focus("form")}
@@ -62,7 +59,6 @@ export function NiktoWorkspace() {
       </DashboardPanel>
       <DashboardPanel
         title="Command"
-        panelNumber={getPanelDisplayNumber(toolPanels, "command")}
         isHistoricPreview={state.isHistoricPreview}
         height={layout.commandPanelHeight}
         focused={state.activePanel === "command"}
@@ -82,7 +78,6 @@ export function NiktoWorkspace() {
       </DashboardPanel>
       <DashboardPanel
         title="Raw Output"
-        panelNumber={getPanelDisplayNumber(toolPanels, "output")}
         isHistoricPreview={state.isHistoricPreview}
         flexGrow={1}
         focused={state.activePanel === "output"}

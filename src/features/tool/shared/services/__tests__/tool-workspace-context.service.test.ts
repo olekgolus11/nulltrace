@@ -1,4 +1,5 @@
 import { expect, it } from "bun:test";
+import { CurlToolData } from "../../../curl/types/curl.types";
 
 process.env.XDG_DATA_HOME = "/private/tmp/nulltrace-workspace-context-test";
 
@@ -103,4 +104,46 @@ it("redacts Nikto authorization values from persisted workspace context", () => 
   expect(JSON.stringify(snapshot)).not.toContain("admin:secret");
 
   toolWorkspaceContextService.clearActiveWorkspace("nikto-redaction-session");
+});
+
+it("redacts cURL headers and request bodies from persisted workspace context", () => {
+  const snapshot = toolWorkspaceContextService.saveActiveWorkspace({
+    sessionId: "curl-redaction-session",
+    toolName: "curl",
+    activePanel: "command",
+    commandInput:
+      "curl -X POST 'https://example.com/api' -H 'X-Tenant: private-tenant' --data-binary '{\"token\":\"private-body\"}'",
+    generatedCommand:
+      "curl -X POST 'https://example.com/api' -H 'X-Tenant: private-tenant' --data-binary '{\"token\":\"private-body\"}'",
+    commandSource: "generated",
+    executionStatus: "idle",
+    currentToolRunId: null,
+    selectedHistoryRunId: null,
+    isHistoricPreview: false,
+    toolData: {
+      selectedField: 4,
+      form: {
+        targetUrl: "https://example.com/api",
+        method: "POST",
+        headers: "X-Tenant: private-tenant",
+        bodyMode: "json",
+        body: '{"token":"private-body"}',
+        useAuthenticatedContext: true,
+      },
+      authentication: {
+        strategy: "session",
+        isAvailable: true,
+        origin: "https://example.com",
+      },
+    } as CurlToolData,
+  });
+
+  expect(snapshot.commandInput).toContain("--data-binary '[redacted]'");
+  expect(snapshot.toolData.form.headers).toBe("[request headers redacted]");
+  expect(snapshot.toolData.form.body).toBe("[request body redacted]");
+  expect(snapshot.toolData.form.useAuthenticatedContext).toBe(false);
+  expect(JSON.stringify(snapshot)).not.toContain("private-body");
+  expect(JSON.stringify(snapshot)).not.toContain("private-tenant");
+
+  toolWorkspaceContextService.clearActiveWorkspace("curl-redaction-session");
 });

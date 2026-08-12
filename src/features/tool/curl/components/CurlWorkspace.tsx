@@ -4,13 +4,13 @@ import { DashboardPanel } from "../../../dashboard/components/DashboardPanel";
 import { useToolLayout } from "../../hooks/use-tool-layout";
 import { CommandEditor } from "../../shared/components/CommandEditor";
 import { OutputLog } from "../../shared/components/OutputLog";
-import { useSqlmapWorkspace } from "../store/use-sqlmap-workspace";
-import { SqlmapForm } from "./SqlmapForm";
+import { useCurlWorkspace } from "../store/use-curl-workspace";
+import { CurlForm } from "./CurlForm";
 
-export function SqlmapWorkspace() {
+export function CurlWorkspace() {
   const dimensions = useTerminalDimensions();
   const layout = useToolLayout(dimensions);
-  const state = useSqlmapWorkspace();
+  const state = useCurlWorkspace();
   const previewLines = state.selectedHistoryRun
     ? [
         `$ ${state.selectedHistoryRun.command}`,
@@ -18,6 +18,7 @@ export function SqlmapWorkspace() {
         ...state.selectedHistoryRun.logs.map((log) => log.line),
       ]
     : state.outputLines;
+  const previewCommand = state.selectedHistoryRun?.command ?? state.commandInput;
   const focus = (panel: typeof state.activePanel) => {
     if (!state.isHelpOpen) state.setActivePanel(panel);
   };
@@ -25,17 +26,19 @@ export function SqlmapWorkspace() {
   return (
     <box flexDirection="column" flexGrow={1}>
       <DashboardPanel
-        title="Targeted sqlmap Controls"
+        title="cURL Request Controls"
         height={layout.formPanelHeight}
         focused={state.activePanel === "form"}
         onMouseDown={() => focus("form")}
       >
-        <SqlmapForm
-          form={state.toolData.form}
-          authentication={state.toolData.authentication}
-          selectedField={state.toolData.selectedField}
+        <CurlForm
+          toolData={state.toolData}
           focused={state.activePanel === "form"}
           onFieldChange={state.setField}
+          onSelectField={state.selectField}
+          onCycleMethod={state.cycleMethod}
+          onCycleBodyMode={state.cycleBodyMode}
+          onToggleAuthenticatedContext={state.toggleAuthenticatedContext}
         />
       </DashboardPanel>
       <DashboardPanel
@@ -46,7 +49,7 @@ export function SqlmapWorkspace() {
         onMouseDown={() => focus("command")}
       >
         <CommandEditor
-          commandInput={state.selectedHistoryRun?.command ?? state.commandInput}
+          commandInput={previewCommand}
           generatedCommand={state.generatedCommand}
           commandSource={state.commandSource}
           focused={state.activePanel === "command"}
@@ -58,7 +61,7 @@ export function SqlmapWorkspace() {
         />
       </DashboardPanel>
       <DashboardPanel
-        title="Bounded Output"
+        title="Bounded Response"
         isHistoricPreview={state.isHistoricPreview}
         flexGrow={1}
         focused={state.activePanel === "output"}
@@ -71,7 +74,7 @@ export function SqlmapWorkspace() {
         />
       </DashboardPanel>
       <text fg={theme.text.dim}>
-        Enter runs after safety validation. Draft application never starts a run.
+        Enter runs the selected command. Response limit: 2 MiB; timeout: 30 seconds.
       </text>
     </box>
   );

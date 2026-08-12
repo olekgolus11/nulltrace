@@ -198,7 +198,6 @@ export function DashboardScreen({
               ]
             : [
                 { key: "Tab/Shift+Tab", label: "switch" },
-                { key: "Ctrl+1-4", label: "jump" },
                 { key: "Ctrl+A", label: "auth" },
                 { key: "Ctrl+P", label: "inspect" },
                 { key: "Ctrl+E", label: "report" },

@@ -1,10 +1,8 @@
 import { useTerminalDimensions } from "@opentui/react";
 import { DashboardPanel } from "../../../dashboard/components/DashboardPanel";
-import { getPanelDisplayNumber } from "../../../../shared/model/panel-navigation";
 import { useToolLayout } from "../../hooks/use-tool-layout";
 import { CommandEditor } from "../../shared/components/CommandEditor";
 import { OutputLog } from "../../shared/components/OutputLog";
-import { toolPanels } from "../../shared/registry/tool-registry";
 import { useNucleiWorkspace } from "../store/use-nuclei-workspace";
 import { NucleiForm } from "./NucleiForm";
 
@@ -47,7 +45,6 @@ export function NucleiWorkspace() {
     <box flexDirection="column" flexGrow={1}>
       <DashboardPanel
         title="Nuclei Controls"
-        panelNumber={getPanelDisplayNumber(toolPanels, "form")}
         height={layout.formPanelHeight}
         focused={activePanel === "form"}
         onMouseDown={() => focusPanel("form")}
@@ -65,7 +62,6 @@ export function NucleiWorkspace() {
 
       <DashboardPanel
         title={"Command"}
-        panelNumber={getPanelDisplayNumber(toolPanels, "command")}
         isHistoricPreview={isHistoricPreview}
         height={layout.commandPanelHeight}
         focused={activePanel === "command"}
@@ -86,7 +82,6 @@ export function NucleiWorkspace() {
 
       <DashboardPanel
         title={"Raw Output"}
-        panelNumber={getPanelDisplayNumber(toolPanels, "output")}
         isHistoricPreview={isHistoricPreview}
         flexGrow={1}
         focused={activePanel === "output"}
