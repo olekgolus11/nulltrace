@@ -324,7 +324,7 @@ describe("PageInspectionService", () => {
     });
   });
 
-  test("reports a rejected authenticated context without falling back to public inspection", async () => {
+  test("reports a login redirect as potentially missing browser storage", async () => {
     const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
     permissions.allowAuthenticated("session-one");
     const service = new PageInspectionService(
@@ -354,7 +354,42 @@ describe("PageInspectionService", () => {
         requestedUrl: "https://target.example/private",
         targetOrigin: "https://target.example",
       }),
-    ).rejects.toThrow("rejected by the target");
+    ).rejects.toThrow("may require localStorage or sessionStorage");
+  });
+
+  test("distinguishes unauthorized authentication from insufficient permissions", async () => {
+    const permissions = new PageInspectionPermissionService({ isChromiumAvailable: () => true });
+    permissions.allowAuthenticated("session-one");
+    const createService = (status: number) =>
+      new PageInspectionService(
+        permissions,
+        {
+          inspect: async () => ({
+            ...snapshot,
+            status,
+          }),
+        },
+        {
+          getMetadata: async () => ({ storageMode: "secure" as const }),
+          loadProtectedContext: async () => ({
+            origin: "https://target.example",
+            cookies: "session=selected-context",
+            headers: "",
+            updatedAt: "2026-07-25T10:00:00.000Z",
+          }),
+        },
+        { isProceedAllowed: () => true },
+      );
+    const request = {
+      sessionId: "session-one",
+      requestedUrl: "https://target.example/private",
+      targetOrigin: "https://target.example",
+    };
+
+    await expect(createService(401).inspect(request)).rejects.toThrow("HTTP 401");
+    await expect(createService(403).inspect(request)).rejects.toThrow(
+      "accepted, but it lacks permission",
+    );
   });
 
   test("rejects cross-origin requests before browser navigation", async () => {

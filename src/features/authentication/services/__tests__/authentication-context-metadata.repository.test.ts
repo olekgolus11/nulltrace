@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { AuthenticationContextMetadataRepository } from "../authentication-context-metadata.repository";
+import { createAuthenticationContextMetadataTable } from "../authentication-context-metadata.schema";
 
 function createDatabase() {
   const database = new Database(":memory:", {
@@ -26,6 +27,7 @@ function createDatabase() {
       FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
     );
   `);
+  createAuthenticationContextMetadataTable(database);
   return database;
 }
 
@@ -67,5 +69,30 @@ describe("AuthenticationContextMetadataRepository", () => {
       .get();
     expect(row?.authCheckJson).not.toContain("Bearer");
     expect(row?.authCheckJson).not.toContain("cookie");
+  });
+
+  test("migrates legacy metadata rows with empty browser storage counts", () => {
+    const database = createDatabase();
+    const repository = new AuthenticationContextMetadataRepository(database, "runtime-1");
+
+    repository.upsert("session-1", verifiedMetadata);
+
+    expect(repository.findBySessionId("session-1")).toEqual(verifiedMetadata);
+    expect(
+      database
+        .query<
+          { localStorageEntryCount: number; sessionStorageEntryCount: number },
+          []
+        >(
+          `SELECT
+            local_storage_entry_count AS localStorageEntryCount,
+            session_storage_entry_count AS sessionStorageEntryCount
+          FROM session_authentication_context_metadata`,
+        )
+        .get(),
+    ).toEqual({
+      localStorageEntryCount: 0,
+      sessionStorageEntryCount: 0,
+    });
   });
 });

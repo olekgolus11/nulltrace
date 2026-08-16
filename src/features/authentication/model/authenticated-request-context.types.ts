@@ -36,6 +36,7 @@ export interface AuthenticatedRequestContextInput {
   cookies: string;
   headers: string;
   importSource?: AuthenticatedContextImportSource;
+  browserStorage?: AuthenticatedRequestBrowserStorage;
 }
 
 export interface AuthenticatedRequestContext {
@@ -44,6 +45,19 @@ export interface AuthenticatedRequestContext {
   headers: string;
   importSource?: AuthenticatedContextImportSource;
   updatedAt: string;
+  browserStorage?: AuthenticatedRequestBrowserStorage;
+}
+
+export type AuthenticatedRequestStorageEntries = Record<string, string>;
+
+export interface AuthenticatedRequestBrowserStorage {
+  localStorage: AuthenticatedRequestStorageEntries;
+  sessionStorage: AuthenticatedRequestStorageEntries;
+}
+
+export interface AuthenticatedRequestBrowserStorageMetadata {
+  localStorageEntryCount: number;
+  sessionStorageEntryCount: number;
 }
 
 export interface AuthenticatedRequestContextMetadata {
@@ -54,6 +68,7 @@ export interface AuthenticatedRequestContextMetadata {
   importSource: AuthenticatedContextImportSource;
   updatedAt: string;
   authCheck: AuthCheckMetadata;
+  browserStorage?: AuthenticatedRequestBrowserStorageMetadata;
 }
 
 export interface RedactedAuthenticatedRequestContextPreview {

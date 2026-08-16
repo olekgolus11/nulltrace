@@ -27,6 +27,7 @@ import type {
   AuthenticatedContextVerificationResult,
   AuthenticatedContextVerifier,
 } from "./auth-check.types";
+import { createAuthCheckVerificationMetadata } from "./auth-check-verification.helpers";
 
 type FetchFunction = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -401,12 +402,13 @@ export class AuthCheckService implements AuthenticatedContextVerifier {
         createRequestHeaders(input.cookies, input.headers),
       );
       const comparison = compareAuthCheckSignals({ unauthenticated, authenticated });
-      this.metadataRepository.updateAuthCheck(input.sessionId, {
-        ...comparison,
-        verificationUrl: createMetadataVerificationUrl(normalizedVerificationUrl),
-        checkedAt: new Date().toISOString(),
-        acknowledgedAt: null,
-      });
+      const metadata = createAuthCheckVerificationMetadata(
+        this.getMetadata(input.sessionId),
+        comparison,
+        createMetadataVerificationUrl(normalizedVerificationUrl),
+        new Date().toISOString(),
+      );
+      this.metadataRepository.updateAuthCheck(input.sessionId, metadata);
 
       if (comparison.status === "verified") {
         return "valid";

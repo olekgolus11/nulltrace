@@ -33,6 +33,7 @@ function createFakeBrowserType(
   let routeHandler: FakeRouteHandler | null = null;
   let hasWebSocketRoute = false;
   let addedCookies: unknown = null;
+  let initScriptArgument: unknown = null;
   let clearedCookies = 0;
   let isContextClosed = false;
   let evaluateArguments: unknown = null;
@@ -110,6 +111,9 @@ function createFakeBrowserType(
     addCookies: async (cookies: unknown) => {
       addedCookies = cookies;
     },
+    addInitScript: async (_script: unknown, argument: unknown) => {
+      initScriptArgument = argument;
+    },
     clearCookies: async () => {
       clearedCookies += 1;
     },
@@ -142,6 +146,7 @@ function createFakeBrowserType(
       contextOptions,
       hasWebSocketRoute,
       addedCookies,
+      initScriptArgument,
       pageEventNames,
       clearedCookies,
       evaluateArguments,
@@ -335,6 +340,34 @@ test("uses the effective low-security DVWA cookies for authenticated inspection"
   expect(JSON.stringify(snapshot)).not.toContain("impossible");
 });
 
+test("prepares exact-origin browser storage before authenticated navigation", async () => {
+  const fake = createFakeBrowserType();
+  const browser = new PlaywrightPageInspectionBrowser({ browserType: fake.browserType });
+
+  await browser.inspect(
+    {
+      requestedUrl: "https://target.example/admin",
+      targetOrigin: "https://target.example",
+      authentication: {
+        origin: "https://target.example",
+        cookies: "session=secret-cookie",
+        headers: "",
+        browserStorage: {
+          localStorage: { user: '{"role":"admin"}' },
+          sessionStorage: { challenge: "verified" },
+        },
+      },
+    },
+    defaultPageInspectionLimits,
+  );
+
+  expect(fake.getState().initScriptArgument).toEqual({
+    origin: "https://target.example",
+    localStorageEntries: { user: '{"role":"admin"}' },
+    sessionStorageEntries: { challenge: "verified" },
+  });
+});
+
 test("redacts authentication values from snapshots and browser errors", async () => {
   const authentication = {
     origin: "https://target.example",
@@ -342,6 +375,10 @@ test("redacts authentication values from snapshots and browser errors", async ()
       "private-cookie-name=impossible-cookie-secret; session-cookie-name=session-cookie-secret; private-cookie-name=low-cookie-secret",
     headers:
       "Authorization: Bearer secret-header | X-CSRF-Token: secret-token | Cookie: private-cookie-name=header-cookie-secret",
+    browserStorage: {
+      localStorage: { user: "browser-storage-secret" },
+      sessionStorage: { challenge: "session-storage-secret" },
+    },
   };
   const snapshotBrowser = new PlaywrightPageInspectionBrowser({
     browserType: createFakeBrowserType(
@@ -349,7 +386,7 @@ test("redacts authentication values from snapshots and browser errors", async ()
       false,
       false,
       "network failed",
-      "private-cookie-name session-cookie-name impossible-cookie-secret session-cookie-secret low-cookie-secret Bearer secret-header secret-token header-cookie-secret",
+      "private-cookie-name session-cookie-name impossible-cookie-secret session-cookie-secret low-cookie-secret Bearer secret-header secret-token header-cookie-secret browser-storage-secret session-storage-secret",
     ).browserType,
   });
 
@@ -369,6 +406,8 @@ test("redacts authentication values from snapshots and browser errors", async ()
   expect(JSON.stringify(snapshot)).not.toContain("secret-header");
   expect(JSON.stringify(snapshot)).not.toContain("secret-token");
   expect(JSON.stringify(snapshot)).not.toContain("header-cookie-secret");
+  expect(JSON.stringify(snapshot)).not.toContain("browser-storage-secret");
+  expect(JSON.stringify(snapshot)).not.toContain("session-storage-secret");
 
   const errorBrowser = new PlaywrightPageInspectionBrowser({
     browserType: createFakeBrowserType(

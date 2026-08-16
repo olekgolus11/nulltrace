@@ -16,9 +16,13 @@ import {
   AuthenticationContextMetadataRepository,
   authenticationContextMetadataRepository,
 } from "./authentication-context-metadata.repository";
+import {
+  hasAuthenticatedRequestBrowserStorage,
+  normalizeAuthenticatedRequestBrowserStorage,
+} from "./authenticated-request-browser-storage.helpers";
 
 interface StoredAuthenticatedRequestContext extends AuthenticatedRequestContext {
-  version: 1;
+  version: 1 | 2;
 }
 
 function getSecretStoreKey(sessionId: string) {
@@ -43,7 +47,7 @@ function parseStoredContext(value: string): StoredAuthenticatedRequestContext | 
     }
     const context = parsed as StoredAuthenticatedRequestContext;
     if (
-      context.version !== 1 ||
+      (context.version !== 1 && context.version !== 2) ||
       typeof context.origin !== "string" ||
       typeof context.cookies !== "string" ||
       typeof context.headers !== "string" ||
@@ -51,8 +55,10 @@ function parseStoredContext(value: string): StoredAuthenticatedRequestContext | 
     ) {
       return null;
     }
+    const browserStorage = normalizeAuthenticatedRequestBrowserStorage(context.browserStorage);
     return {
       ...context,
+      ...(browserStorage ? { browserStorage } : {}),
       importSource:
         context.importSource === "curl" || context.importSource === "har"
           ? context.importSource
@@ -154,25 +160,31 @@ export class AuthenticatedRequestContextService {
   async save(sessionId: string, targetUrl: string, input: AuthenticatedRequestContextInput) {
     const origin = validateAuthenticatedRequestContextOrigin(targetUrl, input.origin);
     const rawHeaders = input.headers.trim();
-    if (!input.cookies.trim() && !rawHeaders) {
-      throw new Error("Enter at least one cookie or request header.");
+    const browserStorage = normalizeAuthenticatedRequestBrowserStorage(input.browserStorage);
+    if (
+      !input.cookies.trim() &&
+      !rawHeaders &&
+      !hasAuthenticatedRequestBrowserStorage(browserStorage)
+    ) {
+      throw new Error("Enter at least one cookie, request header, or browser storage entry.");
     }
     validateHeaders(rawHeaders);
     const { headerDerivedCookies, remainingHeaders } =
       partitionAuthenticatedRequestCookieHeaders(rawHeaders);
     const cookies = normalizeAuthenticatedRequestCookies(headerDerivedCookies, [input.cookies]);
     const headers = remainingHeaders.join(" | ");
-    if (!cookies && !headers) {
-      throw new Error("Enter at least one cookie or request header.");
+    if (!cookies && !headers && !hasAuthenticatedRequestBrowserStorage(browserStorage)) {
+      throw new Error("Enter at least one cookie, request header, or browser storage entry.");
     }
 
     const context: StoredAuthenticatedRequestContext = {
-      version: 1,
+      version: 2,
       origin,
       cookies,
       headers,
       importSource: input.importSource ?? "manual",
       updatedAt: new Date().toISOString(),
+      ...(browserStorage ? { browserStorage } : {}),
     };
     const storageMode = await this.secretStore.save(
       getSecretStoreKey(sessionId),

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { defaultPageInspectionLimits } from "../../config/page-inspection.config";
 import { PageInspectionSnapshot } from "../../model/page-inspection.types";
+import { getPageInspectionAuthenticationOutcome } from "../page-inspection-authentication.helpers";
 import { getPageInspectionRequestDecision } from "../page-inspection-request-policy.helpers";
 import { applyPageInspectionBounds } from "../page-inspection-snapshot.helpers";
 
@@ -107,6 +108,30 @@ describe("getPageInspectionRequestDecision", () => {
         url: "https://target.example/embedded",
       }),
     ).toBe("block");
+  });
+});
+
+describe("getPageInspectionAuthenticationOutcome", () => {
+  test("distinguishes HTTP rejection, permission denial, and rendered login redirects", () => {
+    expect(getPageInspectionAuthenticationOutcome(createSnapshot({ status: 401 }))).toBe(
+      "unauthorized",
+    );
+    expect(getPageInspectionAuthenticationOutcome(createSnapshot({ status: 403 }))).toBe(
+      "forbidden",
+    );
+    expect(
+      getPageInspectionAuthenticationOutcome(
+        createSnapshot({ finalUrl: "https://target.example/login" }),
+      ),
+    ).toBe("login_redirect");
+    expect(
+      getPageInspectionAuthenticationOutcome(
+        createSnapshot({
+          requestedUrl: "https://target.example/login",
+          finalUrl: "https://target.example/login",
+        }),
+      ),
+    ).toBeNull();
   });
 });
 

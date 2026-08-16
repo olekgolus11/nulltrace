@@ -28,6 +28,27 @@ describe("chat tool activity mapping", () => {
     });
   });
 
+  it("shows bounded log reads without exposing their input", () => {
+    const activity = toSafeChatToolActivity({
+      id: "part-tool-logs",
+      type: "tool",
+      tool: "get_tool_run_logs",
+      state: {
+        status: "running",
+        input: {
+          toolRunId: "private-run-id",
+        },
+      },
+    });
+
+    expect(activity).toEqual({
+      id: "part-tool-logs",
+      label: "Get tool run logs",
+      status: "running",
+    });
+    expect(JSON.stringify(activity)).not.toContain("private-run-id");
+  });
+
   it("shows a running page inspection with only its normalized path", () => {
     const activity = toSafeChatToolActivity({
       id: "part-inspect-page",

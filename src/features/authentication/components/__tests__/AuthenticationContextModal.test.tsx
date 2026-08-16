@@ -59,6 +59,25 @@ function pressPageDown() {
   );
 }
 
+function pressTab() {
+  testSetup?.renderer.keyInput.emit(
+    "keypress",
+    new KeyEvent({
+      name: "tab",
+      sequence: "\t",
+      raw: "\t",
+      ctrl: false,
+      shift: false,
+      meta: false,
+      option: false,
+      number: false,
+      eventType: "press",
+      source: "raw",
+      repeated: false,
+    }),
+  );
+}
+
 afterEach(async () => {
   await act(async () => {
     testSetup?.renderer.destroy();
@@ -75,13 +94,90 @@ describe("AuthenticationContextModal layout", () => {
     const frame = testSetup.captureCharFrame();
 
     expect(frame).toContain("Cookies: No cookies");
+    expect(frame).toContain("localStorage");
+    expect(frame).toContain("sessionStorage");
     expect(frame).toContain("Ctrl+↑/↓ known route (3 suggestions, root included)");
-    expect(frame).toContain("Save an authentication context before running Auth Check.");
 
     pressPageDown();
     await testSetup.renderOnce();
 
+    expect(testSetup.captureCharFrame()).toContain(
+      "Save an authentication context before running Auth Check.",
+    );
+    pressPageDown();
+    await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain("content stay out of metadata.");
+  });
+
+  test("saves browser storage JSON through normal tab navigation", async () => {
+    let savedContext: AuthenticatedRequestContextInput | null = null;
+    testSetup = await renderModal(92, {
+      onSave: async (input) => {
+        savedContext = input;
+        return true;
+      },
+    });
+    await testSetup.renderOnce();
+
+    await act(async () => {
+      await testSetup!.mockInput.typeText("authToken=secret");
+    });
+    await testSetup.renderOnce();
+    await act(async () => {
+      pressTab();
+    });
+    await testSetup.renderOnce();
+    await act(async () => {
+      pressTab();
+    });
+    await testSetup.renderOnce();
+    await act(async () => {
+      await testSetup!.mockInput.typeText('{"user":"{\\"role\\":\\"admin\\"}"}');
+    });
+    await testSetup.renderOnce();
+    await act(async () => {
+      testSetup!.mockInput.pressKey("s", { ctrl: true });
+      await Promise.resolve();
+    });
+
+    expect(savedContext).toMatchObject({
+      cookies: "authToken=secret",
+      browserStorage: {
+        localStorage: { user: '{"role":"admin"}' },
+        sessionStorage: {},
+      },
+    });
+  });
+
+  test("accepts a complete browser storage paste longer than the OpenTUI input default", async () => {
+    let savedLocalStorageValue = "";
+    const storageValue = "x".repeat(1_100_000);
+    testSetup = await renderModal(92, {
+      onSave: async (input) => {
+        savedLocalStorageValue = input.browserStorage?.localStorage.user ?? "";
+        return true;
+      },
+    });
+    await testSetup.renderOnce();
+
+    await act(async () => {
+      pressTab();
+    });
+    await testSetup.renderOnce();
+    await act(async () => {
+      pressTab();
+    });
+    await testSetup.renderOnce();
+    await act(async () => {
+      await testSetup!.mockInput.pasteBracketedText(JSON.stringify({ user: storageValue }));
+    });
+    await testSetup.renderOnce();
+    await act(async () => {
+      testSetup!.mockInput.pressKey("s", { ctrl: true });
+      await Promise.resolve();
+    });
+
+    expect(savedLocalStorageValue).toBe(storageValue);
   });
 
   test("stacks actions before they can collide at narrow widths", async () => {

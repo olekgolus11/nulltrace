@@ -54,6 +54,8 @@ describe("curlCommandService", () => {
       "curl https://user:password@example.com/path",
       "curl https://example.com/path; printf leaked",
       "curl $(printf https://example.com/path)",
+      'curl https://example.com/path --data-raw "$HOME"',
+      'curl https://example.com/path --data-raw "`whoami`"',
       "curl https://example.com/path -H 'Authorization: Bearer secret'",
       "curl https://example.com/path -H 'X-Api-Key: secret'",
       "curl https://example.com/path -H 'Host: internal.example'",

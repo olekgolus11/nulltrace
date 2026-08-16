@@ -1,6 +1,11 @@
 export type PageInspectionStatus = "blocked" | "ready" | "browser_missing";
 export type PageInspectionAllowedMode = "public" | "authenticated";
 export type PageInspectionPermissionMode = "none" | PageInspectionAllowedMode;
+export type PageInspectionAuthenticationOutcome =
+  | "unauthorized"
+  | "forbidden"
+  | "login_redirect"
+  | null;
 
 export interface PageInspectionPermissionStatus {
   isAllowed: boolean;
@@ -50,6 +55,10 @@ export interface PageInspectionAuthentication {
   origin: string;
   cookies: string;
   headers: string;
+  browserStorage?: {
+    localStorage: Record<string, string>;
+    sessionStorage: Record<string, string>;
+  };
 }
 
 export interface PageInspectionFormField {

@@ -46,6 +46,7 @@ import {
 } from "../../finding/services/finding-source-context";
 import {
   ToolRunArtifactRecord,
+  ToolRunDetail,
   ToolRunSummary,
 } from "../../session/model/session.repository.types";
 import { sessionRepository } from "../../session/services/session.repository";
@@ -71,6 +72,10 @@ import { conversationAttachmentService } from "./conversation-attachment.service
 import { pageInspectionChatContextToolsService } from "./page-inspection-chat-context-tools.service";
 
 const DEFAULT_ARTIFACT_PREVIEW_MAX_CHARACTERS = 4000;
+const DEFAULT_TOOL_RUN_LOG_LIMIT = 50;
+const MAX_TOOL_RUN_LOG_LIMIT = 200;
+const DEFAULT_TOOL_RUN_LOG_MAX_CHARACTERS = 8000;
+const MAX_TOOL_RUN_LOG_MAX_CHARACTERS = 20_000;
 const DEFAULT_FINDING_LIST_LIMIT = 25;
 const MAX_FINDING_LIST_LIMIT = 100;
 const DEFAULT_ACTIVE_TOOL_HISTORY_LIMIT = 5;
@@ -118,6 +123,20 @@ type GetArtifactArgs = {
   maxCharacters?: number;
 };
 
+type GetToolRunLogsArgs = {
+  toolRunId: string;
+  offset?: number;
+  limit?: number;
+  maxCharacters?: number;
+};
+
+type NormalizedGetToolRunLogsArgs = {
+  toolRunId: string;
+  offset: number;
+  limit: number;
+  maxCharacters: number;
+};
+
 type CreateActionDraftArgs = ActionDraftChatContextArgs;
 
 type ListSitemapEntriesArgs = {
@@ -150,6 +169,10 @@ export interface ChatAuthenticationMetadata {
   importSource: AuthenticatedRequestContextMetadata["importSource"] | null;
   credentialTypes: ChatAuthenticationCredentialType[];
   cookieCount: number;
+  browserStorageEntryCounts: {
+    localStorage: number;
+    sessionStorage: number;
+  };
   persistenceMode: AuthenticatedRequestContextMetadata["storageMode"] | null;
   updatedAt: string | null;
   authCheck: AuthCheckMetadata | null;
@@ -352,6 +375,7 @@ interface FindingReadRepository {
 
 interface ToolReadRepository {
   listToolRunsBySessionId: (sessionId: string) => ToolRunSummary[];
+  getToolRunWithLogs: (toolRunId: string) => ToolRunDetail | null;
   findToolRunArtifactByIdForSession: (
     sessionId: string,
     artifactId: string,
@@ -495,6 +519,53 @@ function assertGetArtifactArgs(args: ChatContextToolArgs): GetArtifactArgs {
     artifactId: artifactId.trim(),
     maxCharacters,
   };
+}
+
+function assertGetToolRunLogsArgs(
+  args: ChatContextToolArgs,
+): NormalizedGetToolRunLogsArgs {
+  const toolRunId = args.toolRunId;
+  if (typeof toolRunId !== "string" || !toolRunId.trim()) {
+    throw new Error("get_tool_run_logs requires a toolRunId string.");
+  }
+
+  return {
+    toolRunId: toolRunId.trim(),
+    offset: normalizeToolRunLogNumber(args.offset, "offset", 0, Number.MAX_SAFE_INTEGER),
+    limit: normalizeToolRunLogNumber(
+      args.limit,
+      "limit",
+      DEFAULT_TOOL_RUN_LOG_LIMIT,
+      MAX_TOOL_RUN_LOG_LIMIT,
+      1,
+    ),
+    maxCharacters: normalizeToolRunLogNumber(
+      args.maxCharacters,
+      "maxCharacters",
+      DEFAULT_TOOL_RUN_LOG_MAX_CHARACTERS,
+      MAX_TOOL_RUN_LOG_MAX_CHARACTERS,
+      1,
+    ),
+  };
+}
+
+function normalizeToolRunLogNumber(
+  value: unknown,
+  argumentName: string,
+  defaultValue: number,
+  maximum: number,
+  minimum = 0,
+) {
+  if (value !== undefined && (typeof value !== "number" || !Number.isFinite(value))) {
+    throw new Error(`get_tool_run_logs ${argumentName} must be a finite number.`);
+  }
+  return Math.min(
+    maximum,
+    Math.max(
+      minimum,
+      Math.floor((value as number | undefined) ?? defaultValue),
+    ),
+  );
 }
 
 function normalizeRequiredString(value: unknown, toolName: string, argumentName: string) {
@@ -717,6 +788,58 @@ function toArtifactDetail(
     source: artifact.source,
     createdAt: artifact.createdAt,
     payloadPreview: createArtifactPayloadPreview(artifact.payload, maxCharacters),
+  };
+}
+
+function toToolRunLogPreview(
+  run: ToolRunDetail,
+  args: NormalizedGetToolRunLogsArgs,
+) {
+  const candidates = run.logs.slice(args.offset, args.offset + args.limit);
+  const entries: Array<{
+    seq: number;
+    stream: string;
+    line: string;
+    createdAt: string;
+    isLineTruncated: boolean;
+  }> = [];
+  let charactersReturned = 0;
+
+  for (const log of candidates) {
+    const remainingCharacters = args.maxCharacters - charactersReturned;
+    if (remainingCharacters <= 0) break;
+    const isLineTruncated = log.line.length > remainingCharacters;
+    const line = isLineTruncated ? log.line.slice(0, remainingCharacters) : log.line;
+    entries.push({
+      seq: log.seq,
+      stream: log.stream,
+      line,
+      createdAt: log.createdAt,
+      isLineTruncated,
+    });
+    charactersReturned += line.length;
+    if (isLineTruncated) break;
+  }
+
+  const consumedUntil = Math.min(run.logs.length, args.offset + entries.length);
+  const nextOffset = consumedUntil < run.logs.length ? consumedUntil : null;
+  return {
+    run: toToolRunListItem(run),
+    logs: entries,
+    pagination: {
+      offset: args.offset,
+      limit: args.limit,
+      nextOffset,
+      total: run.logs.length,
+      hasMore: nextOffset !== null,
+    },
+    bounds: {
+      maxCharacters: args.maxCharacters,
+      charactersReturned,
+      isCharacterLimitReached:
+        entries.some((entry) => entry.isLineTruncated) ||
+        (entries.length < candidates.length && charactersReturned >= args.maxCharacters),
+    },
   };
 }
 
@@ -1139,6 +1262,10 @@ export class AuthenticationChatContextToolsService {
               ...(metadata.headerNames.length > 0 ? (["headers"] as const) : []),
             ],
             cookieCount: metadata.cookieCount,
+            browserStorageEntryCounts: {
+              localStorage: metadata.browserStorage?.localStorageEntryCount ?? 0,
+              sessionStorage: metadata.browserStorage?.sessionStorageEntryCount ?? 0,
+            },
             persistenceMode: metadata.storageMode,
             updatedAt: metadata.updatedAt,
             authCheck: toSafeAuthCheckMetadata(metadata.authCheck),
@@ -1150,6 +1277,10 @@ export class AuthenticationChatContextToolsService {
             importSource: null,
             credentialTypes: [],
             cookieCount: 0,
+            browserStorageEntryCounts: {
+              localStorage: 0,
+              sessionStorage: 0,
+            },
             persistenceMode: null,
             updatedAt: null,
             authCheck: null,
@@ -1348,6 +1479,22 @@ export class ToolRunArtifactChatContextToolsService {
     };
   }
 
+  getToolRunLogs(opencodeConversationId: string, args: GetToolRunLogsArgs) {
+    const attachment = requireActiveAttachment(this.attachments, opencodeConversationId);
+    const normalizedArgs = assertGetToolRunLogsArgs(args);
+    const isRunInSession = this.tools
+      .listToolRunsBySessionId(attachment.sessionId)
+      .some((run) => run.id === normalizedArgs.toolRunId);
+    if (!isRunInSession) {
+      return { toolRunLogs: null };
+    }
+
+    const run = this.tools.getToolRunWithLogs(normalizedArgs.toolRunId);
+    return {
+      toolRunLogs: run ? toToolRunLogPreview(run, normalizedArgs) : null,
+    };
+  }
+
   getArtifact(opencodeConversationId: string, args: GetArtifactArgs): GetArtifactResult {
     const attachment = requireActiveAttachment(this.attachments, opencodeConversationId);
     const artifact = this.tools.findToolRunArtifactByIdForSession(
@@ -1387,6 +1534,36 @@ export class ToolRunArtifactChatContextToolsService {
         },
         execute: ({ opencodeConversationId, args }) =>
           this.getArtifact(opencodeConversationId, assertGetArtifactArgs(args)),
+      },
+      {
+        name: "get_tool_run_logs",
+        description:
+          "Read a bounded page of persisted logs for one tool run in the active session. Call this only when the operator explicitly asks to inspect that run's logs, output, or response; never call it proactively because log content consumes substantial context.",
+        args: {
+          toolRunId: {
+            type: "string",
+            description:
+              "Tool run ID from list_tool_runs. Do not provide a NullTrace session ID.",
+          },
+          offset: {
+            type: "number",
+            description: "Optional zero-based log-line offset. Defaults to 0.",
+            isOptional: true,
+          },
+          limit: {
+            type: "number",
+            description: "Optional log-line limit. Defaults to 50 and is capped at 200.",
+            isOptional: true,
+          },
+          maxCharacters: {
+            type: "number",
+            description:
+              "Optional total line-content character limit. Defaults to 8000 and is capped at 20000.",
+            isOptional: true,
+          },
+        },
+        execute: ({ opencodeConversationId, args }) =>
+          this.getToolRunLogs(opencodeConversationId, assertGetToolRunLogsArgs(args)),
       },
     ];
   }

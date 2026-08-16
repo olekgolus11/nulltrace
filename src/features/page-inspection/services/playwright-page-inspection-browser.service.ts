@@ -45,6 +45,26 @@ export class PlaywrightPageInspectionBrowser implements PageInspectionBrowser {
       if (authentication?.cookies.length) {
         await context.addCookies(authentication.cookies);
       }
+      if (authentication?.browserStorage) {
+        await context.addInitScript(
+          ({ origin, localStorageEntries, sessionStorageEntries }) => {
+            if (window.location.origin !== origin) {
+              return;
+            }
+            Object.entries(localStorageEntries).forEach(([key, value]) => {
+              window.localStorage.setItem(key, value);
+            });
+            Object.entries(sessionStorageEntries).forEach(([key, value]) => {
+              window.sessionStorage.setItem(key, value);
+            });
+          },
+          {
+            origin: input.targetOrigin,
+            localStorageEntries: authentication.browserStorage.localStorage,
+            sessionStorageEntries: authentication.browserStorage.sessionStorage,
+          },
+        );
+      }
       await context.route("**/*", async (route) => {
         const request = route.request();
         const decision = getPageInspectionRequestDecision({

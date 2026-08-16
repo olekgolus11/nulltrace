@@ -55,10 +55,30 @@ class FakeToolRepository {
   constructor(
     private readonly toolRuns: Array<ToolRunSummary & { sessionId: string }>,
     private readonly artifacts: Array<ToolRunArtifactRecord & { sessionId: string }>,
+    private readonly logs: Array<{
+      toolRunId: string;
+      seq: number;
+      stream: string;
+      line: string;
+      createdAt: string;
+    }> = [],
   ) {}
 
   listToolRunsBySessionId(sessionId: string) {
     return this.toolRuns.filter((run) => run.sessionId === sessionId);
+  }
+
+  getToolRunWithLogs(toolRunId: string) {
+    const storedRun = this.toolRuns.find((run) => run.id === toolRunId);
+    if (!storedRun) return null;
+    const { sessionId: _sessionId, ...run } = storedRun;
+    return {
+      ...run,
+      logs: this.logs
+        .filter((log) => log.toolRunId === toolRunId)
+        .map(({ toolRunId: _toolRunId, ...log }) => log),
+      artifacts: this.artifacts.filter((artifact) => artifact.toolRunId === toolRunId),
+    };
   }
 
   findToolRunArtifactByIdForSession(sessionId: string, artifactId: string) {
@@ -174,6 +194,21 @@ function createArtifact(
   };
 }
 
+function createToolRunLog(
+  toolRunId: string,
+  seq: number,
+  stream: string,
+  line: string,
+) {
+  return {
+    toolRunId,
+    seq,
+    stream,
+    line,
+    createdAt: `2026-05-10T10:00:0${seq}.000Z`,
+  };
+}
+
 function createFinding(
   id: string,
   sessionId: string,
@@ -274,6 +309,12 @@ function createToolRunArtifactService() {
         createArtifact("artifact-archived", "session-archived", "run-3", {
           hidden: true,
         }),
+      ],
+      [
+        createToolRunLog("run-1", 0, "system", "[request completed]"),
+        createToolRunLog("run-1", 1, "stdout", "HTTP/2 200"),
+        createToolRunLog("run-1", 2, "stdout", "A".repeat(100)),
+        createToolRunLog("run-2", 0, "stdout", "other session secret"),
       ],
     ),
   );
@@ -648,6 +689,81 @@ describe("ToolRunArtifactChatContextToolsService", () => {
     ]);
   });
 
+  it("gets bounded tool run logs only inside the attached session", () => {
+    const service = createToolRunArtifactService();
+
+    const ownLogs = service.getToolRunLogs("opencode-1", {
+      toolRunId: "run-1",
+      offset: 1,
+      limit: 2,
+      maxCharacters: 12,
+    });
+    const otherSessionLogs = service.getToolRunLogs("opencode-1", {
+      toolRunId: "run-2",
+    });
+
+    expect(ownLogs).toEqual({
+      toolRunLogs: {
+        run: {
+          id: "run-1",
+          toolName: "nmap",
+          command: "nmap example.com",
+          status: "success",
+          startedAt: "2026-05-10T10:00:00.000Z",
+          endedAt: "2026-05-10T10:01:00.000Z",
+          exitCode: 0,
+        },
+        logs: [
+          {
+            seq: 1,
+            stream: "stdout",
+            line: "HTTP/2 200",
+            createdAt: "2026-05-10T10:00:01.000Z",
+            isLineTruncated: false,
+          },
+          {
+            seq: 2,
+            stream: "stdout",
+            line: "AA",
+            createdAt: "2026-05-10T10:00:02.000Z",
+            isLineTruncated: true,
+          },
+        ],
+        pagination: {
+          offset: 1,
+          limit: 2,
+          nextOffset: null,
+          total: 3,
+          hasMore: false,
+        },
+        bounds: {
+          maxCharacters: 12,
+          charactersReturned: 12,
+          isCharacterLimitReached: true,
+        },
+      },
+    });
+    expect(otherSessionLogs.toolRunLogs).toBeNull();
+  });
+
+  it("caps requested tool run log pages and rejects malformed bounds", () => {
+    const service = createToolRunArtifactService();
+    const result = service.getToolRunLogs("opencode-1", {
+      toolRunId: "run-1",
+      limit: 999,
+      maxCharacters: 999_999,
+    });
+
+    expect(result.toolRunLogs?.pagination.limit).toBe(200);
+    expect(result.toolRunLogs?.bounds.maxCharacters).toBe(20_000);
+    expect(() =>
+      service.getToolRunLogs("opencode-1", {
+        toolRunId: "run-1",
+        limit: Number.NaN,
+      }),
+    ).toThrow("get_tool_run_logs limit must be a finite number.");
+  });
+
   it("gets bounded artifact detail only inside the attached session", () => {
     const service = createToolRunArtifactService();
 
@@ -722,6 +838,37 @@ describe("ToolRunArtifactChatContextToolsService", () => {
     });
   });
 
+  it("registers bounded tool run log reads without accepting session ids", async () => {
+    const service = createToolRunArtifactService();
+    const registry = new ChatContextToolRegistry(service.createToolDefinitions());
+    const definition = registry
+      .listDefinitions()
+      .find((candidate) => candidate.name === "get_tool_run_logs");
+
+    const result = await registry.execute("get_tool_run_logs", "opencode-1", {
+      toolRunId: "run-1",
+      sessionId: "session-2",
+      limit: 1,
+    });
+
+    expect(definition).toMatchObject({
+      description: expect.stringContaining("only when the operator explicitly asks"),
+      args: {
+        toolRunId: { type: "string" },
+        offset: { type: "number", isOptional: true },
+        limit: { type: "number", isOptional: true },
+        maxCharacters: { type: "number", isOptional: true },
+      },
+    });
+    expect(definition?.args).not.toHaveProperty("sessionId");
+    expect(result).toMatchObject({
+      toolRunLogs: {
+        run: { id: "run-1" },
+        logs: [{ seq: 0 }],
+      },
+    });
+  });
+
   it("generates OpenCode wrappers that forward conversation context", () => {
     const source = createOpenCodeToolSource("get_artifact");
 
@@ -733,6 +880,12 @@ describe("ToolRunArtifactChatContextToolsService", () => {
       '"maxCharacters": tool.schema.number().describe("Optional maximum preview characters. The preview is always bounded.").optional()',
     );
     expect(source).not.toContain("sessionId");
+
+    const logSource = createOpenCodeToolSource("get_tool_run_logs");
+    expect(logSource).toContain("context.sessionID");
+    expect(logSource).toContain('"get_tool_run_logs"');
+    expect(logSource).toContain('"toolRunId"');
+    expect(logSource).not.toContain("sessionId");
   });
 });
 
@@ -867,6 +1020,57 @@ describe("ActionDraftChatContextToolsService", () => {
         headers: "Accept: application/json\nX-Client: nulltrace",
         bodyMode: "json",
         body: '{"name":"Ada"}',
+      },
+    });
+  });
+
+  it("treats shell-like cURL text body content as literal action draft data", () => {
+    const { drafts, service } = createActionDraftService();
+    const body = [
+      "$1::__proto__:then",
+      "$B1337",
+      "$Q2",
+      "$@0",
+      "const marker = `rsc`; const label = 'safe'; a;b",
+    ].join("\n");
+
+    service.createActionDraft("opencode-1", {
+      targetTool: "curl",
+      title: "Send React Server Component payload",
+      formStateJson: JSON.stringify({
+        targetUrl: "{{TARGET}}/api/action",
+        method: "POST",
+        headers: "Content-Type: text/x-component",
+        bodyMode: "text",
+        body,
+      }),
+    });
+
+    expect(drafts.drafts[0]?.payload).toMatchObject({
+      formState: {
+        targetUrl: "http://honey.scanme.sh/api/action",
+        method: "POST",
+        bodyMode: "text",
+        body,
+      },
+    });
+
+    const jsonBody = '{"value":"$Q2","template":"`literal`"}';
+    service.createActionDraft("opencode-1", {
+      targetTool: "curl",
+      title: "Send literal JSON markers",
+      formStateJson: JSON.stringify({
+        targetUrl: "{{TARGET}}/api/json",
+        method: "POST",
+        bodyMode: "json",
+        body: jsonBody,
+      }),
+    });
+
+    expect(drafts.drafts[1]?.payload).toMatchObject({
+      formState: {
+        bodyMode: "json",
+        body: jsonBody,
       },
     });
   });

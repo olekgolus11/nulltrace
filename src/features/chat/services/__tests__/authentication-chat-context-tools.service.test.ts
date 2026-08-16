@@ -81,6 +81,10 @@ class FakeAuthenticationMetadata {
       storageMode: "secure" as const,
       importSource: "har" as const,
       updatedAt: "2026-07-15T10:01:00.000Z",
+      browserStorage: {
+        localStorageEntryCount: 1,
+        sessionStorageEntryCount: 1,
+      },
       authCheck: {
         status: this.status,
         verificationUrl: "https://example.com/account",
@@ -168,6 +172,10 @@ describe("authentication chat context tools", () => {
         importSource: "har",
         credentialTypes: ["cookies", "headers"],
         cookieCount: 2,
+        browserStorageEntryCounts: {
+          localStorage: 1,
+          sessionStorage: 1,
+        },
         persistenceMode: "secure",
         updatedAt: "2026-07-15T10:01:00.000Z",
         authCheck: expect.objectContaining({
@@ -298,5 +306,57 @@ describe("authentication chat context tools", () => {
       persistenceMode: "secure",
     });
     expect(JSON.stringify(result)).not.toContain("protected-value");
+  });
+
+  it("reads acknowledged inconclusive posture after authenticated crawl verification", async () => {
+    const database = new Database(":memory:", { create: true, strict: true });
+    database.exec("CREATE TABLE sessions (id TEXT PRIMARY KEY);");
+    database.exec("INSERT INTO sessions (id) VALUES ('session-1');");
+    createAuthenticationContextMetadataTable(database);
+    const appWriter = new AuthenticationContextMetadataRepository(database, "shared-runtime");
+    const chatReader = new AuthenticationContextMetadataRepository(database, "shared-runtime");
+    const contextService = new AuthenticatedRequestContextService(new TestSecretStore(), appWriter);
+    await contextService.save("session-1", "https://example.com", {
+      origin: "https://example.com",
+      cookies: "session=protected-value",
+      headers: "",
+      importSource: "curl",
+    });
+    const authCheck = new AuthCheckService({
+      contextService,
+      metadataRepository: appWriter,
+      fetch: async () =>
+        new Response("<html><title>Same page</title></html>", {
+          headers: { "content-type": "text/html" },
+        }),
+    });
+    await authCheck.run("session-1", "https://example.com", "https://example.com/account");
+    const acknowledged = authCheck.acknowledgeInconclusive("session-1");
+    await authCheck.verify({
+      sessionId: "session-1",
+      targetUrl: "https://example.com",
+      cookies: "session=rotated-value",
+      headers: "",
+    });
+    const service = new AuthenticationChatContextToolsService(
+      new FakeAttachments(),
+      new FakeSessions(),
+      chatReader,
+      new FakeSitemap(),
+    );
+
+    const result = await service.getContext("conversation-1");
+
+    expect(result.authentication).toMatchObject({
+      posture: "acknowledged_inconclusive",
+      authCheck: {
+        status: "inconclusive",
+        acknowledgedAt: acknowledged.acknowledgedAt,
+        isProceedAllowed: true,
+      },
+      operatorGuidance: null,
+    });
+    expect(JSON.stringify(result)).not.toContain("protected-value");
+    expect(JSON.stringify(result)).not.toContain("rotated-value");
   });
 });

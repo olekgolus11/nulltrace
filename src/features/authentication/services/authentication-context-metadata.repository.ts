@@ -19,6 +19,8 @@ interface AuthenticationContextMetadataRow {
   importSource: string;
   updatedAt: string;
   authCheckJson: string;
+  localStorageEntryCount: number;
+  sessionStorageEntryCount: number;
 }
 
 const authCheckStatuses = ["not_checked", "verified", "inconclusive", "failed"] as const;
@@ -109,7 +111,14 @@ function mapMetadataRow(
   const authCheck = parseAuthCheckMetadata(row.authCheckJson);
   const storageMode = normalizeStorageMode(row.storageMode);
   const importSource = normalizeImportSource(row.importSource);
-  if (!authCheck || !storageMode || !importSource || row.cookieCount < 0) {
+  if (
+    !authCheck ||
+    !storageMode ||
+    !importSource ||
+    row.cookieCount < 0 ||
+    row.localStorageEntryCount < 0 ||
+    row.sessionStorageEntryCount < 0
+  ) {
     return null;
   }
   return {
@@ -120,6 +129,14 @@ function mapMetadataRow(
     importSource,
     updatedAt: row.updatedAt,
     authCheck,
+    ...(row.localStorageEntryCount > 0 || row.sessionStorageEntryCount > 0
+      ? {
+          browserStorage: {
+            localStorageEntryCount: row.localStorageEntryCount,
+            sessionStorageEntryCount: row.sessionStorageEntryCount,
+          },
+        }
+      : {}),
   };
 }
 
@@ -140,7 +157,9 @@ export class AuthenticationContextMetadataRepository {
           storage_mode AS storageMode,
           import_source AS importSource,
           updated_at AS updatedAt,
-          auth_check_json AS authCheckJson
+          auth_check_json AS authCheckJson,
+          local_storage_entry_count AS localStorageEntryCount,
+          session_storage_entry_count AS sessionStorageEntryCount
         FROM session_authentication_context_metadata
         WHERE session_id = ?1 AND runtime_id = ?2`,
       )
@@ -153,8 +172,9 @@ export class AuthenticationContextMetadataRepository {
       .query(
         `INSERT INTO session_authentication_context_metadata (
           session_id, runtime_id, origin, cookie_count, header_names_json,
-          storage_mode, import_source, updated_at, auth_check_json
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+          storage_mode, import_source, updated_at, auth_check_json,
+          local_storage_entry_count, session_storage_entry_count
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
         ON CONFLICT(session_id) DO UPDATE SET
           runtime_id = excluded.runtime_id,
           origin = excluded.origin,
@@ -163,7 +183,9 @@ export class AuthenticationContextMetadataRepository {
           storage_mode = excluded.storage_mode,
           import_source = excluded.import_source,
           updated_at = excluded.updated_at,
-          auth_check_json = excluded.auth_check_json`,
+          auth_check_json = excluded.auth_check_json,
+          local_storage_entry_count = excluded.local_storage_entry_count,
+          session_storage_entry_count = excluded.session_storage_entry_count`,
       )
       .run(
         sessionId,
@@ -175,6 +197,8 @@ export class AuthenticationContextMetadataRepository {
         metadata.importSource,
         metadata.updatedAt,
         JSON.stringify(metadata.authCheck),
+        metadata.browserStorage?.localStorageEntryCount ?? 0,
+        metadata.browserStorage?.sessionStorageEntryCount ?? 0,
       );
     return metadata;
   }

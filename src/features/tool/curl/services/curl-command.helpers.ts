@@ -243,7 +243,9 @@ function assertSafeCurlShell(command: string) {
     }
     if (quote) {
       if (character === quote) quote = null;
-      else if (character === "$" || character === "`") throw unsafeShellError();
+      else if (quote === '"' && (character === "$" || character === "`")) {
+        throw unsafeShellError();
+      }
       continue;
     }
     if (character === "'" || character === '"') quote = character;

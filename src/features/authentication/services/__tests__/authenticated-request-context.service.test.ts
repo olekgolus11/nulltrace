@@ -107,6 +107,60 @@ describe("AuthenticatedRequestContextService", () => {
     expect(JSON.stringify(metadata)).not.toContain("low-cookie-secret");
   });
 
+  test("keeps browser storage values only in the protected context", async () => {
+    const metadataRepository = createMetadataRepository();
+    const service = new AuthenticatedRequestContextService(
+      new TestSecretStore(),
+      metadataRepository,
+    );
+
+    const metadata = await service.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=secret-cookie",
+      headers: "",
+      browserStorage: {
+        localStorage: { user: '{"role":"operator","token":"storage-secret"}' },
+        sessionStorage: { challenge: "session-storage-secret" },
+      },
+    });
+
+    expect(metadata.browserStorage).toEqual({
+      localStorageEntryCount: 1,
+      sessionStorageEntryCount: 1,
+    });
+    expect(JSON.stringify(metadata)).not.toContain("storage-secret");
+    expect(await service.loadProtectedContext("session-1")).toMatchObject({
+      browserStorage: {
+        localStorage: { user: '{"role":"operator","token":"storage-secret"}' },
+        sessionStorage: { challenge: "session-storage-secret" },
+      },
+    });
+  });
+
+  test("loads version one contexts without browser storage", async () => {
+    const secretStore = new TestSecretStore();
+    await secretStore.save(
+      "session:session-1:authenticated-request-context",
+      JSON.stringify({
+        version: 1,
+        origin: "https://app.example.test",
+        cookies: "session=legacy-secret",
+        headers: "",
+        updatedAt: "2026-07-15T10:00:00.000Z",
+      }),
+    );
+    const service = new AuthenticatedRequestContextService(
+      secretStore,
+      createMetadataRepository(),
+    );
+
+    expect(await service.loadProtectedContext("session-1")).toMatchObject({
+      origin: "https://app.example.test",
+      cookies: "session=legacy-secret",
+      headers: "",
+    });
+  });
+
   test("replacement and clearing invalidate dependent auth state", async () => {
     const metadataRepository = createMetadataRepository();
     const service = new AuthenticatedRequestContextService(

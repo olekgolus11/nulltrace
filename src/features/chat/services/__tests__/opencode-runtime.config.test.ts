@@ -77,6 +77,18 @@ describe("getOpenCodeRuntimeEnvironment", () => {
     expect(chatContextSystemPrompt).toContain("must not mutate");
   });
 
+  it("allows bounded tool run log reads only under explicit operator-request guidance", () => {
+    const environment = getOpenCodeRuntimeEnvironment();
+    const config = JSON.parse(environment.OPENCODE_CONFIG_CONTENT);
+
+    expect(config.permission.get_tool_run_logs).toBe("allow");
+    expect(chatContextSystemPrompt).toContain(
+      "Call get_tool_run_logs only when the operator explicitly asks",
+    );
+    expect(chatContextSystemPrompt).toContain("Never call it proactively");
+    expect(chatContextSystemPrompt).toContain("default bounded page");
+  });
+
   it("keeps page inspection disabled until a session grant enables the prompt tool", () => {
     const environment = getOpenCodeRuntimeEnvironment();
     const config = JSON.parse(environment.OPENCODE_CONFIG_CONTENT);
@@ -84,6 +96,7 @@ describe("getOpenCodeRuntimeEnvironment", () => {
     expect(config.permission.inspect_page).toBe("allow");
     expect(environment.NULLTRACE_PAGE_INSPECTION_MODES).toBe("{}");
     expect(chatContextSystemPrompt).toContain("inspect_page");
+    expect(chatContextSystemPrompt).toContain("localStorage or sessionStorage");
     expect(chatContextSystemPrompt).toContain("operator controls");
   });
 

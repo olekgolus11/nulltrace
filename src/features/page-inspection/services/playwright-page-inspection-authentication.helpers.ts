@@ -38,6 +38,14 @@ export function createPlaywrightPageInspectionAuthentication(
       normalizeAuthenticatedRequestCookies(headerDerivedCookies, [authentication.cookies]),
     ),
     headers,
+    ...(authentication.browserStorage
+      ? {
+          browserStorage: {
+            localStorage: { ...authentication.browserStorage.localStorage },
+            sessionStorage: { ...authentication.browserStorage.sessionStorage },
+          },
+        }
+      : {}),
   };
 }
 
@@ -182,6 +190,12 @@ function getPlaywrightPageInspectionSecretValues(
     if (headerName.toLowerCase() === "cookie") {
       addPlaywrightPageInspectionCookieSecretValues(values, headerValue);
     }
+  });
+  Object.values(authentication.browserStorage?.localStorage ?? {}).forEach((value) => {
+    values.add(value);
+  });
+  Object.values(authentication.browserStorage?.sessionStorage ?? {}).forEach((value) => {
+    values.add(value);
   });
   return [...values].filter(Boolean).sort((left, right) => right.length - left.length);
 }

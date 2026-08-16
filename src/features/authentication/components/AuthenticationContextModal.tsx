@@ -1,5 +1,5 @@
-import { ScrollBoxRenderable } from "@opentui/core";
-import { useKeyboard } from "@opentui/react";
+import { PasteEvent, ScrollBoxRenderable } from "@opentui/core";
+import { useKeyboard, useRenderer } from "@opentui/react";
 import { useEffect, useRef, useState } from "react";
 import { theme } from "../../../app/theme/theme";
 import {
@@ -14,6 +14,7 @@ import {
   parseCurlAuthenticationContextImport,
   parseHarAuthenticationContextImport,
 } from "../services/authenticated-request-context-import";
+import { parseAuthenticatedRequestStorageEntries } from "../services/authenticated-request-browser-storage.helpers";
 import { createRedactedAuthenticatedRequestContextPreview } from "../services/authenticated-request-context-redaction";
 import { getAuthCheckPresentation } from "./auth-check-presentation";
 
@@ -37,6 +38,8 @@ type AuthenticationMode = "manual" | "curl" | "har" | "review";
 type AuthenticationField =
   | "cookies"
   | "headers"
+  | "localStorage"
+  | "sessionStorage"
   | "verification_url"
   | "curlSource"
   | "harPath"
@@ -45,10 +48,17 @@ type AuthenticationField =
   | "actions";
 
 const modeFields: Record<AuthenticationMode, readonly AuthenticationField[]> = {
-  manual: ["cookies", "headers", "verification_url", "actions"],
+  manual: [
+    "cookies",
+    "headers",
+    "localStorage",
+    "sessionStorage",
+    "verification_url",
+    "actions",
+  ],
   curl: ["curlSource", "verification_url", "import"],
   har: ["harPath", "verification_url", "import"],
-  review: ["verification_url", "actions"],
+  review: ["localStorage", "sessionStorage", "verification_url", "actions"],
 } as const;
 const harRequestFields = ["harRequests", "verification_url", "import"] as const;
 
@@ -96,10 +106,13 @@ export function AuthenticationContextModal({
   onAcknowledgeInconclusive,
   onClose,
 }: AuthenticationContextModalProps) {
+  const renderer = useRenderer();
   const [mode, setMode] = useState<AuthenticationMode>("manual");
   const [importSource, setImportSource] = useState<AuthenticatedContextImportSource>("manual");
   const [cookies, setCookies] = useState("");
   const [headers, setHeaders] = useState("");
+  const [localStorage, setLocalStorage] = useState("");
+  const [sessionStorage, setSessionStorage] = useState("");
   const [verificationUrl, setVerificationUrl] = useState(
     verificationUrlSuggestions[0] ?? targetUrl,
   );
@@ -124,10 +137,30 @@ export function AuthenticationContextModal({
   const fields = mode === "har" && harRequests.length > 0 ? harRequestFields : modeFields[mode];
 
   useEffect(() => {
+    const handleBrowserStoragePaste = (event: PasteEvent) => {
+      if (selectedField === "localStorage") {
+        event.preventDefault();
+        event.stopPropagation();
+        setLocalStorage(event.text);
+      } else if (selectedField === "sessionStorage") {
+        event.preventDefault();
+        event.stopPropagation();
+        setSessionStorage(event.text);
+      }
+    };
+    renderer.keyInput.on("paste", handleBrowserStoragePaste);
+    return () => {
+      renderer.keyInput.off("paste", handleBrowserStoragePaste);
+    };
+  }, [renderer, selectedField]);
+
+  useEffect(() => {
     setMode("manual");
     setImportSource("manual");
     setCookies("");
     setHeaders("");
+    setLocalStorage("");
+    setSessionStorage("");
     setVerificationUrl(verificationUrlSuggestions[0] ?? targetUrl);
     setCurlSource("");
     setHarPath("");
@@ -144,6 +177,8 @@ export function AuthenticationContextModal({
     setImportSource(nextMode);
     setCookies("");
     setHeaders("");
+    setLocalStorage("");
+    setSessionStorage("");
     setCurlSource("");
     setSelectedField(modeFields[nextMode][0]!);
     setImportError(null);
@@ -161,6 +196,8 @@ export function AuthenticationContextModal({
   ) => {
     setCookies(context.cookies);
     setHeaders(context.headers);
+    setLocalStorage("");
+    setSessionStorage("");
     setCurlSource("");
     setHarData("");
     setHarRequests([]);
@@ -253,15 +290,32 @@ export function AuthenticationContextModal({
     if (isBusy || (mode !== "manual" && mode !== "review")) {
       return;
     }
+    let browserStorage;
+    try {
+      browserStorage = {
+        localStorage: parseAuthenticatedRequestStorageEntries(localStorage, "localStorage"),
+        sessionStorage: parseAuthenticatedRequestStorageEntries(
+          sessionStorage,
+          "sessionStorage",
+        ),
+      };
+    } catch (nextError) {
+      setImportError(getImportError(nextError));
+      return;
+    }
+    setImportError(null);
     const saved = await onSave({
       origin: targetUrl,
       cookies,
       headers,
       importSource,
+      browserStorage,
     });
     if (saved) {
       setCookies("");
       setHeaders("");
+      setLocalStorage("");
+      setSessionStorage("");
       setMode("review");
       setSelectedField("verification_url");
       setNotice("Authentication context saved.");
@@ -277,6 +331,8 @@ export function AuthenticationContextModal({
     setImportSource("manual");
     setCookies("");
     setHeaders("");
+    setLocalStorage("");
+    setSessionStorage("");
     setSelectedField("cookies");
     setNotice(null);
   };
@@ -426,6 +482,12 @@ export function AuthenticationContextModal({
             <text fg={theme.accent.secondary}>
               Active: {mode === "review" ? "redacted import review" : mode}
             </text>
+            {metadata ? (
+              <text fg={theme.text.dim}>
+                Browser storage: {metadata.browserStorage?.localStorageEntryCount ?? 0} local /{" "}
+                {metadata.browserStorage?.sessionStorageEntryCount ?? 0} session entries
+              </text>
+            ) : null}
 
             {mode === "manual" ? (
               <>
@@ -476,6 +538,73 @@ export function AuthenticationContextModal({
                     />
                   </box>
                 </box>
+              </>
+            ) : null}
+
+            {mode === "manual" || mode === "review" ? (
+              <>
+                <box flexDirection="row" marginTop={1}>
+                  <box width={18}>
+                    <text
+                      fg={
+                        selectedField === "localStorage"
+                          ? theme.accent.primary
+                          : theme.text.secondary
+                      }
+                    >
+                      {selectedField === "localStorage" ? "> localStorage" : "  localStorage"}
+                    </text>
+                  </box>
+                  <box flexGrow={1} minWidth={0}>
+                    <input
+                      value={localStorage}
+                      maxLength={Number.POSITIVE_INFINITY}
+                      width="100%"
+                      onInput={setLocalStorage}
+                      placeholder={'{"user":"{\\"id\\":1,...}"}'}
+                      focused={selectedField === "localStorage"}
+                      backgroundColor={theme.bg.input}
+                      textColor={theme.text.primary}
+                      cursorColor={theme.accent.primary}
+                      focusedBackgroundColor={theme.bg.elevated}
+                      placeholderColor={theme.text.dim}
+                    />
+                  </box>
+                </box>
+
+                <box flexDirection="row" marginTop={1}>
+                  <box width={18}>
+                    <text
+                      fg={
+                        selectedField === "sessionStorage"
+                          ? theme.accent.primary
+                          : theme.text.secondary
+                      }
+                    >
+                      {selectedField === "sessionStorage"
+                        ? "> sessionStorage"
+                        : "  sessionStorage"}
+                    </text>
+                  </box>
+                  <box flexGrow={1} minWidth={0}>
+                    <input
+                      value={sessionStorage}
+                      maxLength={Number.POSITIVE_INFINITY}
+                      width="100%"
+                      onInput={setSessionStorage}
+                      placeholder="{}"
+                      focused={selectedField === "sessionStorage"}
+                      backgroundColor={theme.bg.input}
+                      textColor={theme.text.primary}
+                      cursorColor={theme.accent.primary}
+                      focusedBackgroundColor={theme.bg.elevated}
+                      placeholderColor={theme.text.dim}
+                    />
+                  </box>
+                </box>
+                <text fg={theme.text.dim}>
+                  Paste JSON.stringify({"{...localStorage}"}) output. Values stay redacted.
+                </text>
               </>
             ) : null}
 
@@ -664,8 +793,8 @@ export function AuthenticationContextModal({
 
             <text fg={theme.text.dim} marginTop={1}>
               Imports ignore methods and bodies; saving requires confirmation. Auth Check is
-              heuristic only and does not establish authorization scope. Secrets and response
-              content stay out of metadata.
+              HTTP-only and does not validate browser storage or establish authorization scope.
+              Secrets and response content stay out of metadata.
             </text>
           </box>
         </scrollbox>

@@ -10,6 +10,7 @@ const toolLabels: Record<string, string> = {
   list_findings: "List findings",
   get_finding: "Get finding",
   list_tool_runs: "List tool runs",
+  get_tool_run_logs: "Get tool run logs",
   get_artifact: "Get artifact preview",
   get_active_tool_workspace: "Get active tool workspace",
   list_available_scanner_tools: "List scanner tools",

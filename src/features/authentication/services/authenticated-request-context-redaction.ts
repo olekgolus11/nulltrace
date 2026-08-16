@@ -72,5 +72,13 @@ export function createAuthenticatedRequestContextMetadata(
     importSource: context.importSource ?? "manual",
     updatedAt: context.updatedAt,
     authCheck: createUncheckedAuthCheckMetadata(),
+    ...(context.browserStorage
+      ? {
+          browserStorage: {
+            localStorageEntryCount: Object.keys(context.browserStorage.localStorage).length,
+            sessionStorageEntryCount: Object.keys(context.browserStorage.sessionStorage).length,
+          },
+        }
+      : {}),
   };
 }

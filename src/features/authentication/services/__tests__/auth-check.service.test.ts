@@ -366,6 +366,48 @@ describe("Auth Check state", () => {
     ).toEqual(acknowledged);
   });
 
+  test("preserves acknowledged inconclusive state during crawl verification", async () => {
+    const metadataRepository = createMetadataRepository();
+    const contextService = new AuthenticatedRequestContextService(
+      new TestSecretStore(),
+      metadataRepository,
+    );
+    await contextService.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=secret-value",
+      headers: "",
+    });
+    const authCheckService = new AuthCheckService({
+      contextService,
+      metadataRepository,
+      fetch: async () =>
+        new Response("<html><title>Same page</title></html>", {
+          headers: { "content-type": "text/html" },
+        }),
+    });
+    await authCheckService.run(
+      "session-1",
+      "https://app.example.test",
+      "https://app.example.test/account",
+    );
+    const acknowledged = authCheckService.acknowledgeInconclusive("session-1");
+
+    await expect(
+      authCheckService.verify({
+        sessionId: "session-1",
+        targetUrl: "https://app.example.test",
+        cookies: "session=rotated-value",
+        headers: "",
+      }),
+    ).resolves.toBe("inconclusive");
+
+    expect(authCheckService.getMetadata("session-1")).toMatchObject({
+      status: "inconclusive",
+      acknowledgedAt: acknowledged.acknowledgedAt,
+      isProceedAllowed: true,
+    });
+  });
+
   test("invalidates check state when the protected context is replaced", async () => {
     const metadataRepository = createMetadataRepository();
     const contextService = new AuthenticatedRequestContextService(

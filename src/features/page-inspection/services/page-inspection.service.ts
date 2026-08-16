@@ -20,7 +20,7 @@ import {
   applyPageInspectionBounds,
   excludePageInspectionProtectedPaths,
 } from "./page-inspection-snapshot.helpers";
-import { isRejectedPageInspectionAuthentication } from "./page-inspection-authentication.helpers";
+import { getPageInspectionAuthenticationOutcome } from "./page-inspection-authentication.helpers";
 import { PlaywrightPageInspectionBrowser } from "./playwright-page-inspection-browser.service";
 
 export class PageInspectionService {
@@ -74,8 +74,23 @@ export class PageInspectionService {
       },
       defaultPageInspectionLimits,
     );
-    if (authentication && isRejectedPageInspectionAuthentication(snapshot)) {
-      throw new Error("Selected authentication context was rejected by the target. Run Auth Check again.");
+    const authenticationOutcome = authentication
+      ? getPageInspectionAuthenticationOutcome(snapshot)
+      : null;
+    if (authenticationOutcome === "unauthorized") {
+      throw new Error(
+        "The target returned HTTP 401 for the authenticated inspection. The session may be expired or rejected.",
+      );
+    }
+    if (authenticationOutcome === "forbidden") {
+      throw new Error(
+        "The target returned HTTP 403. The authentication context was accepted, but it lacks permission for this page.",
+      );
+    }
+    if (authenticationOutcome === "login_redirect") {
+      throw new Error(
+        "The rendered application redirected to a login route. Cookies were sent, but the application may require localStorage or sessionStorage in the Authentication Context.",
+      );
     }
     if (new URL(snapshot.finalUrl).origin !== targetOrigin) {
       throw new Error("Page Inspection blocked an out-of-origin redirect.");
@@ -142,6 +157,7 @@ export class PageInspectionService {
       origin: context.origin,
       cookies: context.cookies,
       headers: context.headers,
+      ...(context.browserStorage ? { browserStorage: context.browserStorage } : {}),
     };
   }
 }
