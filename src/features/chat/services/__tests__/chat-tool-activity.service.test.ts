@@ -264,6 +264,12 @@ describe("chat tool activity mapping", () => {
         },
       },
       {
+        id: "part-finding",
+        type: "tool",
+        tool: "create_finding",
+        state: { status: "completed", input: { evidence: "private evidence" } },
+      },
+      {
         id: "part-unknown",
         type: "tool",
         tool: "unexpected_tool_with_secret",
@@ -281,6 +287,11 @@ describe("chat tool activity mapping", () => {
         id: "part-draft",
         label: "Create action draft",
         status: "failed",
+      },
+      {
+        id: "part-finding",
+        label: "Create finding",
+        status: "completed",
       },
     ]);
     expect(JSON.stringify(activities)).not.toContain("auth-cookie");

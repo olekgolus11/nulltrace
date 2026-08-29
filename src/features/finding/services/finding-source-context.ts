@@ -156,6 +156,17 @@ function createNucleiSourceContext(payload: Record<string, unknown>) {
   return fields;
 }
 
+function createAssistantSourceContext(payload: Record<string, unknown>) {
+  const fields: FindingSourceContextField[] = [];
+
+  addField(fields, "Evidence", payload.evidence, JSON_PREVIEW_LIMIT);
+  addField(fields, "Recommendation", payload.recommendation, JSON_PREVIEW_LIMIT);
+  addField(fields, "Source Tool", payload.sourceTool);
+  addField(fields, "Source Run", payload.sourceToolRunId);
+
+  return fields;
+}
+
 function createFallbackSourceContext(payload: unknown) {
   return [
     {
@@ -177,7 +188,9 @@ export function createFindingSourceContextFields(
       ? createNmapSourceContext(finding.payload)
       : finding.sourceTool === "nuclei" || finding.kind.startsWith("nuclei.")
         ? createNucleiSourceContext(finding.payload)
-        : [];
+        : finding.sourceTool === "assistant" || finding.kind.startsWith("assistant.")
+          ? createAssistantSourceContext(finding.payload)
+          : [];
 
   return fields.length > 0 ? fields : createFallbackSourceContext(finding.payload);
 }

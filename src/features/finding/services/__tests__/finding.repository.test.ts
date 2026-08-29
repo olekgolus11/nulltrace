@@ -442,4 +442,101 @@ describe("FindingRepository", () => {
       reviewStatus: "confirmed",
     });
   });
+
+  it("updates assistant finding content without changing operator review status", () => {
+    const repository = new FindingRepository(createTestDatabase());
+    const [finding] = repository.upsertCandidates([
+      {
+        sessionId: "session-1",
+        toolRunArtifactId: "artifact-1",
+        candidate: {
+          sourceTool: "assistant",
+          kind: "assistant.authorization.bypass",
+          severity: "high",
+          title: "Initial title",
+          summary: "Initial summary.",
+          target: "https://example.com/admin",
+          dedupeKeyParts: ["run-1", "assistant.authorization.bypass", "https://example.com/admin"],
+          payload: {
+            assistantReported: true,
+            evidence: "Initial evidence.",
+            recommendation: null,
+            sourceTool: "curl",
+            sourceToolRunId: "run-1",
+          },
+        },
+      },
+    ]);
+    repository.setReviewStatus({ findingId: finding.id, reviewStatus: "confirmed" });
+
+    const updated = repository.updateAssistantFinding({
+      sessionId: "session-1",
+      findingId: finding.id,
+      severity: "critical",
+      title: "Updated title",
+      summary: "Updated summary.",
+      target: "https://example.com/admin/users",
+      fingerprint: "updated-fingerprint",
+      payload: {
+        assistantReported: true,
+        evidence: "Updated evidence.",
+        recommendation: "Enforce authorization.",
+        sourceTool: "curl",
+        sourceToolRunId: "run-1",
+      },
+    });
+
+    expect(updated).toMatchObject({
+      id: finding.id,
+      severity: "critical",
+      title: "Updated title",
+      fingerprint: "updated-fingerprint",
+      reviewStatus: "confirmed",
+      reviewUpdatedAt: expect.any(String),
+      payload: {
+        evidence: "Updated evidence.",
+        recommendation: "Enforce authorization.",
+      },
+    });
+  });
+
+  it("does not update scanner findings through the assistant-only repository method", () => {
+    const repository = new FindingRepository(createTestDatabase());
+    const [finding] = repository.upsertCandidates([
+      {
+        sessionId: "session-1",
+        toolRunArtifactId: "artifact-1",
+        candidate: {
+          sourceTool: "nuclei",
+          kind: "nuclei.http",
+          severity: "medium",
+          title: "Scanner finding",
+          summary: "Scanner summary.",
+          target: "https://example.com",
+          dedupeKeyParts: ["scanner-finding"],
+          payload: {},
+        },
+      },
+    ]);
+
+    const updated = repository.updateAssistantFinding({
+      sessionId: "session-1",
+      findingId: finding.id,
+      severity: "critical",
+      title: "Overwritten",
+      summary: "Overwritten.",
+      target: "https://example.com/admin",
+      fingerprint: "overwritten-fingerprint",
+      payload: {
+        assistantReported: true,
+        evidence: "Evidence.",
+        recommendation: null,
+        sourceTool: "curl",
+        sourceToolRunId: "run-1",
+      },
+    });
+
+    expect(updated).toBeNull();
+    expect(repository.listBySessionId("session-1")[0]?.title).toBe("Scanner finding");
+  });
 });

@@ -94,10 +94,16 @@ describe("getOpenCodeRuntimeEnvironment", () => {
     const config = JSON.parse(environment.OPENCODE_CONFIG_CONTENT);
 
     expect(config.permission.inspect_page).toBe("allow");
+    expect(config.permission.create_finding).toBe("allow");
+    expect(config.permission.update_finding).toBe("allow");
     expect(environment.NULLTRACE_PAGE_INSPECTION_MODES).toBe("{}");
     expect(chatContextSystemPrompt).toContain("inspect_page");
     expect(chatContextSystemPrompt).toContain("localStorage or sessionStorage");
     expect(chatContextSystemPrompt).toContain("operator controls");
+    expect(chatContextSystemPrompt).toContain("evidence-backed vulnerability");
+    expect(chatContextSystemPrompt).toContain("New AI findings always start as needs_review");
+    expect(chatContextSystemPrompt).toContain("source.toolRunId returned directly by inspect_page");
+    expect(chatContextSystemPrompt).toContain("Evidence from a rendered page inspection is valid");
   });
 
   it("guides chat to create FFUF, targeted sqlmap, Nikto, and cURL action drafts", () => {

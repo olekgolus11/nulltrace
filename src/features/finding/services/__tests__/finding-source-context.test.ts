@@ -112,6 +112,27 @@ describe("createFindingSourceContextFields", () => {
     ]);
   });
 
+  it("formats assistant evidence and source run context", () => {
+    const fields = createFindingSourceContextFields({
+      sourceTool: "assistant",
+      kind: "assistant.authorization.bypass",
+      payload: {
+        assistantReported: true,
+        evidence: "GET /admin returned 200 with privileged data.",
+        recommendation: "Enforce server-side authorization.",
+        sourceTool: "curl",
+        sourceToolRunId: "run-curl-1",
+      },
+    });
+
+    expect(fields).toEqual([
+      { label: "Evidence", value: "GET /admin returned 200 with privileged data." },
+      { label: "Recommendation", value: "Enforce server-side authorization." },
+      { label: "Source Tool", value: "curl" },
+      { label: "Source Run", value: "run-curl-1" },
+    ]);
+  });
+
   it("truncates long source context values", () => {
     const fields = createFindingSourceContextFields({
       sourceTool: "nmap",

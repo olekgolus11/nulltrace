@@ -4,7 +4,12 @@ import {
   ActionDraftRecord,
 } from "../../../action-draft/model/action-draft.types";
 import { ConversationAttachmentRecord } from "../../model/conversation-attachment.types";
-import { SessionFindingRecord } from "../../../finding/model/finding.types";
+import {
+  SessionFindingRecord,
+  UpdateAssistantFindingInput,
+  UpsertFindingCandidateInput,
+} from "../../../finding/model/finding.types";
+import { createFindingFingerprint } from "../../../finding/services/finding-fingerprint";
 import {
   ToolRunArtifactRecord,
   ToolRunSummary,
@@ -49,6 +54,57 @@ class FakeFindingRepository {
   listBySessionId(sessionId: string) {
     return this.findings.filter((finding) => finding.sessionId === sessionId);
   }
+
+  upsertCandidates(inputs: UpsertFindingCandidateInput[]) {
+    return inputs.map((input) => {
+      const record = createFinding(
+        `finding-${this.findings.length + 1}`,
+        input.sessionId,
+        input.candidate.title,
+        {
+          toolRunArtifactId: input.toolRunArtifactId,
+          sourceTool: input.candidate.sourceTool,
+          kind: input.candidate.kind,
+          severity: input.candidate.severity as SessionFindingRecord["severity"],
+          summary: input.candidate.summary,
+          target: input.candidate.target,
+          fingerprint: createFindingFingerprint(
+            input.candidate.sourceTool,
+            input.candidate.kind,
+            input.candidate.dedupeKeyParts,
+          ),
+          payload: input.candidate.payload,
+          reviewStatus: "needs_review",
+          reviewUpdatedAt: null,
+        },
+      );
+      this.findings.push(record);
+      return record;
+    });
+  }
+
+  updateAssistantFinding(input: UpdateAssistantFindingInput) {
+    const index = this.findings.findIndex(
+      (finding) =>
+        finding.id === input.findingId &&
+        finding.sessionId === input.sessionId &&
+        finding.sourceTool === "assistant",
+    );
+    if (index < 0) return null;
+
+    const updated: SessionFindingRecord = {
+      ...this.findings[index]!,
+      severity: input.severity,
+      title: input.title,
+      summary: input.summary,
+      target: input.target,
+      fingerprint: input.fingerprint,
+      payload: input.payload,
+      lastSeenAt: "2026-05-10T10:05:00.000Z",
+    };
+    this.findings[index] = updated;
+    return updated;
+  }
 }
 
 class FakeToolRepository {
@@ -87,6 +143,23 @@ class FakeToolRepository {
         (artifact) => artifact.sessionId === sessionId && artifact.id === artifactId,
       ) ?? null
     );
+  }
+
+  saveToolRunArtifact(
+    toolRunId: string,
+    artifact: Omit<ToolRunArtifactRecord, "id" | "toolRunId" | "createdAt">,
+  ) {
+    const run = this.toolRuns.find((candidate) => candidate.id === toolRunId);
+    if (!run) throw new Error("Unknown fake tool run.");
+    const record: ToolRunArtifactRecord & { sessionId: string } = {
+      ...artifact,
+      id: `artifact-${this.artifacts.length + 1}`,
+      toolRunId,
+      sessionId: run.sessionId,
+      createdAt: "2026-05-10T10:04:00.000Z",
+    };
+    this.artifacts.push(record);
+    return record;
   }
 }
 
@@ -281,6 +354,29 @@ function createFindingService() {
   );
 }
 
+function createFindingMutationService(initialFindings: SessionFindingRecord[] = []) {
+  const findings = new FakeFindingRepository(initialFindings);
+  const tools = new FakeToolRepository(
+    [
+      createRun("run-curl-1", "session-1", "curl"),
+      createRun("run-inspect-1", "session-1", "inspect_page"),
+      createRun("run-curl-2", "session-2", "curl"),
+    ],
+    [],
+  );
+  const service = new FindingChatContextToolsService(
+    new FakeConversationAttachments([createAttachment("session-1", "opencode-1")]),
+    findings,
+    new FakeSessionRepository(),
+    tools,
+  );
+
+  return {
+    findings,
+    registry: new ChatContextToolRegistry(service.createToolDefinitions()),
+  };
+}
+
 function createToolRunArtifactService() {
   return new ToolRunArtifactChatContextToolsService(
     new FakeConversationAttachments([
@@ -432,6 +528,119 @@ describe("SessionContextChatContextToolsService", () => {
 });
 
 describe("FindingChatContextToolsService", () => {
+  it("accepts a persisted page inspection run as finding provenance", async () => {
+    const { registry } = createFindingMutationService();
+
+    const created = await registry.execute("create_finding", "opencode-1", {
+      toolRunId: "run-inspect-1",
+      kind: "information.disclosure",
+      severity: "medium",
+      title: "Rendered page exposes internal data",
+      summary: "The JavaScript-rendered page exposes internal application data.",
+      target: "http://honey.scanme.sh/profile",
+      evidence: "Rendered text included an internal account identifier.",
+    });
+
+    expect(created).toMatchObject({
+      finding: {
+        sourceTool: "assistant",
+        reviewStatus: "needs_review",
+        sourceContext: expect.arrayContaining([
+          { label: "Source Tool", value: "inspect_page" },
+          { label: "Source Run", value: "run-inspect-1" },
+        ]),
+      },
+    });
+  });
+
+  it("creates and updates an evidence-backed assistant finding", async () => {
+    const { registry } = createFindingMutationService();
+    const created = await registry.execute("create_finding", "opencode-1", {
+      toolRunId: "run-curl-1",
+      kind: "authorization.bypass",
+      severity: "high",
+      title: "Admin endpoint accessible without authorization",
+      summary: "The endpoint returned administrative data without enforcing authorization.",
+      target: "http://honey.scanme.sh/admin",
+      evidence: "GET /admin returned 200 with an administrative account list.",
+      recommendation: "Enforce server-side authorization on the endpoint.",
+    });
+
+    expect(created).toMatchObject({
+      finding: {
+        sourceTool: "assistant",
+        kind: "assistant.authorization.bypass",
+        reviewStatus: "needs_review",
+        target: "http://honey.scanme.sh/admin",
+        sourceContext: [
+          { label: "Evidence", value: "GET /admin returned 200 with an administrative account list." },
+          { label: "Recommendation", value: "Enforce server-side authorization on the endpoint." },
+          { label: "Source Tool", value: "curl" },
+          { label: "Source Run", value: "run-curl-1" },
+        ],
+      },
+    });
+
+    const findingId = (created as { finding: { id: string } }).finding.id;
+    const updated = await registry.execute("update_finding", "opencode-1", {
+      findingId,
+      severity: "critical",
+      evidence: "GET /admin returned 200 and exposed privileged account records.",
+      recommendation: "",
+    });
+
+    expect(updated).toMatchObject({
+      finding: {
+        id: findingId,
+        severity: "critical",
+        reviewStatus: "needs_review",
+        sourceContext: [
+          { label: "Evidence", value: "GET /admin returned 200 and exposed privileged account records." },
+          { label: "Source Tool", value: "curl" },
+          { label: "Source Run", value: "run-curl-1" },
+        ],
+      },
+    });
+  });
+
+  it("rejects cross-session evidence, cross-origin targets, duplicates, and scanner updates", async () => {
+    const scannerFinding = createFinding("scanner-1", "session-1", "Scanner finding");
+    const { registry } = createFindingMutationService([scannerFinding]);
+    const input = {
+      toolRunId: "run-curl-1",
+      kind: "information.disclosure",
+      severity: "medium",
+      title: "Sensitive response disclosure",
+      summary: "The response exposes internal application details.",
+      target: "http://honey.scanme.sh/debug",
+      evidence: "GET /debug returned an internal stack trace.",
+    };
+
+    await expect(
+      registry.execute("create_finding", "opencode-1", {
+        ...input,
+        toolRunId: "run-curl-2",
+      }),
+    ).rejects.toThrow("toolRunId from the active session");
+    await expect(
+      registry.execute("create_finding", "opencode-1", {
+        ...input,
+        target: "https://attacker.example/debug",
+      }),
+    ).rejects.toThrow("exact origin");
+
+    await registry.execute("create_finding", "opencode-1", input);
+    await expect(registry.execute("create_finding", "opencode-1", input)).rejects.toThrow(
+      "Use update_finding",
+    );
+    await expect(
+      registry.execute("update_finding", "opencode-1", {
+        findingId: scannerFinding.id,
+        title: "Changed scanner finding",
+      }),
+    ).rejects.toThrow("only assistant-created findings");
+  });
+
   it("lists findings for the session attached to the OpenCode conversation", () => {
     const result = createFindingService().listFindings("opencode-1");
 

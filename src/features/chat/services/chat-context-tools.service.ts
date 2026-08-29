@@ -38,14 +38,21 @@ import { sqlmapCommandService } from "../../tool/sqlmap/services/sqlmap-command.
 import { curlCommandService } from "../../tool/curl/services/curl-command.service";
 import { validateCurlCommand } from "../../tool/curl/services/curl-command.helpers";
 import { mapCurlActionDraftFormState } from "../../action-draft/services/curl-action-draft-workspace.mapper";
-import { SessionFindingRecord } from "../../finding/model/finding.types";
+import {
+  AssistantFindingPayload,
+  SessionFindingRecord,
+  UpdateAssistantFindingInput,
+  UpsertFindingCandidateInput,
+} from "../../finding/model/finding.types";
 import { findingRepository } from "../../finding/services/finding.repository";
+import { createFindingFingerprint } from "../../finding/services/finding-fingerprint";
 import {
   createFindingSourceContextFields,
   FindingSourceContextField,
 } from "../../finding/services/finding-source-context";
 import {
   ToolRunArtifactRecord,
+  ToolRunArtifactInput,
   ToolRunDetail,
   ToolRunSummary,
 } from "../../session/model/session.repository.types";
@@ -81,6 +88,12 @@ const MAX_FINDING_LIST_LIMIT = 100;
 const DEFAULT_ACTIVE_TOOL_HISTORY_LIMIT = 5;
 const DEFAULT_SITEMAP_LIST_LIMIT = 25;
 const MAX_SITEMAP_LIST_LIMIT = 100;
+const ASSISTANT_FINDING_TITLE_LIMIT = 160;
+const ASSISTANT_FINDING_SUMMARY_LIMIT = 2000;
+const ASSISTANT_FINDING_TARGET_LIMIT = 2048;
+const ASSISTANT_FINDING_EVIDENCE_LIMIT = 4000;
+const ASSISTANT_FINDING_RECOMMENDATION_LIMIT = 2000;
+const ASSISTANT_FINDING_KIND_LIMIT = 80;
 
 const findingSeverityRanks: Record<SessionFindingRecord["severity"], number> = {
   critical: 5,
@@ -98,6 +111,27 @@ const findingReviewStatusLabels: Record<SessionFindingRecord["reviewStatus"], tr
 
 type GetFindingArgs = {
   findingId: string;
+};
+
+type CreateFindingArgs = {
+  toolRunId: string;
+  kind: string;
+  severity: SessionFindingRecord["severity"];
+  title: string;
+  summary: string;
+  target: string;
+  evidence: string;
+  recommendation?: string;
+};
+
+type UpdateFindingArgs = {
+  findingId: string;
+  severity?: SessionFindingRecord["severity"];
+  title?: string;
+  summary?: string;
+  target?: string;
+  evidence?: string;
+  recommendation?: string | null;
 };
 
 type ListFindingsArgs = {
@@ -291,6 +325,10 @@ export interface GetFindingResult {
   finding: ChatFindingDetail | null;
 }
 
+export interface MutateFindingResult {
+  finding: ChatFindingDetail;
+}
+
 export interface CreateActionDraftResult {
   actionDraft: {
     id: string;
@@ -373,6 +411,11 @@ interface FindingReadRepository {
   listBySessionId: (sessionId: string) => SessionFindingRecord[];
 }
 
+interface FindingWriteRepository extends FindingReadRepository {
+  upsertCandidates: (inputs: UpsertFindingCandidateInput[]) => SessionFindingRecord[];
+  updateAssistantFinding: (input: UpdateAssistantFindingInput) => SessionFindingRecord | null;
+}
+
 interface ToolReadRepository {
   listToolRunsBySessionId: (sessionId: string) => ToolRunSummary[];
   getToolRunWithLogs: (toolRunId: string) => ToolRunDetail | null;
@@ -380,6 +423,14 @@ interface ToolReadRepository {
     sessionId: string,
     artifactId: string,
   ) => ToolRunArtifactRecord | null;
+}
+
+interface ToolRunEvidenceRepository {
+  listToolRunsBySessionId: (sessionId: string) => ToolRunSummary[];
+  saveToolRunArtifact: (
+    toolRunId: string,
+    artifact: ToolRunArtifactInput,
+  ) => ToolRunArtifactRecord;
 }
 
 interface ToolWorkspaceContextReadRepository {
@@ -423,6 +474,191 @@ function assertGetFindingArgs(args: ChatContextToolArgs): GetFindingArgs {
   return {
     findingId: findingId.trim(),
   };
+}
+
+function normalizeRequiredFindingText(
+  value: unknown,
+  fieldName: string,
+  maxCharacters: number,
+) {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`create_finding requires a non-empty ${fieldName} string.`);
+  }
+
+  const normalized = value.trim();
+  if (normalized.length > maxCharacters) {
+    throw new Error(`create_finding ${fieldName} cannot exceed ${maxCharacters} characters.`);
+  }
+
+  return normalized;
+}
+
+function normalizeOptionalFindingText(
+  value: unknown,
+  fieldName: string,
+  maxCharacters: number,
+) {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    throw new Error(`update_finding ${fieldName} must be a string.`);
+  }
+
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new Error(`update_finding ${fieldName} cannot be empty.`);
+  }
+  if (normalized.length > maxCharacters) {
+    throw new Error(`update_finding ${fieldName} cannot exceed ${maxCharacters} characters.`);
+  }
+
+  return normalized;
+}
+
+function assertFindingSeverity(value: unknown, toolName: "create_finding" | "update_finding") {
+  if (typeof value !== "string" || !isFindingSeverity(value)) {
+    throw new Error(`${toolName} severity must be critical, high, medium, low, or info.`);
+  }
+  return value;
+}
+
+function normalizeAssistantFindingKind(value: unknown) {
+  const kind = normalizeRequiredFindingText(
+    value,
+    "kind",
+    ASSISTANT_FINDING_KIND_LIMIT,
+  ).toLowerCase();
+  if (!/^[a-z0-9][a-z0-9._-]*$/.test(kind)) {
+    throw new Error("create_finding kind may contain only lowercase letters, numbers, dots, underscores, and hyphens.");
+  }
+
+  return kind.startsWith("assistant.") ? kind : `assistant.${kind}`;
+}
+
+function assertTargetMatchesSessionOrigin(target: string, normalizedSessionTarget: string) {
+  let targetUrl: URL;
+  let sessionUrl: URL;
+  try {
+    targetUrl = new URL(target);
+    sessionUrl = new URL(normalizedSessionTarget);
+  } catch {
+    throw new Error("Finding target must be a valid HTTP(S) URL.");
+  }
+
+  if (
+    !["http:", "https:"].includes(targetUrl.protocol) ||
+    targetUrl.origin !== sessionUrl.origin
+  ) {
+    throw new Error("Finding target must use the active session target's exact origin.");
+  }
+}
+
+function assertCreateFindingArgs(args: ChatContextToolArgs): CreateFindingArgs {
+  const severity = assertFindingSeverity(args.severity, "create_finding");
+  const recommendation = args.recommendation;
+  if (recommendation !== undefined && typeof recommendation !== "string") {
+    throw new Error("create_finding recommendation must be a string.");
+  }
+
+  return {
+    toolRunId: normalizeRequiredFindingText(args.toolRunId, "toolRunId", 200),
+    kind: normalizeAssistantFindingKind(args.kind),
+    severity,
+    title: normalizeRequiredFindingText(args.title, "title", ASSISTANT_FINDING_TITLE_LIMIT),
+    summary: normalizeRequiredFindingText(
+      args.summary,
+      "summary",
+      ASSISTANT_FINDING_SUMMARY_LIMIT,
+    ),
+    target: normalizeRequiredFindingText(args.target, "target", ASSISTANT_FINDING_TARGET_LIMIT),
+    evidence: normalizeRequiredFindingText(
+      args.evidence,
+      "evidence",
+      ASSISTANT_FINDING_EVIDENCE_LIMIT,
+    ),
+    recommendation: recommendation?.trim()
+      ? normalizeRequiredFindingText(
+          recommendation,
+          "recommendation",
+          ASSISTANT_FINDING_RECOMMENDATION_LIMIT,
+        )
+      : undefined,
+  };
+}
+
+function assertUpdateFindingArgs(args: ChatContextToolArgs): UpdateFindingArgs {
+  if ("reviewStatus" in args) {
+    throw new Error("update_finding cannot change operator review status.");
+  }
+
+  const findingId = normalizeOptionalFindingText(args.findingId, "findingId", 200);
+  if (!findingId) {
+    throw new Error("update_finding requires a findingId string.");
+  }
+
+  const recommendation = args.recommendation;
+  if (recommendation !== undefined && recommendation !== null && typeof recommendation !== "string") {
+    throw new Error("update_finding recommendation must be a string.");
+  }
+  const normalizedRecommendation =
+    typeof recommendation === "string" && recommendation.trim()
+      ? normalizeOptionalFindingText(
+          recommendation,
+          "recommendation",
+          ASSISTANT_FINDING_RECOMMENDATION_LIMIT,
+        )
+      : recommendation === undefined
+        ? undefined
+        : null;
+
+  const normalized: UpdateFindingArgs = {
+    findingId,
+    severity:
+      args.severity === undefined
+        ? undefined
+        : assertFindingSeverity(args.severity, "update_finding"),
+    title: normalizeOptionalFindingText(args.title, "title", ASSISTANT_FINDING_TITLE_LIMIT),
+    summary: normalizeOptionalFindingText(
+      args.summary,
+      "summary",
+      ASSISTANT_FINDING_SUMMARY_LIMIT,
+    ),
+    target: normalizeOptionalFindingText(args.target, "target", ASSISTANT_FINDING_TARGET_LIMIT),
+    evidence: normalizeOptionalFindingText(
+      args.evidence,
+      "evidence",
+      ASSISTANT_FINDING_EVIDENCE_LIMIT,
+    ),
+    recommendation: normalizedRecommendation,
+  };
+  if (
+    normalized.severity === undefined &&
+    normalized.title === undefined &&
+    normalized.summary === undefined &&
+    normalized.target === undefined &&
+    normalized.evidence === undefined &&
+    normalized.recommendation === undefined
+  ) {
+    throw new Error("update_finding requires at least one field to update.");
+  }
+
+  return normalized;
+}
+
+function isAssistantFindingPayload(value: unknown): value is AssistantFindingPayload {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "assistantReported" in value &&
+      value.assistantReported === true &&
+      "evidence" in value &&
+      typeof value.evidence === "string" &&
+      "sourceTool" in value &&
+      typeof value.sourceTool === "string" &&
+      "sourceToolRunId" in value &&
+      typeof value.sourceToolRunId === "string",
+  );
 }
 
 function normalizeOptionalString(value: unknown, argumentName: string) {
@@ -1361,7 +1597,9 @@ export const sessionContextChatContextToolsService = new SessionContextChatConte
 export class FindingChatContextToolsService {
   constructor(
     private readonly attachments: ConversationAttachmentScope = conversationAttachmentService,
-    private readonly findings: FindingReadRepository = findingRepository,
+    private readonly findings: FindingWriteRepository = findingRepository,
+    private readonly sessions: SessionContextReadRepository = sessionRepository,
+    private readonly toolRuns: ToolRunEvidenceRepository = sessionRepository,
   ) {}
 
   listFindings(opencodeConversationId: string, args: ListFindingsArgs = {}): ListFindingsResult {
@@ -1401,6 +1639,130 @@ export class FindingChatContextToolsService {
     return {
       finding: finding ? toFindingDetail(finding) : null,
     };
+  }
+
+  createFinding(
+    opencodeConversationId: string,
+    args: CreateFindingArgs,
+  ): MutateFindingResult {
+    const attachment = requireActiveAttachment(this.attachments, opencodeConversationId);
+    const session = this.sessions.getSessionById(attachment.sessionId);
+    if (!session) {
+      throw new Error("The attached NullTrace session no longer exists.");
+    }
+    assertTargetMatchesSessionOrigin(args.target, session.normalizedUrl);
+
+    const toolRun = this.toolRuns
+      .listToolRunsBySessionId(attachment.sessionId)
+      .find((candidate) => candidate.id === args.toolRunId);
+    if (!toolRun) {
+      throw new Error("create_finding requires a toolRunId from the active session.");
+    }
+
+    const dedupeKeyParts = [toolRun.id, args.kind, args.target];
+    const fingerprint = createFindingFingerprint("assistant", args.kind, dedupeKeyParts);
+    const existing = this.findings
+      .listBySessionId(attachment.sessionId)
+      .find((candidate) => candidate.fingerprint === fingerprint);
+    if (existing) {
+      throw new Error(
+        `A matching assistant finding already exists as ${existing.id}. Use update_finding.`,
+      );
+    }
+
+    const payload: AssistantFindingPayload = {
+      assistantReported: true,
+      evidence: args.evidence,
+      recommendation: args.recommendation ?? null,
+      sourceTool: toolRun.toolName,
+      sourceToolRunId: toolRun.id,
+    };
+    const artifact = this.toolRuns.saveToolRunArtifact(toolRun.id, {
+      artifactType: "assistant_finding_evidence",
+      label: `AI finding evidence: ${args.title}`,
+      source: "assistant",
+      payload,
+    });
+    const [finding] = this.findings.upsertCandidates([
+      {
+        sessionId: attachment.sessionId,
+        toolRunArtifactId: artifact.id,
+        candidate: {
+          sourceTool: "assistant",
+          kind: args.kind,
+          severity: args.severity,
+          title: args.title,
+          summary: args.summary,
+          target: args.target,
+          dedupeKeyParts,
+          payload,
+        },
+      },
+    ]);
+    if (!finding) {
+      throw new Error("create_finding did not persist a finding.");
+    }
+
+    return { finding: toFindingDetail(finding) };
+  }
+
+  updateFinding(
+    opencodeConversationId: string,
+    args: UpdateFindingArgs,
+  ): MutateFindingResult {
+    const attachment = requireActiveAttachment(this.attachments, opencodeConversationId);
+    const session = this.sessions.getSessionById(attachment.sessionId);
+    if (!session) {
+      throw new Error("The attached NullTrace session no longer exists.");
+    }
+    if (args.target) {
+      assertTargetMatchesSessionOrigin(args.target, session.normalizedUrl);
+    }
+
+    const existing = this.findings
+      .listBySessionId(attachment.sessionId)
+      .find((candidate) => candidate.id === args.findingId);
+    if (!existing || existing.sourceTool !== "assistant" || !isAssistantFindingPayload(existing.payload)) {
+      throw new Error("update_finding can update only assistant-created findings in the active session.");
+    }
+
+    const nextTarget = args.target ?? existing.target;
+    const nextFingerprint = createFindingFingerprint("assistant", existing.kind, [
+      existing.payload.sourceToolRunId,
+      existing.kind,
+      nextTarget,
+    ]);
+    const duplicate = this.findings
+      .listBySessionId(attachment.sessionId)
+      .find(
+        (candidate) => candidate.id !== existing.id && candidate.fingerprint === nextFingerprint,
+      );
+    if (duplicate) {
+      throw new Error(`A matching assistant finding already exists as ${duplicate.id}.`);
+    }
+
+    const updated = this.findings.updateAssistantFinding({
+      sessionId: attachment.sessionId,
+      findingId: existing.id,
+      severity: args.severity ?? existing.severity,
+      title: args.title ?? existing.title,
+      summary: args.summary ?? existing.summary,
+      target: nextTarget,
+      fingerprint: nextFingerprint,
+      payload: {
+        ...existing.payload,
+        evidence: args.evidence ?? existing.payload.evidence,
+        recommendation:
+          args.recommendation === undefined
+            ? existing.payload.recommendation
+            : args.recommendation,
+      },
+    });
+    if (!updated) {
+      throw new Error("The assistant finding could not be updated.");
+    }
+
+    return { finding: toFindingDetail(updated) };
   }
 
   createToolDefinitions(): ChatContextToolDefinition<ChatContextToolArgs, unknown>[] {
@@ -1458,6 +1820,91 @@ export class FindingChatContextToolsService {
         },
         execute: ({ opencodeConversationId, args }) =>
           this.getFinding(opencodeConversationId, assertGetFindingArgs(args)),
+      },
+      {
+        name: "create_finding",
+        description:
+          "Create a needs-review finding from concrete evidence produced by one tool run in the active session. This assistant-only operation cannot set operator review status and rejects duplicate reports.",
+        args: {
+          toolRunId: {
+            type: "string",
+            description: "Source tool run ID from list_tool_runs in the active session.",
+          },
+          kind: {
+            type: "string",
+            description: "Stable vulnerability category, for example authorization.bypass or information.disclosure.",
+          },
+          severity: {
+            type: "string",
+            description: "Severity: critical, high, medium, low, or info.",
+          },
+          title: {
+            type: "string",
+            description: "Concise operator-facing finding title.",
+          },
+          summary: {
+            type: "string",
+            description: "Clear impact-oriented finding summary without credentials or secrets.",
+          },
+          target: {
+            type: "string",
+            description: "Exact HTTP(S) URL on the active session target origin where the issue was observed.",
+          },
+          evidence: {
+            type: "string",
+            description: "Concrete, redacted evidence from the source run. Never include credentials, cookies, or authorization values.",
+          },
+          recommendation: {
+            type: "string",
+            description: "Optional concise remediation recommendation.",
+            isOptional: true,
+          },
+        },
+        execute: ({ opencodeConversationId, args }) =>
+          this.createFinding(opencodeConversationId, assertCreateFindingArgs(args)),
+      },
+      {
+        name: "update_finding",
+        description:
+          "Update content on an assistant-created finding in the active session. At least one field is required. Operator review status and scanner-created findings cannot be changed.",
+        args: {
+          findingId: {
+            type: "string",
+            description: "ID of an assistant-created finding from list_findings.",
+          },
+          severity: {
+            type: "string",
+            description: "Optional severity: critical, high, medium, low, or info.",
+            isOptional: true,
+          },
+          title: {
+            type: "string",
+            description: "Optional replacement title.",
+            isOptional: true,
+          },
+          summary: {
+            type: "string",
+            description: "Optional replacement summary.",
+            isOptional: true,
+          },
+          target: {
+            type: "string",
+            description: "Optional replacement exact-origin HTTP(S) target URL.",
+            isOptional: true,
+          },
+          evidence: {
+            type: "string",
+            description: "Optional replacement redacted evidence without credentials or secrets.",
+            isOptional: true,
+          },
+          recommendation: {
+            type: "string",
+            description: "Optional replacement recommendation. Pass an empty string to clear it.",
+            isOptional: true,
+          },
+        },
+        execute: ({ opencodeConversationId, args }) =>
+          this.updateFinding(opencodeConversationId, assertUpdateFindingArgs(args)),
       },
     ];
   }

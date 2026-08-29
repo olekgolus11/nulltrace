@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
 import {
+  UpdateAssistantFindingInput,
   FindingReviewStatus,
   SetFindingReviewStatusInput,
   SessionFindingRecord,
@@ -146,6 +147,52 @@ export class FindingRepository {
           updated_at = excluded.updated_at`,
       )
       .run(findingId, reviewStatus, timestamp);
+
+    return this.findById(findingId);
+  }
+
+  updateAssistantFinding({
+    sessionId,
+    findingId,
+    severity,
+    title,
+    summary,
+    target,
+    fingerprint,
+    payload,
+  }: UpdateAssistantFindingInput) {
+    const existing = this.findById(findingId);
+    if (!existing || existing.sessionId !== sessionId || existing.sourceTool !== "assistant") {
+      return null;
+    }
+
+    const timestamp = createTimestamp();
+    this.database
+      .query(
+        `UPDATE session_findings
+         SET severity = ?3,
+             title = ?4,
+             summary = ?5,
+             target = ?6,
+             fingerprint = ?7,
+             payload_json = ?8,
+             last_seen_at = ?9
+         WHERE id = ?1
+           AND session_id = ?2
+           AND source_tool = 'assistant'`,
+      )
+      .run(
+        findingId,
+        sessionId,
+        severity,
+        title,
+        summary,
+        target,
+        fingerprint,
+        JSON.stringify(payload),
+        timestamp,
+      );
+    this.touchSessionActivity(sessionId);
 
     return this.findById(findingId);
   }

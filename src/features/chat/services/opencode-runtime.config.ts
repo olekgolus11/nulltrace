@@ -35,6 +35,8 @@ const openCodeConfig = {
     get_authentication_context: "allow",
     get_finding: "allow",
     list_findings: "allow",
+    create_finding: "allow",
+    update_finding: "allow",
     list_tool_runs: "allow",
     get_tool_run_logs: "allow",
     get_artifact: "allow",

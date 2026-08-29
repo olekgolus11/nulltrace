@@ -23,6 +23,25 @@ export interface UpsertFindingCandidateInput {
   candidate: FindingCandidate;
 }
 
+export interface AssistantFindingPayload {
+  assistantReported: true;
+  evidence: string;
+  recommendation: string | null;
+  sourceTool: string;
+  sourceToolRunId: string;
+}
+
+export interface UpdateAssistantFindingInput {
+  sessionId: string;
+  findingId: string;
+  severity: CanonicalFindingSeverity;
+  title: string;
+  summary: string;
+  target: string;
+  fingerprint: string;
+  payload: AssistantFindingPayload;
+}
+
 export type FindingReviewStatus = "needs_review" | "confirmed" | "dismissed";
 
 export interface SetFindingReviewStatusInput {

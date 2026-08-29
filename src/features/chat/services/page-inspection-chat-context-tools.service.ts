@@ -6,6 +6,43 @@ import { InspectPageArgs } from "./page-inspection-chat-context-tools.types";
 import { sessionRepository } from "../../session/services/session.repository";
 import { sitemapRepository } from "../../sitemap/services/sitemap.repository";
 
+function sanitizePersistedPageUrl(value: string, baseUrl?: string) {
+  try {
+    const url = new URL(value, baseUrl);
+    url.username = "";
+    url.password = "";
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function createPersistedPageInspectionSnapshot(
+  snapshot: Awaited<ReturnType<PageInspectionService["inspect"]>>,
+) {
+  const finalUrl = sanitizePersistedPageUrl(snapshot.finalUrl) ?? "[invalid URL]";
+
+  return {
+    requestedUrl: sanitizePersistedPageUrl(snapshot.requestedUrl) ?? "[invalid URL]",
+    finalUrl,
+    status: snapshot.status,
+    contentType: snapshot.contentType,
+    title: snapshot.title,
+    visibleText: snapshot.visibleText,
+    forms: snapshot.forms.map((form) => ({
+      method: form.method,
+      action: form.action ? sanitizePersistedPageUrl(form.action, finalUrl) : null,
+      fields: form.fields,
+    })),
+    domOutline: snapshot.domOutline,
+    securitySignals: snapshot.securitySignals,
+    isPartial: snapshot.isPartial,
+    truncatedSections: snapshot.truncatedSections,
+  };
+}
+
 export class PageInspectionChatContextToolsService {
   constructor(
     private readonly attachments: PageInspectionConversationAttachments = conversationAttachmentService,
@@ -14,7 +51,7 @@ export class PageInspectionChatContextToolsService {
     private readonly sitemap: PageInspectionSitemapRepository = sitemapRepository,
   ) {}
 
-  inspectPage(opencodeConversationId: string, args: InspectPageArgs) {
+  async inspectPage(opencodeConversationId: string, args: InspectPageArgs) {
     const attachment = this.attachments.findActiveAttachmentByOpenCodeConversationId(
       opencodeConversationId,
     );
@@ -26,12 +63,36 @@ export class PageInspectionChatContextToolsService {
       throw new Error("The attached NullTrace session no longer exists.");
     }
 
-    return this.pageInspection.inspect({
+    const snapshot = await this.pageInspection.inspect({
       sessionId: session.id,
       requestedUrl: args.url,
       targetOrigin: new URL(session.normalizedUrl).origin,
       protectedPaths: this.getProtectedPaths(session.targetId),
     });
+    const persistedSnapshot = createPersistedPageInspectionSnapshot(snapshot);
+    const persistedUrl = new URL(persistedSnapshot.finalUrl);
+    const toolRun = this.sessions.recordToolRun(session.id, {
+      toolName: "inspect_page",
+      command: `inspect_page ${persistedUrl.toString()}`,
+      commandSource: "assistant",
+      status: "running",
+    });
+    const artifact = this.sessions.saveToolRunArtifact(toolRun.id, {
+      artifactType: "page_inspection_snapshot",
+      label: `Rendered page inspection: ${persistedUrl.pathname || "/"}`,
+      source: "inspect_page",
+      payload: persistedSnapshot,
+    });
+    this.sessions.finishToolRun(toolRun.id, "success", 0);
+
+    return {
+      ...snapshot,
+      source: {
+        toolRunId: toolRun.id,
+        artifactId: artifact.id,
+        sourceTool: "inspect_page" as const,
+      },
+    };
   }
 
   private getProtectedPaths(targetId: string) {
@@ -59,7 +120,7 @@ export class PageInspectionChatContextToolsService {
       {
         name: "inspect_page",
         description:
-          "Inspect one exact-origin page after JavaScript rendering using the active testing session's operator-selected Page Inspection mode. This read-only tool returns a bounded structured snapshot without HTML, screenshots, cookies, storage, raw response bodies, or hidden secret inputs.",
+          "Inspect one exact-origin page after JavaScript rendering using the active testing session's operator-selected Page Inspection mode. Returns a bounded structured snapshot and persists its safe snapshot provenance as a completed inspect_page tool run whose source.toolRunId can be passed to create_finding. It never stores HTML, screenshots, cookies, storage, raw response bodies, or hidden secret inputs.",
         args: {
           url: {
             type: "string",
@@ -88,6 +149,25 @@ interface PageInspectionSessionRepository {
     targetId: string;
     normalizedUrl: string;
   } | null;
+  recordToolRun: (
+    sessionId: string,
+    input: {
+      toolName: string;
+      command: string;
+      commandSource: string;
+      status: string;
+    },
+  ) => { id: string };
+  saveToolRunArtifact: (
+    toolRunId: string,
+    artifact: {
+      artifactType: string;
+      label: string;
+      source: string;
+      payload: unknown;
+    },
+  ) => { id: string };
+  finishToolRun: (toolRunId: string, status: string, exitCode: number | null) => void;
 }
 
 interface PageInspectionSitemapRepository {
