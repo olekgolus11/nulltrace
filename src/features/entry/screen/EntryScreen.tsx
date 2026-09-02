@@ -1,6 +1,6 @@
 import { useTerminalDimensions } from "@opentui/react";
-import { theme } from "../../../app/theme/theme";
 import { useState } from "react";
+import { theme } from "../../../app/theme/theme";
 import { TargetSummary } from "../../session/model/session.types";
 import { SessionList } from "../../session/components/SessionList";
 import { titleArtBlood, titleArtRebel } from "../data/entry.constants";
