@@ -46,18 +46,11 @@ function createEntryReducer() {
           activePanel: action.panel,
         };
 
-    case "MOVE_SELECTION":
-      return {
-        ...state,
-        selectedRow: clamp(state.selectedRow + action.delta, 0, Math.max(0, action.rowCount - 1)),
-      };
-
-    case "SELECT_ROW":
-      return {
-        ...state,
-        activePanel: "sessions",
-        selectedRow: action.index,
-      };
+      case "MOVE_SELECTION":
+        return {
+          ...state,
+          selectedRow: clamp(state.selectedRow + action.delta, 0, Math.max(0, action.rowCount - 1)),
+        };
 
       case "SELECT_ROW":
         return {
