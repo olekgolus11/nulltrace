@@ -10,6 +10,7 @@ import { useSessionActionDrafts } from "../../action-draft/hooks/use-session-act
 import { useDashboardLayout } from "../hooks/use-dashboard-layout";
 import { useDashboardShortcuts } from "../hooks/use-dashboard-shortcuts";
 import { dashboardPanels } from "../model/dashboard.state";
+import { tools } from "../data/tool-catalog";
 import { Header } from "../../../shared/ui/Header";
 import { StatusBar } from "../../../shared/ui/StatusBar";
 import { useSessionChat } from "../../chat/hooks/use-session-chat";
@@ -125,6 +126,13 @@ export function DashboardScreen({
   const modalWidth = Math.max(1, Math.min(96, width - 8));
   const modalHeight = Math.max(1, Math.min(30, height - 6));
 
+  const handleToolClick = (index: number) => {
+    const tool = tools[index];
+    if (tool) {
+      onSelectTool(tool.id);
+    }
+  };
+
   return (
     <box flexDirection="column" width={width} height={height} backgroundColor={theme.bg.primary}>
       <Header
@@ -185,6 +193,7 @@ export function DashboardScreen({
           actionDrafts={drafts}
           setActivePanel={setActivePanel}
           onSelectActionDraft={onSelectActionDraft}
+          onSelectTool={handleToolClick}
         />
       </box>
       <StatusBar

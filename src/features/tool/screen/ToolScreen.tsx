@@ -480,6 +480,9 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
               focused={activePanel === "history"}
               scrollRef={historyScrollRef}
               onMouseDown={() => focusPanel("history")}
+              onSelectRun={(runId) => {
+                useToolWorkspaceStore.getState().selectHistoryRun(runId);
+              }}
             />
           </box>
         </box>
