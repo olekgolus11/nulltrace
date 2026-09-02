@@ -6,6 +6,7 @@ interface SessionItemProps {
   isSelected: boolean;
   isCurrent?: boolean;
   isLatest?: boolean;
+  onMouseDown?: () => void;
 }
 
 function formatTimestamp(value: string) {
@@ -36,11 +37,23 @@ export function SessionItem({
   isSelected,
   isCurrent = false,
   isLatest = false,
+  onMouseDown,
 }: SessionItemProps) {
   const badgeText = getSessionBadges({ isCurrent, isLatest });
 
   return (
-    <box flexDirection="column" paddingLeft={2} paddingBottom={1}>
+    <box
+      flexDirection="column"
+      paddingLeft={2}
+      paddingBottom={1}
+      onMouseDown={onMouseDown ? (event) => {
+        if (event.button !== 0) {
+          return;
+        }
+        event.stopPropagation();
+        onMouseDown();
+      } : undefined}
+    >
       <text fg={isSelected ? theme.accent.primary : theme.text.secondary}>
         {isSelected ? (
           <strong>└─ {formatTimestamp(session.createdAt)}</strong>

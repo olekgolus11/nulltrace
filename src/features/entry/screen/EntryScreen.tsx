@@ -1,6 +1,6 @@
 import { useTerminalDimensions } from "@opentui/react";
-import { theme } from "../../../app/theme/theme";
 import { useState } from "react";
+import { theme } from "../../../app/theme/theme";
 import { TargetSummary } from "../../session/model/session.types";
 import { SessionList } from "../../session/components/SessionList";
 import { titleArtBlood, titleArtRebel } from "../data/entry.constants";
@@ -21,7 +21,7 @@ export function EntryScreen({
 }: EntryScreenProps) {
   const { width, height } = useTerminalDimensions();
   const [targets] = useState(() => sessionRepository.listTargetsWithSessions());
-  const { entryState, rows, setUrlInput, submitUrlInput, setActivePanel } = useEntryShortcuts({
+  const { entryState, rows, setUrlInput, submitUrlInput, setActivePanel, selectRow } = useEntryShortcuts({
     targets,
     onStartPentestForNewTarget,
     onStartPentestForExistingTarget,
@@ -119,6 +119,7 @@ export function EntryScreen({
           rows={rows}
           selectedIndex={entryState.selectedRow}
           focused={entryState.activePanel === "sessions"}
+          onSelectRow={selectRow}
         />
       </box>
     </box>

@@ -4,9 +4,10 @@ import { Tool } from "../model/dashboard.types";
 interface ToolCardProps {
   tool: Tool;
   isSelected: boolean;
+  onMouseDown?: () => void;
 }
 
-export function ToolCard({ tool, isSelected }: ToolCardProps) {
+export function ToolCard({ tool, isSelected, onMouseDown }: ToolCardProps) {
   return (
     <box
       flexDirection="row"
@@ -18,6 +19,13 @@ export function ToolCard({ tool, isSelected }: ToolCardProps) {
       paddingRight={1}
       border={isSelected}
       borderColor={isSelected ? theme.accent.primary : theme.border.default}
+      onMouseDown={onMouseDown ? (event) => {
+        if (event.button !== 0) {
+          return;
+        }
+        event.stopPropagation();
+        onMouseDown();
+      } : undefined}
     >
       <box flexDirection="row" gap={1} alignItems="center">
         <text>{tool.icon}</text>

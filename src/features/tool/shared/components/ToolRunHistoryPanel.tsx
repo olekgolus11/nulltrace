@@ -35,12 +35,14 @@ export function ToolRunHistoryPanel({
   focused,
   scrollRef,
   onMouseDown,
+  onSelectRun,
 }: {
   runs: ToolRunSummary[];
   selectedRunId: string | null;
   focused: boolean;
   scrollRef: RefObject<ScrollBoxRenderable | null>;
   onMouseDown?: () => void;
+  onSelectRun?: (runId: string) => void;
 }) {
   return (
     <DashboardPanel
@@ -67,6 +69,13 @@ export function ToolRunHistoryPanel({
                     borderColor={
                       isSelected && focused ? theme.accent.primary : theme.border.default
                     }
+                    onMouseDown={onSelectRun ? (event) => {
+                      if (event.button !== 0) {
+                        return;
+                      }
+                      event.stopPropagation();
+                      onSelectRun(run.id);
+                    } : undefined}
                   >
                     <box flexDirection="row">
                       <box flexGrow={1}>
