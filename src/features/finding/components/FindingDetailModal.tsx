@@ -6,6 +6,7 @@ import {
   createFindingSourceContextFields,
   FindingSourceContextField,
 } from "../services/finding-source-context";
+import { standardScrollbarTrackOptions } from "../../../shared/ui/scrollbar.config";
 
 interface FindingDetailModalProps {
   finding: SessionFindingRecord;
@@ -56,11 +57,6 @@ const reviewActionHints: Array<{
     reviewStatus: "dismissed",
   },
 ];
-
-const modalScrollbarTrackOptions = {
-  backgroundColor: theme.border.muted,
-  foregroundColor: theme.text.secondary,
-} as const;
 
 function formatTimestamp(value: string) {
   const date = new Date(value);
@@ -228,7 +224,7 @@ export function FindingDetailModal({ finding, width, height, scrollRef }: Findin
           }}
           verticalScrollbarOptions={{
             visible: true,
-            trackOptions: modalScrollbarTrackOptions,
+            trackOptions: standardScrollbarTrackOptions,
           }}
         >
           <box flexDirection="column" width={Math.max(1, contentWidth - 2)}>

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { theme } from "../../../app/theme/theme";
 import { Header } from "../../../shared/ui/Header";
 import { StatusBar } from "../../../shared/ui/StatusBar";
+import { standardScrollbarTrackOptions } from "../../../shared/ui/scrollbar.config";
 import { ActionDraftList } from "../../action-draft/components/ActionDraftList";
 import { ActionDraftRecord } from "../../action-draft/model/action-draft.types";
 import { useSessionActionDrafts } from "../../action-draft/hooks/use-session-action-drafts";
@@ -412,10 +413,7 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
               stickyScroll={false}
               verticalScrollbarOptions={{
                 visible: true,
-                trackOptions: {
-                  backgroundColor: theme.border.muted,
-                  foregroundColor: theme.text.secondary,
-                },
+                trackOptions: standardScrollbarTrackOptions,
               }}
             >
               <ActionDraftList

@@ -48,7 +48,7 @@ export function Header({
       paddingRight={2}
       backgroundColor={theme.bg.panel}
     >
-      <box flexGrow={1}>
+      <box flexGrow={1} minWidth={0} overflow="hidden">
         <text>
           <span fg={theme.accent.primary}>
             <strong>◆ {title}</strong>
@@ -92,7 +92,7 @@ export function Header({
         </text>
       </box>
 
-      <box marginBottom={1}>
+      <box marginBottom={1} flexShrink={0}>
         <FindingCounts {...counts} />
       </box>
     </box>
