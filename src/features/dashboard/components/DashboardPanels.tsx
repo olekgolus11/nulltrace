@@ -327,7 +327,7 @@ export const RightDashboardPanel = ({
             stickyScroll={false}
             verticalScrollbarOptions={{
               visible: true,
-              trackOptions: dashboardScrollbarTrackOptions,
+              trackOptions: standardScrollbarTrackOptions,
             }}
           >
             <ActionDraftList

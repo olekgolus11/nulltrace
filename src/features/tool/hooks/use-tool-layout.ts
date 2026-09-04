@@ -27,9 +27,9 @@ export function useToolLayout({ width, height }: UseToolLayoutProps): UseToolLay
   const statusBarHeight = 1;
   const contentHeight = Math.max(12, height - headerHeight - statusBarHeight);
 
-  const formPanelHeight = Math.min(16, Math.max(14, Math.floor(contentHeight * 0.46)));
-  const commandPanelHeight = 8;
-  const outputPanelHeight = Math.max(8, contentHeight - formPanelHeight - commandPanelHeight);
+  const formPanelHeight = Math.min(16, Math.max(12, Math.floor(contentHeight * 0.46)));
+  const commandPanelHeight = Math.max(6, Math.min(8, Math.floor(contentHeight * 0.25)));
+  const outputPanelHeight = Math.max(6, contentHeight - formPanelHeight - commandPanelHeight);
 
   return {
     contentHeight,
