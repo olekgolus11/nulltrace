@@ -20,11 +20,7 @@ import { UseDashboardLayoutResult } from "../model/dashboard.types";
 import { DashboardPanel } from "./DashboardPanel";
 import { ToolList } from "./ToolList";
 import { SitemapCrawlControlPresentation } from "../../sitemap/model/sitemap-crawl-lifecycle";
-
-const dashboardScrollbarTrackOptions = {
-  backgroundColor: theme.border.muted,
-  foregroundColor: theme.text.secondary,
-} as const;
+import { standardScrollbarTrackOptions } from "../../../shared/ui/scrollbar.config";
 
 export const LeftDashboardPanel = ({
   dashboardState,
@@ -148,7 +144,7 @@ export const LeftDashboardPanel = ({
           stickyScroll={false}
           verticalScrollbarOptions={{
             visible: true,
-            trackOptions: dashboardScrollbarTrackOptions,
+            trackOptions: standardScrollbarTrackOptions,
           }}
           horizontalScrollbarOptions={{
             visible: false,
@@ -188,11 +184,11 @@ export const LeftDashboardPanel = ({
           stickyScroll={false}
           verticalScrollbarOptions={{
             visible: true,
-            trackOptions: dashboardScrollbarTrackOptions,
+            trackOptions: standardScrollbarTrackOptions,
           }}
           horizontalScrollbarOptions={{
             visible: true,
-            trackOptions: dashboardScrollbarTrackOptions,
+            trackOptions: standardScrollbarTrackOptions,
           }}
         >
           <FindingList
