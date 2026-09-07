@@ -3,7 +3,8 @@ import { useState } from "react";
 import { theme } from "../../../app/theme/theme";
 import { TargetSummary } from "../../session/model/session.types";
 import { SessionList } from "../../session/components/SessionList";
-import { titleArtBlood, titleArtRebel } from "../data/entry.constants";
+import { titleArtBlood } from "../data/entry.constants";
+import { getEntryLayout } from "../services/entry-layout.helpers";
 import { useEntryShortcuts } from "../hooks/use-entry-shortcuts";
 import { sessionRepository } from "../../session/services/session.repository";
 import { ShortcutHints } from "../../../shared/ui/ShortcutHints";
@@ -28,8 +29,7 @@ export function EntryScreen({
     onOpenSession,
   });
 
-  const sidebarWidth = 38;
-  const mainWidth = width - sidebarWidth;
+  const { sidebarWidth, mainWidth, showTitleArt, inputWidth } = getEntryLayout(width);
 
   return (
     <box flexDirection="row" width={width} height={height} backgroundColor={theme.bg.primary}>
@@ -43,13 +43,21 @@ export function EntryScreen({
         paddingRight={2}
         onMouseDown={() => setActivePanel("input")}
       >
-        <box flexDirection="column" alignItems="center" marginBottom={2}>
-          {titleArtBlood.map((line, idx) => (
-            <text key={`title-${idx}`} fg={theme.accent.primary}>
-              {line}
+        {showTitleArt ? (
+          <box flexDirection="column" alignItems="center" marginBottom={2}>
+            {titleArtBlood.map((line, idx) => (
+              <text key={`title-${idx}`} fg={theme.accent.primary}>
+                {line}
+              </text>
+            ))}
+          </box>
+        ) : (
+          <box flexDirection="column" alignItems="center" marginBottom={2}>
+            <text fg={theme.accent.primary}>
+              <strong>NULLTRACE</strong>
             </text>
-          ))}
-        </box>
+          </box>
+        )}
 
         <box marginBottom={2}>
           <text fg={theme.text.secondary}>
@@ -70,7 +78,7 @@ export function EntryScreen({
               onChange={setUrlInput}
               placeholder="https://target-website.com"
               onSubmit={submitUrlInput}
-              width={50}
+              width={inputWidth}
               focused={entryState.activePanel === "input"}
               backgroundColor={theme.bg.input}
               textColor={theme.text.primary}

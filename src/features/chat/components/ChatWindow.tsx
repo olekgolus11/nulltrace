@@ -3,6 +3,7 @@ import { useRef } from "react";
 import { theme } from "../../../app/theme/theme";
 import { ChatMessageData } from "../model/chat.types";
 import { ChatMessage } from "./ChatMessage";
+import { standardScrollbarTrackOptions } from "../../../shared/ui/scrollbar.config";
 import "opentui-spinner/react";
 
 interface ChatWindowProps {
@@ -72,10 +73,7 @@ export function ChatWindow({
           paddingRight: 1,
         }}
         verticalScrollbarOptions={{
-          trackOptions: {
-            backgroundColor: theme.border.muted,
-            foregroundColor: theme.text.secondary,
-          },
+          trackOptions: standardScrollbarTrackOptions,
         }}
       >
         {messages.length === 0 ? (

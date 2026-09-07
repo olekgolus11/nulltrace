@@ -8,6 +8,7 @@ import { SessionReportFinding } from "../model/session-report.types";
 import { createDefaultSessionReportPath } from "../services/session-report-path.helpers";
 import { sessionReportDraftService } from "../services/session-report-draft.service.instance";
 import { sessionReportService } from "../services/session-report.service.instance";
+import { standardScrollbarTrackOptions } from "../../../shared/ui/scrollbar.config";
 
 interface SessionReportExportModalProps {
   sessionId: string;
@@ -340,10 +341,7 @@ export function SessionReportExportModal({
               stickyScroll={false}
               verticalScrollbarOptions={{
                 visible: true,
-                trackOptions: {
-                  backgroundColor: theme.border.muted,
-                  foregroundColor: theme.text.secondary,
-                },
+                trackOptions: standardScrollbarTrackOptions,
               }}
             >
               {findings.length === 0 ? (
