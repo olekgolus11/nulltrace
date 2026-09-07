@@ -74,6 +74,7 @@ export function ToolRunHistoryPanel({
                         return;
                       }
                       event.stopPropagation();
+                      onMouseDown?.();
                       onSelectRun(run.id);
                     } : undefined}
                   >
