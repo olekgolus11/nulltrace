@@ -8,7 +8,9 @@ export function ActiveToolWorkspace({ toolName }: { toolName: string }) {
   if (!toolModule) {
     return (
       <DashboardPanel title="Tool" flexGrow={1} focused={true}>
-        <text>Unknown tool workspace.</text>
+        <text fg={theme.text.secondary}>
+          Tool workspace not available for "{toolName}".
+        </text>
       </DashboardPanel>
     );
   }
