@@ -1,4 +1,5 @@
 import { createElement } from "react";
+import { theme } from "../../../../app/theme/theme";
 import { DashboardPanel } from "../../../dashboard/components/DashboardPanel";
 import { toolRegistry } from "../registry/tool-registry";
 
