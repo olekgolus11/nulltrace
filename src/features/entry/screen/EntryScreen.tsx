@@ -4,6 +4,7 @@ import { useState } from "react";
 import { TargetSummary } from "../../session/model/session.types";
 import { SessionList } from "../../session/components/SessionList";
 import { titleArtBlood } from "../data/entry.constants";
+import { getEntryLayout } from "../services/entry-layout.helpers";
 import { useEntryShortcuts } from "../hooks/use-entry-shortcuts";
 import { sessionRepository } from "../../session/services/session.repository";
 import { ShortcutHints } from "../../../shared/ui/ShortcutHints";
@@ -28,9 +29,7 @@ export function EntryScreen({
     onOpenSession,
   });
 
-  const sidebarWidth = Math.max(20, Math.min(38, width - 60));
-  const mainWidth = Math.max(40, width - sidebarWidth);
-  const showTitleArt = width >= 100;
+  const { sidebarWidth, mainWidth, showTitleArt, inputWidth } = getEntryLayout(width);
 
   return (
     <box flexDirection="row" width={width} height={height} backgroundColor={theme.bg.primary}>
@@ -79,7 +78,7 @@ export function EntryScreen({
               onChange={setUrlInput}
               placeholder="https://target-website.com"
               onSubmit={submitUrlInput}
-              width={Math.max(30, Math.min(50, mainWidth - 10))}
+              width={inputWidth}
               focused={entryState.activePanel === "input"}
               backgroundColor={theme.bg.input}
               textColor={theme.text.primary}

@@ -16,13 +16,14 @@ interface UseToolLayoutResult {
 }
 
 export function useToolLayout({ width, height }: UseToolLayoutProps): UseToolLayoutResult {
-  const leftPanelWidth = Math.min(44, Math.max(30, Math.floor(width * 0.34)));
-  const rightPanelWidth = Math.max(35, width - leftPanelWidth);
-  const historyPanelWidth =
+  const leftPanelWidth = Math.min(44, Math.floor(width * 0.34));
+  const rightPanelWidth = width - leftPanelWidth;
+  const preferredHistoryPanelWidth =
     rightPanelWidth >= 72
       ? Math.min(34, Math.max(26, Math.floor(rightPanelWidth * 0.3)))
       : Math.min(24, Math.max(18, Math.floor(rightPanelWidth * 0.32)));
-  const workspacePanelWidth = Math.max(25, rightPanelWidth - historyPanelWidth);
+  const historyPanelWidth = Math.min(preferredHistoryPanelWidth, Math.floor(rightPanelWidth * 0.4));
+  const workspacePanelWidth = rightPanelWidth - historyPanelWidth;
   const headerHeight = 3;
   const statusBarHeight = 1;
   const contentHeight = Math.max(12, height - headerHeight - statusBarHeight);
