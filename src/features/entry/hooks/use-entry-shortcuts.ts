@@ -14,6 +14,7 @@ type EntryAction =
   | { type: "CYCLE_PANEL"; direction: -1 | 1 }
   | { type: "SET_ACTIVE_PANEL"; panel: EntryPanel }
   | { type: "MOVE_SELECTION"; delta: -1 | 1; rowCount: number }
+  | { type: "SELECT_ROW"; index: number }
   | { type: "SET_URL_INPUT"; value: string }
   | { type: "TOGGLE_TARGET"; targetId: string }
   | { type: "INITIALIZE_TARGET"; targetId: string | null }
@@ -49,6 +50,13 @@ function createEntryReducer() {
         return {
           ...state,
           selectedRow: clamp(state.selectedRow + action.delta, 0, Math.max(0, action.rowCount - 1)),
+        };
+
+      case "SELECT_ROW":
+        return {
+          ...state,
+          activePanel: "sessions",
+          selectedRow: action.index,
         };
 
       case "SET_URL_INPUT":
@@ -180,5 +188,6 @@ export function useEntryShortcuts({
     setUrlInput,
     submitUrlInput,
     setActivePanel: (panel: EntryPanel) => dispatch({ type: "SET_ACTIVE_PANEL", panel }),
+    selectRow: (index: number) => dispatch({ type: "SELECT_ROW", index }),
   };
 }

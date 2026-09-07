@@ -5,6 +5,7 @@ interface SessionTargetItemProps {
   target: TargetSummary;
   isExpanded: boolean;
   isSelected: boolean;
+  onMouseDown?: () => void;
 }
 
 function formatRelativeCount(count: number) {
@@ -20,12 +21,23 @@ function formatLastActivity(value: string) {
   });
 }
 
-export function SessionTargetItem({ target, isExpanded, isSelected }: SessionTargetItemProps) {
+export function SessionTargetItem({ target, isExpanded, isSelected, onMouseDown }: SessionTargetItemProps) {
   const marker = isExpanded ? "▾" : "▸";
   const summaryText = `${formatRelativeCount(target.sessionCount)} · ${formatLastActivity(target.lastActivityAt)}`;
 
   return (
-    <box flexDirection="column" paddingTop={1} paddingBottom={1}>
+    <box
+      flexDirection="column"
+      paddingTop={1}
+      paddingBottom={1}
+      onMouseDown={onMouseDown ? (event) => {
+        if (event.button !== 0) {
+          return;
+        }
+        event.stopPropagation();
+        onMouseDown();
+      } : undefined}
+    >
       <text fg={isSelected ? theme.accent.primary : theme.text.primary}>
         {isSelected ? (
           <strong>{`${marker} ${target.displayUrl}`}</strong>

@@ -287,12 +287,14 @@ export const RightDashboardPanel = ({
   actionDrafts,
   setActivePanel,
   onSelectActionDraft,
+  onSelectTool,
 }: {
   dashboardState: DashboardState;
   layout: UseDashboardLayoutResult;
   actionDrafts: ActionDraftRecord[];
   setActivePanel: (panel: DashboardPanelId) => void;
   onSelectActionDraft: (draft: ActionDraftRecord) => void;
+  onSelectTool: (index: number) => void;
 }) => {
   const visibleActionDrafts = actionDrafts.filter(
     (draft) => draft.status !== "dismissed" && draft.status !== "superseded",
@@ -311,6 +313,7 @@ export const RightDashboardPanel = ({
             tools={tools}
             selectedIndex={dashboardState.selectedTool}
             focused={dashboardState.activePanel === "tools"}
+            onSelectTool={onSelectTool}
           />
         </box>
         <box flexDirection="column">

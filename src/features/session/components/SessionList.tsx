@@ -10,6 +10,7 @@ interface SessionListProps {
   selectedIndex: number;
   title?: string;
   focused: boolean;
+  onSelectRow?: (index: number) => void;
 }
 
 function getSummaryCounts(rows: SessionSidebarRow[]) {
@@ -32,6 +33,7 @@ export function SessionList({
   selectedIndex,
   title = "Previous Sessions",
   focused,
+  onSelectRow,
 }: SessionListProps) {
   const summary = getSummaryCounts(rows);
   const rowsScrollRef = useRef<ScrollBoxRenderable | null>(null);
@@ -77,6 +79,7 @@ export function SessionList({
               target={row.target}
               isExpanded={row.isExpanded}
               isSelected={index === selectedIndex && focused}
+              onMouseDown={onSelectRow ? () => onSelectRow(index) : undefined}
             />
           ) : (
             <SessionItem
@@ -85,6 +88,7 @@ export function SessionList({
               isSelected={index === selectedIndex && focused}
               isCurrent={row.isCurrent}
               isLatest={row.isLatest}
+              onMouseDown={onSelectRow ? () => onSelectRow(index) : undefined}
             />
           ),
         )}
