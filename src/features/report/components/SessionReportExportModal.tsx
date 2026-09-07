@@ -307,7 +307,7 @@ export function SessionReportExportModal({
             <text fg={feedbackColor(feedback)}>
               {feedback ??
                 (isWorking
-                  ? "Exporting edited Markdown draft..."
+                  ? "Exporting edited Markdown draft…"
                   : "Ctrl+S save · Ctrl+E export · Esc selections")}
             </text>
           </>
@@ -406,7 +406,7 @@ export function SessionReportExportModal({
             <text fg={feedbackColor(feedback)}>
               {feedback ??
                 (isWorking
-                  ? "Working..."
+                  ? "Working…"
                   : `Ctrl+G generate draft · Ctrl+S deterministic export${draftMarkdown ? " · Ctrl+D edit draft" : ""}`)}
             </text>
           </>
