@@ -47,7 +47,11 @@ export function ActionDraftList({
             key={draft.id}
             flexDirection="column"
             marginBottom={1}
-            onMouseDown={() => onApplyDraft?.(draft)}
+            onMouseDown={(event) => {
+              if (event.button !== 0) return;
+              event.stopPropagation();
+              onApplyDraft?.(draft);
+            }}
           >
             <box flexDirection="row">
               <box width={4}>

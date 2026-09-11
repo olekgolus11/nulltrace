@@ -30,7 +30,11 @@ export function ToolRunConfirmationDialog({
           border
           borderColor={theme.accent.critical}
           padding={1}
-          onMouseDown={onConfirm}
+          onMouseDown={(event) => {
+            if (event.button !== 0) return;
+            event.stopPropagation();
+            onConfirm();
+          }}
         >
           <text fg={theme.accent.critical}>
             {confirmation.confirmationKey.toUpperCase()} / Enter: confirm
@@ -41,7 +45,11 @@ export function ToolRunConfirmationDialog({
           borderColor={theme.border.muted}
           padding={1}
           marginLeft={1}
-          onMouseDown={onCancel}
+          onMouseDown={(event) => {
+            if (event.button !== 0) return;
+            event.stopPropagation();
+            onCancel();
+          }}
         >
           <text fg={theme.text.secondary}>N / Esc: cancel</text>
         </box>

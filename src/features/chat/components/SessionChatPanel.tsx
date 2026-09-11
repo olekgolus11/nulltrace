@@ -51,7 +51,7 @@ export function SessionChatPanel({
     ? `OpenCode runtime error: ${conversationError}`
     : activeConversationId
       ? null
-      : "Preparing OpenCode conversation...";
+      : "Preparing OpenCode conversation…";
   const chatStatusMessage = chatError ? `Chat error: ${chatError}` : null;
   const isConversationBusy =
     isLoadingConversations || isCreatingConversation || isArchivingConversation || isGenerating;
