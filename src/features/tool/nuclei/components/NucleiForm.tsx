@@ -132,7 +132,13 @@ export function NucleiForm({
           flexDirection="row"
           width="100%"
           marginTop={1}
-          onMouseDown={onToggleAuthenticatedContext}
+          onMouseDown={(event) => {
+            if (event.button !== 0) {
+              return;
+            }
+            event.stopPropagation();
+            onToggleAuthenticatedContext();
+          }}
         >
           <box width={20}>
             <text

@@ -52,7 +52,11 @@ export function CurlForm({
       <ChoiceRow
         label="Method"
         selected={selectedId === "method"}
-        onMouseDown={() => {
+        onMouseDown={(event) => {
+          if (event.button !== 0) {
+            return;
+          }
+          event.stopPropagation();
           onSelectField("method");
           onCycleMethod(1);
         }}
@@ -85,7 +89,11 @@ export function CurlForm({
       <ChoiceRow
         label="Body type"
         selected={selectedId === "bodyMode"}
-        onMouseDown={() => {
+        onMouseDown={(event) => {
+          if (event.button !== 0) {
+            return;
+          }
+          event.stopPropagation();
           onSelectField("bodyMode");
           onCycleBodyMode();
         }}
@@ -112,7 +120,11 @@ export function CurlForm({
         <ChoiceRow
           label="Session auth"
           selected={selectedId === "useAuthenticatedContext"}
-          onMouseDown={() => {
+          onMouseDown={(event) => {
+            if (event.button !== 0) {
+              return;
+            }
+            event.stopPropagation();
             onSelectField("useAuthenticatedContext");
             onToggleAuthenticatedContext();
           }}
@@ -138,7 +150,7 @@ function ChoiceRow({
   label: string;
   selected: boolean;
   children: React.ReactNode;
-  onMouseDown: () => void;
+  onMouseDown: (event: React.MouseEvent) => void;
 }) {
   return (
     <box flexDirection="row" width="100%" onMouseDown={onMouseDown}>
@@ -173,7 +185,13 @@ function InputRow({
     <box
       flexDirection="row"
       width="100%"
-      onMouseDown={() => onSelectField(field)}
+      onMouseDown={(event) => {
+        if (event.button !== 0) {
+          return;
+        }
+        event.stopPropagation();
+        onSelectField(field);
+      }}
     >
       <FieldLabel label={label} selected={selected} />
       <box flexGrow={1} minWidth={0}>
@@ -222,7 +240,13 @@ function TextareaRow({
       flexDirection="row"
       width="100%"
       height={height}
-      onMouseDown={() => onSelectField(field)}
+      onMouseDown={(event) => {
+        if (event.button !== 0) {
+          return;
+        }
+        event.stopPropagation();
+        onSelectField(field);
+      }}
     >
       <FieldLabel label={label} selected={selected} />
       <box flexGrow={1} minWidth={0} height={height}>
