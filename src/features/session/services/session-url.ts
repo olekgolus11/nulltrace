@@ -9,7 +9,7 @@ function trimTrailingSlash(pathname: string) {
 
 export function normalizeTargetUrl(value: string) {
   const trimmedValue = value.trim();
-  const input = trimmedValue.startsWith("http") ? trimmedValue : `https://${trimmedValue}`;
+  const input = /^https?:\/\//i.test(trimmedValue) ? trimmedValue : `https://${trimmedValue}`;
 
   const url = new URL(input);
   url.protocol = url.protocol.toLowerCase();

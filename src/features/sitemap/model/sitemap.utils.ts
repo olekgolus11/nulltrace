@@ -17,7 +17,6 @@ function createNodeId(path: string, method?: string) {
 }
 
 export function buildTree(items: FlatSitemapItem[]): SitemapNode[] {
-  // Root node acts as an invisible container
   const root: SitemapNode = {
     id: createNodeId(""),
     path: "",
@@ -56,7 +55,6 @@ export function buildTree(items: FlatSitemapItem[]): SitemapNode[] {
         current.children.push(child);
       }
 
-      // If this intermediate node is also an explicit entry, update its status
       if (isLeaf) {
         child.status = item.status;
         child.method = item.method;
@@ -71,10 +69,9 @@ export function buildTree(items: FlatSitemapItem[]): SitemapNode[] {
     }
   }
 
-  // Handle root "/" entry: check if any item is exactly "/"
   const rootItems = items.filter((item) => item.path === "/");
   if (rootItems.length > 0) {
-    return rootItems.map((item, index) => ({
+    return rootItems.map((item) => ({
       id: createNodeId(item.path, item.method),
       entryId: item.entryId,
       path: item.path,
@@ -84,7 +81,7 @@ export function buildTree(items: FlatSitemapItem[]): SitemapNode[] {
       provenance: item.provenance,
       source: item.source,
       accessObservation: item.accessObservation,
-      children: index === 0 ? root.children : [],
+      children: root.children,
     }));
   }
 

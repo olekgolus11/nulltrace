@@ -210,6 +210,19 @@ export function useDashboardShortcuts({
     dispatch({ type: "CLOSE_FINDING_DETAIL" });
   }, [findings, state.selectedFindingDetailId]);
 
+  useEffect(() => {
+    const maxSitemap = Math.max(0, sitemapCount - 1);
+    const maxFinding = Math.max(0, findings.length - 1);
+
+    if (state.selectedSitemapItem > maxSitemap) {
+      dispatch({ type: "SELECT_SITEMAP_ENTRY", index: maxSitemap });
+    }
+
+    if (state.selectedFindingItem > maxFinding) {
+      dispatch({ type: "SELECT_FINDING", index: maxFinding });
+    }
+  }, [sitemapCount, findings.length, state.selectedSitemapItem, state.selectedFindingItem]);
+
   useKeyboard((key) => {
     if (
       state.isAuthenticationContextOpen ||

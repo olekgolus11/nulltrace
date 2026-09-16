@@ -1,6 +1,10 @@
 import { theme } from "../../../app/theme/theme";
 import { SessionFindingRecord } from "../model/finding.types";
-import { severityConfig, severityLabels } from "../model/finding-summary.constants";
+import {
+  reviewStatusConfig,
+  severityConfig,
+  severityLabels,
+} from "../model/finding-summary.constants";
 
 interface FindingListProps {
   findings: SessionFindingRecord[];
@@ -8,15 +12,6 @@ interface FindingListProps {
   focused: boolean;
   onSelectFinding: (index: number) => void;
 }
-
-const reviewStatusConfig: Record<
-  SessionFindingRecord["reviewStatus"],
-  { color: string; label: string }
-> = {
-  needs_review: { color: theme.accent.warning, label: "[NR]" },
-  confirmed: { color: theme.accent.primary, label: "[OK]" },
-  dismissed: { color: theme.text.muted, label: "[NO]" },
-};
 
 export function FindingList({
   findings,
@@ -38,7 +33,7 @@ export function FindingList({
 
   const rows = findings.map((finding) => {
     const severityLabel = severityLabels[finding.severity];
-    const reviewStatusLabel = reviewStatusConfig[finding.reviewStatus].label;
+    const reviewStatusLabel = reviewStatusConfig[finding.reviewStatus].marker;
     const title = toSingleLine(finding.title);
     const summary = toSingleLine(finding.summary);
 
