@@ -1,7 +1,9 @@
 import { afterEach, expect, test } from "bun:test";
+import { MouseButtons } from "@opentui/core/testing";
 import { testRender } from "@opentui/react/test-utils";
 import { act } from "react";
 import { curlCommandService } from "../../services/curl-command.service";
+import { CurlToolData } from "../../types/curl.types";
 import { useToolWorkspaceStore } from "../../../shared/store/tool-workspace.store";
 import { CurlForm } from "../CurlForm";
 import { CurlWorkspace } from "../CurlWorkspace";
@@ -92,4 +94,33 @@ test("renders the complete cURL workspace", async () => {
   expect(frame).toContain("Command");
   expect(frame).toContain("Bounded Response");
   expect(frame).toContain("Response limit: 2 MiB");
+});
+
+test("clicking a form control focuses its panel and ignores right clicks", async () => {
+  const toolData = curlCommandService.createInitialToolData("https://example.com/api");
+  const command = curlCommandService.buildCommand(toolData);
+  act(() => {
+    useToolWorkspaceStore.setState({
+      toolName: "curl",
+      targetUrl: "https://example.com/api",
+      toolData,
+      commandInput: command,
+      generatedCommand: command,
+      activePanel: "command",
+    });
+  });
+  testSetup = await testRender(<CurlWorkspace />, { width: 120, height: 40 });
+
+  await testSetup.renderOnce();
+  await act(async () => {
+    await testSetup!.mockMouse.click(30, 2, MouseButtons.RIGHT);
+  });
+  expect(useToolWorkspaceStore.getState().activePanel).toBe("command");
+  expect((useToolWorkspaceStore.getState().toolData as CurlToolData).form.method).toBe("GET");
+
+  await act(async () => {
+    await testSetup!.mockMouse.click(30, 2, MouseButtons.LEFT);
+  });
+  expect(useToolWorkspaceStore.getState().activePanel).toBe("form");
+  expect((useToolWorkspaceStore.getState().toolData as CurlToolData).form.method).toBe("HEAD");
 });

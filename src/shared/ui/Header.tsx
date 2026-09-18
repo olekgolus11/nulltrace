@@ -1,10 +1,10 @@
-import { theme } from "../../app/theme/theme.js";
-import { FindingCounts } from "../../features/finding/components/FindingCounts.js";
-import { FindingSummaryProps } from "../../features/finding/model/finding-summary.types.js";
-import { AuthenticatedRequestContextMetadata } from "../../features/authentication/model/authenticated-request-context.types.js";
-import { getAuthenticationHeaderPresentation } from "../../features/authentication/components/auth-check-presentation.js";
-import { AuthenticatedSitemapCrawlStatusRecord } from "../../features/sitemap/model/sitemap.types.js";
-import { PageInspectionPermissionStatus } from "../../features/page-inspection/model/page-inspection.types.js";
+import { theme } from "../../app/theme/theme";
+import { FindingCounts } from "../../features/finding/components/FindingCounts";
+import { FindingSummaryProps } from "../../features/finding/model/finding-summary.types";
+import { AuthenticatedRequestContextMetadata } from "../../features/authentication/model/authenticated-request-context.types";
+import { getAuthenticationHeaderPresentation } from "../../features/authentication/components/auth-check-presentation";
+import { AuthenticatedSitemapCrawlStatusRecord } from "../../features/sitemap/model/sitemap.types";
+import { PageInspectionPermissionStatus } from "../../features/page-inspection/model/page-inspection.types";
 
 interface HeaderProps {
   title?: string;
