@@ -1,4 +1,4 @@
-import { TextareaRenderable } from "@opentui/core";
+import { MouseEvent, TextareaRenderable } from "@opentui/core";
 import { useRef } from "react";
 import { theme } from "../../../../app/theme/theme";
 import { getCurlFieldOrder } from "../config/curl.config";
@@ -52,7 +52,10 @@ export function CurlForm({
       <ChoiceRow
         label="Method"
         selected={selectedId === "method"}
-        onMouseDown={() => {
+        onMouseDown={(event) => {
+          if (event.button !== 0) {
+            return;
+          }
           onSelectField("method");
           onCycleMethod(1);
         }}
@@ -85,7 +88,10 @@ export function CurlForm({
       <ChoiceRow
         label="Body type"
         selected={selectedId === "bodyMode"}
-        onMouseDown={() => {
+        onMouseDown={(event) => {
+          if (event.button !== 0) {
+            return;
+          }
           onSelectField("bodyMode");
           onCycleBodyMode();
         }}
@@ -112,7 +118,10 @@ export function CurlForm({
         <ChoiceRow
           label="Session auth"
           selected={selectedId === "useAuthenticatedContext"}
-          onMouseDown={() => {
+          onMouseDown={(event) => {
+            if (event.button !== 0) {
+              return;
+            }
             onSelectField("useAuthenticatedContext");
             onToggleAuthenticatedContext();
           }}
@@ -138,7 +147,7 @@ function ChoiceRow({
   label: string;
   selected: boolean;
   children: React.ReactNode;
-  onMouseDown: () => void;
+  onMouseDown: (event: MouseEvent) => void;
 }) {
   return (
     <box flexDirection="row" width="100%" onMouseDown={onMouseDown}>
@@ -173,7 +182,12 @@ function InputRow({
     <box
       flexDirection="row"
       width="100%"
-      onMouseDown={() => onSelectField(field)}
+      onMouseDown={(event) => {
+        if (event.button !== 0) {
+          return;
+        }
+        onSelectField(field);
+      }}
     >
       <FieldLabel label={label} selected={selected} />
       <box flexGrow={1} minWidth={0}>
@@ -222,7 +236,12 @@ function TextareaRow({
       flexDirection="row"
       width="100%"
       height={height}
-      onMouseDown={() => onSelectField(field)}
+      onMouseDown={(event) => {
+        if (event.button !== 0) {
+          return;
+        }
+        onSelectField(field);
+      }}
     >
       <FieldLabel label={label} selected={selected} />
       <box flexGrow={1} minWidth={0} height={height}>

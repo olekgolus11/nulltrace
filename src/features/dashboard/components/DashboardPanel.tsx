@@ -64,7 +64,13 @@ export function DashboardPanel({
       paddingRight={paddingRight}
       paddingTop={paddingTop}
       paddingBottom={paddingBottom}
-      onMouseDown={onMouseDown}
+      onMouseDown={onMouseDown ? (event) => {
+        if (event.button !== 0) {
+          return;
+        }
+        event.stopPropagation();
+        onMouseDown();
+      } : undefined}
     >
       {children}
     </box>

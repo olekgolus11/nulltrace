@@ -44,7 +44,12 @@ export function FfufForm({
     <box
       flexDirection="row"
       width="100%"
-      onMouseDown={onToggleAuthenticatedContext}
+      onMouseDown={(event) => {
+        if (event.button !== 0) {
+          return;
+        }
+        onToggleAuthenticatedContext();
+      }}
     >
       <box width={20}>
         <text fg={fieldColor("isAuthenticatedContextEnabled")}>

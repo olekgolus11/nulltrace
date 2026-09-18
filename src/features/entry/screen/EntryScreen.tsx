@@ -41,7 +41,13 @@ export function EntryScreen({
         alignItems="center"
         paddingLeft={2}
         paddingRight={2}
-        onMouseDown={() => setActivePanel("input")}
+        onMouseDown={(event) => {
+          if (event.button !== 0) {
+            return;
+          }
+          event.stopPropagation();
+          setActivePanel("input");
+        }}
       >
         {showTitleArt ? (
           <box flexDirection="column" alignItems="center" marginBottom={2}>
@@ -121,7 +127,13 @@ export function EntryScreen({
         paddingRight={2}
         paddingTop={1}
         paddingBottom={1}
-        onMouseDown={() => setActivePanel("sessions")}
+        onMouseDown={(event) => {
+          if (event.button !== 0) {
+            return;
+          }
+          event.stopPropagation();
+          setActivePanel("sessions");
+        }}
       >
         <SessionList
           rows={rows}
