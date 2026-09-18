@@ -17,6 +17,7 @@ type DashboardAction =
   | { type: "SELECT_SITEMAP_ENTRY"; index: number }
   | { type: "MOVE_FINDING_SELECTION"; delta: -1 | 1 }
   | { type: "SELECT_FINDING"; index: number }
+  | { type: "CLAMP_SELECTIONS"; sitemapCount: number; findingCount: number }
   | { type: "OPEN_FINDING_DETAIL"; findingId: string }
   | { type: "CLOSE_FINDING_DETAIL" }
   | { type: "OPEN_AUTHENTICATION_CONTEXT" }
@@ -118,6 +119,21 @@ function createDashboardReducer(counts: {
           selectedFindingItem: clamp(action.index, 0, Math.max(0, counts.findingCount - 1)),
         };
 
+      case "CLAMP_SELECTIONS":
+        return {
+          ...state,
+          selectedSitemapItem: clamp(
+            state.selectedSitemapItem,
+            0,
+            Math.max(0, action.sitemapCount - 1),
+          ),
+          selectedFindingItem: clamp(
+            state.selectedFindingItem,
+            0,
+            Math.max(0, action.findingCount - 1),
+          ),
+        };
+
       case "OPEN_FINDING_DETAIL":
         return {
           ...state,
@@ -209,6 +225,14 @@ export function useDashboardShortcuts({
 
     dispatch({ type: "CLOSE_FINDING_DETAIL" });
   }, [findings, state.selectedFindingDetailId]);
+
+  useEffect(() => {
+    dispatch({
+      type: "CLAMP_SELECTIONS",
+      sitemapCount,
+      findingCount: findings.length,
+    });
+  }, [sitemapCount, findings.length]);
 
   useKeyboard((key) => {
     if (

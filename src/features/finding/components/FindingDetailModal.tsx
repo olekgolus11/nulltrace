@@ -1,7 +1,12 @@
 import { ScrollBoxRenderable } from "@opentui/core";
+import { ReactNode, RefObject } from "react";
 import { theme } from "../../../app/theme/theme";
 import { FindingReviewStatus, SessionFindingRecord } from "../model/finding.types";
-import { severityConfig, severityLabels } from "../model/finding-summary.constants";
+import {
+  reviewStatusConfig,
+  severityConfig,
+  severityLabels,
+} from "../model/finding-summary.constants";
 import {
   createFindingSourceContextFields,
   FindingSourceContextField,
@@ -12,29 +17,8 @@ interface FindingDetailModalProps {
   finding: SessionFindingRecord;
   width: number;
   height: number;
-  scrollRef: React.RefObject<ScrollBoxRenderable | null>;
+  scrollRef: RefObject<ScrollBoxRenderable | null>;
 }
-
-const reviewStatusConfig: Record<
-  SessionFindingRecord["reviewStatus"],
-  { color: string; label: string; marker: string }
-> = {
-  needs_review: {
-    color: theme.accent.warning,
-    label: "Needs review",
-    marker: "[NR]",
-  },
-  confirmed: {
-    color: theme.accent.primary,
-    label: "Confirmed",
-    marker: "[OK]",
-  },
-  dismissed: {
-    color: theme.text.muted,
-    label: "Dismissed",
-    marker: "[NO]",
-  },
-};
 
 const reviewActionHints: Array<{
   key: string;
@@ -86,7 +70,7 @@ function MetadataRow({ label, value }: FindingSourceContextField) {
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function SectionTitle({ children }: { children: ReactNode }) {
   return (
     <box marginTop={1}>
       <text fg={theme.accent.primary}>

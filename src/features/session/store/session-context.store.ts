@@ -227,7 +227,12 @@ export const useSessionContextStore = create<SessionContextState>((set, get) => 
     },
 
     createSessionForNewTarget: async (url: string) => {
-      const normalizedUrl = normalizeTargetUrl(url);
+      let normalizedUrl: string;
+      try {
+        normalizedUrl = normalizeTargetUrl(url);
+      } catch (error) {
+        throw new Error(`Invalid target URL: ${error instanceof Error ? error.message : String(error)}`);
+      }
       const target = sessionRepository.findOrCreateTarget(normalizedUrl, url);
       const session = sessionRepository.createSession(target.id);
       const requestToken = ++sessionOpenRequestToken;

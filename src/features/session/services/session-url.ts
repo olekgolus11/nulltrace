@@ -9,9 +9,17 @@ function trimTrailingSlash(pathname: string) {
 
 export function normalizeTargetUrl(value: string) {
   const trimmedValue = value.trim();
-  const input = trimmedValue.startsWith("http") ? trimmedValue : `https://${trimmedValue}`;
+  const explicitScheme = trimmedValue.match(/^([a-z][a-z\d+.-]*):\/\//i)?.[1];
+  if (explicitScheme && !/^https?$/i.test(explicitScheme)) {
+    throw new Error("Target URL must use HTTP or HTTPS.");
+  }
+
+  const input = /^https?:\/\//i.test(trimmedValue) ? trimmedValue : `https://${trimmedValue}`;
 
   const url = new URL(input);
+  if (!url.hostname) {
+    throw new Error("Target URL must include a hostname.");
+  }
   url.protocol = url.protocol.toLowerCase();
   url.hostname = url.hostname.toLowerCase();
   url.hash = "";

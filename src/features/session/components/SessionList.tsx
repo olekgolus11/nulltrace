@@ -19,12 +19,9 @@ function getSummaryCounts(rows: SessionSidebarRow[]) {
       if (row.type === "target") {
         summary.targetCount += 1;
       }
-      if (row.type === "session") {
-        summary.sessionCount += 1;
-      }
       return summary;
     },
-    { targetCount: 0, sessionCount: 0 },
+    { targetCount: 0 },
   );
 }
 

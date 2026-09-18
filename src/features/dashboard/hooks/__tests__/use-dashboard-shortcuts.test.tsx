@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { testRender } from "@opentui/react/test-utils";
-import { act, useEffect } from "react";
+import { act, useEffect, useState } from "react";
 import { useDashboardShortcuts } from "../use-dashboard-shortcuts";
 
 let testSetup: Awaited<ReturnType<typeof testRender>> | null = null;
@@ -9,14 +9,19 @@ let restartCallCount = 0;
 function DashboardShortcutHarness({
   isLocked = true,
   sitemapCount = 0,
+  shrinkWhenFindings = false,
+  focusFindingsAfterSitemapSelection = false,
 }: {
   isLocked?: boolean;
   sitemapCount?: number;
+  shrinkWhenFindings?: boolean;
+  focusFindingsAfterSitemapSelection?: boolean;
 }) {
+  const [currentSitemapCount, setCurrentSitemapCount] = useState(sitemapCount);
   const { dashboardState, setActivePanel, selectSitemapEntry } = useDashboardShortcuts({
     onBack: () => {},
     onSelectTool: () => {},
-    sitemapCount,
+    sitemapCount: currentSitemapCount,
     onCycleSitemapDepth: () => {},
     onCycleSitemapProvenance: () => {},
     onPauseOrResumeSitemapCrawl: () => {},
@@ -39,6 +44,18 @@ function DashboardShortcutHarness({
       setActivePanel("sitemap");
     }
   }, [sitemapCount]);
+
+  useEffect(() => {
+    if (shrinkWhenFindings && dashboardState.activePanel === "findings") {
+      setCurrentSitemapCount(1);
+    }
+  }, [dashboardState.activePanel, shrinkWhenFindings]);
+
+  useEffect(() => {
+    if (focusFindingsAfterSitemapSelection && dashboardState.selectedSitemapItem === 2) {
+      setActivePanel("findings");
+    }
+  }, [dashboardState.selectedSitemapItem, focusFindingsAfterSitemapSelection]);
 
   return (
     <box
@@ -183,5 +200,32 @@ describe("useDashboardShortcuts", () => {
     });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain("sitemap:3:");
+  });
+
+  test("clamps a stale sitemap selection without changing the active panel", async () => {
+    testSetup = await testRender(
+      <DashboardShortcutHarness
+        sitemapCount={4}
+        shrinkWhenFindings={true}
+        focusFindingsAfterSitemapSelection={true}
+      />,
+      {
+        width: 60,
+        height: 10,
+      },
+    );
+
+    await testSetup.renderOnce();
+    await act(async () => {
+      await testSetup!.mockMouse.pressDown(1, 0);
+    });
+    await testSetup.renderOnce();
+    await act(async () => {
+      await testSetup!.mockMouse.release(1, 0);
+    });
+    await testSetup.renderOnce();
+    await testSetup.renderOnce();
+
+    expect(testSetup.captureCharFrame()).toContain("findings:0:");
   });
 });
