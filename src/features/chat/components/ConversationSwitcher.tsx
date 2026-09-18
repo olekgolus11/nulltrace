@@ -7,6 +7,7 @@ interface ConversationSwitcherProps {
   activeConversationId: string | null;
   availableWidth: number;
   isDisabled: boolean;
+  onMouseDown?: () => void;
   onSelectConversation: (conversationId: string) => void;
   onCreateConversation: () => void;
   onArchiveConversation: () => void;
@@ -40,6 +41,7 @@ export function ConversationSwitcher({
   activeConversationId,
   availableWidth,
   isDisabled,
+  onMouseDown,
   onSelectConversation,
   onCreateConversation,
   onArchiveConversation,
@@ -119,7 +121,12 @@ export function ConversationSwitcher({
         alignItems="center"
         justifyContent="center"
         backgroundColor={theme.border.default}
-        onMouseDown={onPreviousPage}
+        onMouseDown={(event) => {
+          if (event.button !== 0) return;
+          event.stopPropagation();
+          onMouseDown?.();
+          onPreviousPage();
+        }}
       >
         <text fg={hasPrevious && !isDisabled ? theme.text.primary : theme.text.dim}>‹</text>
       </box>
@@ -136,7 +143,10 @@ export function ConversationSwitcher({
             alignItems="center"
             justifyContent="center"
             backgroundColor={isActive ? theme.accent.primary : theme.border.default}
-            onMouseDown={() => {
+            onMouseDown={(event) => {
+              if (event.button !== 0) return;
+              event.stopPropagation();
+              onMouseDown?.();
               if (!isDisabled) {
                 onSelectConversation(conversationId);
               }
@@ -156,7 +166,12 @@ export function ConversationSwitcher({
         alignItems="center"
         justifyContent="center"
         backgroundColor={theme.border.default}
-        onMouseDown={onNextPage}
+        onMouseDown={(event) => {
+          if (event.button !== 0) return;
+          event.stopPropagation();
+          onMouseDown?.();
+          onNextPage();
+        }}
       >
         <text fg={hasNext && !isDisabled ? theme.text.primary : theme.text.dim}>›</text>
       </box>
@@ -166,7 +181,10 @@ export function ConversationSwitcher({
         alignItems="center"
         justifyContent="center"
         backgroundColor={theme.border.default}
-        onMouseDown={() => {
+        onMouseDown={(event) => {
+          if (event.button !== 0) return;
+          event.stopPropagation();
+          onMouseDown?.();
           if (!isDisabled) {
             onCreateConversation();
           }
@@ -182,7 +200,10 @@ export function ConversationSwitcher({
         alignItems="center"
         justifyContent="center"
         backgroundColor={theme.border.default}
-        onMouseDown={() => {
+        onMouseDown={(event) => {
+          if (event.button !== 0) return;
+          event.stopPropagation();
+          onMouseDown?.();
           if (!isDisabled && activeConversationId) {
             onArchiveConversation();
           }

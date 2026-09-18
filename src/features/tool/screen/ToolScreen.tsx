@@ -421,6 +421,7 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
                 emptyLabel={`No ${toolName} action drafts yet.`}
                 focused={activePanel === "drafts"}
                 selectedDraftId={selectedActionDraft?.id ?? null}
+                onMouseDown={() => focusPanel("drafts")}
                 onApplyDraft={selectAndApplyActionDraft}
               />
             </scrollbox>
@@ -448,6 +449,7 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
               onSubmit={sessionChat.submitInput}
               placeholder={`Ask about ${toolName} usage, flags, or scan strategy...`}
               focused={activePanel === "chat"}
+              onMouseDown={() => focusPanel("chat")}
               onSelectConversation={selectConversation}
               onCreateConversation={() => {
                 void createConversation();

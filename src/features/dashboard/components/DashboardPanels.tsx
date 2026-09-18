@@ -266,6 +266,7 @@ export const CenterDashboardPanel = ({
           isLoadingMessages={isLoadingMessages}
           isGenerating={isGenerating}
           focused={dashboardState.activePanel === "chat"}
+          onMouseDown={() => setActivePanel("chat")}
           onInputChange={setChatInput}
           onSubmit={submitChat}
           onSelectConversation={selectConversation}
@@ -338,6 +339,7 @@ export const RightDashboardPanel = ({
               emptyLabel="No action drafts yet."
               focused={dashboardState.activePanel === "tools"}
               selectedDraftId={visibleActionDrafts[0]?.id ?? null}
+              onMouseDown={() => setActivePanel("tools")}
               onApplyDraft={onSelectActionDraft}
             />
           </scrollbox>

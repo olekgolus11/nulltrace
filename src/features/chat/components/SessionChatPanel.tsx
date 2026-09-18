@@ -19,6 +19,7 @@ interface SessionChatPanelProps {
   isGenerating: boolean;
   focused: boolean;
   placeholder?: string;
+  onMouseDown?: () => void;
   onInputChange: (value: string) => void;
   onSubmit: (value: string) => void;
   onSelectConversation: (conversationId: string) => void;
@@ -41,6 +42,7 @@ export function SessionChatPanel({
   isGenerating,
   focused,
   placeholder,
+  onMouseDown,
   onInputChange,
   onSubmit,
   onSelectConversation,
@@ -51,7 +53,7 @@ export function SessionChatPanel({
     ? `OpenCode runtime error: ${conversationError}`
     : activeConversationId
       ? null
-      : "Preparing OpenCode conversation...";
+      : "Preparing OpenCode conversation…";
   const chatStatusMessage = chatError ? `Chat error: ${chatError}` : null;
   const isConversationBusy =
     isLoadingConversations || isCreatingConversation || isArchivingConversation || isGenerating;
@@ -63,6 +65,7 @@ export function SessionChatPanel({
         activeConversationId={activeConversationId}
         availableWidth={availableWidth}
         isDisabled={isConversationBusy}
+        onMouseDown={onMouseDown}
         onSelectConversation={onSelectConversation}
         onCreateConversation={onCreateConversation}
         onArchiveConversation={onArchiveConversation}

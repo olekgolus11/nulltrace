@@ -12,7 +12,7 @@ function formatRunTime(value: string) {
 }
 
 function formatCommand(command: string) {
-  return command.length > 28 ? `${command.slice(0, 25)}...` : command;
+  return command.length > 28 ? `${command.slice(0, 25)}…` : command;
 }
 
 function getStatusColor(status: string) {

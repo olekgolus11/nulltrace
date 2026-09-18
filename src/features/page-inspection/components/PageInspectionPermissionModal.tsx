@@ -106,7 +106,13 @@ export function PageInspectionPermissionModal({
         ) : null}
         <box flexDirection="column" marginTop={1}>
           {!isBrowserMissing ? (
-            <box onMouseDown={onAllowPublic}>
+            <box
+              onMouseDown={(event) => {
+                if (event.button !== 0) return;
+                event.stopPropagation();
+                onAllowPublic();
+              }}
+            >
               <text
                 fg={
                   status?.mode === "public" ? theme.accent.primary : theme.text.secondary
@@ -119,7 +125,13 @@ export function PageInspectionPermissionModal({
           {!isBrowserMissing ? (
             <box
               onMouseDown={
-                isAuthenticatedInspectionAvailable ? onAllowAuthenticated : undefined
+                isAuthenticatedInspectionAvailable
+                  ? (event) => {
+                      if (event.button !== 0) return;
+                      event.stopPropagation();
+                      onAllowAuthenticated();
+                    }
+                  : undefined
               }
             >
               <text
@@ -135,12 +147,25 @@ export function PageInspectionPermissionModal({
               </text>
             </box>
           ) : null}
-          <box onMouseDown={onNoInspection}>
+          <box
+            onMouseDown={(event) => {
+              if (event.button !== 0) return;
+              event.stopPropagation();
+              onNoInspection();
+            }}
+          >
             <text fg={status?.mode === "none" ? theme.accent.warning : theme.text.secondary}>
               No inspection
             </text>
           </box>
-          <box onMouseDown={onClose} marginTop={1}>
+          <box
+            onMouseDown={(event) => {
+              if (event.button !== 0) return;
+              event.stopPropagation();
+              onClose();
+            }}
+            marginTop={1}
+          >
             <text fg={theme.text.muted}>[P] public | [A] auth | [N] none | [Esc] close</text>
           </box>
         </box>
