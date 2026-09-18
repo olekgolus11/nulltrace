@@ -48,7 +48,6 @@ export function FfufForm({
         if (event.button !== 0) {
           return;
         }
-        event.stopPropagation();
         onToggleAuthenticatedContext();
       }}
     >

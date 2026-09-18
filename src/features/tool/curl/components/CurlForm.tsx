@@ -1,4 +1,4 @@
-import { TextareaRenderable } from "@opentui/core";
+import { MouseEvent, TextareaRenderable } from "@opentui/core";
 import { useRef } from "react";
 import { theme } from "../../../../app/theme/theme";
 import { getCurlFieldOrder } from "../config/curl.config";
@@ -56,7 +56,6 @@ export function CurlForm({
           if (event.button !== 0) {
             return;
           }
-          event.stopPropagation();
           onSelectField("method");
           onCycleMethod(1);
         }}
@@ -93,7 +92,6 @@ export function CurlForm({
           if (event.button !== 0) {
             return;
           }
-          event.stopPropagation();
           onSelectField("bodyMode");
           onCycleBodyMode();
         }}
@@ -124,7 +122,6 @@ export function CurlForm({
             if (event.button !== 0) {
               return;
             }
-            event.stopPropagation();
             onSelectField("useAuthenticatedContext");
             onToggleAuthenticatedContext();
           }}
@@ -150,7 +147,7 @@ function ChoiceRow({
   label: string;
   selected: boolean;
   children: React.ReactNode;
-  onMouseDown: (event: React.MouseEvent) => void;
+  onMouseDown: (event: MouseEvent) => void;
 }) {
   return (
     <box flexDirection="row" width="100%" onMouseDown={onMouseDown}>
@@ -189,7 +186,6 @@ function InputRow({
         if (event.button !== 0) {
           return;
         }
-        event.stopPropagation();
         onSelectField(field);
       }}
     >
@@ -244,7 +240,6 @@ function TextareaRow({
         if (event.button !== 0) {
           return;
         }
-        event.stopPropagation();
         onSelectField(field);
       }}
     >

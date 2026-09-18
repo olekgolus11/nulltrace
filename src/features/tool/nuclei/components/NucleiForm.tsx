@@ -136,7 +136,6 @@ export function NucleiForm({
             if (event.button !== 0) {
               return;
             }
-            event.stopPropagation();
             onToggleAuthenticatedContext();
           }}
         >

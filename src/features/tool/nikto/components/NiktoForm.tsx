@@ -43,7 +43,6 @@ export function NiktoForm({
           if (event.button !== 0) {
             return;
           }
-          event.stopPropagation();
           onProfileChange(form.profile === "standard" ? "custom" : "standard");
         }}
       >
@@ -109,7 +108,6 @@ export function NiktoForm({
             if (event.button !== 0) {
               return;
             }
-            event.stopPropagation();
             onToggleAuthenticatedContext();
           }}
         >
@@ -165,13 +163,16 @@ function TuningFlagRow({
       : theme.text.secondary;
 
   return (
-    <box flexDirection="row" alignItems="center" onMouseDown={(event) => {
-      if (event.button !== 0) {
-        return;
-      }
-      event.stopPropagation();
-      onToggle();
-    }}>
+    <box
+      flexDirection="row"
+      alignItems="center"
+      onMouseDown={(event) => {
+        if (event.button !== 0) {
+          return;
+        }
+        onToggle();
+      }}
+    >
       <box width={2}>
         <text fg={color}>{selected ? ">" : " "}</text>
       </box>
