@@ -39,9 +39,12 @@ export function NiktoForm({
       <box
         flexDirection="column"
         width="100%"
-        onMouseDown={() =>
-          onProfileChange(form.profile === "standard" ? "custom" : "standard")
-        }
+        onMouseDown={(event) => {
+          if (event.button !== 0) {
+            return;
+          }
+          onProfileChange(form.profile === "standard" ? "custom" : "standard");
+        }}
       >
         <text fg={selectedId === "profile" ? theme.accent.primary : theme.text.secondary}>
           {selectedId === "profile" ? "> Mode" : "  Mode"}:{" "}
@@ -101,7 +104,12 @@ export function NiktoForm({
         <box
           flexDirection="row"
           width="100%"
-          onMouseDown={onToggleAuthenticatedContext}
+          onMouseDown={(event) => {
+            if (event.button !== 0) {
+              return;
+            }
+            onToggleAuthenticatedContext();
+          }}
         >
           <box width={20}>
             <text
@@ -155,7 +163,16 @@ function TuningFlagRow({
       : theme.text.secondary;
 
   return (
-    <box flexDirection="row" alignItems="center" onMouseDown={onToggle}>
+    <box
+      flexDirection="row"
+      alignItems="center"
+      onMouseDown={(event) => {
+        if (event.button !== 0) {
+          return;
+        }
+        onToggle();
+      }}
+    >
       <box width={2}>
         <text fg={color}>{selected ? ">" : " "}</text>
       </box>

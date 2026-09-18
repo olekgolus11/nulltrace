@@ -98,7 +98,6 @@ export function CommandEditor({
           <input
             value={commandInput}
             onInput={handleCommandChange}
-            onChange={handleCommandChange}
             width="100%"
             onSubmit={onRun}
             placeholder="tool command"

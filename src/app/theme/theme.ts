@@ -55,26 +55,3 @@ export const theme = {
     system: "#64748b", // System message
   },
 } as const;
-
-// ASCII box drawing characters for panels
-export const boxChars = {
-  topLeft: "┌",
-  topRight: "┐",
-  bottomLeft: "└",
-  bottomRight: "┘",
-  horizontal: "─",
-  vertical: "│",
-  teeRight: "├",
-  teeLeft: "┤",
-  teeDown: "┬",
-  teeUp: "┴",
-  cross: "┼",
-} as const;
-
-// Tree drawing characters for sitemap
-export const treeChars = {
-  branch: "├──",
-  lastBranch: "└──",
-  vertical: "│  ",
-  empty: "   ",
-} as const;

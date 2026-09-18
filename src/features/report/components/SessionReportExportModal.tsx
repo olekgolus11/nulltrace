@@ -356,7 +356,9 @@ export function SessionReportExportModal({
                       key={finding.id}
                       flexDirection="column"
                       marginBottom={1}
-                      onMouseDown={() => {
+                      onMouseDown={(event) => {
+                        if (event.button !== 0) return;
+                        event.stopPropagation();
                         setSelectedFindingIndex(index);
                         setSelectedField("findings");
                         toggleFinding(finding);

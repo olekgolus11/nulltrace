@@ -33,7 +33,7 @@ export function ChatWindow({
   inputValue,
   onInputChange,
   onSubmit,
-  placeholder = "Ask about findings, request scans...",
+  placeholder = "Ask about findings, request scans…",
   focused = false,
   isGenerating = false,
   isDisabled = false,
