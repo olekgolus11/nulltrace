@@ -7,6 +7,7 @@ interface ConversationSwitcherProps {
   activeConversationId: string | null;
   availableWidth: number;
   isDisabled: boolean;
+  onMouseDown?: () => void;
   onSelectConversation: (conversationId: string) => void;
   onCreateConversation: () => void;
   onArchiveConversation: () => void;
@@ -40,6 +41,7 @@ export function ConversationSwitcher({
   activeConversationId,
   availableWidth,
   isDisabled,
+  onMouseDown,
   onSelectConversation,
   onCreateConversation,
   onArchiveConversation,
@@ -122,6 +124,7 @@ export function ConversationSwitcher({
         onMouseDown={(event) => {
           if (event.button !== 0) return;
           event.stopPropagation();
+          onMouseDown?.();
           onPreviousPage();
         }}
       >
@@ -143,6 +146,7 @@ export function ConversationSwitcher({
             onMouseDown={(event) => {
               if (event.button !== 0) return;
               event.stopPropagation();
+              onMouseDown?.();
               if (!isDisabled) {
                 onSelectConversation(conversationId);
               }
@@ -165,6 +169,7 @@ export function ConversationSwitcher({
         onMouseDown={(event) => {
           if (event.button !== 0) return;
           event.stopPropagation();
+          onMouseDown?.();
           onNextPage();
         }}
       >
@@ -179,6 +184,7 @@ export function ConversationSwitcher({
         onMouseDown={(event) => {
           if (event.button !== 0) return;
           event.stopPropagation();
+          onMouseDown?.();
           if (!isDisabled) {
             onCreateConversation();
           }
@@ -197,6 +203,7 @@ export function ConversationSwitcher({
         onMouseDown={(event) => {
           if (event.button !== 0) return;
           event.stopPropagation();
+          onMouseDown?.();
           if (!isDisabled && activeConversationId) {
             onArchiveConversation();
           }

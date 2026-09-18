@@ -19,6 +19,7 @@ interface SessionChatPanelProps {
   isGenerating: boolean;
   focused: boolean;
   placeholder?: string;
+  onMouseDown?: () => void;
   onInputChange: (value: string) => void;
   onSubmit: (value: string) => void;
   onSelectConversation: (conversationId: string) => void;
@@ -41,6 +42,7 @@ export function SessionChatPanel({
   isGenerating,
   focused,
   placeholder,
+  onMouseDown,
   onInputChange,
   onSubmit,
   onSelectConversation,
@@ -63,6 +65,7 @@ export function SessionChatPanel({
         activeConversationId={activeConversationId}
         availableWidth={availableWidth}
         isDisabled={isConversationBusy}
+        onMouseDown={onMouseDown}
         onSelectConversation={onSelectConversation}
         onCreateConversation={onCreateConversation}
         onArchiveConversation={onArchiveConversation}

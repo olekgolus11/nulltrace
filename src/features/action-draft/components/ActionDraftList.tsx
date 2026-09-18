@@ -6,6 +6,7 @@ interface ActionDraftListProps {
   emptyLabel: string;
   focused?: boolean;
   selectedDraftId?: string | null;
+  onMouseDown?: () => void;
   onApplyDraft?: (draft: ActionDraftRecord) => void;
 }
 
@@ -27,6 +28,7 @@ export function ActionDraftList({
   emptyLabel,
   focused = false,
   selectedDraftId = null,
+  onMouseDown,
   onApplyDraft,
 }: ActionDraftListProps) {
   if (drafts.length === 0) {
@@ -50,6 +52,7 @@ export function ActionDraftList({
             onMouseDown={(event) => {
               if (event.button !== 0) return;
               event.stopPropagation();
+              onMouseDown?.();
               onApplyDraft?.(draft);
             }}
           >
