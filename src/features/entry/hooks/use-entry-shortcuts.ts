@@ -1,5 +1,5 @@
 import { useKeyboard } from "@opentui/react";
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, useState } from "react";
 import {
   buildSessionSidebarRows,
   getInitialExpandedTargetId,
@@ -22,7 +22,7 @@ type EntryAction =
 
 interface UseEntryShortcutsProps {
   targets: TargetSummary[];
-  onStartPentestForNewTarget: (targetUrl: string) => void;
+  onStartPentestForNewTarget: (targetUrl: string) => Promise<void>;
   onOpenSession: (sessionId: string) => void;
   onStartPentestForExistingTarget: (target: TargetSummary) => void;
 }
@@ -96,6 +96,7 @@ export function useEntryShortcuts({
   const initialExpandedTargetId = getInitialExpandedTargetId(targets);
   const reducer = createEntryReducer();
   const [state, dispatch] = useReducer(reducer, initialEntryState);
+  const [urlError, setUrlError] = useState<string | null>(null);
   const expandedTargetId = state.expandedTargetId;
   const rows = buildSessionSidebarRows(targets, expandedTargetId, currentSessionId);
 
@@ -111,7 +112,10 @@ export function useEntryShortcuts({
 
     const url = nextValue.trim();
     if (!url) return;
-    onStartPentestForNewTarget(url);
+    setUrlError(null);
+    void onStartPentestForNewTarget(url).catch((error: unknown) => {
+      setUrlError(error instanceof Error ? error.message : String(error));
+    });
   };
 
   useEffect(() => {
@@ -184,6 +188,7 @@ export function useEntryShortcuts({
 
   return {
     entryState: state,
+    urlError,
     rows,
     setUrlInput,
     submitUrlInput,

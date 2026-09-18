@@ -71,7 +71,7 @@ export function buildTree(items: FlatSitemapItem[]): SitemapNode[] {
 
   const rootItems = items.filter((item) => item.path === "/");
   if (rootItems.length > 0) {
-    return rootItems.map((item) => ({
+    const rootEntries = rootItems.map((item) => ({
       id: createNodeId(item.path, item.method),
       entryId: item.entryId,
       path: item.path,
@@ -81,8 +81,10 @@ export function buildTree(items: FlatSitemapItem[]): SitemapNode[] {
       provenance: item.provenance,
       source: item.source,
       accessObservation: item.accessObservation,
-      children: root.children,
+      children: [],
     }));
+
+    return [...rootEntries, ...(root.children ?? [])];
   }
 
   return root.children || [];

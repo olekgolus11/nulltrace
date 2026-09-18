@@ -10,7 +10,7 @@ import { sessionRepository } from "../../session/services/session.repository";
 import { ShortcutHints } from "../../../shared/ui/ShortcutHints";
 
 interface EntryScreenProps {
-  onStartPentestForNewTarget: (url: string) => void;
+  onStartPentestForNewTarget: (url: string) => Promise<void>;
   onStartPentestForExistingTarget: (target: TargetSummary) => void;
   onOpenSession: (sessionId: string) => void;
 }
@@ -22,12 +22,13 @@ export function EntryScreen({
 }: EntryScreenProps) {
   const { width, height } = useTerminalDimensions();
   const [targets] = useState(() => sessionRepository.listTargetsWithSessions());
-  const { entryState, rows, setUrlInput, submitUrlInput, setActivePanel, selectRow } = useEntryShortcuts({
-    targets,
-    onStartPentestForNewTarget,
-    onStartPentestForExistingTarget,
-    onOpenSession,
-  });
+  const { entryState, rows, urlError, setUrlInput, submitUrlInput, setActivePanel, selectRow } =
+    useEntryShortcuts({
+      targets,
+      onStartPentestForNewTarget,
+      onStartPentestForExistingTarget,
+      onOpenSession,
+    });
 
   const { sidebarWidth, mainWidth, showTitleArt, inputWidth } = getEntryLayout(width);
 
@@ -87,6 +88,7 @@ export function EntryScreen({
               placeholderColor={theme.text.dim}
             />
           </box>
+          {urlError ? <text fg={theme.severity.critical}>{urlError}</text> : null}
         </box>
 
         <box marginTop={1}>

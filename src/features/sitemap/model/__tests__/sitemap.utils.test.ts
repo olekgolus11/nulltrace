@@ -14,4 +14,17 @@ describe("buildTree", () => {
     expect(entries.map((entry) => entry.method)).toEqual(["GET", "POST"]);
     expect(new Set(entries.map((entry) => entry.id)).size).toBe(2);
   });
+
+  it("keeps root methods and descendants unique in the flattened tree", () => {
+    const nodes = buildTree([
+      { entryId: "root-get", path: "/", status: 200, method: "GET" },
+      { entryId: "root-post", path: "/", status: 405, method: "POST" },
+      { entryId: "login", path: "/login", status: 200, method: "GET" },
+    ]);
+
+    const entries = flattenTree(nodes).filter((node) => node.entryId);
+
+    expect(entries.map((entry) => entry.entryId)).toEqual(["root-get", "root-post", "login"]);
+    expect(new Set(entries.map((entry) => entry.id)).size).toBe(3);
+  });
 });
