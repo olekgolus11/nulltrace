@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-19",
+  "orbStackVersion": "2.2.3",
+  "orbStackBuild": "20963",
+  "dockerEngine": "29.4.0",
+  "kernel": "7.0.14-orbstack-00380-ga7e0a2dc9535",
+  "architecture": "arm64",
+  "cgroupVersion": 2,
+  "cgroupDriver": "cgroupfs",
+  "securityOptions": [
+    "seccomp,profile=builtin",
+    "cgroupns"
+  ],
+  "imageId": "sha256:74d78c19aecd9ec23178d67db7e5e7dc3f76e8df15fcd46894d82b4ef3fdf92f",
+  "baseImage": "debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251",
+  "packages": {
+    "curl": "7.88.1-10+deb12u15",
+    "nftables": "1.0.6-2+deb12u2",
+    "squid": "5.7-2+deb12u6"
+  }
+}

@@ -1,0 +1,132 @@
+[
+  {
+    "name": "Fixture reachability before enforcement",
+    "passed": true,
+    "detail": "Same networks reach HTTP IPv4/IPv6 and custom/embedded DNS before rules"
+  },
+  {
+    "name": "Allowed HTTP IPv4",
+    "passed": true,
+    "detail": "Controlled approved fixture responded (TLS verification retained)"
+  },
+  {
+    "name": "Allowed HTTP IPv6 upstream",
+    "passed": true,
+    "detail": "Controlled approved fixture responded (TLS verification retained)"
+  },
+  {
+    "name": "Allowed HTTPS IPv4",
+    "passed": true,
+    "detail": "Controlled approved fixture responded (TLS verification retained)"
+  },
+  {
+    "name": "Allowed HTTPS IPv6 upstream",
+    "passed": true,
+    "detail": "Controlled approved fixture responded (TLS verification retained)"
+  },
+  {
+    "name": "Cross-origin redirect",
+    "passed": true,
+    "detail": "Rejected/timeout, exit 22; fixture evidence checked separately"
+  },
+  {
+    "name": "Direct forbidden IPv4",
+    "passed": true,
+    "detail": "Rejected/timeout, exit 28; fixture evidence checked separately"
+  },
+  {
+    "name": "Direct forbidden IPv6",
+    "passed": true,
+    "detail": "Rejected/timeout, exit 28; fixture evidence checked separately"
+  },
+  {
+    "name": "NO_PROXY bypass",
+    "passed": true,
+    "detail": "Rejected/timeout, exit 28; fixture evidence checked separately"
+  },
+  {
+    "name": "Forbidden proxy destination",
+    "passed": true,
+    "detail": "Rejected/timeout, exit 22; fixture evidence checked separately"
+  },
+  {
+    "name": "Forbidden CONNECT",
+    "passed": true,
+    "detail": "Rejected/timeout, exit 22; fixture evidence checked separately"
+  },
+  {
+    "name": "Approved host wrong port",
+    "passed": true,
+    "detail": "Rejected/timeout, exit 22; fixture evidence checked separately"
+  },
+  {
+    "name": "Approved host wrong protocol port",
+    "passed": true,
+    "detail": "Rejected/timeout, exit 22; fixture evidence checked separately"
+  },
+  {
+    "name": "Direct proxy wrong port",
+    "passed": true,
+    "detail": "Rejected/timeout, exit 28; fixture evidence checked separately"
+  },
+  {
+    "name": "Direct Docker gateway",
+    "passed": true,
+    "detail": "Rejected/timeout, exit 28; fixture evidence checked separately"
+  },
+  {
+    "name": "Direct metadata address",
+    "passed": true,
+    "detail": "Rejected/timeout, exit 7; fixture evidence checked separately"
+  },
+  {
+    "name": "Direct DoH endpoint",
+    "passed": true,
+    "detail": "Rejected/timeout, exit 28; fixture evidence checked separately"
+  },
+  {
+    "name": "DNS UDP direct",
+    "passed": true,
+    "detail": "Rejected/timeout, exit 9; fixture evidence checked separately"
+  },
+  {
+    "name": "DNS TCP direct",
+    "passed": true,
+    "detail": "Rejected/timeout, exit 9; fixture evidence checked separately"
+  },
+  {
+    "name": "Docker embedded DNS",
+    "passed": true,
+    "detail": "Rejected/timeout, exit 9; fixture evidence checked separately"
+  },
+  {
+    "name": "Proxy upstream firewall independent of Squid ACL",
+    "passed": true,
+    "detail": "Direct proxy-namespace clients failed for denied IPv4/IPv6 and approved-IP wrong port"
+  },
+  {
+    "name": "UDP bypass",
+    "passed": true,
+    "detail": "IPv4/IPv6 UDP attempts sent by fixture; denied-server packet counter checked below"
+  },
+  {
+    "name": "Workers cannot change network rules",
+    "passed": true,
+    "detail": "Both unprivileged processes denied NET_ADMIN operation"
+  },
+  {
+    "name": "Forbidden server received zero requests and zero TCP/UDP packets",
+    "passed": true,
+    "detail": "Independent server-side HTTP/DNS event count = 0; input TCP/UDP packet count = 0"
+  },
+  {
+    "name": "Resource bounds are effective",
+    "passed": true,
+    "detail": "Fork limit, memory OOM kill and increasing CPU throttling observed"
+  },
+  {
+    "name": "Proxy failure remains closed",
+    "passed": true,
+    "detail": "No proxy or direct fallback after stopping proxy"
+  }
+]

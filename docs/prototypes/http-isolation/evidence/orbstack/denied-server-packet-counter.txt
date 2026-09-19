@@ -1,0 +1,31 @@
+table ip nat {
+	chain DOCKER_OUTPUT {
+		ip daddr 127.0.0.11 tcp dport 53 counter packets 0 bytes 0
+		ip daddr 127.0.0.11 udp dport 53 counter packets 0 bytes 0
+	}
+
+	chain OUTPUT {
+		type nat hook output priority -100; policy accept;
+		ip daddr 127.0.0.11 counter packets 0 bytes 0 jump DOCKER_OUTPUT
+	}
+
+	chain DOCKER_POSTROUTING {
+		ip saddr 127.0.0.11 tcp sport 46859 counter packets 0 bytes 0
+		ip saddr 127.0.0.11 udp sport 53226 counter packets 0 bytes 0
+	}
+
+	chain POSTROUTING {
+		type nat hook postrouting priority srcnat; policy accept;
+		ip daddr 127.0.0.11 counter packets 0 bytes 0 jump DOCKER_POSTROUTING
+	}
+}
+table inet evidence {
+	counter received {
+		packets 0 bytes 0
+	}
+
+	chain input {
+		type filter hook input priority filter; policy accept;
+		meta l4proto { tcp, udp } counter name "received"
+	}
+}

@@ -1,0 +1,15 @@
+{
+  "pids": {
+    "stdout": "PIDS_BLOCKED 46 11\n",
+    "stderr": "",
+    "code": 0
+  },
+  "memory": {
+    "stdout": "",
+    "stderr": "",
+    "code": 137
+  },
+  "events": "low 0\nhigh 0\nmax 43\noom 1\noom_kill 1\noom_group_kill 0\nsock_throttled 0\n",
+  "before": "usage_usec 467932\nuser_usec 300315\nsystem_usec 167617\nnice_usec 0\nnr_periods 38\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+  "after": "usage_usec 1514679\nuser_usec 1340327\nsystem_usec 174351\nnice_usec 0\nnr_periods 59\nnr_throttled 21\nthrottled_usec 975269\nnr_bursts 0\nburst_usec 0\n"
+}

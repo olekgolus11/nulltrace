@@ -1,0 +1,6 @@
+{"kind": "http", "value": "/readiness"}
+{"kind": "http", "value": "/allowed"}
+{"kind": "http", "value": "/allowed-v6"}
+{"kind": "http", "value": "/allowed-tls"}
+{"kind": "http", "value": "/allowed-tls-v6"}
+{"kind": "http", "value": "/redirect"}

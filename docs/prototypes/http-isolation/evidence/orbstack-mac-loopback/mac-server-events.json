@@ -1,0 +1,10 @@
+[
+  {
+    "host": "localhost:54766",
+    "path": "/mac-http"
+  },
+  {
+    "host": "localhost:54767",
+    "path": "/mac-tls"
+  }
+]

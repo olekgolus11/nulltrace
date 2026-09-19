@@ -1,0 +1,45 @@
+table ip nat {
+	chain DOCKER_OUTPUT {
+		ip daddr 127.0.0.11 tcp dport 53 counter packets 0 bytes 0
+		ip daddr 127.0.0.11 udp dport 53 counter packets 0 bytes 0
+	}
+
+	chain OUTPUT {
+		type nat hook output priority -100; policy accept;
+		ip daddr 127.0.0.11 counter packets 0 bytes 0 jump DOCKER_OUTPUT
+	}
+
+	chain DOCKER_POSTROUTING {
+		ip saddr 127.0.0.11 tcp sport 38155 counter packets 0 bytes 0
+		ip saddr 127.0.0.11 udp sport 41400 counter packets 0 bytes 0
+	}
+
+	chain POSTROUTING {
+		type nat hook postrouting priority srcnat; policy accept;
+		ip daddr 127.0.0.11 counter packets 0 bytes 0 jump DOCKER_POSTROUTING
+	}
+}
+table inet containment {
+	chain input {
+		type filter hook input priority filter; policy drop;
+		ct state established,related accept
+		ip saddr 172.30.170.10 tcp dport 3128 accept
+		ip6 saddr fd79:c1de:8de7:2::30 ip6 hoplimit 255 icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert } accept
+		counter packets 2 bytes 144
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+		counter packets 0 bytes 0
+	}
+
+	chain output {
+		type filter hook output priority filter; policy drop;
+		ct state established,related accept
+		ip daddr 172.30.171.30 tcp dport { 8080, 8443 } accept
+		ip6 daddr fd79:c1de:8de7:2::30 tcp dport { 8080, 8443 } accept
+		ip6 daddr ff02::1:ff00:30 ip6 hoplimit 255 icmpv6 type nd-neighbor-solicit accept
+		ip6 daddr fd79:c1de:8de7:2::30 ip6 hoplimit 255 icmpv6 type nd-neighbor-advert accept
+		counter packets 1 bytes 96
+	}
+}

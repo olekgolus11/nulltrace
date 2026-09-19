@@ -1,0 +1,6 @@
+{
+  "hostAddress": "0.250.250.254",
+  "hostHttpPort": 54766,
+  "hostTlsPort": 54767,
+  "binding": "127.0.0.1"
+}
