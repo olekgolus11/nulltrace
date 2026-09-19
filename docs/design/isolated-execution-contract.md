@@ -1,6 +1,6 @@
 # Isolated execution and result lifecycle contract
 
-Status: draft for operator review. Application ownership/disconnect behavior and operator-configurable installation limits have been accepted; this document proposes the remaining contract. No application implementation is included.
+Status: accepted by the operator. This is the implementation contract for the broker and subsequent tool migrations; implementation and verification remain pending. No application implementation is included.
 
 Decision ticket: [Define the isolated execution and result lifecycle contract](https://github.com/olekgolus11/nulltrace/issues/144). Architecture: [ADR 0008](../adr/0008-use-a-broker-and-per-run-http-network-isolation.md).
 
