@@ -2,30 +2,34 @@
 
 Status: implementation backlog design completed under delegated planning. Production implementation and runtime qualification are not complete. [Decision](https://github.com/olekgolus11/nulltrace/issues/155).
 
+Implementation tracking: [Implement the isolated Docker distribution in staged migrations](https://github.com/olekgolus11/nulltrace/issues/157). These tasks have not been dispatched.
+
 ## Ordered implementation cuts
 
 Each row is a separate reviewable implementation task. Tools are migrated one at a time; shared infrastructure is not bundled into a single 'isolate everything' task. API/network/config/secret boundaries are fixed by the accepted contracts, not rediscovered differently in each scanner.
 
 | Order | Task | Depends on / exit condition |
 | --- | --- | --- |
-| F1 | Structured execution plans and broker authorization protocol | Existing execution contract; typed versioned plans, fixed profile IDs, ownership, at-most-once start, no generic runtime forwarding. |
-| F2 | Per-run HTTP provisioning and egress enforcement | F1; worker/proxy default-drop and trusted resolver/mappings; verified policy before start. Existing infrastructure qualification remains open. |
-| F3 | Supervision, budgets, safe results and reconciliation | F1/F2; cancellation/lease/timeout/crash cleanup, bounded streams/artifacts, replay-safe app persistence and failure lock. |
-| F4 | Native macOS credential companion and secret slots | F1/F3; authenticated bootstrap on both runtimes, Keychain semantics, version/tombstone/revocation and synthetic-secret tests. |
-| H1 | Isolate Auth Check | F2/F3/F4; real comparison and version eligibility through the worker, no app fetch. |
-| T1 | Migrate cURL | H1 plus shared foundation; first full public/authenticated app-to-result vertical slice. A public proof may run earlier but is not task completion. |
-| H2 | Isolate public sitemap crawl | T1; preserve automatic target deduplication and bounded checkpoints. |
-| H3 | Isolate authenticated sitemap crawl | H1/H2/F4; temporary cookie jar, isolated verification, version-bound pause/resume. |
-| T2 | Migrate Playwright with exact-origin blocking | T1/H1/F4; browser sandbox qualification, partial snapshots and blocked-origin reporting. |
-| P1 | Add operator-selected auxiliary inspection resources | T2; separate grant UI/credential-free resource delivery, no automatic grants or main-page scope expansion. |
-| T3 | Migrate ffuf | T2 and pinned SecLists; three modes, JSON/sitemap/Findings parity. |
-| T4 | Migrate Nuclei | T3 plus template/protocol inventory and required protocol infrastructure; OAST policy choice gates dependent coverage. |
-| T5 | Migrate Nikto | T4; profiles and disruptive confirmation preserved. |
-| T6 | Migrate sqlmap | T5; existing targeted verification and artifacts preserved. |
-| Q1 | Qualify Nmap raw packet enforcement and scan fidelity | F1/F3; prototype external gateway enforcement on both runtimes. May run before tool migration sequence reaches Nmap. |
-| T7 | Migrate Nmap | T6/Q1; explicit approved IP/port/protocol plans and connect/raw fidelity matrix. |
-| C1 | Isolate OpenCode and replace direct session imports | F1/F3/F4/T2; provider/control network separation, context bridge, provider login and reports. Run after scanner sequence for sequential delivery. |
-| D1 | Package the macOS Docker distribution and qualify release | All migrations plus P1 if advertised, infrastructure/credential/browser/Nmap qualification and no remaining direct-network paths. |
+| [F0](https://github.com/olekgolus11/nulltrace/issues/158) | Build pinned runtime images and dataset catalogs | Fixed binaries, immutable SecLists/templates, provenance and read-only catalogs. |
+| [F1](https://github.com/olekgolus11/nulltrace/issues/159) | Structured execution plans and broker authorization protocol | Existing execution contract; typed versioned plans, fixed profile IDs, ownership, at-most-once start, no generic runtime forwarding. |
+| [F2](https://github.com/olekgolus11/nulltrace/issues/160) | Per-run HTTP provisioning and egress enforcement | F1; worker/proxy default-drop and trusted resolver/mappings; verified policy before start. Existing infrastructure qualification remains open. |
+| [F3](https://github.com/olekgolus11/nulltrace/issues/161) | Supervision, budgets, safe results and reconciliation | F1/F2; cancellation/lease/timeout/crash cleanup, bounded streams/artifacts, replay-safe app persistence and failure lock. |
+| [F4](https://github.com/olekgolus11/nulltrace/issues/162) | Native macOS credential companion and secret slots | F1/F3; authenticated bootstrap on both runtimes, Keychain semantics, version/tombstone/revocation and synthetic-secret tests. |
+| [H1](https://github.com/olekgolus11/nulltrace/issues/163) | Isolate Auth Check | F2/F3/F4; real comparison and version eligibility through the worker, no app fetch. |
+| [T1](https://github.com/olekgolus11/nulltrace/issues/164) | Migrate cURL | H1 plus shared foundation; first full public/authenticated app-to-result vertical slice. A public proof may run earlier but is not task completion. |
+| [H2](https://github.com/olekgolus11/nulltrace/issues/165) | Isolate public sitemap crawl | T1; preserve automatic target deduplication and bounded checkpoints. |
+| [H3](https://github.com/olekgolus11/nulltrace/issues/166) | Isolate authenticated sitemap crawl | H1/H2/F4; temporary cookie jar, isolated verification, version-bound pause/resume. |
+| [T2](https://github.com/olekgolus11/nulltrace/issues/167) | Migrate Playwright with exact-origin blocking | T1/H1/F4; browser sandbox qualification, partial snapshots and blocked-origin reporting. |
+| [P1](https://github.com/olekgolus11/nulltrace/issues/168) | Add operator-selected auxiliary inspection resources | T2; separate grant UI/credential-free resource delivery, no automatic grants or main-page scope expansion. |
+| [T3](https://github.com/olekgolus11/nulltrace/issues/169) | Migrate ffuf | T2 and pinned SecLists; three modes, JSON/sitemap/Findings parity. |
+| [Q2](https://github.com/olekgolus11/nulltrace/issues/170) | Implement and qualify non-HTTP target protocol enforcement | F3; target TCP/TLS/DNS profiles and mixed-workflow scope, without weakening HTTP egress. |
+| [T4](https://github.com/olekgolus11/nulltrace/issues/171) | Migrate Nuclei | T3 plus template/protocol inventory and required protocol infrastructure; OAST policy choice gates dependent coverage. |
+| [T5](https://github.com/olekgolus11/nulltrace/issues/172) | Migrate Nikto | T4; profiles and disruptive confirmation preserved. |
+| [T6](https://github.com/olekgolus11/nulltrace/issues/173) | Migrate sqlmap | T5; existing targeted verification and artifacts preserved. |
+| [Q1](https://github.com/olekgolus11/nulltrace/issues/174) | Qualify Nmap raw packet enforcement and scan fidelity | F1/F3; prototype external gateway enforcement on both runtimes. May run before tool migration sequence reaches Nmap. |
+| [T7](https://github.com/olekgolus11/nulltrace/issues/175) | Migrate Nmap | T6/Q1; explicit approved IP/port/protocol plans and connect/raw fidelity matrix. |
+| [C1](https://github.com/olekgolus11/nulltrace/issues/176) | Isolate OpenCode and replace direct session imports | F1/F3/F4/T2; provider/control network separation, context bridge, provider login and reports. Run after scanner sequence for sequential delivery. |
+| [D1](https://github.com/olekgolus11/nulltrace/issues/177) | Package the macOS Docker distribution and qualify release | All migrations plus P1 if advertised, infrastructure/credential/browser/Nmap qualification and no remaining direct-network paths. |
 
 Protocol/gateway support needed by public non-HTTP Nuclei is shared infrastructure and must be factored as its own implementation task before T4; it must not be hidden in the Nmap task or enable direct egress for ordinary HTTP workers. Catalog construction and image maintenance are a separate packaging foundation deliverable. See the GitHub backlog for concrete issues/dependencies.
 

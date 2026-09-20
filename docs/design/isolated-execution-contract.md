@@ -86,3 +86,7 @@ The minimal shared implementation consists of the structured plan/profile valida
 Required contract tests cover duplicate/lost start acknowledgements, cross-owner requests, cancellation during every phase, deadline races, heartbeat expiry, replay after restart, failed cleanup and unavailable engines; output splits across secret/control-sequence boundaries; oversized frames/files and malicious paths; duplicate imports; and preservation of existing per-tool history/artifact semantics. Real runtime tests additionally prove pre-send enforcement, resource limits, whole-process-tree termination, secret destruction and orphan cleanup. Existing unit tests and the HTTP prototype do not establish these new guarantees.
 
 Credential transport/storage policy belongs to its separate decision. Tool-specific values, supported command modes and output formats belong to each migration decision. This contract does not enable OpenCode web access, expand target scope or change session-wide Playwright consent.
+
+## Crawl checkpoint clarification
+
+The delegated migration analysis distinguishes scanner execution recovery from existing sitemap checkpoint semantics: owner loss terminates the environment, while a subsequent authorized public-crawl re-entry or explicit resume can create a new execution from a bounded checkpoint under ADR 0003. It never revives an orphan process or automatically reruns a scanner. See [Auth Check and crawl migration](isolation/http-operations.md).
