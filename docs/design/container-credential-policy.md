@@ -1,6 +1,6 @@
 # Container credential delivery and persistence
 
-Status: draft for operator review. The operator accepted a native macOS Keychain companion and revocation of executions using removed/replaced target credentials. The remaining policy below is proposed; no implementation or security qualification is claimed.
+Status: accepted implementation contract. The operator accepted this credential policy, including a native macOS Keychain companion and revocation of executions using removed/replaced target credentials. Implementation and security qualification remain pending.
 
 Decision: [Define credential delivery and persistence in the container distribution](https://github.com/olekgolus11/nulltrace/issues/145). Prerequisites: [ADR 0008](../adr/0008-use-a-broker-and-per-run-http-network-isolation.md) and the accepted [execution contract](isolated-execution-contract.md). Preserve ADRs 0002, 0004, 0005, 0006 and 0007.
 
@@ -73,4 +73,4 @@ Required evidence includes: companion identity/pairing and cross-installation re
 
 First implement/qualify the narrowly scoped companion and control-plane adapter, then connect it to the shared secret-slot lifecycle, and migrate target tools individually. Provider integration stays with the OpenCode boundary task. Do not add raw-evidence functionality solely to finish isolation planning. Linux-native/Windows-native existing adapters remain outside this macOS distribution choice and keep ADR 0006 behavior.
 
-No secret-bearing user files, login records or real Keychain items were read for this decision. No credential prototype or acceptance test has yet been run. This policy is a proposed implementation contract, not a security claim for today's application.
+No secret-bearing user files, login records or real Keychain items were read for this decision. No credential prototype or acceptance test has yet been run. This policy is an accepted implementation contract, not a security claim for today's application.
