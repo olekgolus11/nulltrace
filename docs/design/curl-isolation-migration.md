@@ -1,6 +1,6 @@
 # cURL isolation migration and first vertical-slice proof
 
-Status: draft for operator review. This is an implementation handoff, not an implemented or qualified security boundary.
+Status: accepted by the operator as the cURL implementation contract. Implementation and security qualification remain pending.
 
 Decision: [Specify the cURL isolation migration and first vertical-slice proof](https://github.com/olekgolus11/nulltrace/issues/146). Follow [ADR 0008](../adr/0008-use-a-broker-and-per-run-http-network-isolation.md), the [execution contract](isolated-execution-contract.md), and the [credential policy](container-credential-policy.md).
 
@@ -84,4 +84,4 @@ Run focused unit/contract tests, integration tests, bun test, bunx tsc --noEmit 
 
 Extend the cURL registry adapter, command preparation and authenticated preparation; refactor the fixed execution runner into testable worker behavior. Put public contracts in concept-scoped types files and pure parsing/mapping in helpers per CODING_STANDARDS.md. Keep ToolRunnerService and session persistence responsible for existing logs/history. Shared backend changes belong to the shared foundation, not duplicated cURL-specific infrastructure. Keep TUI changes limited to accurate lifecycle/error messages.
 
-The migration is complete only with public and authenticated compatibility, independent pre-send endpoint enforcement, bounded resources/output, all-path cleanup, no host fallback and persisted results, with the requested runtime matrix qualified. Planning approval does not satisfy these gates. No production code or acceptance tests were run for this draft.
+The migration is complete only with public and authenticated compatibility, independent pre-send endpoint enforcement, bounded resources/output, all-path cleanup, no host fallback and persisted results, with the requested runtime matrix qualified. Planning approval does not satisfy these gates. This decision changed documentation only; no production implementation or acceptance tests were performed.
