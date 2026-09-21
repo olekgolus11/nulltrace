@@ -10,7 +10,7 @@ Read [execution](../isolated-execution-contract.md), [credentials](../container-
 | --- | --- |
 | [Playwright](playwright.md) | Exact-origin browser, bounded partial snapshots, separate optional resource approval workflow. |
 | [ffuf](ffuf.md) | All three existing modes, pinned SecLists, request files and JSON results. |
-| [Nuclei](nuclei.md) | Distinct authenticated/public profiles; template classification; explicit unresolved auxiliary-service policy. |
+| [Nuclei](nuclei.md) | Distinct authenticated/public profiles; template classification; explicitly approved, narrowly configured OAST service exception. |
 | [Nikto](nikto.md) | Standard/Custom, disruptive confirmation, controlled config and JSON. |
 | [sqlmap](sqlmap.md) | Existing targeted detection-only request semantics and log-derived results. |
 | [Nmap](nmap.md) | Connect and raw profiles with independent external packet enforcement. |

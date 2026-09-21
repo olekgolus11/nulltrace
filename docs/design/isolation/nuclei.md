@@ -1,6 +1,6 @@
 # Nuclei migration and template coverage decision
 
-Status: implementation analysis complete; auxiliary-service authorization remains an explicit final operator decision. [Decision](https://github.com/olekgolus11/nulltrace/issues/149) must not be closed as full compatibility resolved until that choice is made.
+Status: implementation contract accepted. On 2026-09-21 the operator approved a narrowly configured OAST service exception. [Decision](https://github.com/olekgolus11/nulltrace/issues/149). Implementation and full template/profile qualification remain pending.
 
 ## Baseline and compatibility
 
@@ -22,13 +22,15 @@ Unknown options or arbitrary shell behavior cannot be relied on to describe scop
 
 No runtime update, cloud upload, remote template retrieval or telemetry egress is implicit. HTTP proxy and internal-proxy flags are fixed by the trusted profile; unknown bypass flags still cannot open network paths. Nuclei/config/cache are private bounded storage; templates are read-only.
 
-## OAST conflict left for the operator
+## Accepted OAST service exception
 
 OAST requires communication with an interaction service besides the target. Upstream exposes an Interactsh server setting; disabling Interactsh excludes OAST-based templates. Therefore a strict target-only network rule and full OAST compatibility cannot both be promised. [Nuclei running documentation](https://docs.projectdiscovery.io/opensource/nuclei/running).
 
-Recommendation: allow an explicitly configured, operator-approved auxiliary Interactsh service for Nuclei only, ideally operator-controlled, with its own pinned control endpoint and bounded polling/registration profile. Keep its credentials separate from target credentials and out of argv/env. Record the approved service in run policy/provenance; no random provider fallback. Target-originated DNS/HTTP callbacks occur outside NullTrace's namespace and cannot be contained by its firewall.
+Allow an explicitly configured, operator-approved auxiliary Interactsh service for Nuclei only, preferably operator-controlled, with its own pinned control endpoint and bounded polling/registration profile. Keep its credentials separate from target credentials and out of argv/env. Record the approved service in run policy/provenance; no random provider fallback. Target-originated DNS/HTTP callbacks occur outside NullTrace's namespace and cannot be contained by its firewall.
 
-This recommendation is not adopted as blanket Internet permission. Until the operator chooses whether such an exception is acceptable, OAST-dependent runs are explicitly unavailable/incomplete; do not silently append no-interactsh and call the scan equivalent. Non-OAST implementation can proceed without resolving this final policy choice, but full Nuclei compatibility/release acceptance cannot. Other auxiliary/cloud service dependencies need the same explicit scope treatment, not automatic allowlisting from template text.
+This is not blanket Internet permission and does not select a service address today. Trusted installation configuration registers the exact service origin, validated address/port mappings and separate service credential reference. A run snapshots that named profile together with target scope; neither a template nor the model can choose another service or change it mid-run. No automatic public-provider fallback or rotation is allowed. Missing or unqualified service configuration makes OAST-dependent runs explicitly unavailable/incomplete; do not silently append no-interactsh and call the scan equivalent.
+
+Permit only required registration/polling connections through independently enforced egress; validate service responses and callback identifiers against the configured service contract rather than using them to open arbitrary new destinations. The OAST exception does not authorize forwarding target cookies/headers, browser storage or provider credentials to the interaction service. Service tokens need a private input/config channel supported by the pinned Nuclei version; do not use a secret-bearing CLI flag as a shortcut. Other tools, inspection grants, update/cloud services and unrelated auxiliary dependencies do not inherit this exception.
 
 ## Secrets, output and lifecycle
 
@@ -38,6 +40,6 @@ One declared JSONL slot with byte/line/record/depth limits; raw request/response
 
 ## Acceptance
 
-Build a reproducible template coverage manifest for every release. Exercise at least one representative fixture per selected protocol and mixed workflow, plus intentionally hostile template/code/redirect behavior. For every in-scope case preserve expected findings and source metadata; for unavailable profiles report exact affected template IDs/reasons. Test HTTP allowed/redirect B-zero, direct TCP/TLS allowed tuple and forbidden ports, DNS target-only policy, headless background paths and OAST separately after authorization.
+Build a reproducible template coverage manifest for every release. Exercise at least one representative fixture per selected protocol and mixed workflow, plus intentionally hostile template/code/redirect behavior. For every in-scope case preserve expected findings and source metadata; for unavailable profiles report exact affected template IDs/reasons. Test HTTP allowed/redirect B-zero, direct TCP/TLS allowed tuple and forbidden ports, DNS target-only policy, headless background paths and OAST separately using the explicitly configured approved service. Verify registration/polling succeeds, an alternate service receives zero traffic, missing service configuration fails clearly, service/target credentials remain separate, and polling stops on timeout/cancellation/revocation.
 
 Verify no unapproved template fetch/update/cloud/control traffic, no host/app/store reads, credentials only at exact target, no transformed request logs accidentally retained, bounded malformed JSONL, cancellation/revocation/timeout/crash and all secret/scratch cleanup. Existing public/authenticated unit tests and the generic HTTP experiment are insufficient evidence for all official templates.

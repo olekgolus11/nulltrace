@@ -1,6 +1,6 @@
 # Planning completion audit
 
-This audit covers the delegated analysis/planning objective, not production implementation. The operator explicitly allowed genuinely unresolved choices to be left at the end. The planning map therefore remains open for the Nuclei OAST choice and existing infrastructure qualification; no completed-security claim follows from this audit.
+This audit covers the delegated analysis/planning objective, not production implementation. The operator explicitly allowed genuinely unresolved choices to be left at the end. The operator subsequently accepted the Nuclei OAST exception on 2026-09-21; existing infrastructure qualification remains open; no completed-security claim follows from this audit.
 
 | Requirement | Authoritative planning evidence | Result |
 | --- | --- | --- |
@@ -14,9 +14,9 @@ This audit covers the delegated analysis/planning objective, not production impl
 | OpenCode and reports | opencode.md | Restricted per-session runtime, controlled API, provider egress and disabled web tools; actual mutating tool permissions retained. |
 | One-tool-at-a-time implementation | GitHub parent 157 and its 20 child issues | Verified 20 open unstarted tasks and all 28 expected native blocked-by edges. |
 | Acceptance tests | delivery.md plus each handoff | Receiver-side zero contact, malicious-worker bypass, IPv4/IPv6/DNS, host/store canaries, resources, lifecycle, credentials and results explicitly assigned. |
-| Final unknowns | delivery.md and nuclei.md | One unresolved operator policy: OAST auxiliary service. Additional standalone-origin navigation is optional later scope, not a prerequisite. Runtime uncertainty is assigned to qualification tasks. |
+| Final unknowns | delivery.md and nuclei.md | OAST auxiliary service policy accepted on 2026-09-21; service configuration and runtime evidence remain implementation work. Additional standalone-origin navigation is optional later scope, not a prerequisite. Runtime uncertainty is assigned to qualification tasks. |
 | English tracker/artifacts | Published docs, issues and commits | English; no implementation tasks dispatched. |
 
 Verification performed against the unchanged application baseline: bun test exited 0 with 596 passing tests across 93 files and 2,030 assertions; bunx tsc --noEmit exited 0. This pass changed documentation only. No new firewall/browser/raw-packet/Keychain acceptance experiment or manual isolated application test was run. The previous controlled OrbStack HTTP experiment remains limited to its published report.
 
-Relative documentation links and staged diff whitespace were checked. Tracker audit verified eight planning decisions closed, Nuclei policy and infrastructure qualification still open, and the map left open. Implementation and release gates remain unfulfilled by design. The final claim is that independent analysis and the staged handoff are complete, not that isolation is implemented or all policy choices are settled.
+Relative documentation links and staged diff whitespace were checked. The initial tracker audit verified eight planning decisions closed, with Nuclei policy and infrastructure qualification still open. The subsequent operator approval resolves the Nuclei policy; infrastructure qualification remains open. Implementation and release gates remain unfulfilled by design. The final claim is that independent analysis and the staged handoff are complete, not that isolation is implemented or qualified.

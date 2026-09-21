@@ -23,7 +23,7 @@ Each row is a separate reviewable implementation task. Tools are migrated one at
 | [P1](https://github.com/olekgolus11/nulltrace/issues/168) | Add operator-selected auxiliary inspection resources | T2; separate grant UI/credential-free resource delivery, no automatic grants or main-page scope expansion. |
 | [T3](https://github.com/olekgolus11/nulltrace/issues/169) | Migrate ffuf | T2 and pinned SecLists; three modes, JSON/sitemap/Findings parity. |
 | [Q2](https://github.com/olekgolus11/nulltrace/issues/170) | Implement and qualify non-HTTP target protocol enforcement | F3; target TCP/TLS/DNS profiles and mixed-workflow scope, without weakening HTTP egress. |
-| [T4](https://github.com/olekgolus11/nulltrace/issues/171) | Migrate Nuclei | T3 plus template/protocol inventory and required protocol infrastructure; OAST policy choice gates dependent coverage. |
+| [T4](https://github.com/olekgolus11/nulltrace/issues/171) | Migrate Nuclei | T3 plus template/protocol inventory and required protocol infrastructure; approved OAST service configuration and qualification gate dependent coverage. |
 | [T5](https://github.com/olekgolus11/nulltrace/issues/172) | Migrate Nikto | T4; profiles and disruptive confirmation preserved. |
 | [T6](https://github.com/olekgolus11/nulltrace/issues/173) | Migrate sqlmap | T5; existing targeted verification and artifacts preserved. |
 | [Q1](https://github.com/olekgolus11/nulltrace/issues/174) | Qualify Nmap raw packet enforcement and scan fidelity | F1/F3; prototype external gateway enforcement on both runtimes. May run before tool migration sequence reaches Nmap. |
@@ -80,9 +80,9 @@ The existing OrbStack report contains passing controlled HTTP infrastructure exp
 
 The application baseline was checked during this planning pass: bun test passed 596 tests across 93 files (2,030 assertions), and bunx tsc --noEmit exited 0. These checks do not cover the proposed broker, firewall or container migrations. Documentation link/structure/diff checks are recorded with the planning commit.
 
-## Decisions left for the operator, after all independent analysis
+## Final policy decisions and remaining qualification
 
-1. **Nuclei external interaction services:** may Nuclei contact an explicitly configured auxiliary OAST service? Recommendation: yes, only a named operator-approved service/profile, never arbitrary third-party fallback. Without this exception, affected tests are unavailable and full existing coverage cannot be claimed. This is the only current decision preventing completion of the Nuclei compatibility policy.
+1. **Nuclei external interaction services:** accepted by the operator on 2026-09-21. Allow only a named operator-approved OAST service/profile, never arbitrary third-party fallback. Concrete service configuration, private token delivery and runtime qualification remain implementation gates; no unresolved operator policy choice blocks the planned migration.
 2. **Optional future inspection navigation:** the selected plan uses checkboxes for auxiliary resources only. Opening additional origins as standalone pages or SSO would be a later expansion, not a blocker for the exact-origin migration or proposed resource workflow. No answer is needed to proceed with the selected limited design.
 
 Unmeasured platform behavior is not a question for the operator to guess. Test it in the named qualification tasks. If raw scan fidelity or secure companion transport cannot be achieved on a requested runtime, bring back evidence and an explicit alternative rather than silently reducing capability or disabling isolation.
