@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "resolvedAt": "2026-09-21",
+  "debianSnapshot": "20260921T060000Z",
+  "images": {
+    "bun": {
+      "reference": "oven/bun@sha256:5a2011bf09364b9af658ac1e66f60d08092f4291aeefbff448d58b027734fdd0",
+      "version": "1.2.21",
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ]
+    },
+    "debian": {
+      "reference": "library/debian@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251",
+      "version": "bookworm-slim",
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux",
+          "variant": "v8"
+        }
+      ]
+    },
+    "nuclei": {
+      "reference": "projectdiscovery/nuclei@sha256:582d5546902e67052097cb2d07296c642d50a1afc5e44623cb038845df9a32eb",
+      "version": "v3.11.1",
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ]
+    },
+    "browser": {
+      "reference": "mcr.microsoft.com/playwright@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48",
+      "version": "1.61.1",
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ]
+    }
+  },
+  "datasets": {
+    "seclists": {
+      "repository": "danielmiessler/SecLists",
+      "revision": "46572c91ef3ac36bde108164801a3edf4e2cc525",
+      "license": "MIT; individual payload files may have additional notices",
+      "sha256": "e57e4dcddbbc0dcab218cbffd8f9dccc5e2bfa1d9a147b409327a49c06e2527b",
+      "archiveRoot": "SecLists-46572c91ef3ac36bde108164801a3edf4e2cc525"
+    },
+    "nuclei-templates": {
+      "repository": "projectdiscovery/nuclei-templates",
+      "revision": "883b9d5b0f45857738f35446cdb1b03e09d969d5",
+      "license": "MIT",
+      "sha256": "d5f21344e12cde4fec1d42db237e3e82775110a3b9f57879868028d830a146d6",
+      "archiveRoot": "nuclei-templates-883b9d5b0f45857738f35446cdb1b03e09d969d5"
+    }
+  },
+  "packages": {
+    "ca-certificates": "20230311+deb12u1",
+    "curl": "7.88.1-10+deb12u15",
+    "iproute2": "6.1.0-3",
+    "nftables": "1.0.6-2+deb12u2",
+    "nmap": "7.93+dfsg1-1",
+    "perl": "5.36.0-7+deb12u3",
+    "python3": "3.11.2-1+b1",
+    "squid": "5.7-2+deb12u5",
+    "tar": "1.34+dfsg-1.2+deb12u1",
+    "zsh": "5.9-4+b15"
+  },
+  "ffuf": {
+    "version": "2.3.0",
+    "sha256": {
+      "amd64": "b2a3c725fcb9da175159682f54d6e9149f2905b00d84d155e7efc5d599975ceb",
+      "arm64": "e2d712615d53da797ee929006e41f2df5a7960a5353133db9c150ddaa22ae4e8"
+    }
+  },
+  "opencode": {
+    "version": "1.17.7",
+    "sha256": {
+      "arm64": "ac80ea0ee7e3f10483bd98298654b6aaddc305c880b162667a03e742d9843fe6",
+      "amd64": "60fe5a92dc9af64ec079348fedde17e12da6a867efe7e8353be8038480607924"
+    }
+  },
+  "licenseFiles": {
+    "nuclei-LICENSE.md": "5fa6644d2dd1987a79c06f4af210d2cf8cfc4ee799999029d0f9980c9cf95a2c",
+    "bun-LICENSE.md": "4cf82fd717b2b34dfabf6087c35fcffd28386054f1791d2e6ecfdfcafe0131a8",
+    "opencode-LICENSE": "625f0f619133f89bbbb2abe37369613dfa1885eba1e50d02170deb62bb42cb6b"
+  },
+  "sources": {
+    "nikto": {
+      "repository": "sullo/nikto",
+      "revision": "312645d873478a77986627ab1fc8cffe595e85d4",
+      "sha256": "fbd123fab2d74bfb0a4c66c158aabdfa394dd642bab618ada844956562b62fac",
+      "archiveRoot": "nikto-312645d873478a77986627ab1fc8cffe595e85d4"
+    },
+    "sqlmap": {
+      "repository": "sqlmapproject/sqlmap",
+      "revision": "2171eb123cbfb155298a2c61cf5a3802b766a83a",
+      "sha256": "5f3f1d4a8d5e41f7f94195a952794a2eaca2561474bf1300b87e7d0e5cf198d2",
+      "archiveRoot": "sqlmap-2171eb123cbfb155298a2c61cf5a3802b766a83a"
+    }
+  }
+}
