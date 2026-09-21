@@ -14,7 +14,8 @@
     "@types/bun": "latest",
     "@types/react": "^19.2.7",
     "prettier": "3.9.5",
-    "react-devtools-core": "7"
+    "react-devtools-core": "7",
+    "typescript": "^7.0.2"
   },
   "peerDependencies": {
     "typescript": "^5"

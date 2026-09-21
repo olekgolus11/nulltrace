@@ -3,11 +3,14 @@ import { Database } from "bun:sqlite";
 import { ExecutionAdmissionStatus, StoredExecutionReceipt } from "../types/execution-broker.types";
 import { ExecutionBrokerError } from "./execution-broker.error";
 
+const DEFAULT_RECEIPT_CAPACITY = 10_000;
+const HMAC_KEY_BYTES = 32;
+
 export class ExecutionReceiptRepository {
   private readonly key: Uint8Array;
 
-  constructor(private readonly database: Database, key: Uint8Array, private readonly capacity = 10_000) {
-    if (key.byteLength !== 32 || !Number.isSafeInteger(capacity) || capacity < 1) {
+  constructor(private readonly database: Database, key: Uint8Array, private readonly capacity = DEFAULT_RECEIPT_CAPACITY) {
+    if (key.byteLength !== HMAC_KEY_BYTES || !Number.isSafeInteger(capacity) || capacity < 1) {
       throw new Error("Invalid execution receipt configuration.");
     }
     this.key = Uint8Array.from(key);

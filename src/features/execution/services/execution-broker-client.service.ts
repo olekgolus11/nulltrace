@@ -3,12 +3,16 @@ import { ExecutionPlan } from "../types/execution-plan.types";
 import { ExecutionBrokerError } from "./execution-broker.error";
 import { requireExecutionId, requireExecutionRecord } from "./execution-validation.helpers";
 
+const CLIENT_TIMEOUT_MS = 10_000;
+const MAXIMUM_RESPONSE_BYTES = 4_096;
+const TOKEN_FORMAT = /^[a-f0-9]{64}$/;
+
 export class ExecutionBrokerClient {
   constructor(
     private readonly transport: (request: Request) => Promise<Response>,
     private readonly token: string,
   ) {
-    if (!/^[a-f0-9]{64}$/.test(token)) throw new Error("Invalid broker credential.");
+    if (!TOKEN_FORMAT.test(token)) throw new Error("Invalid broker credential.");
   }
 
   prepare(plan: ExecutionPlan): Promise<ExecutionReceipt> {
@@ -33,7 +37,7 @@ export class ExecutionBrokerClient {
         method: "POST",
         headers: { authorization: `Bearer ${this.token}`, "content-type": contentType },
         body,
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(CLIENT_TIMEOUT_MS),
       }));
       const reader = response.body?.getReader();
       if (!reader) throw new Error("Missing broker response.");
@@ -44,10 +48,11 @@ export class ExecutionBrokerClient {
           const { done, value } = await reader.read();
           if (done) break;
           size += value.byteLength;
-          if (size > 4_096) throw new Error("Oversized broker response.");
+          if (size > MAXIMUM_RESPONSE_BYTES) throw new Error("Oversized broker response.");
           chunks.push(value);
         }
       } finally {
+        // Best-effort cleanup; no failure propagation.
         await reader.cancel().catch(() => {});
         reader.releaseLock();
       }
@@ -67,6 +72,7 @@ export class ExecutionBrokerClient {
       }
       return { executionId, status, cleanup };
     } catch (error) {
+      // Preserve broker errors; wrap transport/parse failures as UNAVAILABLE.
       throw error instanceof ExecutionBrokerError ? error : new ExecutionBrokerError("UNAVAILABLE");
     }
   }
