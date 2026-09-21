@@ -17,6 +17,7 @@ Read [execution](../isolated-execution-contract.md), [credentials](../container-
 | [Auth Check and crawling](http-operations.md) | Three separate migrations; preserve public automatic crawl and existing checkpoints. |
 | [OpenCode](opencode.md) | Session runtime isolation, provider egress, narrow session API and reports. |
 | [Delivery and evidence](delivery.md) | Shared foundation, ordered separate implementations, release gates and remaining questions. |
+| [Planning audit](verification.md) | Requirement coverage, baseline checks and explicit limits of completion. |
 | [Boundary inventory](inventory.md) | Process/network paths and trust model. |
 
 No tool migration is complete until its real acceptance tests pass. The existing OrbStack experiment proves only the paths listed in its report. Docker Desktop, raw packets, browser mediation, companion transport and full application flows remain qualification work. A blocked/incomplete scan must not be reported as a clean result.

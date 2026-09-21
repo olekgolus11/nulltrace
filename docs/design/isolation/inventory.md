@@ -1,6 +1,6 @@
 # Boundary inventory and threat model
 
-Source audit: src/ and scripts/, excluding __tests__, at f6ef6e0. Searches cover Bun.spawn, child_process spawn, fetch, Chromium launch, WebSocket and server/socket constructors. SQL database.exec and RegExp.exec matches are not process execution. Libraries and spawned tools can open their own sockets; this inventory identifies application entry points, not a claim that text search proves all transitive behavior.
+Source audit: src/ and scripts/, excluding __tests__, at f6ef6e0. Searches cover Bun.spawn, child_process spawn, fetch, Chromium launch, WebSocket and server/socket constructors, with follow-up searches for synchronous spawn/exec and alternate HTTP/socket APIs. SQL database.exec and RegExp.exec matches are not process execution. Libraries and spawned tools can open their own sockets; this inventory identifies application entry points, not a claim that text search proves all transitive behavior.
 
 | Entry point | Current authority | Planned boundary |
 | --- | --- | --- |
@@ -11,7 +11,7 @@ Source audit: src/ and scripts/, excluding __tests__, at f6ef6e0. Searches cover
 | sitemap/services/public-sitemap-crawler.service.ts | Direct fetch plus HTML/XML parsing, target persistence | Isolated crawler worker, application-owned persistence. |
 | sitemap/services/authenticated-sitemap-crawler.service.ts | Direct fetch, mutable temporary cookie jar and verifier | Authenticated worker plus isolated verifier interface. |
 | authentication/services/platform-secret-store.ts | Platform utilities; Mac write secret in argv | Native user-level Keychain companion for macOS container distribution; existing other-platform adapters outside this scope. |
-| chat/services/opencode-server.service.ts | Shared local OpenCode server, SDK/control HTTP | Per-session restricted runtime and bounded control plane. |
+| chat/services/opencode-server.service.ts | Shared local OpenCode server, SDK/control HTTP and loopback port-reservation listener | Per-session restricted runtime and bounded control plane. |
 | scripts/chat-auth.ts | OpenCode auth CLI with runtime environment | Controlled login adapter and provider secret synchronization. |
 | chat/services/opencode-runtime.config.ts | Most inherited env; app data and source import paths | Fixed image/config; thin authenticated session bridge stubs. |
 | chat/services/chat-context-tools.service.ts and related registries | Tools import application services directly | App-side handlers authorize attachment and object ownership per call. |
