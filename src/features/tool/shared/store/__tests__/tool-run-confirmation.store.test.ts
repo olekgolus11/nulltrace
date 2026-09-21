@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, spyOn } from "bun:test";
 import { niktoCommandService } from "../../../nikto/services/nikto-command.service";
+import { commandRunnerService } from "../../services/command-runner.service";
 import { useToolWorkspaceStore } from "../tool-workspace.store";
 
 afterEach(() => {
@@ -74,10 +75,16 @@ describe("tool run confirmation", () => {
       isHistoricPreview: false,
     });
 
-    await useToolWorkspaceStore.getState().runCommand();
+    const run = spyOn(commandRunnerService, "run").mockResolvedValue(0);
+    try {
+      await useToolWorkspaceStore.getState().runCommand();
 
-    const current = useToolWorkspaceStore.getState().toolData as typeof data;
-    expect(current.form.useAuthenticatedContext).toBe(false);
-    expect(current.authentication.strategy).toBe("none");
+      expect(run).toHaveBeenCalledTimes(1);
+      const current = useToolWorkspaceStore.getState().toolData as typeof data;
+      expect(current.form.useAuthenticatedContext).toBe(false);
+      expect(current.authentication.strategy).toBe("none");
+    } finally {
+      run.mockRestore();
+    }
   });
 });
