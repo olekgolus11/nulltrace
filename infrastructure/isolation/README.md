@@ -68,3 +68,13 @@ Docker Desktop, Linux AMD64 execution, Chromium sandbox launch, exact-origin pro
 - `bunx tsc --noEmit` and `git diff --check`: passed.
 - Six native ARM64 images built and passed the offline verifier on OrbStack. See [the recorded evidence](evidence/orbstack-arm64.json).
 - The existing Nikto authentication-selection unit test now stubs its runner instead of launching an installed scanner. This removes the earlier host-dependent timeout without changing application behavior.
+
+## HTTP network qualification
+
+After building the `tools`, `proxy` and `network-init` images, run the receiver-side HTTP containment checks with:
+
+```sh
+bun run infrastructure/isolation/qualify-http-network.ts linux/arm64
+```
+
+The test uses controlled host receivers and verifies allowed delivery, blocked cross-origin redirects, blocked direct proxy bypass, blocked worker DNS and blocked unauthorized IPv6. See [the network design](../../docs/design/http-execution-network.md) for the boundary and platform limits.

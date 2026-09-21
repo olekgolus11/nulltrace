@@ -1,0 +1,57 @@
+{
+  "checkedAt": "2026-09-21T21:26:00.764Z",
+  "platform": "linux/arm64",
+  "runtime": {
+    "engine": "Docker Engine - Community 29.4.0",
+    "apiVersion": "1.54",
+    "kernel": "7.0.14-orbstack-00380-ga7e0a2dc9535",
+    "containerd": "v2.2.2",
+    "runc": "1.5.1"
+  },
+  "releaseLockSha256": "0b24c4e3933cc22efdcd9351f44c45d286e0ed99fc271b0776c210d026db1505",
+  "images": {
+    "worker": "sha256:4d22539322310c38f02f580ae8d7f2cd251eccaad48d356d664946219be93048",
+    "proxy": "sha256:f09182c93bd061a9b848b3f9eb7c1565a7b00f05b72c27d6c5baee4a98cc19f1",
+    "initializer": "sha256:45217ed397209f25014ac7e1e5d27f4f5146a394b4db40ec560d98a6abb2d2a7"
+  },
+  "hostRoute": {
+    "containerAddress": "0.250.250.254",
+    "receiverBinding": "127.0.0.1",
+    "mapping": "approved.test only"
+  },
+  "checks": [
+    {
+      "name": "allowed exact-origin request",
+      "passed": true,
+      "receiverRequests": 1,
+      "cleanupConfirmed": true
+    },
+    {
+      "name": "cross-origin redirect blocked before receiver",
+      "passed": true,
+      "forbiddenReceiverRequests": 0,
+      "proxyDenyRecorded": true
+    },
+    {
+      "name": "direct proxy bypass blocked before receiver",
+      "passed": true,
+      "forbiddenReceiverRequests": 0
+    },
+    {
+      "name": "worker DNS and unauthorized IPv6 are blocked",
+      "passed": true,
+      "forbiddenReceiverRequests": 0
+    }
+  ],
+  "postRunResources": {
+    "containersWithExecutionLabel": 0,
+    "networksWithExecutionLabel": 0
+  },
+  "notQualified": [
+    "Docker Desktop",
+    "linux/amd64",
+    "public IPv6 delivery",
+    "LAN and VPN targets",
+    "AppArmor or SELinux enforcement"
+  ]
+}
