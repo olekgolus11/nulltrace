@@ -1,0 +1,11 @@
+*
+!Dockerfile
+!release.lock.json
+!build-catalog.py
+!archives/
+!archives/*.tar.gz
+!browser/
+!browser/package.json
+!browser/bun.lock
+!licenses/
+!licenses/*
