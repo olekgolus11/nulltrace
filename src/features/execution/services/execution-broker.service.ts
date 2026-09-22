@@ -28,6 +28,7 @@ export class ExecutionBrokerService {
     try {
       plan = parseExecutionPlan(value, this.options.profiles);
     } catch {
+      // Schema validation failure; suppress internal parse errors.
       throw new ExecutionBrokerError("INVALID_REQUEST");
     }
     this.authorize(principal, plan);
@@ -79,6 +80,7 @@ export class ExecutionBrokerService {
       this.receipts.sealInput(executionId, slotId, fingerprint);
       return this.get(principal, executionId);
     } catch {
+      // Runtime adapter failure; suppress infrastructure detail.
       this.receipts.markInterrupted(executionId);
       throw new ExecutionBrokerError("UNAVAILABLE");
     } finally {
@@ -102,6 +104,7 @@ export class ExecutionBrokerService {
       await runtime.start(structuredClone(plan));
       this.receipts.markStarted(executionId);
     } catch {
+      // Runtime adapter failure; suppress infrastructure detail.
       this.receipts.markInterrupted(executionId);
       throw new ExecutionBrokerError("UNAVAILABLE");
     }
@@ -116,13 +119,19 @@ export class ExecutionBrokerService {
     try {
       approved = parseExecutionPlan(approval.plan, this.options.profiles);
     } catch {
+      // Malformed or profile-mismatched approval.
       throw new ExecutionBrokerError("UNAUTHORIZED");
     }
     if (this.receipts.fingerprint(approved) !== this.receipts.fingerprint(plan)) throw new ExecutionBrokerError("UNAUTHORIZED");
   }
 
   private owned(principal: ExecutionPrincipal, executionId: string): StoredExecutionReceipt {
-    try { requireExecutionId(executionId); } catch { throw new ExecutionBrokerError("INVALID_REQUEST"); }
+    try {
+      requireExecutionId(executionId);
+    } catch {
+      // Invalid execution ID format.
+      throw new ExecutionBrokerError("INVALID_REQUEST");
+    }
     const receipt = this.receipts.find(executionId);
     if (!receipt || receipt.owner !== this.owner(principal)) throw new ExecutionBrokerError("NOT_FOUND");
     return receipt;

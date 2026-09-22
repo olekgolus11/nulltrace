@@ -4,16 +4,23 @@ import { ExecutionBrokerError } from "./execution-broker.error";
 import { ExecutionBrokerService } from "./execution-broker.service";
 import { requireExecutionId, requireExecutionRecord } from "./execution-validation.helpers";
 
+const MAXIMUM_CONCURRENT_REQUESTS = 16;
+const MAXIMUM_IDENTITIES = 32;
+const MAXIMUM_JSON_REQUEST_BYTES = 65_536;
+const MAXIMUM_ABSOLUTE_INPUT_BYTES = 8 * 1024 * 1024;
+const REQUEST_TIMEOUT_MS = 5_000;
+const TOKEN_FORMAT = /^[a-f0-9]{64}$/;
+
 export class ExecutionBrokerHttpService {
   private readonly identities: Array<{ digest: Buffer; principal: ExecutionPrincipal }>;
   private activeRequests = 0;
 
   constructor(private readonly broker: ExecutionBrokerService, identities: ExecutionBrokerIdentity[]) {
-    if (!identities.length || identities.length > 32 || new Set(identities.map((identity) => identity.token)).size !== identities.length) {
+    if (!identities.length || identities.length > MAXIMUM_IDENTITIES || new Set(identities.map((identity) => identity.token)).size !== identities.length) {
       throw new Error("Invalid broker identities.");
     }
     this.identities = identities.map(({ token, principal }) => {
-      if (!/^[a-f0-9]{64}$/.test(token)) throw new Error("Invalid broker credential.");
+      if (!TOKEN_FORMAT.test(token)) throw new Error("Invalid broker credential.");
       return {
         digest: createHash("sha256").update(token).digest(),
         principal: {
@@ -25,7 +32,7 @@ export class ExecutionBrokerHttpService {
   }
 
   async handle(request: Request): Promise<Response> {
-    if (this.activeRequests >= 16) return this.errorResponse(new ExecutionBrokerError("CAPACITY"));
+    if (this.activeRequests >= MAXIMUM_CONCURRENT_REQUESTS) return this.errorResponse(new ExecutionBrokerError("CAPACITY"));
     this.activeRequests += 1;
     try {
       const principal = this.authenticate(request);
@@ -38,24 +45,33 @@ export class ExecutionBrokerHttpService {
         if (request.headers.get("content-type") !== "application/octet-stream") throw new ExecutionBrokerError("INVALID_REQUEST");
         const [, executionId, slotId] = inputMatch;
         const limit = this.broker.inputLimit(principal, executionId!, slotId!);
-        const bytes = await this.readBody(request, Math.min(limit, 8 * 1024 * 1024));
+        const bytes = await this.readBody(request, Math.min(limit, MAXIMUM_ABSOLUTE_INPUT_BYTES));
         try {
           return Response.json(await this.broker.putInput(principal, executionId!, slotId!, bytes));
         } finally {
+          // Zero-fill the secret buffer.
           bytes.fill(0);
         }
       }
       if (!["/v1/prepare", "/v1/get", "/v1/start"].includes(path) || request.headers.get("content-type") !== "application/json") {
         throw new ExecutionBrokerError("INVALID_REQUEST");
       }
-      const bytes = await this.readBody(request, 65_536);
+      const bytes = await this.readBody(request, MAXIMUM_JSON_REQUEST_BYTES);
       let payload: unknown;
-      try { payload = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); }
-      catch { throw new ExecutionBrokerError("INVALID_REQUEST"); }
+      try {
+        payload = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+      } catch {
+        // JSON parse failure; suppress decoder detail.
+        throw new ExecutionBrokerError("INVALID_REQUEST");
+      }
       if (path === "/v1/prepare") return Response.json(this.broker.prepare(principal, payload));
       let executionId: string;
-      try { executionId = requireExecutionId(requireExecutionRecord(payload, ["executionId"]).executionId); }
-      catch { throw new ExecutionBrokerError("INVALID_REQUEST"); }
+      try {
+        executionId = requireExecutionId(requireExecutionRecord(payload, ["executionId"]).executionId);
+      } catch {
+        // Schema validation failure.
+        throw new ExecutionBrokerError("INVALID_REQUEST");
+      }
       return Response.json(path === "/v1/get"
         ? this.broker.get(principal, executionId)
         : await this.broker.start(principal, executionId));
@@ -85,10 +101,11 @@ export class ExecutionBrokerHttpService {
     let wasInterrupted = false;
     const interrupt = () => {
       wasInterrupted = true;
+      // Best-effort cancellation; caller still handles aborted state.
       void reader.cancel().catch(() => {});
     };
     request.signal.addEventListener("abort", interrupt, { once: true });
-    const timer = setTimeout(interrupt, 5_000);
+    const timer = setTimeout(interrupt, REQUEST_TIMEOUT_MS);
     try {
       while (true) {
         if (request.signal.aborted) throw new ExecutionBrokerError("INVALID_REQUEST");
@@ -103,7 +120,9 @@ export class ExecutionBrokerHttpService {
     } finally {
       clearTimeout(timer);
       request.signal.removeEventListener("abort", interrupt);
+      // Best-effort cleanup; no failure propagation.
       if (!didFinish) await reader.cancel().catch(() => {});
+      // Zero-fill the secret buffers.
       chunks.forEach((chunk) => chunk.fill(0));
       reader.releaseLock();
     }

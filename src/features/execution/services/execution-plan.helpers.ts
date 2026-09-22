@@ -6,6 +6,13 @@ import {
   requireExecutionRecord,
 } from "./execution-validation.helpers";
 
+const MAXIMUM_INPUT_SLOTS = 16;
+const MAXIMUM_ARGV_LENGTH = 256;
+const MAXIMUM_ARGV_BYTES = 32_768;
+const MAXIMUM_ORIGIN_COUNT = 32;
+const MAXIMUM_ORIGIN_LENGTH = 2_048;
+const MAXIMUM_INPUT_BYTES = 8 * 1024 * 1024;
+
 const limitKeys = ["timeoutMs", "memoryBytes", "cpuMilliCores", "processCount", "scratchBytes", "fileBytes", "outputBytes"];
 
 export function parseExecutionPlan(value: unknown, profiles: readonly ExecutionProfile[]): ExecutionPlan {
@@ -21,14 +28,14 @@ export function parseExecutionPlan(value: unknown, profiles: readonly ExecutionP
   const executableId = requireExecutionId(invocation.executableId);
   if (!profile.executableIds.includes(executableId)) throw new Error("Unavailable executable.");
   let argvBytes = 0;
-  const argv = requireExecutionArray(invocation.argv, 256).map((argument) => {
+  const argv = requireExecutionArray(invocation.argv, MAXIMUM_ARGV_LENGTH).map((argument) => {
     if (typeof argument !== "string" || argument.includes("\0")) throw new Error("Invalid execution argument.");
     argvBytes += Buffer.byteLength(argument);
-    if (argvBytes > 32_768) throw new Error("Execution arguments exceed the limit.");
+    if (argvBytes > MAXIMUM_ARGV_BYTES) throw new Error("Execution arguments exceed the limit.");
     return argument;
   });
-  const origins = requireExecutionArray(record.origins, 32).map((value) => {
-    if (typeof value !== "string" || value.length > 2_048) throw new Error("Invalid execution origin.");
+  const origins = requireExecutionArray(record.origins, MAXIMUM_ORIGIN_COUNT).map((value) => {
+    if (typeof value !== "string" || value.length > MAXIMUM_ORIGIN_LENGTH) throw new Error("Invalid execution origin.");
     const url = new URL(value);
     if (!["http:", "https:"].includes(url.protocol) || url.origin !== value || url.username || url.password) {
       throw new Error("Execution origins must be normalized HTTP origins.");
@@ -36,7 +43,7 @@ export function parseExecutionPlan(value: unknown, profiles: readonly ExecutionP
     return value;
   });
   if (!origins.length || new Set(origins).size !== origins.length) throw new Error("Invalid execution origins.");
-  const inputs = requireExecutionArray(record.inputs, 16).map((value) => parseInput(value, profile));
+  const inputs = requireExecutionArray(record.inputs, MAXIMUM_INPUT_SLOTS).map((value) => parseInput(value, profile));
   if (new Set(inputs.map((input) => input.id)).size !== inputs.length || inputs.length !== profile.inputs.length) {
     throw new Error("Execution input slots do not match the profile.");
   }
@@ -59,7 +66,7 @@ function parseInput(value: unknown, profile: ExecutionProfile): ExecutionInputSl
   const id = requireExecutionId(input.id);
   const allowed = profile.inputs.find((slot) => slot.id === id);
   if (!allowed || input.kind !== allowed.kind) throw new Error("Invalid execution input slot.");
-  return { id, kind: allowed.kind, maximumBytes: requireExecutionInteger(input.maximumBytes, Math.min(allowed.maximumBytes, 8 * 1024 * 1024)) };
+  return { id, kind: allowed.kind, maximumBytes: requireExecutionInteger(input.maximumBytes, Math.min(allowed.maximumBytes, MAXIMUM_INPUT_BYTES)) };
 }
 
 function parseLimits(value: unknown, maximum: ExecutionLimits): ExecutionLimits {
