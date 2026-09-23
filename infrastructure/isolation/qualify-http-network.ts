@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DockerCommandService } from "../../src/features/execution/services/docker-command.service";
 import { ExecutionBrokerLockService } from "../../src/features/execution/services/execution-broker-lock.service";
+import { ExecutionEventBufferService } from "../../src/features/execution/services/execution-event-buffer.service";
 import { HttpExecutionNetworkService } from "../../src/features/execution/services/http-execution-network.service";
 import { createHttpExecutionNetworkPolicy } from "../../src/features/execution/services/http-execution-policy.helpers";
 import { ExecutionLimits } from "../../src/features/execution/types/execution-plan.types";
@@ -46,6 +47,7 @@ const allowed = Bun.serve({
     if (url.pathname === "/redirect") {
       return new Response(null, { status: 302, headers: { location: `http://forbidden.test:${deniedPort}/redirect-target` } });
     }
+    if (url.pathname === "/large") return new Response("x".repeat(2 * 1024 * 1024));
     return new Response("approved-server\n");
   },
 });
@@ -98,6 +100,18 @@ try {
     const orphanAfter = await docker.run(["network", "inspect", orphanNetwork], { timeoutMs: 10_000 });
     expect(orphanAfter.exitCode !== 0, "A labeled orphan network survived startup reconciliation.");
     return `receiver count ${allowedEvents.length}; cleanup confirmed`;
+  });
+  await check("bounded worker events drain without stopping the approved request", async () => {
+    const events = new ExecutionEventBufferService("qualification-events", 1024);
+    const result = await service.run(allowedPolicy("qualification-events"), limits, "curl", [
+      "--silent", "--show-error", "--fail", "--max-time", "10", `${allowedOrigin}/large`,
+    ], undefined, (stream, chunk) => events.append(stream, chunk));
+    events.finish();
+    expect(result.command.exitCode === 0, "A large approved response stopped the worker.");
+    expect(result.command.stdout === "" && result.command.stderr === "", "Raw worker output was retained.");
+    expect(events.read(-1).events.some((event) => event.stream === "system" && event.line.includes("truncated")), "Output truncation was not reported.");
+    expect(result.evidence.cleanupConfirmed, "Streaming run cleanup was not confirmed.");
+    return "approved large response completed; bounded events and cleanup confirmed";
   });
   await check("cross-origin redirect blocked before receiver", async () => {
     const before = deniedEvents.length;

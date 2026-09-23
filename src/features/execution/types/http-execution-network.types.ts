@@ -1,4 +1,5 @@
 import { ExecutionBrokerOwnershipLock } from "./execution-broker-lock.types";
+import { ExecutionOutputStream } from "./execution-event.types";
 
 export interface HttpExecutionEndpoint {
   origin: string;
@@ -80,6 +81,7 @@ export interface DockerCommandOptions {
   timeoutMs?: number;
   outputLimitBytes?: number;
   signal?: AbortSignal;
+  onOutput?: (stream: ExecutionOutputStream, chunk: Uint8Array) => void;
 }
 
 export interface DockerCommandAdapter {

@@ -1,4 +1,5 @@
 import { ExecutionInputSlot, ExecutionPlan, ExecutionProfile } from "./execution-plan.types";
+import { ExecutionEventPage } from "./execution-event.types";
 
 export interface ExecutionPrincipal {
   installationId: string;
@@ -22,6 +23,7 @@ export interface ExecutionReceipt {
 export interface ExecutionRuntimeAdapter {
   putInput(plan: ExecutionPlan, slot: ExecutionInputSlot, bytes: Uint8Array): Promise<void>;
   start(plan: ExecutionPlan): Promise<void>;
+  readEvents?(executionId: string, afterSequence: number, maximumEvents?: number): ExecutionEventPage;
 }
 
 export interface ExecutionBrokerOptions {

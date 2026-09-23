@@ -169,6 +169,52 @@ describe("execution admission", () => {
 });
 
 describe("broker transport", () => {
+  test("pages public events only for the approved execution owner", async () => {
+    const database = new Database(":memory:");
+    databases.push(database);
+    const receipts = new ExecutionReceiptRepository(database, new Uint8Array(32).fill(7));
+    const publicProfile: ExecutionProfile = { ...profile, id: "public-http", mode: "public", inputs: [] };
+    const publicPlan: ExecutionPlan = { ...original, profileId: publicProfile.id, mode: "public", inputs: [] };
+    const broker = new ExecutionBrokerService(receipts, {
+      profiles: [publicProfile],
+      now: () => 1000,
+      readAuthorization: () => ({ principal, plan: publicPlan, expiresAt: 2000 }),
+      runtime: {
+        async putInput() {},
+        async start() {},
+        readEvents(executionId, afterSequence) {
+          return {
+            executionId,
+            events: afterSequence < 0 ? [{ executionId, sequence: 0, stream: "stdout", line: "safe" }] : [],
+            nextSequence: Math.max(afterSequence, 0),
+            hasMore: false,
+          };
+        },
+      },
+    });
+    const http = new ExecutionBrokerHttpService(broker, [{ token, principal }]);
+    const client = new ExecutionBrokerClient((request) => http.handle(request), token);
+    await client.prepare(publicPlan);
+    await client.start(publicPlan.executionId);
+    expect(await client.readEvents(publicPlan.executionId, -1)).toMatchObject({
+      events: [{ sequence: 0, line: "safe" }], nextSequence: 0,
+    });
+    expect(() => broker.readEvents({ ...principal, instanceId: "other" }, publicPlan.executionId, -1)).toThrow("NOT_FOUND");
+    expect((await http.handle(request("events", JSON.stringify({ executionId: "run-1", afterSequence: -2 })))).status).toBe(400);
+  });
+
+  test("rejects broker event pages with control bytes or sequence gaps", async () => {
+    for (const event of [
+      { executionId: "run-1", sequence: 2, stream: "stdout", line: "safe" },
+      { executionId: "run-1", sequence: 0, stream: "stdout", line: "\u001b[31msecret" },
+    ]) {
+      const client = new ExecutionBrokerClient(async () => Response.json({
+        executionId: "run-1", events: [event], nextSequence: event.sequence, hasMore: false,
+      }), token);
+      await expect(client.readEvents("run-1", -1)).rejects.toThrow("UNAVAILABLE");
+    }
+  });
+
   test("authenticates before reading untrusted payloads and sanitizes errors", async () => {
     const state = fixture(":memory:", { async putInput() {}, async start() { throw new Error("driver-secret-canary"); } });
     const http = new ExecutionBrokerHttpService(state.broker, [{ token, principal }]);

@@ -45,7 +45,7 @@ export class ExecutionBrokerHttpService {
           bytes.fill(0);
         }
       }
-      if (!["/v1/prepare", "/v1/get", "/v1/start"].includes(path) || request.headers.get("content-type") !== "application/json") {
+      if (!["/v1/prepare", "/v1/get", "/v1/start", "/v1/events"].includes(path) || request.headers.get("content-type") !== "application/json") {
         throw new ExecutionBrokerError("INVALID_REQUEST");
       }
       const bytes = await this.readBody(request, 65_536);
@@ -53,6 +53,13 @@ export class ExecutionBrokerHttpService {
       try { payload = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); }
       catch { throw new ExecutionBrokerError("INVALID_REQUEST"); }
       if (path === "/v1/prepare") return Response.json(this.broker.prepare(principal, payload));
+      if (path === "/v1/events") {
+        const record = requireExecutionRecord(payload, ["executionId", "afterSequence"]);
+        if (!Number.isSafeInteger(record.afterSequence) || (record.afterSequence as number) < -1) {
+          throw new ExecutionBrokerError("INVALID_REQUEST");
+        }
+        return Response.json(this.broker.readEvents(principal, requireExecutionId(record.executionId), record.afterSequence as number));
+      }
       let executionId: string;
       try { executionId = requireExecutionId(requireExecutionRecord(payload, ["executionId"]).executionId); }
       catch { throw new ExecutionBrokerError("INVALID_REQUEST"); }
