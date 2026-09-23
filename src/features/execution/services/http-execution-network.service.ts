@@ -20,6 +20,11 @@ import {
   normalizeNetworkAddress,
 } from "./http-execution-policy.helpers";
 
+const MAXIMUM_TIMEOUT_MS = 30 * 60_000;
+const INITIALIZER_MEMORY_BYTES = 64 * 1024 * 1024;
+const INITIALIZER_TMP_BYTES = 8 * 1024 * 1024;
+const WORKER_TMP_BYTES = 32 * 1024 * 1024;
+
 export class HttpExecutionNetworkService {
   private readonly active = new Set<string>();
   private reconciliation: Promise<void> | null = null;
@@ -32,7 +37,7 @@ export class HttpExecutionNetworkService {
       if (!/^sha256:[a-f0-9]{64}$/.test(image)) throw new Error("Isolation images must use immutable local IDs.");
     }
     for (const timeout of [options.commandTimeoutMs, options.setupTimeoutMs, options.cleanupTimeoutMs]) {
-      if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 30 * 60_000) throw new Error("Invalid isolation timeout.");
+      if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > MAXIMUM_TIMEOUT_MS) throw new Error("Invalid isolation timeout.");
     }
   }
 
@@ -223,7 +228,7 @@ export class HttpExecutionNetworkService {
       "--memory", String(limits.memoryBytes), "--memory-swap", String(limits.memoryBytes), "--cpus", cpu,
       "--pids-limit", String(limits.processCount), "--ulimit", `fsize=${limits.fileBytes}:${limits.fileBytes}`,
       "--tmpfs", `/work:rw,noexec,nosuid,nodev,size=${limits.scratchBytes},uid=65532,gid=65532,mode=700`,
-      "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=33554432,mode=1777",
+      "--tmpfs", `/tmp:rw,noexec,nosuid,nodev,size=${WORKER_TMP_BYTES},mode=1777`,
       "--entrypoint", "sleep", image, "infinity",
     ], this.options.setupTimeoutMs, undefined, signal);
   }
@@ -239,8 +244,8 @@ export class HttpExecutionNetworkService {
       "run", "--rm", "-i", "--network", `container:${container}`, "--label", `nulltrace.execution=${names.label}`,
       "--label", `nulltrace.installation=${this.options.installationId}`,
       "--read-only", "--user", "0:0", "--cap-drop", "ALL", "--cap-add", "NET_ADMIN",
-      "--security-opt", "no-new-privileges:true", "--memory", "67108864", "--memory-swap", "67108864",
-      "--cpus", "0.25", "--pids-limit", "16", "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=8388608,mode=1777",
+      "--security-opt", "no-new-privileges:true", "--memory", String(INITIALIZER_MEMORY_BYTES), "--memory-swap", String(INITIALIZER_MEMORY_BYTES),
+      "--cpus", "0.25", "--pids-limit", "16", "--tmpfs", `/tmp:rw,noexec,nosuid,nodev,size=${INITIALIZER_TMP_BYTES},mode=1777`,
       this.options.images.initializer,
     ];
     await this.requireSuccess([...common, "nft", "-f", "-"], this.options.setupTimeoutMs, new TextEncoder().encode(rules), signal);

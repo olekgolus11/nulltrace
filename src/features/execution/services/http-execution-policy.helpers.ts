@@ -2,6 +2,11 @@ import { isIP } from "node:net";
 import { HttpExecutionEndpoint, HttpExecutionNetworkPolicy } from "../types/http-execution-network.types";
 import { requireExecutionId } from "./execution-validation.helpers";
 
+const MAXIMUM_ORIGINS = 32;
+const MAXIMUM_ENDPOINTS = 128;
+const MAXIMUM_TRUSTED_MAPPINGS = 32;
+const MAXIMUM_MAPPING_ADDRESSES = 16;
+
 const forbiddenIpv4 = [
   ["0.0.0.0", 8],
   ["10.0.0.0", 8],
@@ -26,7 +31,7 @@ export function createHttpExecutionNetworkPolicy(
   trustedNonPublicMappings: Readonly<Record<string, readonly string[]>> = {},
 ): HttpExecutionNetworkPolicy {
   requireExecutionId(executionId);
-  if (!origins.length || origins.length > 32 || !endpoints.length || endpoints.length > 128) {
+  if (!origins.length || origins.length > MAXIMUM_ORIGINS || !endpoints.length || endpoints.length > MAXIMUM_ENDPOINTS) {
     throw new Error("Invalid HTTP network policy size.");
   }
   const normalizedOrigins = origins.map(parseOrigin);
@@ -35,10 +40,10 @@ export function createHttpExecutionNetworkPolicy(
   }
   const allowedOrigins = new Map(normalizedOrigins.map((origin) => [origin.origin, origin]));
   const mappingEntries = Object.entries(trustedNonPublicMappings);
-  if (mappingEntries.length > 32) throw new Error("Too many trusted non-public host mappings.");
+  if (mappingEntries.length > MAXIMUM_TRUSTED_MAPPINGS) throw new Error("Too many trusted non-public host mappings.");
   const trustedAddresses = new Map(mappingEntries.map(([hostname, addresses]) => {
     const normalizedHostname = normalizeHostname(hostname);
-    if (!addresses.length || addresses.length > 16) throw new Error("Invalid trusted host mapping.");
+    if (!addresses.length || addresses.length > MAXIMUM_MAPPING_ADDRESSES) throw new Error("Invalid trusted host mapping.");
     return [normalizedHostname, new Set(addresses.map((address) => {
       const normalizedAddress = normalizeNetworkAddress(address);
       if (isForbiddenInfrastructureAddress(normalizedAddress)) throw new Error("Invalid trusted infrastructure address.");

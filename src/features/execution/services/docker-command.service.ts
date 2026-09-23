@@ -1,7 +1,10 @@
 import { DockerCommandAdapter, DockerCommandOptions, DockerCommandResult } from "../types/http-execution-network.types";
 
+const DEFAULT_OUTPUT_LIMIT_BYTES = 1024 * 1024;
+const MAXIMUM_TIMEOUT_MS = 30 * 60_000;
+
 export class DockerCommandService implements DockerCommandAdapter {
-  constructor(private readonly executable = "docker", private readonly outputLimitBytes = 1024 * 1024) {
+  constructor(private readonly executable = "docker", private readonly outputLimitBytes = DEFAULT_OUTPUT_LIMIT_BYTES) {
     if (!executable || !Number.isSafeInteger(outputLimitBytes) || outputLimitBytes < 4096) {
       throw new Error("Invalid Docker command configuration.");
     }
@@ -12,7 +15,7 @@ export class DockerCommandService implements DockerCommandAdapter {
       throw new Error("Invalid Docker command.");
     }
     const timeoutMs = options.timeoutMs ?? 30_000;
-    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30 * 60_000) {
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > MAXIMUM_TIMEOUT_MS) {
       throw new Error("Invalid Docker command timeout.");
     }
     const outputLimitBytes = options.outputLimitBytes ?? this.outputLimitBytes;

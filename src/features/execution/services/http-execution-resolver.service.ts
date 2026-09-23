@@ -9,13 +9,18 @@ import {
 import { createHttpExecutionNetworkPolicy } from "./http-execution-policy.helpers";
 import { requireExecutionId } from "./execution-validation.helpers";
 
+const DEFAULT_TIMEOUT_MS = 5_000;
+const MAXIMUM_TIMEOUT_MS = 30_000;
+const MAXIMUM_ORIGINS = 32;
+const MAXIMUM_RESOLVED_ADDRESSES = 16;
+
 export class HttpExecutionResolverService {
   private readonly lookup: (hostname: string) => Promise<HttpResolvedAddress[]>;
   private readonly timeoutMs: number;
 
   constructor(private readonly options: HttpExecutionResolverOptions) {
-    this.timeoutMs = options.timeoutMs ?? 5_000;
-    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 100 || this.timeoutMs > 30_000) {
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 100 || this.timeoutMs > MAXIMUM_TIMEOUT_MS) {
       throw new Error("Invalid target resolution timeout.");
     }
     this.lookup = options.lookup ?? (async (hostname) => {
@@ -30,7 +35,7 @@ export class HttpExecutionResolverService {
   async resolve(executionId: string, origins: readonly string[]): Promise<HttpExecutionNetworkPolicy> {
     requireExecutionId(executionId);
     const parsedOrigins = origins.map(parseOrigin);
-    if (!parsedOrigins.length || parsedOrigins.length > 32 ||
+    if (!parsedOrigins.length || parsedOrigins.length > MAXIMUM_ORIGINS ||
       new Set(parsedOrigins.map(({ origin }) => origin)).size !== parsedOrigins.length) {
       throw new Error("Invalid HTTP origin set.");
     }
@@ -40,7 +45,7 @@ export class HttpExecutionResolverService {
       const resolved = literalFamily
         ? [{ address: hostname, family: literalFamily as 4 | 6 }]
         : await this.lookupBounded(hostname);
-      if (!resolved.length || resolved.length > 16) throw new Error("Target resolution returned an invalid address count.");
+      if (!resolved.length || resolved.length > MAXIMUM_RESOLVED_ADDRESSES) throw new Error("Target resolution returned an invalid address count.");
       for (const candidate of resolved) {
         if (candidate.family !== isIP(candidate.address)) throw new Error("Target resolver returned an invalid address.");
         endpoints.push({ origin, hostname, address: candidate.address, family: candidate.family, port });
