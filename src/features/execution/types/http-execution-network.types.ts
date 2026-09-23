@@ -1,3 +1,5 @@
+import { ExecutionBrokerOwnershipLock } from "./execution-broker-lock.types";
+
 export interface HttpExecutionEndpoint {
   origin: string;
   hostname: string;
@@ -20,6 +22,8 @@ export interface HttpExecutionNetworkImages {
 
 export interface HttpExecutionNetworkOptions {
   images: HttpExecutionNetworkImages;
+  installationId: string;
+  ownershipLock: ExecutionBrokerOwnershipLock;
   trustedNonPublicMappings: Record<string, string[]>;
   commandTimeoutMs: number;
   setupTimeoutMs: number;
@@ -75,6 +79,7 @@ export interface DockerCommandOptions {
   input?: Uint8Array;
   timeoutMs?: number;
   outputLimitBytes?: number;
+  signal?: AbortSignal;
 }
 
 export interface DockerCommandAdapter {

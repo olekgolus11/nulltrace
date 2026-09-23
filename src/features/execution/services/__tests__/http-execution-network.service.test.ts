@@ -35,6 +35,11 @@ class RecordingDocker implements DockerCommandAdapter {
   readonly calls: Array<{ args: string[]; input?: string; outputLimitBytes?: number }> = [];
   failVerification = false;
   failWorker = false;
+  onWorkerStart?: () => void;
+  ownedContainers: string[] = [];
+  ownedNetworks: string[] = [];
+  inventoryUnavailable = false;
+  cleanupBlocked = false;
 
   async run(args: string[], options: DockerCommandOptions = {}): Promise<DockerCommandResult> {
     this.calls.push({
@@ -42,6 +47,23 @@ class RecordingDocker implements DockerCommandAdapter {
       input: options.input ? new TextDecoder().decode(options.input) : undefined,
       outputLimitBytes: options.outputLimitBytes,
     });
+    if (args.includes("label=nulltrace.installation=test-installation")) {
+      if (this.inventoryUnavailable) return { exitCode: 1, stdout: "", stderr: "unavailable" };
+      return {
+        exitCode: 0,
+        stdout: (args[0] === "ps" ? this.ownedContainers : this.ownedNetworks).join("\n"),
+        stderr: "",
+      };
+    }
+    if (args.some((value) => value.startsWith("label=nulltrace.execution=")) && args[0] === "ps" && this.cleanupBlocked) {
+      return { exitCode: 0, stdout: "c".repeat(12), stderr: "" };
+    }
+    if (args[0] === "rm" && args[1] === "-f") {
+      this.ownedContainers = this.ownedContainers.filter((id) => !args.includes(id));
+    }
+    if (args[0] === "network" && args[1] === "rm") {
+      this.ownedNetworks = this.ownedNetworks.filter((id) => !args.includes(id));
+    }
     if (args.includes("nft") && args.includes("-j")) {
       if (this.failVerification) return { exitCode: 0, stdout: '{"nftables":[]}', stderr: "" };
       const input = this.calls.findLast((call) => call.args.includes("nft") && call.args.includes("-f"))?.input ?? "";
@@ -59,10 +81,11 @@ class RecordingDocker implements DockerCommandAdapter {
         stderr: "",
       };
     }
-    if (args[0] === "exec" && args.includes("cat") && args.includes("/work/access.log")) {
+    if (args[0] === "exec" && args.includes("tail") && args.includes("/work/access.log")) {
       return { exitCode: 0, stdout: "1.000 172.29.1.10 TCP_MISS/200 GET 93.184.216.34\n", stderr: "" };
     }
     if (args[0] === "exec" && args.includes("HTTP_PROXY=http://" + this.proxyAddress() + ":3128")) {
+      this.onWorkerStart?.();
       if (this.failWorker) throw new Error("worker failed");
       return { exitCode: 0, stdout: "allowed", stderr: "" };
     }
@@ -78,6 +101,8 @@ class RecordingDocker implements DockerCommandAdapter {
 function service(docker: RecordingDocker) {
   return new HttpExecutionNetworkService(docker, {
     images: { worker: image, proxy: image, initializer: image },
+    installationId: "test-installation",
+    ownershipLock: { assertHeld() {} },
     trustedNonPublicMappings: {},
     commandTimeoutMs: 5000,
     setupTimeoutMs: 5000,
@@ -141,5 +166,51 @@ describe("HTTP execution network provisioning", () => {
     await expect(service(docker).run(policy, limits, "curl", ["http://approved.test:8080/"])).rejects.toThrow("worker failed");
     expect(docker.calls.filter((call) => call.args[0] === "rm" && call.args[1] === "-f")).toHaveLength(2);
     expect(docker.calls.filter((call) => call.args[0] === "network" && call.args[1] === "rm")).toHaveLength(2);
+  });
+
+  test("cancellation during worker execution still destroys both containers and networks", async () => {
+    const docker = new RecordingDocker();
+    const owner = new AbortController();
+    docker.onWorkerStart = () => owner.abort();
+    await expect(service(docker).run(policy, limits, "curl", ["http://approved.test:8080/"], owner.signal))
+      .rejects.toThrow("cancelled");
+    expect(docker.calls.filter((call) => call.args[0] === "rm" && call.args[1] === "-f")).toHaveLength(2);
+    expect(docker.calls.filter((call) => call.args[0] === "network" && call.args[1] === "rm")).toHaveLength(2);
+  });
+
+  test("removes only installation-owned resources before a new run", async () => {
+    const docker = new RecordingDocker();
+    docker.ownedContainers = ["a".repeat(12)];
+    docker.ownedNetworks = ["b".repeat(12)];
+    await service(docker).run(policy, limits, "curl", ["http://approved.test:8080/"]);
+    expect(docker.calls.some((call) => call.args[0] === "rm" && call.args.includes("a".repeat(12)))).toBe(true);
+    expect(docker.calls.some((call) => call.args[0] === "network" && call.args.includes("b".repeat(12)))).toBe(true);
+    const firstProvision = docker.calls.findIndex((call) => call.args[0] === "network" && call.args[1] === "create");
+    const oldNetworkRemoval = docker.calls.findIndex((call) => call.args[0] === "network" && call.args.includes("b".repeat(12)));
+    expect(oldNetworkRemoval).toBeLessThan(firstProvision);
+  });
+
+  test("fails closed when the installation inventory cannot be verified", async () => {
+    const docker = new RecordingDocker();
+    docker.inventoryUnavailable = true;
+    await expect(service(docker).run(policy, limits, "curl", ["http://approved.test:8080/"]))
+      .rejects.toThrow("inventory");
+    expect(docker.calls.some((call) => call.args[0] === "network" && call.args[1] === "create")).toBe(false);
+  });
+
+  test("locks new starts after uncertain cleanup until explicit reconciliation", async () => {
+    const docker = new RecordingDocker();
+    docker.cleanupBlocked = true;
+    const network = service(docker);
+    await expect(network.run(policy, limits, "curl", ["http://approved.test:8080/"]))
+      .rejects.toThrow("cleanup could not be confirmed");
+    const provisionCount = docker.calls.filter((call) => call.args[0] === "network" && call.args[1] === "create").length;
+    await expect(network.run({ ...policy, executionId: "run-2" }, limits, "curl", ["http://approved.test:8080/"]))
+      .rejects.toThrow("requires reconciliation");
+    expect(docker.calls.filter((call) => call.args[0] === "network" && call.args[1] === "create")).toHaveLength(provisionCount);
+    docker.cleanupBlocked = false;
+    await network.retryReconciliation();
+    await expect(network.run({ ...policy, executionId: "run-2" }, limits, "curl", ["http://approved.test:8080/"]))
+      .resolves.toHaveProperty("evidence.cleanupConfirmed", true);
   });
 });
