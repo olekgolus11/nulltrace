@@ -5,6 +5,7 @@ import {
   StoredExecutionReceipt,
 } from "../types/execution-broker.types";
 import { ExecutionPlan } from "../types/execution-plan.types";
+import { ExecutionEventPage } from "../types/execution-event.types";
 import { ExecutionBrokerError } from "./execution-broker.error";
 import { parseExecutionPlan } from "./execution-plan.helpers";
 import { ExecutionReceiptRepository } from "./execution-receipt.repository";
@@ -46,6 +47,22 @@ export class ExecutionBrokerService {
 
   get(principal: ExecutionPrincipal, executionId: string): ExecutionReceipt {
     return this.snapshot(this.owned(principal, executionId));
+  }
+
+  readEvents(principal: ExecutionPrincipal, executionId: string, afterSequence: number): ExecutionEventPage {
+    const receipt = this.owned(principal, executionId);
+    const runtime = this.requireRuntime();
+    const plan = this.plans.get(executionId);
+    if (plan?.mode !== "public" || plan.inputs.length || !runtime.readEvents ||
+      receipt.status === "prepared" || receipt.status === "start_committed") {
+      throw new ExecutionBrokerError("CONFLICT");
+    }
+    if (!Number.isSafeInteger(afterSequence) || afterSequence < -1) throw new ExecutionBrokerError("INVALID_REQUEST");
+    try {
+      return runtime.readEvents(executionId, afterSequence, 10);
+    } catch {
+      throw new ExecutionBrokerError("UNAVAILABLE");
+    }
   }
 
   inputLimit(principal: ExecutionPrincipal, executionId: string, slotId: string): number {

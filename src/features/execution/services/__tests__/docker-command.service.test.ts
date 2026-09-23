@@ -18,6 +18,21 @@ describe("Docker command boundary", () => {
     ], { timeoutMs: 100 })).rejects.toThrow("timed out");
   });
 
+  test("drains streaming worker output after the event limit without killing the command", async () => {
+    const service = new DockerCommandService(process.execPath, 4096);
+    let received = 0;
+    const result = await service.run([
+      "-e",
+      "process.stdout.write('a'.repeat(200000)); process.stderr.write('done');",
+    ], {
+      outputLimitBytes: 16,
+      timeoutMs: 5_000,
+      onOutput(_stream, chunk) { received += chunk.byteLength; },
+    });
+    expect(result).toEqual({ exitCode: 0, stdout: "", stderr: "" });
+    expect(received).toBe(200004);
+  });
+
   test("kills a running command when its owner cancels", async () => {
     const service = new DockerCommandService(process.execPath, 4096);
     const owner = new AbortController();

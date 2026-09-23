@@ -1,5 +1,6 @@
 import { ExecutionLimits } from "./execution-plan.types";
 import { HttpExecutionNetworkPolicy, HttpExecutionNetworkRunResult } from "./http-execution-network.types";
+import { ExecutionOutputStream } from "./execution-event.types";
 
 export type HttpExecutionStopReason = "cancelled" | "lease_expired" | "deadline";
 export type HttpExecutionSupervisedStatus = "running" | "finished" | "interrupted";
@@ -29,5 +30,6 @@ export interface HttpExecutionSupervisedNetwork {
     executable: string,
     argv: string[],
     signal?: AbortSignal,
+    onOutput?: (stream: ExecutionOutputStream, chunk: Uint8Array) => void,
   ): Promise<HttpExecutionNetworkRunResult>;
 }

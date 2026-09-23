@@ -141,6 +141,22 @@ describe("HTTP execution ownership", () => {
     }
   });
 
+  test("retains only sanitized bounded output events for a public run", async () => {
+    const supervisor = new HttpExecutionSupervisorService({
+      async run(_policy, _limits, _executable, _argv, _signal, onOutput) {
+        onOutput?.("stdout", new TextEncoder().encode("ok\u001b[31m\n"));
+        onOutput?.("stderr", new TextEncoder().encode("bad\n"));
+        return {
+          command: { exitCode: 0, stdout: "raw output must not be replayed", stderr: "" },
+          evidence: { executionId: "run-1", workerRulesSha256: "", proxyRulesSha256: "", proxyDecisions: [], cleanupConfirmed: true },
+        };
+      },
+    }, { async resolve() { return policy; } }, { leaseMs: 100, onSettled() {} });
+    await supervisor.start(plan);
+    await supervisor.wait("run-1");
+    expect(supervisor.readEvents("run-1", -1).events.map((event) => event.line)).toEqual(["ok", "bad"]);
+  });
+
   test("blocks another start until a failed durable settlement is retried", async () => {
     let available = false;
     const supervisor = new HttpExecutionSupervisorService({

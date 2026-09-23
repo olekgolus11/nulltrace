@@ -8,6 +8,7 @@ import {
   HttpExecutionSupervisorOptions,
 } from "../types/http-execution-supervisor.types";
 import { HttpExecutionRunError } from "./http-execution-run.error";
+import { ExecutionEventBufferService } from "./execution-event-buffer.service";
 
 export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
   private readonly runs = new Map<string, SupervisedEntry>();
@@ -53,6 +54,7 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
       deadlineTimer: null,
       task: null,
       settlementFailed: false,
+      events: new ExecutionEventBufferService(plan.executionId, plan.limits.outputBytes),
     };
     this.runs.set(plan.executionId, entry);
     this.armLease(entry);
@@ -78,6 +80,10 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
 
   get(executionId: string): HttpExecutionSupervisedRun {
     return { ...this.requireRun(executionId).result };
+  }
+
+  readEvents(executionId: string, afterSequence: number, maximumEvents?: number) {
+    return this.requireRun(executionId).events.read(afterSequence, maximumEvents);
   }
 
   async wait(executionId: string): Promise<HttpExecutionSupervisedRun> {
@@ -110,6 +116,7 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
         plan.invocation.executableId,
         plan.invocation.argv,
         entry.controller.signal,
+        (stream, chunk) => entry.events.append(stream, chunk),
       );
       entry.result.exitCode = result.command.exitCode;
       entry.result.cleanup = result.evidence.cleanupConfirmed ? "confirmed" : "pending";
@@ -118,6 +125,7 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
       entry.result.cleanup = error instanceof HttpExecutionRunError && error.cleanupConfirmed ? "confirmed" : "pending";
       entry.result.status = entry.result.cleanup === "confirmed" ? "finished" : "interrupted";
     } finally {
+      entry.events.finish();
       if (entry.leaseTimer) clearTimeout(entry.leaseTimer);
       if (entry.deadlineTimer) clearTimeout(entry.deadlineTimer);
       try {
@@ -165,4 +173,5 @@ interface SupervisedEntry {
   deadlineTimer: ReturnType<typeof setTimeout> | null;
   task: Promise<void> | null;
   settlementFailed: boolean;
+  events: ExecutionEventBufferService;
 }

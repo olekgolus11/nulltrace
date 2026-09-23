@@ -46,8 +46,8 @@ export class DockerCommandService implements DockerCommandAdapter {
     const output = { size: 0 };
     try {
       const [stdout, stderr, exitCode] = await Promise.all([
-        this.readBounded(process.stdout, process, output, outputLimitBytes),
-        this.readBounded(process.stderr, process, output, outputLimitBytes),
+        this.readBounded(process.stdout, process, output, outputLimitBytes, "stdout", options.onOutput),
+        this.readBounded(process.stderr, process, output, outputLimitBytes, "stderr", options.onOutput),
         process.exited,
       ]);
       if (wasCancelled) throw new Error("Docker command cancelled.");
@@ -65,6 +65,8 @@ export class DockerCommandService implements DockerCommandAdapter {
     process: ReturnType<typeof Bun.spawn>,
     output: { size: number },
     outputLimitBytes: number,
+    streamName: "stdout" | "stderr",
+    onOutput?: (stream: "stdout" | "stderr", chunk: Uint8Array) => void,
   ): Promise<string> {
     const reader = stream.getReader();
     const chunks: Uint8Array[] = [];
@@ -73,13 +75,24 @@ export class DockerCommandService implements DockerCommandAdapter {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        output.size += value.byteLength;
-        size += value.byteLength;
-        if (output.size > outputLimitBytes) {
-          process.kill("SIGKILL");
-          throw new Error("Docker command output exceeded the limit.");
+        if (onOutput) {
+          try {
+            onOutput(streamName, value);
+          } catch (error) {
+            process.kill("SIGKILL");
+            throw error;
+          } finally {
+            value.fill(0);
+          }
+        } else {
+          output.size += value.byteLength;
+          size += value.byteLength;
+          if (output.size > outputLimitBytes) {
+            process.kill("SIGKILL");
+            throw new Error("Docker command output exceeded the limit.");
+          }
+          chunks.push(value);
         }
-        chunks.push(value);
       }
       return Buffer.concat(chunks, size).toString("utf8");
     } finally {

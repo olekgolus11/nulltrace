@@ -8,6 +8,7 @@ import {
   HttpExecutionNetworkRunResult,
 } from "../types/http-execution-network.types";
 import { ExecutionLimits } from "../types/execution-plan.types";
+import { ExecutionOutputStream } from "../types/execution-event.types";
 import { requireExecutionId } from "./execution-validation.helpers";
 import { HttpExecutionRunError } from "./http-execution-run.error";
 import {
@@ -41,6 +42,7 @@ export class HttpExecutionNetworkService {
     executable: string,
     argv: string[],
     signal?: AbortSignal,
+    onOutput?: (stream: ExecutionOutputStream, chunk: Uint8Array) => void,
   ): Promise<HttpExecutionNetworkRunResult> {
     this.options.ownershipLock.assertHeld();
     await this.ensureReconciled();
@@ -88,7 +90,7 @@ export class HttpExecutionNetworkService {
       this.requireActive(signal);
       await this.startProxy(environment.proxyContainerId, policy, signal);
       this.requireActive(signal);
-      command = await this.executeWorker(environment, limits, executable, argv, signal);
+      command = await this.executeWorker(environment, limits, executable, argv, signal, onOutput);
       this.requireActive(signal);
       proxyDecisions = await this.readProxyDecisions(environment.proxyContainerId);
       this.requireActive(signal);
@@ -273,6 +275,7 @@ export class HttpExecutionNetworkService {
     executable: string,
     argv: string[],
     signal?: AbortSignal,
+    onOutput?: (stream: ExecutionOutputStream, chunk: Uint8Array) => void,
   ): Promise<HttpExecutionNetworkResult> {
     const result = await this.docker.run([
       "exec", "-e", `HTTP_PROXY=${environment.proxyUrl}`, "-e", `HTTPS_PROXY=${environment.proxyUrl}`,
@@ -281,6 +284,7 @@ export class HttpExecutionNetworkService {
       timeoutMs: Math.min(limits.timeoutMs, this.options.commandTimeoutMs),
       outputLimitBytes: limits.outputBytes,
       signal,
+      onOutput,
     });
     return result;
   }
