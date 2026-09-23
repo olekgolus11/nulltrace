@@ -19,6 +19,7 @@ export class DockerCommandService implements DockerCommandAdapter {
     if (!Number.isSafeInteger(outputLimitBytes) || outputLimitBytes < 1 || outputLimitBytes > this.outputLimitBytes) {
       throw new Error("Invalid Docker output limit.");
     }
+    if (options.signal?.aborted) throw new Error("Docker command cancelled.");
     const process = Bun.spawn([this.executable, ...args], {
       stdin: options.input ? "pipe" : "ignore",
       stdout: "pipe",
@@ -31,6 +32,13 @@ export class DockerCommandService implements DockerCommandAdapter {
       stdin.end();
     }
     let didTimeOut = false;
+    let wasCancelled = false;
+    const cancel = () => {
+      wasCancelled = true;
+      process.kill("SIGKILL");
+    };
+    options.signal?.addEventListener("abort", cancel, { once: true });
+    if (options.signal?.aborted) cancel();
     const timer = setTimeout(() => {
       didTimeOut = true;
       process.kill("SIGKILL");
@@ -42,10 +50,13 @@ export class DockerCommandService implements DockerCommandAdapter {
         this.readBounded(process.stderr, process, output, outputLimitBytes),
         process.exited,
       ]);
+      if (wasCancelled) throw new Error("Docker command cancelled.");
       if (didTimeOut) throw new Error("Docker command timed out.");
       return { exitCode, stdout, stderr };
     } finally {
       clearTimeout(timer);
+      options.signal?.removeEventListener("abort", cancel);
+      await process.exited;
     }
   }
 

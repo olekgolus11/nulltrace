@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { Database } from "bun:sqlite";
-import { ExecutionAdmissionStatus, StoredExecutionReceipt } from "../types/execution-broker.types";
+import { ExecutionAdmissionStatus, ExecutionOutcome, StoredExecutionReceipt } from "../types/execution-broker.types";
 import { ExecutionBrokerError } from "./execution-broker.error";
 
 export class ExecutionReceiptRepository {
@@ -18,6 +18,12 @@ export class ExecutionReceiptRepository {
       status TEXT NOT NULL,
       cleanup TEXT NOT NULL DEFAULT 'pending',
       sealed_inputs TEXT NOT NULL DEFAULT '{}'
+    )`);
+    this.database.exec(`CREATE TABLE IF NOT EXISTS execution_outcomes (
+      execution_id TEXT PRIMARY KEY,
+      cause TEXT NOT NULL,
+      exit_code INTEGER,
+      cleanup TEXT NOT NULL
     )`);
   }
 
@@ -92,9 +98,50 @@ export class ExecutionReceiptRepository {
     return Boolean(this.database.query("SELECT 1 FROM execution_receipts WHERE status = 'interrupted' LIMIT 1").get());
   }
 
+  listPending(): StoredExecutionReceipt[] {
+    const rows = this.database.query<{ execution_id: string }, []>(
+      "SELECT execution_id FROM execution_receipts WHERE cleanup = 'pending' ORDER BY execution_id",
+    ).all();
+    return rows.map(({ execution_id }) => this.find(execution_id)!);
+  }
+
   confirmCleanup(executionId: string): void {
-    this.database.query("UPDATE execution_receipts SET status = 'closed', cleanup = 'confirmed', sealed_inputs = '{}' WHERE execution_id = ?")
-      .run(executionId);
+    this.database.transaction(() => {
+      const result = this.database.query(
+        "UPDATE execution_receipts SET status = 'closed', cleanup = 'confirmed', sealed_inputs = '{}' WHERE execution_id = ? AND cleanup = 'pending'",
+      ).run(executionId);
+      if (result.changes !== 1) throw new ExecutionBrokerError("CONFLICT");
+      this.database.query("UPDATE execution_outcomes SET cleanup = 'confirmed' WHERE execution_id = ?").run(executionId);
+    }).immediate();
+  }
+
+  recordOutcome(outcome: ExecutionOutcome): void {
+    if (!Number.isSafeInteger(outcome.exitCode) && outcome.exitCode !== null) throw new Error("Invalid execution exit code.");
+    if (outcome.exitCode !== null && (outcome.exitCode < 0 || outcome.exitCode > 255)) throw new Error("Invalid execution exit code.");
+    if (!["normal", "nonzero_exit", "cancelled", "lease_expired", "deadline", "infrastructure"].includes(outcome.cause) ||
+      !["pending", "confirmed"].includes(outcome.cleanup)) throw new Error("Invalid execution outcome.");
+    this.database.transaction(() => {
+      const receipt = this.find(outcome.executionId);
+      if (!receipt || receipt.status === "prepared" || receipt.cleanup === "confirmed") throw new ExecutionBrokerError("CONFLICT");
+      const existing = this.findOutcome(outcome.executionId);
+      if (existing) throw new ExecutionBrokerError("CONFLICT");
+      this.database.query("INSERT INTO execution_outcomes(execution_id, cause, exit_code, cleanup) VALUES (?, ?, ?, ?)")
+        .run(outcome.executionId, outcome.cause, outcome.exitCode, outcome.cleanup);
+      if (outcome.cleanup === "confirmed") this.confirmCleanup(outcome.executionId);
+      else this.markInterrupted(outcome.executionId);
+    }).immediate();
+  }
+
+  findOutcome(executionId: string): ExecutionOutcome | null {
+    const row = this.database.query<OutcomeRow, [string]>(
+      "SELECT * FROM execution_outcomes WHERE execution_id = ?",
+    ).get(executionId);
+    return row ? {
+      executionId: row.execution_id,
+      cause: row.cause,
+      exitCode: row.exit_code,
+      cleanup: row.cleanup,
+    } : null;
   }
 }
 
@@ -105,4 +152,11 @@ interface ReceiptRow {
   status: ExecutionAdmissionStatus;
   cleanup: "pending" | "confirmed";
   sealed_inputs: string;
+}
+
+interface OutcomeRow {
+  execution_id: string;
+  cause: ExecutionOutcome["cause"];
+  exit_code: number | null;
+  cleanup: ExecutionOutcome["cleanup"];
 }

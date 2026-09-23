@@ -42,4 +42,13 @@ export interface StoredExecutionReceipt extends ExecutionReceipt {
   sealedInputs: Record<string, string>;
 }
 
+export type ExecutionOutcomeCause = "normal" | "nonzero_exit" | "cancelled" | "lease_expired" | "deadline" | "infrastructure";
+
+export interface ExecutionOutcome {
+  executionId: string;
+  cause: ExecutionOutcomeCause;
+  exitCode: number | null;
+  cleanup: "pending" | "confirmed";
+}
+
 export type ExecutionBrokerErrorCode = "INVALID_REQUEST" | "UNAUTHORIZED" | "NOT_FOUND" | "CONFLICT" | "UNAVAILABLE" | "CAPACITY";

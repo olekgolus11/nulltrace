@@ -17,4 +17,15 @@ describe("Docker command boundary", () => {
       "setInterval(() => undefined, 1_000);",
     ], { timeoutMs: 100 })).rejects.toThrow("timed out");
   });
+
+  test("kills a running command when its owner cancels", async () => {
+    const service = new DockerCommandService(process.execPath, 4096);
+    const owner = new AbortController();
+    const running = service.run(["-e", "setInterval(() => undefined, 1_000);"], {
+      signal: owner.signal,
+      timeoutMs: 5_000,
+    });
+    setTimeout(() => owner.abort(), 50);
+    await expect(running).rejects.toThrow("cancelled");
+  });
 });
