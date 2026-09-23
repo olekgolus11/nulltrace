@@ -13,6 +13,7 @@ const DEFAULT_TIMEOUT_MS = 5_000;
 const MAXIMUM_TIMEOUT_MS = 30_000;
 const MAXIMUM_ORIGINS = 32;
 const MAXIMUM_RESOLVED_ADDRESSES = 16;
+const MAXIMUM_ORIGIN_LENGTH = 2048;
 
 export class HttpExecutionResolverService {
   private readonly lookup: (hostname: string) => Promise<HttpResolvedAddress[]>;
@@ -70,7 +71,7 @@ export class HttpExecutionResolverService {
 }
 
 function parseOrigin(value: string): { origin: string; hostname: string; port: number } {
-  if (typeof value !== "string" || value.length > 2048) throw new Error("Invalid HTTP origin.");
+  if (typeof value !== "string" || value.length > MAXIMUM_ORIGIN_LENGTH) throw new Error("Invalid HTTP origin.");
   const url = new URL(value);
   if ((url.protocol !== "http:" && url.protocol !== "https:") || url.origin !== value || url.username || url.password) {
     throw new Error("HTTP origins must be normalized.");
