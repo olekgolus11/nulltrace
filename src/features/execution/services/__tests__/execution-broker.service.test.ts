@@ -169,6 +169,54 @@ describe("execution admission", () => {
 });
 
 describe("broker transport", () => {
+  test("controls only an owned started run without replaying its start", async () => {
+    let starts = 0;
+    let renewals = 0;
+    let cancellations = 0;
+    const state = fixture(":memory:", {
+      async putInput() {},
+      async start() { starts++; },
+      renewOwnership(executionId) {
+        renewals++;
+        return { executionId, status: "running", stopReason: null, cleanup: "pending", exitCode: null };
+      },
+      cancel(executionId) {
+        cancellations++;
+        return { executionId, status: "running", stopReason: "cancelled", cleanup: "pending", exitCode: null };
+      },
+    });
+    const foreignToken = "b".repeat(64);
+    const http = new ExecutionBrokerHttpService(state.broker, [
+      { token, principal },
+      { token: foreignToken, principal: { ...principal, instanceId: "other" } },
+    ]);
+    const client = new ExecutionBrokerClient((request) => http.handle(request), token);
+    await client.prepare(original);
+    await expect(client.renewOwnership("run-1")).rejects.toThrow("CONFLICT");
+    await client.putInput("run-1", "credentials", new Uint8Array([1]));
+    await client.start("run-1");
+    expect(await client.renewOwnership("run-1")).toMatchObject({ status: "running", cleanup: "pending" });
+    expect(await client.cancel("run-1")).toMatchObject({ status: "running", stopReason: "cancelled", cleanup: "pending" });
+    expect(await client.cancel("run-1")).toMatchObject({ status: "running", stopReason: "cancelled" });
+    expect(() => state.broker.cancel({ ...principal, instanceId: "other" }, "run-1")).toThrow("NOT_FOUND");
+    expect(() => state.broker.renewOwnership({ ...principal, instanceId: "other" }, "run-1")).toThrow("NOT_FOUND");
+    expect((await http.handle(request("cancel", JSON.stringify({ executionId: "run-1" }), foreignToken))).status).toBe(404);
+    expect(starts).toBe(1);
+    expect(renewals).toBe(1);
+    expect(cancellations).toBe(2);
+  });
+
+  test("rejects forged or contradictory control receipts", async () => {
+    for (const receipt of [
+      { executionId: "other", status: "running", stopReason: null, cleanup: "pending", exitCode: null },
+      { executionId: "run-1", status: "finished", stopReason: null, cleanup: "pending", exitCode: 0 },
+      { executionId: "run-1", status: "running", stopReason: null, cleanup: "pending", exitCode: "0" },
+    ]) {
+      const client = new ExecutionBrokerClient(async () => Response.json(receipt), token);
+      await expect(client.cancel("run-1")).rejects.toThrow("UNAVAILABLE");
+    }
+  });
+
   test("pages public events only for the approved execution owner", async () => {
     const database = new Database(":memory:");
     databases.push(database);

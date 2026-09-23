@@ -1,5 +1,6 @@
 import {
   ExecutionBrokerOptions,
+  ExecutionControlReceipt,
   ExecutionPrincipal,
   ExecutionReceipt,
   StoredExecutionReceipt,
@@ -47,6 +48,30 @@ export class ExecutionBrokerService {
 
   get(principal: ExecutionPrincipal, executionId: string): ExecutionReceipt {
     return this.snapshot(this.owned(principal, executionId));
+  }
+
+  cancel(principal: ExecutionPrincipal, executionId: string): ExecutionControlReceipt {
+    const receipt = this.owned(principal, executionId);
+    if (receipt.status === "prepared" || receipt.status === "start_committed") throw new ExecutionBrokerError("CONFLICT");
+    const runtime = this.requireRuntime();
+    if (!runtime.cancel) throw new ExecutionBrokerError("UNAVAILABLE");
+    try {
+      return runtime.cancel(executionId);
+    } catch {
+      throw new ExecutionBrokerError("UNAVAILABLE");
+    }
+  }
+
+  renewOwnership(principal: ExecutionPrincipal, executionId: string): ExecutionControlReceipt {
+    const receipt = this.owned(principal, executionId);
+    if (receipt.status !== "started" || receipt.cleanup !== "pending") throw new ExecutionBrokerError("CONFLICT");
+    const runtime = this.requireRuntime();
+    if (!runtime.renewOwnership) throw new ExecutionBrokerError("UNAVAILABLE");
+    try {
+      return runtime.renewOwnership(executionId);
+    } catch {
+      throw new ExecutionBrokerError("CONFLICT");
+    }
   }
 
   readEvents(principal: ExecutionPrincipal, executionId: string, afterSequence: number): ExecutionEventPage {
