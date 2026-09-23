@@ -1,13 +1,17 @@
-import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Database } from "bun:sqlite";
 import { DockerCommandService } from "../../src/features/execution/services/docker-command.service";
+import { ExecutionBrokerClient } from "../../src/features/execution/services/execution-broker-client.service";
+import { ExecutionBrokerHostService } from "../../src/features/execution/services/execution-broker-host.service";
+import { provisionExecutionBrokerJournal } from "../../src/features/execution/services/execution-broker-journal.helpers";
 import { ExecutionBrokerLockService } from "../../src/features/execution/services/execution-broker-lock.service";
 import { ExecutionEventBufferService } from "../../src/features/execution/services/execution-event-buffer.service";
 import { HttpExecutionNetworkService } from "../../src/features/execution/services/http-execution-network.service";
 import { createHttpExecutionNetworkPolicy } from "../../src/features/execution/services/http-execution-policy.helpers";
-import { ExecutionLimits } from "../../src/features/execution/types/execution-plan.types";
+import { ExecutionLimits, ExecutionPlan, ExecutionProfile } from "../../src/features/execution/types/execution-plan.types";
 import release from "./release.lock.json";
 
 const platform = Bun.argv[2];
@@ -112,6 +116,60 @@ try {
     expect(events.read(-1).events.some((event) => event.stream === "system" && event.line.includes("truncated")), "Output truncation was not reported.");
     expect(result.evidence.cleanupConfirmed, "Streaming run cleanup was not confirmed.");
     return "approved large response completed; bounded events and cleanup confirmed";
+  });
+  await check("private broker socket delivers an approved isolated request", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "nulltrace-broker-qualification-"));
+    await chmod(directory, 0o700);
+    const key = randomBytes(32);
+    const journal = join(directory, "receipts.sqlite");
+    const database = new Database(journal, { create: true });
+    provisionExecutionBrokerJournal(database, "broker-qualification", key);
+    database.close();
+    await chmod(journal, 0o600);
+    const token = randomBytes(32).toString("hex");
+    const principal = { installationId: "broker-qualification", instanceId: "qualification-client" };
+    const profile: ExecutionProfile = {
+      id: "public-curl-qualification", tool: "curl", mode: "public", executableIds: ["curl"],
+      inputs: [], maximumLimits: limits,
+    };
+    const plan: ExecutionPlan = {
+      version: 1, executionId: "broker-qualification-run", authorizationId: "approved-run",
+      profileId: profile.id, tool: "curl", mode: "public",
+      invocation: { executableId: "curl", argv: ["--silent", "--show-error", "--fail", "--max-time", "5", `${allowedOrigin}/broker`] },
+      origins: [allowedOrigin], inputs: [], limits,
+    };
+    const brokerHost = new ExecutionBrokerHostService({
+      directory, installationId: principal.installationId, hmacKey: key,
+      identities: [{ token, principal }], profiles: [profile],
+      readAuthorization: () => ({ principal, plan, expiresAt: Date.now() + 60_000 }),
+      images: { worker: workerImage, proxy: proxyImage, initializer: initializerImage },
+      trustedNonPublicMappings: { "approved.test": [hostAddress] }, docker, leaseMs: 10_000,
+      async lookup(hostname) {
+        if (hostname !== "approved.test") throw new Error("Qualification resolver received an unexpected hostname.");
+        return [{ address: hostAddress, family: 4 }];
+      },
+    });
+    const before = allowedEvents.length;
+    try {
+      const unix = await brokerHost.start();
+      const client = new ExecutionBrokerClient((request) => fetch(request, { unix }), token);
+      expect((await client.prepare(plan)).status === "prepared", "Broker did not prepare the approved plan.");
+      await client.start(plan.executionId);
+      let receipt = await client.get(plan.executionId);
+      for (let attempt = 0; attempt < 100 && receipt.status !== "closed"; attempt++) {
+        await Bun.sleep(100);
+        receipt = await client.get(plan.executionId);
+      }
+      expect(receipt.status === "closed" && receipt.cleanup === "confirmed", "Broker did not confirm cleanup.");
+      const events = await client.readEvents(plan.executionId, -1);
+      expect(events.events.some((event) => event.line === "approved-server"), "Broker did not return the approved response event.");
+      expect(allowedEvents.length === before + 1, "Approved receiver did not observe the broker request.");
+      return "approved receiver count +1; broker event returned; cleanup confirmed";
+    } finally {
+      await brokerHost.close();
+      key.fill(0);
+      await rm(directory, { recursive: true, force: true });
+    }
   });
   await check("cross-origin redirect blocked before receiver", async () => {
     const before = deniedEvents.length;

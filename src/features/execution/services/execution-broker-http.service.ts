@@ -7,6 +7,8 @@ import { requireExecutionId, requireExecutionRecord } from "./execution-validati
 export class ExecutionBrokerHttpService {
   private readonly identities: Array<{ digest: Buffer; principal: ExecutionPrincipal }>;
   private activeRequests = 0;
+  private idleWaiters: Array<() => void> = [];
+  private closing = false;
 
   constructor(private readonly broker: ExecutionBrokerService, identities: ExecutionBrokerIdentity[]) {
     if (!identities.length || identities.length > 32 || new Set(identities.map((identity) => identity.token)).size !== identities.length) {
@@ -25,6 +27,7 @@ export class ExecutionBrokerHttpService {
   }
 
   async handle(request: Request): Promise<Response> {
+    if (this.closing) return this.errorResponse(new ExecutionBrokerError("UNAVAILABLE"));
     if (this.activeRequests >= 16) return this.errorResponse(new ExecutionBrokerError("CAPACITY"));
     this.activeRequests += 1;
     try {
@@ -72,7 +75,17 @@ export class ExecutionBrokerHttpService {
       return this.errorResponse(error);
     } finally {
       this.activeRequests -= 1;
+      if (this.activeRequests === 0) this.idleWaiters.splice(0).forEach((resolve) => resolve());
     }
+  }
+
+  waitForIdle(): Promise<void> {
+    if (this.activeRequests === 0) return Promise.resolve();
+    return new Promise((resolve) => this.idleWaiters.push(resolve));
+  }
+
+  beginShutdown(): void {
+    this.closing = true;
   }
 
   private authenticate(request: Request): ExecutionPrincipal {
