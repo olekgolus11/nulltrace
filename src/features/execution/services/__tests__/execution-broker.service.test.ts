@@ -169,6 +169,23 @@ describe("execution admission", () => {
 });
 
 describe("broker transport", () => {
+  test("drains active requests before closing a private broker host", async () => {
+    const state = fixture();
+    const http = new ExecutionBrokerHttpService(state.broker, [{ token, principal }]);
+    const controller = new AbortController();
+    const stream = new ReadableStream<Uint8Array>({ start(writer) { writer.enqueue(new Uint8Array([123])); } });
+    const response = http.handle(request("prepare", stream, token, "application/json", controller.signal));
+    let drained = false;
+    const idle = http.waitForIdle().then(() => { drained = true; });
+    http.beginShutdown();
+    expect((await http.handle(request("get", JSON.stringify({ executionId: "run-1" })))).status).toBe(503);
+    expect(drained).toBe(false);
+    controller.abort();
+    expect((await response).status).toBe(400);
+    await idle;
+    expect(drained).toBe(true);
+  });
+
   test("controls only an owned started run without replaying its start", async () => {
     let starts = 0;
     let renewals = 0;

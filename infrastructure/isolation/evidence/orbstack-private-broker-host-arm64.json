@@ -1,0 +1,19 @@
+{
+  "checkedAt": "2026-09-23T06:37:16.441Z",
+  "platform": "linux/arm64",
+  "runtime": {
+    "engine": "Docker Engine - Community 29.4.0",
+    "kernel": "7.0.14-orbstack-00380-ga7e0a2dc9535"
+  },
+  "releaseLockSha256": "0b24c4e3933cc22efdcd9351f44c45d286e0ed99fc271b0776c210d026db1505",
+  "checks": [
+    { "name": "allowed exact-origin request", "passed": true },
+    { "name": "bounded worker events drain without stopping the approved request", "passed": true },
+    { "name": "private broker socket delivers an approved isolated request", "passed": true, "approvedReceiverIncrement": 1, "cleanupConfirmed": true },
+    { "name": "cross-origin redirect blocked before receiver", "passed": true, "forbiddenReceiverRequests": 0 },
+    { "name": "direct proxy bypass blocked before receiver", "passed": true, "forbiddenReceiverRequests": 0 },
+    { "name": "worker DNS and unauthorized IPv6 are blocked", "passed": true, "forbiddenReceiverRequests": 0 },
+    { "name": "cancellation removes a live worker and its networks", "passed": true, "postCancelContainers": 0, "postCancelNetworks": 0 }
+  ],
+  "notQualified": ["separate broker daemon process", "Docker Desktop", "linux/amd64", "TUI tool migration", "authenticated credentials", "artifact import"]
+}

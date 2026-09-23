@@ -93,6 +93,11 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
     return { ...entry.result };
   }
 
+  async shutdown(): Promise<void> {
+    for (const entry of this.runs.values()) this.stop(entry, "cancelled");
+    await Promise.all([...this.runs.values()].map((entry) => entry.task));
+  }
+
   async retrySettlement(executionId: string): Promise<HttpExecutionSupervisedRun> {
     const entry = this.requireRun(executionId);
     if (!entry.settlementFailed || entry.result.cleanup !== "confirmed") throw new Error("Execution settlement is not retryable.");
