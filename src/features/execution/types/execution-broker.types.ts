@@ -24,6 +24,16 @@ export interface ExecutionRuntimeAdapter {
   putInput(plan: ExecutionPlan, slot: ExecutionInputSlot, bytes: Uint8Array): Promise<void>;
   start(plan: ExecutionPlan): Promise<void>;
   readEvents?(executionId: string, afterSequence: number, maximumEvents?: number): ExecutionEventPage;
+  cancel?(executionId: string): ExecutionControlReceipt;
+  renewOwnership?(executionId: string): ExecutionControlReceipt;
+}
+
+export interface ExecutionControlReceipt {
+  executionId: string;
+  status: "running" | "finished" | "interrupted";
+  stopReason: "cancelled" | "lease_expired" | "deadline" | null;
+  cleanup: "pending" | "confirmed";
+  exitCode: number | null;
 }
 
 export interface ExecutionBrokerOptions {

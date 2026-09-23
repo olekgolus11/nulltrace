@@ -57,6 +57,7 @@ describe("HTTP execution ownership", () => {
     await supervisor.start(plan);
     expect(supervisor.get("run-1").cleanup).toBe("pending");
     supervisor.cancel("run-1");
+    expect(() => supervisor.renewOwnership("run-1")).toThrow("can no longer be renewed");
     const result = await supervisor.wait("run-1");
     expect(calls).toHaveLength(1);
     expect(calls[0]!.aborted).toBe(true);

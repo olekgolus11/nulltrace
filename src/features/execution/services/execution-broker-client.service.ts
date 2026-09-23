@@ -1,4 +1,4 @@
-import { ExecutionReceipt } from "../types/execution-broker.types";
+import { ExecutionControlReceipt, ExecutionReceipt } from "../types/execution-broker.types";
 import { ExecutionPlan } from "../types/execution-plan.types";
 import { ExecutionEventPage, ExecutionOutputEvent } from "../types/execution-event.types";
 import { ExecutionBrokerError } from "./execution-broker.error";
@@ -26,6 +26,40 @@ export class ExecutionBrokerClient {
 
   putInput(executionId: string, slotId: string, bytes: Uint8Array): Promise<ExecutionReceipt> {
     return this.send(`/v1/input/${requireExecutionId(executionId)}/${requireExecutionId(slotId)}`, Buffer.from(bytes), "application/octet-stream", executionId);
+  }
+
+  cancel(executionId: string): Promise<ExecutionControlReceipt> {
+    return this.sendControl("/v1/cancel", executionId);
+  }
+
+  renewOwnership(executionId: string): Promise<ExecutionControlReceipt> {
+    return this.sendControl("/v1/renew", executionId);
+  }
+
+  private async sendControl(path: string, executionId: string): Promise<ExecutionControlReceipt> {
+    requireExecutionId(executionId);
+    try {
+      const value = await this.request(path, JSON.stringify({ executionId }), "application/json", 4_096);
+      const record = requireExecutionRecord(value, ["executionId", "status", "stopReason", "cleanup", "exitCode"]);
+      if (record.executionId !== executionId ||
+        (record.status !== "running" && record.status !== "finished" && record.status !== "interrupted") ||
+        (record.stopReason !== null && record.stopReason !== "cancelled" && record.stopReason !== "lease_expired" && record.stopReason !== "deadline") ||
+        (record.cleanup !== "pending" && record.cleanup !== "confirmed") ||
+        (record.exitCode !== null && (typeof record.exitCode !== "number" || !Number.isSafeInteger(record.exitCode) || record.exitCode < 0 || record.exitCode > 255)) ||
+        (record.status === "running" && record.cleanup !== "pending") ||
+        (record.status === "finished" && record.cleanup !== "confirmed")) {
+        throw new Error("Invalid broker control receipt.");
+      }
+      return {
+        executionId,
+        status: record.status,
+        stopReason: record.stopReason,
+        cleanup: record.cleanup,
+        exitCode: record.exitCode,
+      };
+    } catch (error) {
+      throw error instanceof ExecutionBrokerError ? error : new ExecutionBrokerError("UNAVAILABLE");
+    }
   }
 
   async readEvents(executionId: string, afterSequence: number): Promise<ExecutionEventPage> {

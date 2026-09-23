@@ -64,7 +64,8 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
 
   renewOwnership(executionId: string): HttpExecutionSupervisedRun {
     const entry = this.requireRun(executionId);
-    if (entry.result.status !== "running" || Date.now() >= entry.leaseDeadline || Date.now() >= entry.absoluteDeadline) {
+    if (entry.result.status !== "running" || entry.result.stopReason ||
+      Date.now() >= entry.leaseDeadline || Date.now() >= entry.absoluteDeadline) {
       throw new Error("Execution ownership can no longer be renewed.");
     }
     entry.leaseDeadline = Math.min(Date.now() + this.options.leaseMs, entry.absoluteDeadline);
