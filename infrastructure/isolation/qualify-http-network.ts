@@ -118,6 +118,127 @@ try {
     expect(result.evidence.cleanupConfirmed, "Streaming run cleanup was not confirmed.");
     return "approved large response completed; bounded events and cleanup confirmed";
   });
+  await check("worker resource limits are effective inside the container", async () => {
+    const probe = [
+      "import json, os, resource",
+      "def read(name):",
+      "    with open('/sys/fs/cgroup/' + name) as value: return value.read().strip()",
+      "print(json.dumps({'uid': os.getuid(), 'memory': read('memory.max'), 'pids': read('pids.max'),",
+      "    'cpu': read('cpu.max'), 'file': resource.getrlimit(resource.RLIMIT_FSIZE)[0]}))",
+    ].join("\n");
+    const result = await service.run(allowedPolicy("qualification-limits"), limits, "python3", ["-c", probe]);
+    expect(result.command.exitCode === 0 && result.evidence.cleanupConfirmed, "Resource probe did not finish cleanly.");
+    const measured: unknown = JSON.parse(result.command.stdout);
+    expect(typeof measured === "object" && measured !== null && !Array.isArray(measured), "Invalid resource probe result.");
+    const values = measured as Record<string, unknown>;
+    const cpu = typeof values.cpu === "string" ? values.cpu.split(" ").map(Number) : [];
+    expect(values.uid === 65532, "Worker does not run as the unprivileged account.");
+    expect(values.memory === String(limits.memoryBytes), "Worker memory cgroup limit differs from the approved plan.");
+    expect(values.pids === String(limits.processCount), "Worker PID cgroup limit differs from the approved plan.");
+    expect(cpu.length === 2 && cpu[0]! > 0 && cpu[1]! > 0 &&
+      cpu[0]! / cpu[1]! <= limits.cpuMilliCores / 1000, "Worker CPU quota exceeds the approved plan.");
+    expect(values.file === limits.fileBytes, "Worker file-size limit differs from the approved plan.");
+    return `uid ${values.uid}; memory ${values.memory}; pids ${values.pids}; cpu ${values.cpu}; file ${values.file}`;
+  });
+  await check("worker memory limit stops an oversized allocation", async () => {
+    const probe = [
+      "import json, subprocess, sys",
+      "program = \"chunks = []\\nfor _ in range(256):\\n chunk = bytearray(1024 * 1024)\\n for offset in range(0, len(chunk), 4096): chunk[offset] = 1\\n chunks.append(chunk)\"",
+      "def oom_kills():",
+      "    with open('/sys/fs/cgroup/memory.events') as events:",
+      "        return int(dict(line.split() for line in events)['oom_kill'])",
+      "before = oom_kills()",
+      "child = subprocess.run([sys.executable, '-c', program], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)",
+      "delta = oom_kills() - before",
+      "print(json.dumps({'childStatus': child.returncode, 'oomKillDelta': delta}))",
+      "if child.returncode != -9 or delta < 1: raise SystemExit(1)",
+    ].join("\n");
+    const result = await service.run(allowedPolicy("qualification-memory"), limits, "python3", ["-c", probe]);
+    expect(result.command.exitCode === 0, "Oversized child allocation was not killed by the configured memory limit.");
+    expect(result.evidence.cleanupConfirmed, "Memory-limit run cleanup was not confirmed.");
+    const measured: unknown = JSON.parse(result.command.stdout);
+    expect(typeof measured === "object" && measured !== null && !Array.isArray(measured), "Invalid memory-limit probe result.");
+    const values = measured as Record<string, unknown>;
+    expect(values.childStatus === -9 && typeof values.oomKillDelta === "number" && values.oomKillDelta >= 1,
+      "Memory denial was not confirmed by an OOM kill event.");
+    return `oversized child received SIGKILL; cgroup OOM kill delta ${values.oomKillDelta}; cleanup confirmed`;
+  });
+  await check("worker process limit rejects excess child processes", async () => {
+    const probe = [
+      "import errno, os, signal, time",
+      "children = []",
+      "denied = 0",
+      "try:",
+      "    for _ in range(128):",
+      "        try:",
+      "            pid = os.fork()",
+      "        except OSError as error:",
+      "            denied = error.errno",
+      "            break",
+      "        if pid == 0:",
+      "            time.sleep(30)",
+      "            os._exit(0)",
+      "        children.append(pid)",
+      "finally:",
+      "    for pid in children:",
+      "        try: os.kill(pid, signal.SIGKILL)",
+      "        except ProcessLookupError: pass",
+      "    for pid in children:",
+      "        try: os.waitpid(pid, 0)",
+      "        except ChildProcessError: pass",
+      "print(f'{denied} {len(children)}')",
+      "if denied != errno.EAGAIN or len(children) >= 128: raise SystemExit(1)",
+    ].join("\n");
+    const result = await service.run(allowedPolicy("qualification-pids"), limits, "python3", ["-c", probe]);
+    expect(result.command.exitCode === 0, "Worker was able to exceed the configured process limit.");
+    expect(result.evidence.cleanupConfirmed, "Process-limit run cleanup was not confirmed.");
+    const [errnoValue, countValue] = result.command.stdout.trim().split(" ").map(Number);
+    expect(errnoValue === 11 && Number.isInteger(countValue) && countValue > 0 && countValue < limits.processCount,
+      "The worker process limit did not reject fork with EAGAIN before reaching the probe safety bound.");
+    return `fork rejected after ${countValue} children; cleanup confirmed`;
+  });
+  await check("worker file-size limit rejects oversized files", async () => {
+    const probe = [
+      "import os",
+      "import signal",
+      "path = '/work/oversized.bin'",
+      "signal.signal(signal.SIGXFSZ, signal.SIG_IGN)",
+      "blocked = False",
+      "total = 0",
+      "with open(path, 'wb', buffering=0) as output:",
+      "    try:",
+      "        while total <= 9 * 1024 * 1024:",
+      "            total += output.write(b'x' * 65536)",
+      "    except OSError:",
+      "        blocked = True",
+      "size = os.path.getsize(path)",
+      "print(f'{size} {int(blocked)}')",
+      "if not blocked or size > 8 * 1024 * 1024: raise SystemExit(1)",
+    ].join("\n");
+    const result = await service.run(allowedPolicy("qualification-file-size"), limits, "python3", ["-c", probe]);
+    expect(result.command.exitCode === 0, "Worker created a file larger than its configured file-size limit.");
+    expect(result.evidence.cleanupConfirmed, "File-size run cleanup was not confirmed.");
+    const [sizeValue, blockedValue] = result.command.stdout.trim().split(" ").map(Number);
+    const size = sizeValue ?? Number.NaN;
+    expect(Number.isSafeInteger(size) && size <= limits.fileBytes && blockedValue === 1,
+      "The worker file-size limit did not reject a write beyond the approved maximum.");
+    return `largest file ${size} bytes under ${limits.fileBytes} byte limit; cleanup confirmed`;
+  });
+  await check("worker deadline kills the command and confirms cleanup", async () => {
+    const shortLimits = { ...limits, timeoutMs: 1_000 };
+    let timedOut = false;
+    try {
+      await service.run(allowedPolicy("qualification-deadline"), shortLimits, "sleep", ["5"]);
+    } catch (error) {
+      timedOut = error instanceof Error && error.message.includes("timed out");
+    }
+    expect(timedOut, "Worker command did not stop at the execution deadline.");
+    const containers = await docker.run(["ps", "-aq", "--filter", "label=nulltrace.execution"], { timeoutMs: 10_000 });
+    const networks = await docker.run(["network", "ls", "-q", "--filter", "label=nulltrace.execution"], { timeoutMs: 10_000 });
+    expect(containers.exitCode === 0 && !containers.stdout.trim(), "Execution containers remain after timeout.");
+    expect(networks.exitCode === 0 && !networks.stdout.trim(), "Execution networks remain after timeout.");
+    return "worker timed out; container and network counts 0";
+  });
   await check("private broker socket delivers an approved isolated request", async () => {
     const directory = await mkdtemp(join(tmpdir(), "nulltrace-broker-qualification-"));
     await chmod(directory, 0o700);

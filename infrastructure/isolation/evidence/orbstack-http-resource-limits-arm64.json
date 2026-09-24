@@ -1,0 +1,41 @@
+{
+  "checkedAt": "2026-09-24T19:55:03.240Z",
+  "platform": "linux/arm64",
+  "runtime": {
+    "engine": "Docker Engine - Community 29.4.0",
+    "kernel": "7.0.14-orbstack-00380-ga7e0a2dc9535"
+  },
+  "releaseLockSha256": "0b24c4e3933cc22efdcd9351f44c45d286e0ed99fc271b0776c210d026db1505",
+  "checks": [
+    { "name": "allowed exact-origin request", "passed": true, "receiverRequests": 1, "cleanupConfirmed": true },
+    { "name": "bounded worker events drain without stopping the approved request", "passed": true, "cleanupConfirmed": true },
+    {
+      "name": "worker resource limits are effective inside the container",
+      "passed": true,
+      "uid": 65532,
+      "memoryBytes": 134217728,
+      "processCount": 48,
+      "cpuQuota": "50000 100000",
+      "fileBytes": 8388608
+    },
+    { "name": "worker memory limit stops an oversized allocation", "passed": true, "childSignal": "SIGKILL", "oomKillEvents": 1, "cleanupConfirmed": true },
+    { "name": "worker process limit rejects excess child processes", "passed": true, "childrenBeforeEagain": 46, "cleanupConfirmed": true },
+    { "name": "worker file-size limit rejects oversized files", "passed": true, "largestFileBytes": 8388608, "cleanupConfirmed": true },
+    { "name": "worker deadline kills the command and confirms cleanup", "passed": true, "postRunContainers": 0, "postRunNetworks": 0 },
+    { "name": "private broker socket delivers an approved isolated request", "passed": true, "approvedReceiverIncrement": 1, "cleanupConfirmed": true },
+    { "name": "dedicated broker process delivers an approved isolated request", "passed": true, "approvedReceiverIncrement": 1, "cleanupConfirmed": true },
+    { "name": "cross-origin redirect blocked before receiver", "passed": true, "forbiddenReceiverRequests": 0 },
+    { "name": "direct proxy bypass blocked before receiver", "passed": true, "forbiddenReceiverRequests": 0 },
+    { "name": "worker DNS and unauthorized IPv6 are blocked", "passed": true, "forbiddenReceiverRequests": 0 },
+    { "name": "cancellation removes a live worker and its networks", "passed": true, "postCancelContainers": 0, "postCancelNetworks": 0 }
+  ],
+  "notQualified": [
+    "Docker Desktop",
+    "linux/amd64",
+    "public IPv6",
+    "LAN and VPN routes",
+    "active CPU throttling",
+    "AppArmor or SELinux enforcement",
+    "full TUI tool migration"
+  ]
+}
