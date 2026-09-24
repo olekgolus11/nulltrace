@@ -1,7 +1,8 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { chmod, mkdtemp, rm } from "node:fs/promises";
+import { chmod, lstat, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Database } from "bun:sqlite";
 import { DockerCommandService } from "../../src/features/execution/services/docker-command.service";
 import { ExecutionBrokerClient } from "../../src/features/execution/services/execution-broker-client.service";
@@ -167,6 +168,77 @@ try {
       return "approved receiver count +1; broker event returned; cleanup confirmed";
     } finally {
       await brokerHost.close();
+      key.fill(0);
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+  await check("dedicated broker process delivers an approved isolated request", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "nulltrace-daemon-qualification-"));
+    await chmod(directory, 0o700);
+    const key = randomBytes(32);
+    const token = randomBytes(32).toString("hex");
+    const journal = join(directory, "receipts.sqlite");
+    const database = new Database(journal, { create: true });
+    provisionExecutionBrokerJournal(database, "daemon-qualification", key);
+    database.close();
+    await chmod(journal, 0o600);
+    const targetOrigin = `http://${hostAddress}:${allowedPort}`;
+    const plan: ExecutionPlan = {
+      version: 1, executionId: "daemon-qualification-run", authorizationId: "approved-run",
+      profileId: "public-curl-v1", tool: "curl", mode: "public",
+      invocation: { executableId: "curl", argv: ["--silent", "--show-error", "--fail", "--max-time", "5", `${targetOrigin}/daemon`] },
+      origins: [targetOrigin], inputs: [], limits,
+    };
+    const executable = Bun.which("docker");
+    if (!executable) throw new Error("Docker executable is unavailable.");
+    const manifest = {
+      version: 1, installationId: "daemon-qualification", instanceId: "qualification-client",
+      dockerExecutable: executable,
+      images: { worker: workerImage, proxy: proxyImage, initializer: initializerImage },
+      trustedNonPublicMappings: { [hostAddress]: [hostAddress] },
+      approvedPlan: plan, expiresAt: Date.now() + 60_000,
+    };
+    for (const [name, content] of [
+      ["broker-daemon.json", JSON.stringify(manifest)],
+      ["broker.key", key],
+      ["client.token", token],
+    ] as const) {
+      const path = join(directory, name);
+      await writeFile(path, content, { mode: 0o600 });
+      await chmod(path, 0o600);
+    }
+    const script = fileURLToPath(new URL("./run-broker.ts", import.meta.url));
+    const child = Bun.spawn([process.execPath, script, directory], {
+      stdin: "ignore", stdout: "pipe", stderr: "pipe",
+      env: { PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin", HOME: directory },
+    });
+    const socket = join(directory, "broker.sock");
+    const before = allowedEvents.length;
+    try {
+      let ready = false;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        if ((await lstat(socket).catch(() => null))?.isSocket()) { ready = true; break; }
+        await Bun.sleep(100);
+      }
+      expect(ready, "Dedicated broker did not open its private socket.");
+      const client = new ExecutionBrokerClient((request) => fetch(request, { unix: socket }), token);
+      expect((await client.prepare(plan)).status === "prepared", "Dedicated broker rejected the approved plan.");
+      await client.start(plan.executionId);
+      let receipt = await client.get(plan.executionId);
+      for (let attempt = 0; attempt < 100 && receipt.status !== "closed"; attempt++) {
+        await Bun.sleep(100);
+        receipt = await client.get(plan.executionId);
+      }
+      expect(receipt.status === "closed" && receipt.cleanup === "confirmed", "Dedicated broker did not confirm cleanup.");
+      const events = await client.readEvents(plan.executionId, -1);
+      expect(events.events.some((event) => event.line === "approved-server"), "Dedicated broker did not return the approved response event.");
+      expect(allowedEvents.length === before + 1, "Approved receiver did not observe the daemon request.");
+      return "separate broker process; approved receiver count +1; cleanup confirmed";
+    } finally {
+      child.kill("SIGTERM");
+      const timeout = setTimeout(() => child.kill("SIGKILL"), 10_000);
+      try { await child.exited; }
+      finally { clearTimeout(timeout); }
       key.fill(0);
       await rm(directory, { recursive: true, force: true });
     }
