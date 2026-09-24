@@ -20,6 +20,18 @@ import {
   normalizeNetworkAddress,
 } from "./http-execution-policy.helpers";
 
+const MAXIMUM_TIMEOUT_MS = 30 * 60_000;
+const INITIALIZER_MEMORY_BYTES = 64 * 1024 * 1024;
+const INITIALIZER_TMP_BYTES = 8 * 1024 * 1024;
+const INITIALIZER_CPU_LIMIT = 0.25;
+const INITIALIZER_PIDS_LIMIT = 16;
+const WORKER_TMP_BYTES = 32 * 1024 * 1024;
+const PROXY_PORT = 3128;
+const PROXY_READY_MAX_ATTEMPTS = 50;
+const PROXY_READY_SLEEP_MS = 100;
+const PROXY_LOG_LINES = 200;
+const PROXY_LOG_LINE_MAX_BYTES = 512;
+
 export class HttpExecutionNetworkService {
   private readonly active = new Set<string>();
   private reconciliation: Promise<void> | null = null;
@@ -32,7 +44,7 @@ export class HttpExecutionNetworkService {
       if (!/^sha256:[a-f0-9]{64}$/.test(image)) throw new Error("Isolation images must use immutable local IDs.");
     }
     for (const timeout of [options.commandTimeoutMs, options.setupTimeoutMs, options.cleanupTimeoutMs]) {
-      if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 30 * 60_000) throw new Error("Invalid isolation timeout.");
+      if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > MAXIMUM_TIMEOUT_MS) throw new Error("Invalid isolation timeout.");
     }
   }
 
@@ -78,13 +90,13 @@ export class HttpExecutionNetworkService {
       proxyRulesHash = this.hash(proxyRules);
       await this.installAndVerifyFirewall(environment.workerContainerId, workerRules, {
         addresses: [names.proxyIpv4, normalizeNetworkAddress(names.proxyIpv6)],
-        ports: [3128],
+        ports: [PROXY_PORT],
         minimumAcceptRules: 5,
       }, names, signal);
       this.requireActive(signal);
       await this.installAndVerifyFirewall(environment.proxyContainerId, proxyRules, {
         addresses: [names.workerIpv4, normalizeNetworkAddress(names.workerIpv6), ...policy.endpoints.map((endpoint) => endpoint.address)],
-        ports: [3128, ...policy.endpoints.map((endpoint) => endpoint.port)],
+        ports: [PROXY_PORT, ...policy.endpoints.map((endpoint) => endpoint.port)],
         minimumAcceptRules: 5 + policy.endpoints.length,
       }, names, signal);
       this.requireActive(signal);
@@ -200,7 +212,7 @@ export class HttpExecutionNetworkService {
       proxyContainerId: names.proxyContainer,
       frontNetworkId: names.frontNetwork,
       backNetworkId: names.backNetwork,
-      proxyUrl: `http://${names.proxyIpv4}:3128`,
+      proxyUrl: `http://${names.proxyIpv4}:${PROXY_PORT}`,
     };
   }
 
@@ -223,7 +235,7 @@ export class HttpExecutionNetworkService {
       "--memory", String(limits.memoryBytes), "--memory-swap", String(limits.memoryBytes), "--cpus", cpu,
       "--pids-limit", String(limits.processCount), "--ulimit", `fsize=${limits.fileBytes}:${limits.fileBytes}`,
       "--tmpfs", `/work:rw,noexec,nosuid,nodev,size=${limits.scratchBytes},uid=65532,gid=65532,mode=700`,
-      "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=33554432,mode=1777",
+      "--tmpfs", `/tmp:rw,noexec,nosuid,nodev,size=${WORKER_TMP_BYTES},mode=1777`,
       "--entrypoint", "sleep", image, "infinity",
     ], this.options.setupTimeoutMs, undefined, signal);
   }
@@ -239,8 +251,8 @@ export class HttpExecutionNetworkService {
       "run", "--rm", "-i", "--network", `container:${container}`, "--label", `nulltrace.execution=${names.label}`,
       "--label", `nulltrace.installation=${this.options.installationId}`,
       "--read-only", "--user", "0:0", "--cap-drop", "ALL", "--cap-add", "NET_ADMIN",
-      "--security-opt", "no-new-privileges:true", "--memory", "67108864", "--memory-swap", "67108864",
-      "--cpus", "0.25", "--pids-limit", "16", "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=8388608,mode=1777",
+      "--security-opt", "no-new-privileges:true", "--memory", String(INITIALIZER_MEMORY_BYTES), "--memory-swap", String(INITIALIZER_MEMORY_BYTES),
+      "--cpus", String(INITIALIZER_CPU_LIMIT), "--pids-limit", String(INITIALIZER_PIDS_LIMIT), "--tmpfs", `/tmp:rw,noexec,nosuid,nodev,size=${INITIALIZER_TMP_BYTES},mode=1777`,
       this.options.images.initializer,
     ];
     await this.requireSuccess([...common, "nft", "-f", "-"], this.options.setupTimeoutMs, new TextEncoder().encode(rules), signal);
@@ -260,11 +272,11 @@ export class HttpExecutionNetworkService {
     await this.writePrivateFile(container, "/work/hosts", hosts, signal);
     await this.requireSuccess(["exec", container, "squid", "-k", "parse", "-f", "/work/squid.conf"], this.options.setupTimeoutMs, undefined, signal);
     await this.requireSuccess(["exec", "-d", container, "squid", "-N", "-f", "/work/squid.conf"], this.options.setupTimeoutMs, undefined, signal);
-    for (let attempt = 0; attempt < 50; attempt++) {
+    for (let attempt = 0; attempt < PROXY_READY_MAX_ATTEMPTS; attempt++) {
       this.requireActive(signal);
       const result = await this.docker.run(["exec", container, "test", "-s", "/work/squid.pid"], { timeoutMs: 1_000, signal });
       if (result.exitCode === 0) return;
-      await Bun.sleep(100);
+      await Bun.sleep(PROXY_READY_SLEEP_MS);
     }
     throw new Error("Execution proxy did not become ready.");
   }
@@ -301,11 +313,11 @@ export class HttpExecutionNetworkService {
   }
 
   private async readProxyDecisions(container: string): Promise<string[]> {
-    const result = await this.docker.run(["exec", container, "tail", "-n", "200", "/work/access.log"], {
+    const result = await this.docker.run(["exec", container, "tail", "-n", String(PROXY_LOG_LINES), "/work/access.log"], {
       timeoutMs: this.options.setupTimeoutMs,
     });
     if (result.exitCode !== 0) return [];
-    return result.stdout.split("\n").filter(Boolean).slice(-200).map((line) => line.slice(0, 512));
+    return result.stdout.split("\n").filter(Boolean).slice(-PROXY_LOG_LINES).map((line) => line.slice(0, PROXY_LOG_LINE_MAX_BYTES));
   }
 
   private async cleanup(names: EnvironmentNames): Promise<boolean> {

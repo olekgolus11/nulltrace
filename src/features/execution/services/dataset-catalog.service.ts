@@ -1,12 +1,14 @@
 import { DatasetCatalog, DatasetCatalogEntry, DatasetId, DatasetSelection } from "../types/dataset-catalog.types";
 import { parseDatasetCatalog } from "./dataset-catalog.helpers";
 
+const MAXIMUM_CATALOGS = 2;
+
 export class DatasetCatalogService {
   private readonly catalogs = new Map<DatasetId, DatasetCatalog>();
   private readonly entries = new Map<DatasetId, Map<string, DatasetCatalogEntry>>();
 
   constructor(catalogs: unknown[], revisions: Record<DatasetId, string>) {
-    if (catalogs.length > 2) throw new Error("Too many dataset catalogs.");
+    if (catalogs.length > MAXIMUM_CATALOGS) throw new Error("Too many dataset catalogs.");
     for (const value of catalogs) {
       const catalog = parseDatasetCatalog(value, revisions);
       if (this.catalogs.has(catalog.dataset)) throw new Error("Duplicate dataset catalog.");

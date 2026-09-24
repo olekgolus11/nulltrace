@@ -10,6 +10,8 @@ import {
 import { HttpExecutionRunError } from "./http-execution-run.error";
 import { ExecutionEventBufferService } from "./execution-event-buffer.service";
 
+const MAXIMUM_TIMEOUT_MS = 30 * 60_000;
+
 export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
   private readonly runs = new Map<string, SupervisedEntry>();
 
@@ -36,7 +38,7 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
       this.runs.size >= (this.options.maximumRetainedRuns ?? 1_000)) {
       throw new Error("Execution runtime is busy or the plan requires unsupported input.");
     }
-    if (!Number.isSafeInteger(plan.limits.timeoutMs) || plan.limits.timeoutMs < 1 || plan.limits.timeoutMs > 30 * 60_000) {
+    if (!Number.isSafeInteger(plan.limits.timeoutMs) || plan.limits.timeoutMs < 1 || plan.limits.timeoutMs > MAXIMUM_TIMEOUT_MS) {
       throw new Error("Invalid execution deadline.");
     }
     const entry: SupervisedEntry = {

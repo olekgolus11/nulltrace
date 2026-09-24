@@ -2,6 +2,14 @@ import { isIP } from "node:net";
 import { HttpExecutionEndpoint, HttpExecutionNetworkPolicy } from "../types/http-execution-network.types";
 import { requireExecutionId } from "./execution-validation.helpers";
 
+const MAXIMUM_ORIGINS = 32;
+const MAXIMUM_ENDPOINTS = 128;
+const MAXIMUM_TRUSTED_MAPPINGS = 32;
+const MAXIMUM_MAPPING_ADDRESSES = 16;
+const PROXY_PORT = 3128;
+const MAXIMUM_ORIGIN_LENGTH = 2048;
+const MAXIMUM_HOSTNAME_LENGTH = 253;
+
 const forbiddenIpv4 = [
   ["0.0.0.0", 8],
   ["10.0.0.0", 8],
@@ -26,7 +34,7 @@ export function createHttpExecutionNetworkPolicy(
   trustedNonPublicMappings: Readonly<Record<string, readonly string[]>> = {},
 ): HttpExecutionNetworkPolicy {
   requireExecutionId(executionId);
-  if (!origins.length || origins.length > 32 || !endpoints.length || endpoints.length > 128) {
+  if (!origins.length || origins.length > MAXIMUM_ORIGINS || !endpoints.length || endpoints.length > MAXIMUM_ENDPOINTS) {
     throw new Error("Invalid HTTP network policy size.");
   }
   const normalizedOrigins = origins.map(parseOrigin);
@@ -35,10 +43,10 @@ export function createHttpExecutionNetworkPolicy(
   }
   const allowedOrigins = new Map(normalizedOrigins.map((origin) => [origin.origin, origin]));
   const mappingEntries = Object.entries(trustedNonPublicMappings);
-  if (mappingEntries.length > 32) throw new Error("Too many trusted non-public host mappings.");
+  if (mappingEntries.length > MAXIMUM_TRUSTED_MAPPINGS) throw new Error("Too many trusted non-public host mappings.");
   const trustedAddresses = new Map(mappingEntries.map(([hostname, addresses]) => {
     const normalizedHostname = normalizeHostname(hostname);
-    if (!addresses.length || addresses.length > 16) throw new Error("Invalid trusted host mapping.");
+    if (!addresses.length || addresses.length > MAXIMUM_MAPPING_ADDRESSES) throw new Error("Invalid trusted host mapping.");
     return [normalizedHostname, new Set(addresses.map((address) => {
       const normalizedAddress = normalizeNetworkAddress(address);
       if (isForbiddenInfrastructureAddress(normalizedAddress)) throw new Error("Invalid trusted infrastructure address.");
@@ -87,8 +95,8 @@ table inet nulltrace {
   chain output {
     type filter hook output priority 0; policy drop;
     ct state established,related accept
-    ip daddr ${proxyIpv4} tcp dport 3128 accept
-    ip6 daddr ${proxyIpv6} tcp dport 3128 accept
+    ip daddr ${proxyIpv4} tcp dport ${PROXY_PORT} accept
+    ip6 daddr ${proxyIpv6} tcp dport ${PROXY_PORT} accept
     ip6 daddr ff02::1:ff00:20 ip6 hoplimit 255 icmpv6 type nd-neighbor-solicit accept
   }
 }
@@ -116,8 +124,8 @@ table inet nulltrace {
   chain input {
     type filter hook input priority 0; policy drop;
     ct state established,related accept
-    ip saddr ${workerIpv4} tcp dport 3128 accept
-    ip6 saddr ${workerIpv6} tcp dport 3128 accept
+    ip saddr ${workerIpv4} tcp dport ${PROXY_PORT} accept
+    ip6 saddr ${workerIpv6} tcp dport ${PROXY_PORT} accept
     ip6 hoplimit 255 icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert } accept
   }
   chain forward { type filter hook forward priority 0; policy drop; }
@@ -148,7 +156,7 @@ export function compileSquidConfiguration(policy: HttpExecutionNetworkPolicy): {
   });
   return {
     hosts,
-    configuration: `http_port 3128
+    configuration: `http_port ${PROXY_PORT}
 visible_hostname nulltrace-execution-proxy
 pid_filename /work/squid.pid
 cache_log /work/cache.log
@@ -202,7 +210,7 @@ export function assertVerifiedFirewall(
 }
 
 function parseOrigin(value: string): { origin: string; hostname: string; port: number; protocol: "http:" | "https:" } {
-  if (typeof value !== "string" || value.length > 2048) throw new Error("Invalid HTTP origin.");
+  if (typeof value !== "string" || value.length > MAXIMUM_ORIGIN_LENGTH) throw new Error("Invalid HTTP origin.");
   const url = new URL(value);
   if ((url.protocol !== "http:" && url.protocol !== "https:") || url.origin !== value || url.username || url.password) {
     throw new Error("HTTP origins must be normalized.");
@@ -217,7 +225,7 @@ function parseOrigin(value: string): { origin: string; hostname: string; port: n
 
 function normalizeHostname(value: string): string {
   const hostname = value.startsWith("[") && value.endsWith("]") ? value.slice(1, -1) : value;
-  if (!hostname || hostname.length > 253 || /[\s\x00-\x1f\x7f]/.test(hostname)) throw new Error("Invalid HTTP hostname.");
+  if (!hostname || hostname.length > MAXIMUM_HOSTNAME_LENGTH || /[\s\x00-\x1f\x7f]/.test(hostname)) throw new Error("Invalid HTTP hostname.");
   return hostname.toLowerCase();
 }
 

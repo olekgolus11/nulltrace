@@ -1,5 +1,10 @@
 import { ExecutionEventPage, ExecutionOutputEvent, ExecutionOutputStream } from "../types/execution-event.types";
 
+const MAXIMUM_LINES = 2_000;
+const MAXIMUM_LINE_BYTES = 4_096;
+const MAXIMUM_FRAME_BYTES = 16_384;
+const MAXIMUM_OUTPUT_BYTES = 1024 * 1024;
+
 export class ExecutionEventBufferService {
   private readonly events: ExecutionOutputEvent[] = [];
   private readonly decoders = { stdout: new TextDecoder(), stderr: new TextDecoder() };
@@ -9,9 +14,6 @@ export class ExecutionEventBufferService {
     stdout: "text",
     stderr: "text",
   };
-  private readonly maximumLines = 2_000;
-  private readonly maximumLineBytes = 4_096;
-  private readonly maximumFrameBytes = 16_384;
   private readonly maximumBytes: number;
   private retainedBytes = 0;
   private outputLines = 0;
@@ -22,14 +24,14 @@ export class ExecutionEventBufferService {
     if (!/^[A-Za-z0-9_-]{1,96}$/.test(executionId) || !Number.isSafeInteger(outputLimitBytes) || outputLimitBytes < 1) {
       throw new Error("Invalid execution event configuration.");
     }
-    this.maximumBytes = Math.min(outputLimitBytes, 1024 * 1024);
+    this.maximumBytes = Math.min(outputLimitBytes, MAXIMUM_OUTPUT_BYTES);
   }
 
   append(stream: ExecutionOutputStream, chunk: Uint8Array): void {
     if (this.closed || this.truncated) return;
-    for (let offset = 0; offset < chunk.byteLength; offset += this.maximumFrameBytes) {
+    for (let offset = 0; offset < chunk.byteLength; offset += MAXIMUM_FRAME_BYTES) {
       if (this.truncated) break;
-      const frame = chunk.subarray(offset, offset + this.maximumFrameBytes);
+      const frame = chunk.subarray(offset, offset + MAXIMUM_FRAME_BYTES);
       this.consume(stream, this.decoders[stream].decode(frame, { stream: true }));
     }
   }
@@ -97,7 +99,7 @@ export class ExecutionEventBufferService {
       if (code < 32 || (code >= 127 && code <= 159) ||
         (code >= 0x202a && code <= 0x202e) || (code >= 0x2066 && code <= 0x2069)) continue;
       const size = Buffer.byteLength(character);
-      if (this.fragmentBytes[stream] + size > this.maximumLineBytes) {
+      if (this.fragmentBytes[stream] + size > MAXIMUM_LINE_BYTES) {
         this.truncate();
         return;
       }
@@ -108,7 +110,7 @@ export class ExecutionEventBufferService {
 
   private emit(stream: ExecutionOutputStream, line: string): void {
     const size = Buffer.byteLength(line);
-    if (this.outputLines >= this.maximumLines || this.retainedBytes + size > this.maximumBytes) {
+    if (this.outputLines >= MAXIMUM_LINES || this.retainedBytes + size > this.maximumBytes) {
       this.truncate();
       return;
     }
