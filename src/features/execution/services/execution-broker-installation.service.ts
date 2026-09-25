@@ -11,6 +11,10 @@ import { assertExecutionBrokerJournal, provisionExecutionBrokerJournal } from ".
 
 const privateDirectoryMode = 0o700;
 const privateFileMode = 0o600;
+const allPermissionBits = 0o7777;
+const groupWorldWriteBits = 0o022;
+const stickyBit = 0o1000;
+const worldWriteBit = 0o002;
 const managedFiles = ["broker.key", "client.token", "receipts.sqlite"] as const;
 const journalSidecars = ["receipts.sqlite-journal", "receipts.sqlite-wal", "receipts.sqlite-shm"] as const;
 
@@ -83,8 +87,8 @@ export class ExecutionBrokerInstallationService {
     if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) {
       throw new Error("Broker installation parent is not a directory.");
     }
-    const privateParent = parentStat.uid === uid && (parentStat.mode & 0o022) === 0;
-    const stickySharedParent = parentStat.uid === 0 && (parentStat.mode & 0o1000) !== 0 && (parentStat.mode & 0o002) !== 0;
+    const privateParent = parentStat.uid === uid && (parentStat.mode & groupWorldWriteBits) === 0;
+    const stickySharedParent = parentStat.uid === 0 && (parentStat.mode & stickyBit) !== 0 && (parentStat.mode & worldWriteBit) !== 0;
     if (!privateParent && !stickySharedParent) throw new Error("Broker installation parent is not owner-controlled.");
     return join(parent, name);
   }
@@ -100,7 +104,7 @@ export class ExecutionBrokerInstallationService {
 
     const pathStat = await lstat(directory);
     if (pathStat.isSymbolicLink() || !pathStat.isDirectory() || pathStat.uid !== uid ||
-      (!created && (pathStat.mode & 0o7777) !== privateDirectoryMode)) {
+      (!created && (pathStat.mode & allPermissionBits) !== privateDirectoryMode)) {
       throw new Error("Broker installation directory is not private and owner-controlled.");
     }
 
@@ -108,9 +112,9 @@ export class ExecutionBrokerInstallationService {
     try {
       const stat = await handle.stat();
       if (!stat.isDirectory() || stat.uid !== uid) throw new Error("Broker installation directory is not owned by this user.");
-      if (created && (stat.mode & 0o7777) !== privateDirectoryMode) await handle.chmod(privateDirectoryMode);
+      if (created && (stat.mode & allPermissionBits) !== privateDirectoryMode) await handle.chmod(privateDirectoryMode);
       const privateStat = await handle.stat();
-      if ((privateStat.mode & 0o7777) !== privateDirectoryMode) {
+      if ((privateStat.mode & allPermissionBits) !== privateDirectoryMode) {
         throw new Error("Broker installation directory must have mode 0700.");
       }
       const identity = { device: privateStat.dev, inode: privateStat.ino, uid: privateStat.uid };
@@ -131,11 +135,11 @@ export class ExecutionBrokerInstallationService {
     );
     try {
       let stat = await handle.stat();
-      if (stat.isFile() && stat.uid === uid && stat.nlink === 1 && (stat.mode & 0o7777) !== privateFileMode) {
+      if (stat.isFile() && stat.uid === uid && stat.nlink === 1 && (stat.mode & allPermissionBits) !== privateFileMode) {
         await handle.chmod(privateFileMode);
         stat = await handle.stat();
       }
-      if (!stat.isFile() || stat.uid !== uid || (stat.mode & 0o7777) !== privateFileMode || stat.nlink !== 1) {
+      if (!stat.isFile() || stat.uid !== uid || (stat.mode & allPermissionBits) !== privateFileMode || stat.nlink !== 1) {
         throw new Error("Broker provisioning lock is not private and owner-controlled.");
       }
       await handle.sync();
@@ -151,7 +155,7 @@ export class ExecutionBrokerInstallationService {
     await this.assertDirectoryIdentity(dirname(lock.path), directoryIdentity);
     const stat = await lstat(lock.path);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.uid !== lock.uid ||
-      stat.dev !== lock.device || stat.ino !== lock.inode || (stat.mode & 0o7777) !== privateFileMode) {
+      stat.dev !== lock.device || stat.ino !== lock.inode || (stat.mode & allPermissionBits) !== privateFileMode) {
       throw new Error("Broker provisioning lock changed while held.");
     }
     await unlink(lock.path);
@@ -247,12 +251,12 @@ export class ExecutionBrokerInstallationService {
       if (!created.isFile() || created.uid !== uid || created.nlink !== 1) {
         throw new Error("Broker installation file is not private and owner-controlled.");
       }
-      if ((created.mode & 0o7777) !== privateFileMode) await handle.chmod(privateFileMode);
+      if ((created.mode & allPermissionBits) !== privateFileMode) await handle.chmod(privateFileMode);
       await handle.writeFile(content);
       await handle.sync();
       const written = await handle.stat();
       if (!written.isFile() || written.uid !== uid || written.nlink !== 1 ||
-        (written.mode & 0o7777) !== privateFileMode || written.size !== content.byteLength) {
+        (written.mode & allPermissionBits) !== privateFileMode || written.size !== content.byteLength) {
         throw new Error("Broker installation file could not be verified.");
       }
       await this.assertPathMatches(path, written);
@@ -274,7 +278,7 @@ export class ExecutionBrokerInstallationService {
     const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
     try {
       const stat = await handle.stat();
-      if (!stat.isFile() || stat.uid !== uid || stat.nlink !== 1 || (stat.mode & 0o7777) !== privateFileMode) {
+      if (!stat.isFile() || stat.uid !== uid || stat.nlink !== 1 || (stat.mode & allPermissionBits) !== privateFileMode) {
         throw new Error("Broker receipt journal is not private and owner-controlled.");
       }
       await handle.sync();
@@ -295,7 +299,7 @@ export class ExecutionBrokerInstallationService {
     try {
       const stat = await handle.stat();
       if (!stat.isFile() || stat.uid !== uid || stat.nlink !== 1 ||
-        (stat.mode & 0o7777) !== privateFileMode || stat.size !== expectedBytes) {
+        (stat.mode & allPermissionBits) !== privateFileMode || stat.size !== expectedBytes) {
         throw new Error("Broker installation file is not private and owner-controlled.");
       }
       const content = await handle.readFile();
@@ -315,7 +319,7 @@ export class ExecutionBrokerInstallationService {
     try {
       const stat = await handle.stat();
       if (!stat.isFile() || stat.uid !== uid || stat.nlink !== 1 ||
-        (stat.mode & 0o7777) !== privateFileMode || (expectedBytes !== undefined && stat.size !== expectedBytes)) {
+        (stat.mode & allPermissionBits) !== privateFileMode || (expectedBytes !== undefined && stat.size !== expectedBytes)) {
         throw new Error("Broker installation file is not private and owner-controlled.");
       }
       await this.assertPathMatches(path, stat);
@@ -338,7 +342,7 @@ export class ExecutionBrokerInstallationService {
   private async assertDirectoryIdentity(directory: string, identity: DirectoryIdentity): Promise<void> {
     const stat = await lstat(directory);
     if (stat.isSymbolicLink() || !stat.isDirectory() || stat.uid !== identity.uid || stat.dev !== identity.device ||
-      stat.ino !== identity.inode || (stat.mode & 0o7777) !== privateDirectoryMode || await realpath(directory) !== directory) {
+      stat.ino !== identity.inode || (stat.mode & allPermissionBits) !== privateDirectoryMode || await realpath(directory) !== directory) {
       throw new Error("Broker installation directory changed while provisioning.");
     }
   }
@@ -346,7 +350,7 @@ export class ExecutionBrokerInstallationService {
   private async assertPathMatches(path: string, opened: { dev: number; ino: number; uid: number; mode: number }): Promise<void> {
     const current = await lstat(path);
     if (current.isSymbolicLink() || !current.isFile() || current.dev !== opened.dev || current.ino !== opened.ino ||
-      current.uid !== opened.uid || current.nlink !== 1 || (current.mode & 0o7777) !== privateFileMode) {
+      current.uid !== opened.uid || current.nlink !== 1 || (current.mode & allPermissionBits) !== privateFileMode) {
       throw new Error("Broker installation file changed while provisioning.");
     }
   }
