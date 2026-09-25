@@ -7,6 +7,16 @@ import { ExecutionPlan, ExecutionProfile } from "../types/execution-plan.types";
 import { parseExecutionPlan } from "./execution-plan.helpers";
 import { requireExecutionId, requireExecutionInteger, requireExecutionRecord } from "./execution-validation.helpers";
 
+const privateDirectoryMode = 0o700;
+const privateFileMode = 0o600;
+const allPermissionBits = 0o777;
+const maxConfigFileBytes = 65_536;
+const brokerKeyBytes = 32;
+const clientTokenBytes = 64;
+const maxTrustedMappings = 32;
+const maxAddressesPerHost = 16;
+const maxCurlTimeoutSeconds = 30;
+
 const publicCurlProfile: ExecutionProfile = {
   id: "public-curl-v1",
   tool: "curl",
@@ -14,7 +24,7 @@ const publicCurlProfile: ExecutionProfile = {
   executableIds: ["curl"],
   inputs: [],
   maximumLimits: {
-    timeoutMs: 30_000,
+    timeoutMs: maxCurlTimeoutSeconds * 1000,
     memoryBytes: 512 * 1024 * 1024,
     cpuMilliCores: 1_000,
     processCount: 128,
@@ -26,7 +36,7 @@ const publicCurlProfile: ExecutionProfile = {
 
 export async function loadExecutionBrokerDaemonConfiguration(directory: string): Promise<ExecutionBrokerDaemonStartup> {
   if (!isAbsolute(directory)) throw new Error("Broker directory must be absolute.");
-  await requirePrivatePath(directory, "directory", 0o700);
+  await requirePrivatePath(directory, "directory", privateDirectoryMode);
   const configPath = join(directory, "broker-daemon.json");
   const keyPath = join(directory, "broker.key");
   const tokenPath = join(directory, "client.token");
@@ -34,12 +44,13 @@ export async function loadExecutionBrokerDaemonConfiguration(directory: string):
   let key: Buffer | undefined;
   let tokenBytes: Buffer | undefined;
   try {
-    configBytes = await readPrivateFile(configPath, 65_536);
-    key = await readPrivateFile(keyPath, 32);
-    tokenBytes = await readPrivateFile(tokenPath, 64);
-    if (key.byteLength !== 32) throw new Error("Invalid broker key length.");
+    configBytes = await readPrivateFile(configPath, maxConfigFileBytes);
+    key = await readPrivateFile(keyPath, brokerKeyBytes);
+    tokenBytes = await readPrivateFile(tokenPath, clientTokenBytes);
+    if (key.byteLength !== brokerKeyBytes) throw new Error("Invalid broker key length.");
     const token = tokenBytes.toString("ascii");
-    if (!/^[a-f0-9]{64}$/.test(token)) throw new Error("Invalid broker client token.");
+    const tokenPattern = new RegExp(`^[a-f0-9]{${clientTokenBytes}}$`);
+    if (!tokenPattern.test(token)) throw new Error("Invalid broker client token.");
     const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(configBytes));
     const config = requireExecutionRecord(value, [
       "version", "installationId", "instanceId", "dockerExecutable", "images",
@@ -93,7 +104,7 @@ export async function loadExecutionBrokerDaemonConfiguration(directory: string):
 async function requirePrivatePath(path: string, kind: "directory" | "file", mode: number): Promise<void> {
   const stat = await lstat(path);
   if (stat.isSymbolicLink() || (kind === "directory" ? !stat.isDirectory() : !stat.isFile() || stat.nlink !== 1) ||
-    (stat.mode & 0o777) !== mode || stat.uid !== process.getuid?.()) {
+    (stat.mode & allPermissionBits) !== mode || stat.uid !== process.getuid?.()) {
     throw new Error("Broker configuration path is not private and owner-controlled.");
   }
 }
@@ -102,7 +113,7 @@ async function readPrivateFile(path: string, maximumBytes: number): Promise<Buff
   const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
     const stat = await handle.stat();
-    if (!stat.isFile() || stat.nlink !== 1 || (stat.mode & 0o777) !== 0o600 ||
+    if (!stat.isFile() || stat.nlink !== 1 || (stat.mode & allPermissionBits) !== privateFileMode ||
       stat.uid !== process.getuid?.() || stat.size > maximumBytes) {
       throw new Error("Broker configuration path is not private and owner-controlled.");
     }
@@ -122,8 +133,9 @@ function assertPublicCurlInvocation(plan: ExecutionPlan): void {
   const prefix = ["--silent", "--show-error", "--fail"];
   if (prefix.some((value, index) => argv[index] !== value)) throw new Error("Unsupported public cURL invocation.");
   const offset = argv[3] === "--location" ? 1 : 0;
+  const timeoutPattern = new RegExp(`^(?:[1-9]|[12][0-9]|${maxCurlTimeoutSeconds})$`);
   if (argv.length !== 6 + offset || argv[3 + offset] !== "--max-time" ||
-    !/^(?:[1-9]|[12][0-9]|30)$/.test(argv[4 + offset] ?? "")) {
+    !timeoutPattern.test(argv[4 + offset] ?? "")) {
     throw new Error("Unsupported public cURL invocation.");
   }
   const target = new URL(argv[5 + offset]!);
@@ -135,10 +147,10 @@ function assertPublicCurlInvocation(plan: ExecutionPlan): void {
 function parseTrustedMappings(value: unknown): Record<string, string[]> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid trusted target mappings.");
   const entries = Object.entries(value);
-  if (entries.length > 32) throw new Error("Too many trusted target mappings.");
+  if (entries.length > maxTrustedMappings) throw new Error("Too many trusted target mappings.");
   const mappings: Record<string, string[]> = {};
   for (const [host, addresses] of entries) {
-    if (!/^[a-z0-9][a-z0-9.-]{0,252}$/.test(host) || !Array.isArray(addresses) || addresses.length < 1 || addresses.length > 16 ||
+    if (!/^[a-z0-9][a-z0-9.-]{0,252}$/.test(host) || !Array.isArray(addresses) || addresses.length < 1 || addresses.length > maxAddressesPerHost ||
       addresses.some((address) => typeof address !== "string" || isIP(address) === 0)) {
       throw new Error("Invalid trusted target mapping.");
     }
