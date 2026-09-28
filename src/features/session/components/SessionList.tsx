@@ -1,6 +1,7 @@
 import { ScrollBoxRenderable } from "@opentui/core";
 import { useEffect, useRef } from "react";
 import { theme } from "../../../app/theme/theme";
+import { standardScrollbarTrackOptions } from "../../../shared/ui/scrollbar.config";
 import { SessionSidebarRow } from "../model/session.types";
 import { SessionItem } from "./SessionItem";
 import { SessionTargetItem } from "./SessionTargetItem";
@@ -68,6 +69,9 @@ export function SessionList({
         scrollX={false}
         scrollY={true}
         stickyScroll={false}
+        verticalScrollbarOptions={{
+          trackOptions: standardScrollbarTrackOptions,
+        }}
       >
         {rows.map((row, index) =>
           row.type === "target" ? (

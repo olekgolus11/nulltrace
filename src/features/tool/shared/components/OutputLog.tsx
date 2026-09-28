@@ -1,4 +1,5 @@
 import { theme } from "../../../../app/theme/theme";
+import { standardScrollbarTrackOptions } from "../../../../shared/ui/scrollbar.config";
 
 const outputContentOptions = {
   flexDirection: "column",
@@ -21,6 +22,12 @@ export function OutputLog({
       scrollX={true}
       stickyScroll={false}
       contentOptions={outputContentOptions}
+      horizontalScrollbarOptions={{
+        trackOptions: standardScrollbarTrackOptions,
+      }}
+      verticalScrollbarOptions={{
+        trackOptions: standardScrollbarTrackOptions,
+      }}
     >
       {lines.length === 0 ? (
         <text fg={theme.text.dim}>No output yet.</text>

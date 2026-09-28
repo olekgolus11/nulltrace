@@ -1,4 +1,5 @@
 import { theme } from "../../../../app/theme/theme";
+import { standardScrollbarTrackOptions } from "../../../../shared/ui/scrollbar.config";
 import { ExecutionStatus } from "../types/tool-screen.types";
 
 function getStatusColor(status: ExecutionStatus | string) {
@@ -57,7 +58,15 @@ export function CommandEditor({
           </text>
         </box>
 
-        <scrollbox height={2} focused={focused} scrollX={true} stickyScroll={false}>
+        <scrollbox
+          height={2}
+          focused={focused}
+          scrollX={true}
+          stickyScroll={false}
+          horizontalScrollbarOptions={{
+            trackOptions: standardScrollbarTrackOptions,
+          }}
+        >
           <box flexDirection="column">
             <text fg={theme.text.primary}>{`$ ${commandInput}`}</text>
           </box>

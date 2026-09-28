@@ -1,6 +1,7 @@
 import { ScrollBoxRenderable } from "@opentui/core";
 import { RefObject } from "react";
 import { theme } from "../../../../app/theme/theme";
+import { standardScrollbarTrackOptions } from "../../../../shared/ui/scrollbar.config";
 import { DashboardPanel } from "../../../dashboard/components/DashboardPanel";
 import { ToolRunSummary } from "../../../session/model/session.repository.types";
 
@@ -55,7 +56,14 @@ export function ToolRunHistoryPanel({
         {runs.length === 0 ? (
           <text fg={theme.text.dim}>No previous runs for this tool in this session.</text>
         ) : (
-          <scrollbox ref={scrollRef} flexGrow={1} stickyScroll={false}>
+          <scrollbox
+            ref={scrollRef}
+            flexGrow={1}
+            stickyScroll={false}
+            verticalScrollbarOptions={{
+              trackOptions: standardScrollbarTrackOptions,
+            }}
+          >
             <box flexDirection="column">
               {runs.map((run) => {
                 const isSelected = run.id === selectedRunId;
