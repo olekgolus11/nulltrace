@@ -8,6 +8,7 @@ import { DockerCommandService } from "../../src/features/execution/services/dock
 import { ExecutionBrokerClient } from "../../src/features/execution/services/execution-broker-client.service";
 import { ExecutionBrokerHostService } from "../../src/features/execution/services/execution-broker-host.service";
 import { provisionExecutionBrokerJournal } from "../../src/features/execution/services/execution-broker-journal.helpers";
+import { ExecutionAuthorizationLedgerRepository } from "../../src/features/execution/services/execution-authorization-ledger.repository";
 import { ExecutionBrokerLockService } from "../../src/features/execution/services/execution-broker-lock.service";
 import { ExecutionEventBufferService } from "../../src/features/execution/services/execution-event-buffer.service";
 import { HttpExecutionNetworkService } from "../../src/features/execution/services/http-execution-network.service";
@@ -310,6 +311,11 @@ try {
       invocation: { executableId: "curl", argv: ["--silent", "--show-error", "--fail", "--max-time", "5", `${targetOrigin}/daemon`] },
       origins: [targetOrigin], inputs: [], limits,
     };
+    const grantDatabase = new Database(journal, { readwrite: true, create: false });
+    new ExecutionAuthorizationLedgerRepository(grantDatabase, key, [
+      { id: "public-curl-v1", tool: "curl", mode: "public", executableIds: ["curl"], inputs: [], maximumLimits: limits },
+    ]).issue({ installationId: "daemon-qualification", instanceId: "qualification-client" }, plan, Date.now() + 60_000);
+    grantDatabase.close();
     const executable = Bun.which("docker");
     if (!executable) throw new Error("Docker executable is unavailable.");
     const manifest = {
@@ -317,7 +323,6 @@ try {
       dockerExecutable: executable,
       images: { worker: workerImage, proxy: proxyImage, initializer: initializerImage },
       trustedNonPublicMappings: { [hostAddress]: [hostAddress] },
-      approvedPlan: plan, expiresAt: Date.now() + 60_000,
     };
     for (const [name, content] of [
       ["broker-daemon.json", JSON.stringify(manifest)],

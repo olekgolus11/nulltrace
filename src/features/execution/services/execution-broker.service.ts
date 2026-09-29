@@ -151,7 +151,7 @@ export class ExecutionBrokerService {
   }
 
   private authorize(principal: ExecutionPrincipal, plan: ExecutionPlan): void {
-    const approval = this.options.readAuthorization(principal, plan.authorizationId);
+    const approval = this.options.readAuthorization(principal, plan.authorizationId, plan);
     if (!approval || !Number.isFinite(approval.expiresAt) || approval.expiresAt <= this.now() ||
       this.owner(approval.principal) !== this.owner(principal)) throw new ExecutionBrokerError("UNAUTHORIZED");
     let approved: ExecutionPlan;

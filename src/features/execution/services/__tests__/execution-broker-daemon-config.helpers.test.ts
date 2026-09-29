@@ -6,12 +6,10 @@ import { join } from "node:path";
 import { ExecutionBrokerClient } from "../execution-broker-client.service";
 import { loadExecutionBrokerDaemonConfiguration } from "../execution-broker-daemon-config.helpers";
 import { provisionExecutionBrokerJournal } from "../execution-broker-journal.helpers";
-import { ExecutionPlan } from "../../types/execution-plan.types";
+import { ExecutionAuthorizationLedgerRepository } from "../execution-authorization-ledger.repository";
 
-const token = "a".repeat(64);
-const key = new Uint8Array(32).fill(7);
-const plan: ExecutionPlan = {
-  version: 1, executionId: "run-1", authorizationId: "approval-1", profileId: "public-curl-v1",
+const plan = {
+  version: 1 as const, executionId: "run-1", authorizationId: "approval-1", profileId: "public-curl-v1",
   tool: "curl", mode: "public",
   invocation: { executableId: "curl", argv: ["--silent", "--show-error", "--fail", "--max-time", "5", "https://example.test/path"] },
   origins: ["https://example.test"], inputs: [],
@@ -21,6 +19,8 @@ const plan: ExecutionPlan = {
   },
 };
 
+const token = "a".repeat(64);
+const key = new Uint8Array(32).fill(7);
 async function fixture() {
   const directory = await mkdtemp(join(tmpdir(), "nulltrace-daemon-"));
   await chmod(directory, 0o700);
@@ -35,8 +35,6 @@ async function fixture() {
       initializer: `sha256:${"c".repeat(64)}`,
     },
     trustedNonPublicMappings: {},
-    approvedPlan: plan,
-    expiresAt: Date.now() + 60_000,
   };
   const writePrivate = async (name: string, content: string | Uint8Array) => {
     const path = join(directory, name);
@@ -48,41 +46,56 @@ async function fixture() {
   await writePrivate("client.token", token);
   const database = new Database(join(directory, "receipts.sqlite"), { create: true });
   provisionExecutionBrokerJournal(database, manifest.installationId, key);
+  const profile = {
+    id: "public-curl-v1", tool: "curl", mode: "public", executableIds: ["curl"], inputs: [],
+    maximumLimits: {
+      timeoutMs: 30_000, memoryBytes: 512 * 1024 * 1024, cpuMilliCores: 1_000,
+      processCount: 128, scratchBytes: 64 * 1024 * 1024, fileBytes: 16 * 1024 * 1024, outputBytes: 1024 * 1024,
+    },
+  };
+  new ExecutionAuthorizationLedgerRepository(database, key, [profile])
+    .issue({ installationId: "installation", instanceId: "instance" }, plan, Date.now() + 60_000);
   database.close();
   await chmod(join(directory, "receipts.sqlite"), 0o600);
   return { directory, manifest, writePrivate };
 }
 
 describe("private broker daemon configuration", () => {
-  test("loads a fixed public profile and exact approved plan from private files", async () => {
+  test("loads fixed public profiles and enables the broker-owned authorization ledger", async () => {
     const { directory } = await fixture();
     try {
       const startup = await loadExecutionBrokerDaemonConfiguration(directory);
       expect(startup.hostOptions.profiles.map((profile) => profile.id)).toEqual(["public-curl-v1"]);
       expect(startup.hostOptions.hmacKey).toEqual(key);
-      expect(startup.hostOptions.readAuthorization({ installationId: "installation", instanceId: "instance" }, "approval-1")?.plan)
-        .toEqual(plan);
-      expect(startup.hostOptions.readAuthorization({ installationId: "installation", instanceId: "other" }, "approval-1"))
+      expect(startup.hostOptions.useAuthorizationLedger).toBe(true);
+      expect(startup.hostOptions.authorizationPlanValidator?.({
+        version: 1, executionId: "run", authorizationId: "approval", profileId: "public-curl-v1",
+        tool: "curl", mode: "public", invocation: { executableId: "curl", argv: ["--header", "Authorization: secret"] },
+        origins: [], inputs: [], limits: {
+          timeoutMs: 1000, memoryBytes: 1024, cpuMilliCores: 100, processCount: 4,
+          scratchBytes: 1024, fileBytes: 512, outputBytes: 512,
+        },
+      })).toBe(false);
+      expect(startup.hostOptions.authorizationPlanValidator?.({
+        ...plan, origins: [...plan.origins, "https://other.test"],
+      })).toBe(false);
+      expect(startup.hostOptions.readAuthorization({ installationId: "installation", instanceId: "instance" }, "approval-1"))
         .toBeNull();
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
   });
 
-  test("rejects an unsafe file, unsupported command, and secret-bearing URL", async () => {
+  test("rejects unsafe files and static approvals in daemon configuration", async () => {
     const { directory, manifest, writePrivate } = await fixture();
     try {
       await chmod(join(directory, "client.token"), 0o644);
       await expect(loadExecutionBrokerDaemonConfiguration(directory)).rejects.toThrow("not private");
       await chmod(join(directory, "client.token"), 0o600);
       await writePrivate("broker-daemon.json", JSON.stringify({
-        ...manifest, approvedPlan: { ...plan, invocation: { executableId: "curl", argv: ["--header", "Authorization: secret", "https://example.test"] } },
+        ...manifest, approvedPlan: { authorizationId: "approval-1" },
       }));
-      await expect(loadExecutionBrokerDaemonConfiguration(directory)).rejects.toThrow("Unsupported public cURL invocation");
-      await writePrivate("broker-daemon.json", JSON.stringify({
-        ...manifest, approvedPlan: { ...plan, invocation: { ...plan.invocation, argv: [...plan.invocation.argv.slice(0, -1), "https://example.test/path?token=secret"] } },
-      }));
-      await expect(loadExecutionBrokerDaemonConfiguration(directory)).rejects.toThrow("private URL fields");
+      await expect(loadExecutionBrokerDaemonConfiguration(directory)).rejects.toThrow("Unexpected execution fields");
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
