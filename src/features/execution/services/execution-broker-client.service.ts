@@ -24,8 +24,13 @@ export class ExecutionBrokerClient {
     return this.send("/v1/start", JSON.stringify({ executionId }), "application/json", executionId);
   }
 
-  putInput(executionId: string, slotId: string, bytes: Uint8Array): Promise<ExecutionReceipt> {
-    return this.send(`/v1/input/${requireExecutionId(executionId)}/${requireExecutionId(slotId)}`, Buffer.from(bytes), "application/octet-stream", executionId);
+  async putInput(executionId: string, slotId: string, bytes: Uint8Array): Promise<ExecutionReceipt> {
+    const body = Buffer.from(bytes);
+    try {
+      return await this.send(`/v1/input/${requireExecutionId(executionId)}/${requireExecutionId(slotId)}`, body, "application/octet-stream", executionId);
+    } finally {
+      body.fill(0);
+    }
   }
 
   cancel(executionId: string): Promise<ExecutionControlReceipt> {

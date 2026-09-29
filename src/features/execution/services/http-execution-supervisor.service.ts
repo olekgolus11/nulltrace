@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import { ExecutionRuntimeAdapter } from "../types/execution-broker.types";
 import { ExecutionInputSlot, ExecutionPlan } from "../types/execution-plan.types";
+import { HttpExecutionNetworkInput } from "../types/http-execution-network.types";
 import {
   HttpExecutionStopReason,
   HttpExecutionSupervisedNetwork,
@@ -12,6 +14,7 @@ import { ExecutionEventBufferService } from "./execution-event-buffer.service";
 
 export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
   private readonly runs = new Map<string, SupervisedEntry>();
+  private readonly stagedInputs = new Map<string, StagedExecutionInputs>();
 
   constructor(
     private readonly network: HttpExecutionSupervisedNetwork,
@@ -25,17 +28,44 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
     if (!Number.isSafeInteger(maximum) || maximum < 1 || maximum > 10_000) {
       throw new Error("Invalid execution outcome capacity.");
     }
+    const inputRetention = options.inputRetentionMs ?? 5 * 60_000;
+    if (!Number.isSafeInteger(inputRetention) || inputRetention < 100 || inputRetention > 15 * 60_000) {
+      throw new Error("Invalid execution input retention.");
+    }
   }
 
-  async putInput(_plan: ExecutionPlan, _slot: ExecutionInputSlot, _bytes: Uint8Array): Promise<void> {
-    throw new Error("This public HTTP runtime has no input slots.");
+  async putInput(plan: ExecutionPlan, slot: ExecutionInputSlot, bytes: Uint8Array): Promise<void> {
+    if (!plan.inputs.some((declared) => declared.id === slot.id && declared.kind === slot.kind && declared.maximumBytes === slot.maximumBytes) ||
+      bytes.byteLength > slot.maximumBytes || this.runs.has(plan.executionId)) {
+      this.clearStage(plan.executionId);
+      throw new Error("Execution input slot is unsupported or invalid.");
+    }
+    const stage = this.stagedInputs.get(plan.executionId) ?? this.createStage(plan);
+    if (stage.planFingerprint !== this.planFingerprint(plan) || stage.expiresAt <= Date.now() || stage.inputs.has(slot.id) ||
+      stage.totalBytes + bytes.byteLength > 8 * 1024 * 1024) {
+      this.clearStage(plan.executionId);
+      throw new Error("Execution input staging is expired, duplicate, or over capacity.");
+    }
+    stage.inputs.set(slot.id, { slot: { ...slot }, bytes: Uint8Array.from(bytes) });
+    stage.totalBytes += bytes.byteLength;
+  }
+
+  discardInputs(executionId: string): void {
+    this.clearStage(executionId);
   }
 
   async start(plan: ExecutionPlan): Promise<void> {
-    if (plan.inputs.length || this.runs.has(plan.executionId) || this.hasRunning() ||
+    const stage = this.stagedInputs.get(plan.executionId);
+    if (this.runs.has(plan.executionId) || this.hasRunning() ||
       this.runs.size >= (this.options.maximumRetainedRuns ?? 1_000)) {
-      throw new Error("Execution runtime is busy or the plan requires unsupported input.");
+      throw new Error("Execution runtime is busy.");
     }
+    if (plan.inputs.length && (!stage || stage.planFingerprint !== this.planFingerprint(plan) || stage.expiresAt <= Date.now() || plan.inputs.length !== stage.inputs.size ||
+      plan.inputs.some((slot) => {
+        const staged = stage.inputs.get(slot.id);
+        return !staged || staged.slot.kind !== slot.kind || staged.slot.maximumBytes !== slot.maximumBytes;
+      }))) throw new Error("Execution input slots are missing, expired, or unsupported.");
+    if (!plan.inputs.length && stage) throw new Error("Unexpected execution input slots.");
     if (!Number.isSafeInteger(plan.limits.timeoutMs) || plan.limits.timeoutMs < 1 || plan.limits.timeoutMs > 30 * 60_000) {
       throw new Error("Invalid execution deadline.");
     }
@@ -56,10 +86,15 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
       settlementFailed: false,
       events: new ExecutionEventBufferService(plan.executionId, plan.limits.outputBytes),
     };
+    const inputs = stage ? [...stage.inputs.values()] : [];
+    if (stage) {
+      clearTimeout(stage.timer);
+      this.stagedInputs.delete(plan.executionId);
+    }
     this.runs.set(plan.executionId, entry);
     this.armLease(entry);
     entry.deadlineTimer = setTimeout(() => this.stop(entry, "deadline"), plan.limits.timeoutMs);
-    entry.task = this.execute(entry, plan);
+    entry.task = this.execute(entry, plan, inputs);
   }
 
   renewOwnership(executionId: string): HttpExecutionSupervisedRun {
@@ -94,6 +129,7 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
   }
 
   async shutdown(): Promise<void> {
+    for (const executionId of this.stagedInputs.keys()) this.clearStage(executionId);
     for (const entry of this.runs.values()) this.stop(entry, "cancelled");
     await Promise.all([...this.runs.values()].map((entry) => entry.task));
   }
@@ -107,7 +143,7 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
     return { ...entry.result };
   }
 
-  private async execute(entry: SupervisedEntry, plan: ExecutionPlan): Promise<void> {
+  private async execute(entry: SupervisedEntry, plan: ExecutionPlan, inputs: HttpExecutionNetworkInput[]): Promise<void> {
     try {
       let policy;
       try {
@@ -122,7 +158,14 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
         plan.invocation.executableId,
         plan.invocation.argv,
         entry.controller.signal,
-        (stream, chunk) => entry.events.append(stream, chunk),
+        (stream, chunk) => {
+          if (plan.inputs.some((slot) => slot.kind === "secret")) {
+            chunk.fill(0);
+            return;
+          }
+          entry.events.append(stream, chunk);
+        },
+        inputs,
       );
       entry.result.exitCode = result.command.exitCode;
       entry.result.cleanup = result.evidence.cleanupConfirmed ? "confirmed" : "pending";
@@ -131,6 +174,7 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
       entry.result.cleanup = error instanceof HttpExecutionRunError && error.cleanupConfirmed ? "confirmed" : "pending";
       entry.result.status = entry.result.cleanup === "confirmed" ? "finished" : "interrupted";
     } finally {
+      inputs.forEach((input) => input.bytes.fill(0));
       entry.events.finish();
       if (entry.leaseTimer) clearTimeout(entry.leaseTimer);
       if (entry.deadlineTimer) clearTimeout(entry.deadlineTimer);
@@ -168,6 +212,38 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
     if (!entry) throw new Error("Execution was not found.");
     return entry;
   }
+
+  private createStage(plan: ExecutionPlan): StagedExecutionInputs {
+    const stage: StagedExecutionInputs = {
+      inputs: new Map(),
+      totalBytes: 0,
+      planFingerprint: this.planFingerprint(plan),
+      expiresAt: Date.now() + (this.options.inputRetentionMs ?? 5 * 60_000),
+      timer: setTimeout(() => this.clearStage(plan.executionId), this.options.inputRetentionMs ?? 5 * 60_000),
+    };
+    this.stagedInputs.set(plan.executionId, stage);
+    return stage;
+  }
+
+  private clearStage(executionId: string): void {
+    const stage = this.stagedInputs.get(executionId);
+    if (!stage) return;
+    clearTimeout(stage.timer);
+    for (const input of stage.inputs.values()) input.bytes.fill(0);
+    this.stagedInputs.delete(executionId);
+  }
+
+  private planFingerprint(plan: ExecutionPlan): string {
+    return createHash("sha256").update(JSON.stringify(plan)).digest("hex");
+  }
+}
+
+interface StagedExecutionInputs {
+  inputs: Map<string, HttpExecutionNetworkInput>;
+  totalBytes: number;
+  planFingerprint: string;
+  expiresAt: number;
+  timer: ReturnType<typeof setTimeout>;
 }
 
 interface SupervisedEntry {

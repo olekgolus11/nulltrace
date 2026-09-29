@@ -1,5 +1,6 @@
 import { ExecutionBrokerOwnershipLock } from "./execution-broker-lock.types";
 import { ExecutionOutputStream } from "./execution-event.types";
+import { ExecutionInputSlot } from "./execution-plan.types";
 
 export interface HttpExecutionEndpoint {
   origin: string;
@@ -68,6 +69,11 @@ export interface HttpExecutionNetworkEvidence {
 export interface HttpExecutionNetworkRunResult {
   command: HttpExecutionNetworkResult;
   evidence: HttpExecutionNetworkEvidence;
+}
+
+export interface HttpExecutionNetworkInput {
+  slot: ExecutionInputSlot;
+  bytes: Uint8Array;
 }
 
 export interface DockerCommandResult {

@@ -52,6 +52,76 @@ function fixture(leaseMs = 100) {
 }
 
 describe("HTTP execution ownership", () => {
+  test("stages bounded slot copies and wipes them after network delivery", async () => {
+    const secret = new TextEncoder().encode("worker-secret-canary");
+    let retained: Uint8Array | undefined;
+    const network: HttpExecutionSupervisedNetwork = {
+      async run(_policy, _limits, _executable, _argv, _signal, onOutput, inputs) {
+        retained = inputs?.[0]?.bytes;
+        expect(new TextDecoder().decode(retained)).toBe("worker-secret-canary");
+        const leakedOutput = new TextEncoder().encode("worker-secret-canary");
+        onOutput?.("stdout", leakedOutput);
+        expect([...leakedOutput]).toEqual(new Array("worker-secret-canary".length).fill(0));
+        return {
+          command: { exitCode: 0, stdout: "", stderr: "" },
+          evidence: { executionId: "run-1", workerRulesSha256: "", proxyRulesSha256: "", proxyDecisions: [], cleanupConfirmed: true },
+        };
+      },
+    };
+    const supervisor = new HttpExecutionSupervisorService(network, { async resolve() { return policy; } }, {
+      leaseMs: 1_000, onSettled() {},
+    });
+    const inputPlan = { ...plan, inputs: [{ id: "auth", kind: "secret" as const, maximumBytes: 64 }] };
+    await supervisor.putInput(inputPlan, inputPlan.inputs[0]!, secret);
+    secret.fill(0);
+    await supervisor.start(inputPlan);
+    await supervisor.wait("run-1");
+    expect([...retained!]).toEqual(new Array("worker-secret-canary".length).fill(0));
+    expect(supervisor.readEvents("run-1", -1).events).toEqual([]);
+  });
+
+  test("discards all earlier staged slots when a later slot is rejected", async () => {
+    const supervisor = new HttpExecutionSupervisorService({ async run() { throw new Error("must not run"); } },
+      { async resolve() { return policy; } }, { leaseMs: 1_000, onSettled() {} });
+    const inputPlan = { ...plan, inputs: [
+      { id: "auth", kind: "secret" as const, maximumBytes: 64 },
+      { id: "payload", kind: "data" as const, maximumBytes: 64 },
+    ] };
+    await supervisor.putInput(inputPlan, inputPlan.inputs[0]!, new TextEncoder().encode("first-secret"));
+    await expect(supervisor.putInput(inputPlan, { id: "unknown", kind: "data", maximumBytes: 64 }, new Uint8Array([1])))
+      .rejects.toThrow("unsupported or invalid");
+    await expect(supervisor.start(inputPlan)).rejects.toThrow("missing, expired");
+  });
+
+  test("wipes secret slots after a failed worker cleanup path", async () => {
+    const secret = new TextEncoder().encode("worker-secret-canary");
+    let retained: Uint8Array | undefined;
+    const supervisor = new HttpExecutionSupervisorService({
+      async run(_policy, _limits, _executable, _argv, _signal, _onOutput, inputs) {
+        retained = inputs?.[0]?.bytes;
+        throw new HttpExecutionRunError("worker failed", true);
+      },
+    }, { async resolve() { return policy; } }, { leaseMs: 1_000, onSettled() {} });
+    const inputPlan = { ...plan, inputs: [{ id: "auth", kind: "secret" as const, maximumBytes: 64 }] };
+    await supervisor.putInput(inputPlan, inputPlan.inputs[0]!, secret);
+    secret.fill(0);
+    await supervisor.start(inputPlan);
+    await supervisor.wait("run-1");
+    expect([...retained!]).toEqual(new Array("worker-secret-canary".length).fill(0));
+  });
+
+  test("fails closed for missing slots and expires unstarted staged bytes", async () => {
+    const supervisor = new HttpExecutionSupervisorService({ async run() { throw new Error("must not run"); } },
+      { async resolve() { return policy; } }, { leaseMs: 1_000, inputRetentionMs: 100, onSettled() {} });
+    const inputPlan = { ...plan, inputs: [{ id: "auth", kind: "secret" as const, maximumBytes: 64 }] };
+    await expect(supervisor.start(inputPlan)).rejects.toThrow("missing, expired");
+    const source = new TextEncoder().encode("short-lived-secret");
+    await supervisor.putInput(inputPlan, inputPlan.inputs[0]!, source);
+    source.fill(0);
+    await Bun.sleep(140);
+    await expect(supervisor.start(inputPlan)).rejects.toThrow("missing, expired");
+  });
+
   test("cancels an active run and waits for verified environment cleanup", async () => {
     const { supervisor, calls } = fixture();
     await supervisor.start(plan);

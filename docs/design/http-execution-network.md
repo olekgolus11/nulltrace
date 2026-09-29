@@ -10,6 +10,10 @@ For every run the service creates an internal dual-stack worker network and a se
 
 The initializer uses the target container's network namespace, installs nftables from stdin and reads back `nft -j list ruleset`. The service requires default-drop input, forwarding and output chains plus the expected address, port and allow-rule evidence. Squid starts only after both namespace checks pass. The command receives fixed proxy variables; direct traffic, worker DNS and unauthorized IPv4/IPv6 traffic still meet the worker's default-drop output chain.
 
+Declared input slots are copied into bounded supervisor memory and expire after five minutes if a run is not started. The normalized plan pins each slot ID, kind and byte ceiling; all slot ceilings together cannot exceed 8 MiB. After firewall verification and proxy startup, each slot's bytes travel through Docker stdin into `/work/input-<slot-id>` on the worker's private tmpfs, with mode `0600`. The host buffer is zeroed as soon as that stdin transfer settles, including failure. The untrusted command starts only after materialization succeeds. Data and secret slot bytes never enter Docker arguments, environment variables or host files. Secret-bearing runs suppress captured worker output events; the disposable container removal deletes their files. Startup without all sealed slots, expired input, failed materialization or unconfirmed cleanup fails closed.
+
+Squid's access log records timestamp, client address, result, method and pinned destination address; its format deliberately omits the request URL and headers so query strings and authentication values are not written there. Secret-bearing runs also suppress worker output events.
+
 Squid receives a mode-0600 configuration and hosts file through stdin. Its access format contains timestamp, source address, decision/status, method and destination address. It omits the URL, query, headers and credentials. The result exposes a bounded tail of those decisions, command status and bounded stdout/stderr, rule hashes and cleanup confirmation.
 
 ## Trusted configuration

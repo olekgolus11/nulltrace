@@ -22,6 +22,7 @@ export interface ExecutionReceipt {
 
 export interface ExecutionRuntimeAdapter {
   putInput(plan: ExecutionPlan, slot: ExecutionInputSlot, bytes: Uint8Array): Promise<void>;
+  discardInputs?(executionId: string): void;
   start(plan: ExecutionPlan): Promise<void>;
   readEvents?(executionId: string, afterSequence: number, maximumEvents?: number): ExecutionEventPage;
   cancel?(executionId: string): ExecutionControlReceipt;

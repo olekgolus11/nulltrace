@@ -121,7 +121,12 @@ export class ExecutionBrokerHttpService {
         if (size > maximumBytes) throw new ExecutionBrokerError("INVALID_REQUEST");
         chunks.push(value);
       }
-      return Uint8Array.from(Buffer.concat(chunks, size));
+      const combined = Buffer.concat(chunks, size);
+      try {
+        return Uint8Array.from(combined);
+      } finally {
+        combined.fill(0);
+      }
     } finally {
       clearTimeout(timer);
       request.signal.removeEventListener("abort", interrupt);

@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { chmod, lstat, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,6 +30,8 @@ const allowedEvents: Array<{ host: string | null; path: string }> = [];
 const deniedEvents: Array<{ host: string | null; path: string }> = [];
 let onHeldRequest: (() => void) | null = null;
 let deniedPort = 0;
+let inputSecret: string | null = null;
+const secretReceiverChecks: boolean[] = [];
 const denied = Bun.serve({
   hostname: "127.0.0.1",
   port: 0,
@@ -51,6 +53,11 @@ const allowed = Bun.serve({
     }
     if (url.pathname === "/redirect") {
       return new Response(null, { status: 302, headers: { location: `http://forbidden.test:${deniedPort}/redirect-target` } });
+    }
+    if (url.pathname === "/secret-input") {
+      const matched = inputSecret !== null && request.headers.get("authorization") === `Bearer ${inputSecret}`;
+      secretReceiverChecks.push(matched);
+      return new Response(matched ? "input-ok\n" : "input-rejected\n", { status: matched ? 200 : 401 });
     }
     if (url.pathname === "/large") return new Response("x".repeat(2 * 1024 * 1024));
     return new Response("approved-server\n");
@@ -251,14 +258,18 @@ try {
     const token = randomBytes(32).toString("hex");
     const principal = { installationId: "broker-qualification", instanceId: "qualification-client" };
     const profile: ExecutionProfile = {
-      id: "public-curl-qualification", tool: "curl", mode: "public", executableIds: ["curl"],
-      inputs: [], maximumLimits: limits,
+      id: "public-input-qualification", tool: "qualification", mode: "public", executableIds: ["python3"],
+      inputs: [{ id: "auth", kind: "secret", maximumBytes: 64 }], maximumLimits: limits,
     };
+    const secret = Buffer.from(randomBytes(32).toString("base64url"), "ascii");
+    const secretCanary = Buffer.from(secret);
+    inputSecret = secret.toString("ascii");
+    const verifyInputAndRequest = "import pathlib,stat,sys,urllib.request; p=pathlib.Path(sys.argv[1]); b=p.read_bytes(); assert stat.S_IMODE(p.stat().st_mode)==0o600 and len(b)==43; req=urllib.request.Request(sys.argv[2],headers={'Authorization':'Bearer '+b.decode('ascii')}); urllib.request.urlopen(req,timeout=5).read(); print('worker-input-confirmed')";
     const plan: ExecutionPlan = {
-      version: 1, executionId: "broker-qualification-run", authorizationId: "approved-run",
-      profileId: profile.id, tool: "curl", mode: "public",
-      invocation: { executableId: "curl", argv: ["--silent", "--show-error", "--fail", "--max-time", "5", `${allowedOrigin}/broker`] },
-      origins: [allowedOrigin], inputs: [], limits,
+      version: 1, executionId: "broker-input-qualification-run", authorizationId: "approved-run",
+      profileId: profile.id, tool: "qualification", mode: "public",
+      invocation: { executableId: "python3", argv: ["-c", verifyInputAndRequest, "/work/input-auth", `${allowedOrigin}/secret-input`] },
+      origins: [allowedOrigin], inputs: profile.inputs, limits,
     };
     const brokerHost = new ExecutionBrokerHostService({
       directory, installationId: principal.installationId, hmacKey: key,
@@ -276,6 +287,8 @@ try {
       const unix = await brokerHost.start();
       const client = new ExecutionBrokerClient((request) => fetch(request, { unix }), token);
       expect((await client.prepare(plan)).status === "prepared", "Broker did not prepare the approved plan.");
+      expect((await client.putInput(plan.executionId, "auth", secret)).status === "prepared", "Broker did not seal the secret slot.");
+      secret.fill(0);
       await client.start(plan.executionId);
       let receipt = await client.get(plan.executionId);
       for (let attempt = 0; attempt < 100 && receipt.status !== "closed"; attempt++) {
@@ -283,13 +296,25 @@ try {
         receipt = await client.get(plan.executionId);
       }
       expect(receipt.status === "closed" && receipt.cleanup === "confirmed", "Broker did not confirm cleanup.");
-      const events = await client.readEvents(plan.executionId, -1);
-      expect(events.events.some((event) => event.line === "approved-server"), "Broker did not return the approved response event.");
-      expect(allowedEvents.length === before + 1, "Approved receiver did not observe the broker request.");
-      return "approved receiver count +1; broker event returned; cleanup confirmed";
+      expect(allowedEvents.length === before + 1, "Worker did not verify its private input before sending the approved request.");
+      expect(allowedEvents.at(-1)?.path === "/secret-input", "Worker sent a request outside the approved qualification path.");
+      expect(secretReceiverChecks.length === 1 && secretReceiverChecks[0], "Controlled receiver did not match the exact in-memory input canary.");
+      const hostFiles = await readdir(directory);
+      for (const name of hostFiles) {
+        const content = await readFile(join(directory, name)).catch(() => Buffer.alloc(0));
+        expect(!content.includes(secretCanary), "Input bytes appeared in a broker host file.");
+      }
+      const containers = await docker.run(["ps", "-aq", "--filter", "label=nulltrace.installation=broker-qualification"], { timeoutMs: 10_000 });
+      const networks = await docker.run(["network", "ls", "-q", "--filter", "label=nulltrace.installation=broker-qualification"], { timeoutMs: 10_000 });
+      expect(containers.exitCode === 0 && !containers.stdout.trim(), "Qualification left a container behind.");
+      expect(networks.exitCode === 0 && !networks.stdout.trim(), "Qualification left a network behind.");
+      return "broker putInput -> worker tmpfs read mode-0600 input; controlled receiver matched exact authorization canary; host files clean; containers/networks 0";
     } finally {
       await brokerHost.close();
       key.fill(0);
+      secret.fill(0);
+      secretCanary.fill(0);
+      inputSecret = null;
       await rm(directory, { recursive: true, force: true });
     }
   });
