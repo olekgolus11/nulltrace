@@ -1,0 +1,44 @@
+{
+  "checkedAt": "2026-09-29T18:25:32.734Z",
+  "platform": "linux/arm64",
+  "runtime": {
+    "engine": "OrbStack Docker Engine 29.4.0",
+    "apiVersion": "1.54",
+    "kernel": "7.0.14-orbstack-00380-ga7e0a2dc9535",
+    "containerd": "v2.2.2",
+    "runc": "1.5.1"
+  },
+  "releaseLockSha256": "0b24c4e3933cc22efdcd9351f44c45d286e0ed99fc271b0776c210d026db1505",
+  "images": {
+    "worker": "sha256:4d22539322310c38f02f580ae8d7f2cd251eccaad48d356d664946219be93048",
+    "proxy": "sha256:f09182c93bd061a9b848b3f9eb7c1565a7b00f05b72c27d6c5baee4a98cc19f1",
+    "initializer": "sha256:45217ed397209f25014ac7e1e5d27f4f5146a394b4db40ec560d98a6abb2d2a7"
+  },
+  "checks": [
+    {
+      "name": "broker secret input reaches the supervised worker tmpfs",
+      "passed": true,
+      "transport": "authenticated bounded input request, volatile supervisor staging, Docker stdin",
+      "workerFile": { "path": "/work/input-auth", "mode": "0600", "contentReadInsideWorker": true, "exactDeliveryMatchedAtControlledReceiver": true },
+      "untrustedCommandStartedAfterFirewallVerification": true,
+      "brokerDirectoryContainsInputBytes": false,
+      "secretBearingWorkerEventsSuppressed": true,
+      "approvedReceiverRequestsAfterWorkerVerification": 1,
+      "receiverStoredOnlyMatchBoolean": true,
+      "postRunContainers": 0,
+      "postRunNetworks": 0
+    },
+    {
+      "name": "Squid decision log format omits request URLs and headers",
+      "passed": true,
+      "loggedFields": ["timestamp", "clientAddress", "result", "method", "destinationAddress"]
+    }
+  ],
+  "notQualified": [
+    "TUI approval wiring and tool migration",
+    "Docker Desktop",
+    "Linux AMD64",
+    "macOS same-user process isolation",
+    "cross-process memory erasure beyond JavaScript buffer zeroing"
+  ]
+}

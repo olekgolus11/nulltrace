@@ -121,7 +121,8 @@ export class ExecutionBrokerService {
       this.receipts.sealInput(executionId, slotId, fingerprint);
       return this.get(principal, executionId);
     } catch {
-      this.receipts.markInterrupted(executionId);
+      try { runtime.discardInputs?.(executionId); }
+      finally { this.receipts.markInterrupted(executionId); }
       throw new ExecutionBrokerError("UNAVAILABLE");
     } finally {
       copy.fill(0);
@@ -137,14 +138,23 @@ export class ExecutionBrokerService {
     if (!plan || this.writing.has(executionId) || plan.inputs.some((slot) => !Object.hasOwn(receipt.sealedInputs, slot.id))) {
       throw new ExecutionBrokerError("CONFLICT");
     }
-    this.requireReconciled();
-    this.authorize(principal, plan);
-    this.receipts.commitStart(executionId);
+    try {
+      this.requireReconciled();
+      this.authorize(principal, plan);
+      this.receipts.commitStart(executionId);
+    } catch (error) {
+      if (plan.inputs.length) {
+        try { runtime.discardInputs?.(executionId); }
+        finally { this.receipts.markInterrupted(executionId); }
+      }
+      throw error;
+    }
     try {
       await runtime.start(structuredClone(plan));
       this.receipts.markStarted(executionId);
     } catch {
-      this.receipts.markInterrupted(executionId);
+      try { runtime.discardInputs?.(executionId); }
+      finally { this.receipts.markInterrupted(executionId); }
       throw new ExecutionBrokerError("UNAVAILABLE");
     }
     return this.get(principal, executionId);

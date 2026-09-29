@@ -35,6 +35,7 @@ class RecordingDocker implements DockerCommandAdapter {
   readonly calls: Array<{ args: string[]; input?: string; outputLimitBytes?: number }> = [];
   failVerification = false;
   failWorker = false;
+  failInput = false;
   onWorkerStart?: () => void;
   ownedContainers: string[] = [];
   ownedNetworks: string[] = [];
@@ -47,6 +48,7 @@ class RecordingDocker implements DockerCommandAdapter {
       input: options.input ? new TextDecoder().decode(options.input) : undefined,
       outputLimitBytes: options.outputLimitBytes,
     });
+    if (this.failInput && args.includes("/work/input-auth")) return { exitCode: 1, stdout: "", stderr: "failed" };
     if (args.includes("label=nulltrace.installation=test-installation")) {
       if (this.inventoryUnavailable) return { exitCode: 1, stdout: "", stderr: "unavailable" };
       return {
@@ -158,6 +160,55 @@ describe("HTTP execution network provisioning", () => {
     const worker = docker.calls.find((call) => call.args.some((argument) => argument.startsWith("HTTP_PROXY=")));
     expect(worker?.args.at(-1)).toBe("http://approved.test:8080/");
     expect(worker?.outputLimitBytes).toBe(limits.outputBytes);
+  });
+
+  test("writes declared bytes through Docker stdin after firewall verification and before worker start", async () => {
+    const docker = new RecordingDocker();
+    const secret = new TextEncoder().encode("worker-secret-canary");
+    const data = new TextEncoder().encode("request-body");
+    await service(docker).run(policy, limits, "curl", ["https://example.test"], undefined, undefined, [
+      { slot: { id: "auth", kind: "secret", maximumBytes: 64 }, bytes: secret },
+      { slot: { id: "payload", kind: "data", maximumBytes: 64 }, bytes: data },
+    ]);
+    const materialize = docker.calls.findIndex((call) => call.args.includes("/work/input-auth"));
+    const materializeData = docker.calls.findIndex((call) => call.args.includes("/work/input-payload"));
+    const worker = docker.calls.findIndex((call) => call.args.some((argument) => argument.startsWith("HTTP_PROXY=")));
+    const verifications = docker.calls.flatMap((call, index) => call.args.includes("-j") ? [index] : []);
+    expect(materialize).toBeGreaterThan(Math.max(...verifications));
+    expect(materialize).toBeLessThan(worker);
+    const write = docker.calls[materialize]!;
+    const writeData = docker.calls[materializeData]!;
+    expect(write.input).toBe("worker-secret-canary");
+    expect(write.args.join(" ")).not.toContain("worker-secret-canary");
+    expect(write.args).toContain('umask 077; cat > "$1" && chmod 600 "$1"');
+    expect(writeData.input).toBe("request-body");
+    expect(materializeData).toBeLessThan(worker);
+    expect(docker.calls[worker]!.args.join(" ")).not.toContain("worker-secret-canary");
+    expect(docker.calls[worker]!.args.join(" ")).not.toContain("request-body");
+    expect([...secret]).toEqual(new Array("worker-secret-canary".length).fill(0));
+    expect([...data]).toEqual(new Array("request-body".length).fill(0));
+  });
+
+  test("wipes the staged host buffer when private-file materialization fails", async () => {
+    const docker = new RecordingDocker();
+    docker.failInput = true;
+    const secret = new TextEncoder().encode("worker-secret-canary");
+    await expect(service(docker).run(policy, limits, "curl", ["https://example.test"], undefined, undefined, [
+      { slot: { id: "auth", kind: "secret", maximumBytes: 64 }, bytes: secret },
+    ])).rejects.toThrow("Isolation infrastructure command failed");
+    expect([...secret]).toEqual(new Array("worker-secret-canary".length).fill(0));
+    expect(docker.calls.filter((call) => call.args[0] === "rm" && call.args[1] === "-f")).toHaveLength(2);
+  });
+
+  test("never materializes an input when firewall verification fails", async () => {
+    const docker = new RecordingDocker();
+    docker.failVerification = true;
+    const secret = new TextEncoder().encode("worker-secret-canary");
+    await expect(service(docker).run(policy, limits, "curl", ["https://example.test"], undefined, undefined, [
+      { slot: { id: "auth", kind: "secret", maximumBytes: 64 }, bytes: secret },
+    ])).rejects.toThrow("Firewall");
+    expect(docker.calls.some((call) => call.args.includes("/work/input-auth"))).toBe(false);
+    expect([...secret]).toEqual(new Array("worker-secret-canary".length).fill(0));
   });
 
   test("cleans the environment when the untrusted command fails", async () => {

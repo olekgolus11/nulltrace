@@ -22,6 +22,8 @@ describe("HTTP execution network policy", () => {
     expect(squid.configuration).toContain("method CONNECT");
     expect(squid.configuration).toContain("http_access deny all");
     expect(squid.configuration).not.toContain("https://example.test");
+    expect(squid.configuration).toContain("logformat decisions %ts.%03tu %>a %Ss/%03>Hs %rm %>A");
+    expect(squid.configuration).not.toContain("%ru");
     expect(squid.hosts).toContain("93.184.216.34 example.test");
     expect(firewall).toContain("ip daddr 93.184.216.34 tcp dport 443 accept");
     expect(firewall).toContain("ip6 daddr 2606:2800:220:1:248:1893:25c8:1946 tcp dport 443 accept");

@@ -11,6 +11,8 @@ import { ExecutionBrokerClient } from "../execution-broker-client.service";
 import { parseExecutionPlan } from "../execution-plan.helpers";
 import { ExecutionAuthorization, ExecutionRuntimeAdapter } from "../../types/execution-broker.types";
 import { ExecutionPlan, ExecutionProfile } from "../../types/execution-plan.types";
+import { HttpExecutionSupervisorService } from "../http-execution-supervisor.service";
+import { HttpExecutionNetworkPolicy } from "../../types/http-execution-network.types";
 
 const principal = { installationId: "installation", instanceId: "instance" };
 const token = "a".repeat(64);
@@ -73,6 +75,15 @@ describe("execution admission", () => {
     expect(() => broker.prepare({ ...principal, instanceId: "other" }, original)).toThrow("UNAUTHORIZED");
     broker.prepare(principal, original);
     expect(() => broker.get({ ...principal, instanceId: "other" }, original.executionId)).toThrow("NOT_FOUND");
+  });
+
+  test("caps the aggregate declared input budget at eight mebibytes", () => {
+    const largeSlots = [
+      { id: "credentials", kind: "secret" as const, maximumBytes: 5 * 1024 * 1024 },
+      { id: "payload", kind: "data" as const, maximumBytes: 4 * 1024 * 1024 },
+    ];
+    expect(() => parseExecutionPlan({ ...original, inputs: largeSlots }, [{ ...profile, inputs: largeSlots }]))
+      .toThrow("input slots");
   });
 
   test("keeps a durable grant bound through prepare, input sealing, and start", async () => {
@@ -139,6 +150,61 @@ describe("execution admission", () => {
     await Promise.all([broker.start(principal, "run-1"), broker.start(principal, "run-1")]);
     expect(count).toBe(1);
     expect(broker.get(principal, "run-1").status).toBe("started");
+  });
+
+  test("discards an earlier staged slot when a later runtime upload fails", async () => {
+    const slots = [
+      { id: "credentials", kind: "secret" as const, maximumBytes: 256 },
+      { id: "payload", kind: "data" as const, maximumBytes: 128 },
+    ];
+    const profileWithInputs = { ...profile, inputs: slots };
+    const plan = { ...original, inputs: slots };
+    const database = new Database(":memory:");
+    databases.push(database);
+    const receipts = new ExecutionReceiptRepository(database, new Uint8Array(32).fill(7));
+    const policy: HttpExecutionNetworkPolicy = {
+      executionId: plan.executionId, origins: plan.origins,
+      endpoints: [{ origin: "https://example.test", hostname: "example.test", address: "93.184.216.34", family: 4, port: 443 }],
+    };
+    const supervisor = new HttpExecutionSupervisorService({ async run() { throw new Error("must not run"); } },
+      { async resolve() { return policy; } }, { leaseMs: 1_000, onSettled() {} });
+    let uploadCount = 0;
+    const runtime: ExecutionRuntimeAdapter = {
+      async putInput(runPlan, slot, bytes) {
+        uploadCount += 1;
+        if (uploadCount === 2) throw new Error("injected later slot failure");
+        await supervisor.putInput(runPlan, slot, bytes);
+      },
+      discardInputs(executionId) { supervisor.discardInputs(executionId); },
+      async start(runPlan) { await supervisor.start(runPlan); },
+    };
+    const broker = new ExecutionBrokerService(receipts, {
+      profiles: [profileWithInputs],
+      readAuthorization: () => ({ principal, plan, expiresAt: 2000 }),
+      runtime,
+      now: () => 1000,
+    });
+    broker.prepare(principal, plan);
+    await broker.putInput(principal, plan.executionId, "credentials", new TextEncoder().encode("first-secret"));
+    await expect(broker.putInput(principal, plan.executionId, "payload", new Uint8Array([1])))
+      .rejects.toThrow("UNAVAILABLE");
+    expect(receipts.find(plan.executionId)?.status).toBe("interrupted");
+    await expect(supervisor.start(plan)).rejects.toThrow("missing, expired");
+  });
+
+  test("wipes sealed input when authorization expires before start", async () => {
+    const staged: Uint8Array[] = [];
+    const state = fixture(":memory:", {
+      async putInput(_plan, _slot, bytes) { staged.push(Uint8Array.from(bytes)); },
+      discardInputs() { staged.forEach((bytes) => bytes.fill(0)); },
+      async start() { throw new Error("must not run"); },
+    });
+    state.broker.prepare(principal, original);
+    await state.broker.putInput(principal, original.executionId, "credentials", new TextEncoder().encode("expires-before-start"));
+    state.revoke();
+    await expect(state.broker.start(principal, original.executionId)).rejects.toThrow("UNAUTHORIZED");
+    expect([...staged[0]!]).toEqual(new Array("expires-before-start".length).fill(0));
+    expect(state.receipts.find(original.executionId)?.status).toBe("interrupted");
   });
 
   test("blocks start during upload and rejects revocation before sealing", async () => {

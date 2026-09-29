@@ -37,7 +37,8 @@ export function parseExecutionPlan(value: unknown, profiles: readonly ExecutionP
   });
   if (!origins.length || new Set(origins).size !== origins.length) throw new Error("Invalid execution origins.");
   const inputs = requireExecutionArray(record.inputs, 16).map((value) => parseInput(value, profile));
-  if (new Set(inputs.map((input) => input.id)).size !== inputs.length || inputs.length !== profile.inputs.length) {
+  if (new Set(inputs.map((input) => input.id)).size !== inputs.length || inputs.length !== profile.inputs.length ||
+    inputs.reduce((total, input) => total + input.maximumBytes, 0) > 8 * 1024 * 1024) {
     throw new Error("Execution input slots do not match the profile.");
   }
   return {

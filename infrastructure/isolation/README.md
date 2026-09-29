@@ -78,3 +78,5 @@ bun run infrastructure/isolation/qualify-http-network.ts linux/arm64
 ```
 
 The test uses controlled host receivers and verifies allowed delivery, blocked cross-origin redirects, blocked direct proxy bypass, blocked worker DNS and blocked unauthorized IPv6. See [the network design](../../docs/design/http-execution-network.md) for the boundary and platform limits.
+
+The broker socket check also uploads a random secret slot through the authenticated `/v1/input` request and starts the supervised worker only after sealing. The worker reads `/work/input-auth` from its private tmpfs, verifies its mode, and sends the value as an Authorization header to the controlled approved receiver. The receiver compares the value with an in-memory canary and records only a boolean; the URL, headers, body and canary are excluded from the access log and evidence. Qualification scans broker host files for the random input bytes and checks that installation-labeled containers and networks are absent after completion. This validates this input transport path on OrbStack ARM64; it does not wire TUI approvals or migrate a production tool.

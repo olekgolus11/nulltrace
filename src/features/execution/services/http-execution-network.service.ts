@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import {
   DockerCommandAdapter,
   HttpExecutionNetworkEnvironment,
+  HttpExecutionNetworkInput,
   HttpExecutionNetworkOptions,
   HttpExecutionNetworkPolicy,
   HttpExecutionNetworkResult,
@@ -43,6 +44,7 @@ export class HttpExecutionNetworkService {
     argv: string[],
     signal?: AbortSignal,
     onOutput?: (stream: ExecutionOutputStream, chunk: Uint8Array) => void,
+    inputs: HttpExecutionNetworkInput[] = [],
   ): Promise<HttpExecutionNetworkRunResult> {
     this.options.ownershipLock.assertHeld();
     await this.ensureReconciled();
@@ -90,6 +92,8 @@ export class HttpExecutionNetworkService {
       this.requireActive(signal);
       await this.startProxy(environment.proxyContainerId, policy, signal);
       this.requireActive(signal);
+      await this.materializeInputs(environment.workerContainerId, inputs, limits, signal);
+      this.requireActive(signal);
       command = await this.executeWorker(environment, limits, executable, argv, signal, onOutput);
       this.requireActive(signal);
       proxyDecisions = await this.readProxyDecisions(environment.proxyContainerId);
@@ -101,6 +105,7 @@ export class HttpExecutionNetworkService {
     try {
       cleanupConfirmed = await this.cleanup(names);
     } finally {
+      inputs.forEach((input) => input.bytes.fill(0));
       this.active.delete(policy.executionId);
     }
     if (!cleanupConfirmed) {
@@ -287,6 +292,37 @@ export class HttpExecutionNetworkService {
       onOutput,
     });
     return result;
+  }
+
+  private async materializeInputs(
+    container: string,
+    inputs: HttpExecutionNetworkInput[],
+    limits: ExecutionLimits,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    let totalBytes = 0;
+    try {
+      for (const input of inputs) {
+        const { id, maximumBytes } = input.slot;
+        if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$/.test(id) || input.bytes.byteLength > maximumBytes ||
+          input.bytes.byteLength > limits.fileBytes) throw new Error("Execution input is outside its declared limits.");
+        totalBytes += input.bytes.byteLength;
+        if (totalBytes > 8 * 1024 * 1024 || totalBytes > limits.scratchBytes) {
+          throw new Error("Execution inputs exceed scratch capacity.");
+        }
+        this.requireActive(signal);
+        try {
+          await this.requireSuccess([
+            "exec", "-i", container, "sh", "-c", 'umask 077; cat > "$1" && chmod 600 "$1"',
+            "sh", `/work/input-${id}`,
+          ], this.options.setupTimeoutMs, input.bytes, signal);
+        } finally {
+          input.bytes.fill(0);
+        }
+      }
+    } finally {
+      inputs.forEach((input) => input.bytes.fill(0));
+    }
   }
 
   private async writePrivateFile(container: string, path: string, value: string, signal?: AbortSignal): Promise<void> {
