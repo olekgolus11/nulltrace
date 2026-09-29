@@ -8,7 +8,6 @@ import { DockerCommandService } from "../../src/features/execution/services/dock
 import { ExecutionBrokerClient } from "../../src/features/execution/services/execution-broker-client.service";
 import { ExecutionBrokerHostService } from "../../src/features/execution/services/execution-broker-host.service";
 import { provisionExecutionBrokerJournal } from "../../src/features/execution/services/execution-broker-journal.helpers";
-import { ExecutionAuthorizationLedgerRepository } from "../../src/features/execution/services/execution-authorization-ledger.repository";
 import { ExecutionBrokerLockService } from "../../src/features/execution/services/execution-broker-lock.service";
 import { ExecutionEventBufferService } from "../../src/features/execution/services/execution-event-buffer.service";
 import { HttpExecutionNetworkService } from "../../src/features/execution/services/http-execution-network.service";
@@ -299,6 +298,7 @@ try {
     await chmod(directory, 0o700);
     const key = randomBytes(32);
     const token = randomBytes(32).toString("hex");
+    const adminToken = randomBytes(32).toString("hex");
     const journal = join(directory, "receipts.sqlite");
     const database = new Database(journal, { create: true });
     provisionExecutionBrokerJournal(database, "daemon-qualification", key);
@@ -311,11 +311,6 @@ try {
       invocation: { executableId: "curl", argv: ["--silent", "--show-error", "--fail", "--max-time", "5", `${targetOrigin}/daemon`] },
       origins: [targetOrigin], inputs: [], limits,
     };
-    const grantDatabase = new Database(journal, { readwrite: true, create: false });
-    new ExecutionAuthorizationLedgerRepository(grantDatabase, key, [
-      { id: "public-curl-v1", tool: "curl", mode: "public", executableIds: ["curl"], inputs: [], maximumLimits: limits },
-    ]).issue({ installationId: "daemon-qualification", instanceId: "qualification-client" }, plan, Date.now() + 60_000);
-    grantDatabase.close();
     const executable = Bun.which("docker");
     if (!executable) throw new Error("Docker executable is unavailable.");
     const manifest = {
@@ -328,6 +323,7 @@ try {
       ["broker-daemon.json", JSON.stringify(manifest)],
       ["broker.key", key],
       ["client.token", token],
+      ["admin.token", adminToken],
     ] as const) {
       const path = join(directory, name);
       await writeFile(path, content, { mode: 0o600 });
@@ -339,14 +335,39 @@ try {
       env: { PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin", HOME: directory },
     });
     const socket = join(directory, "broker.sock");
+    const adminSocket = join(directory, "broker-admin.sock");
     const before = allowedEvents.length;
     try {
       let ready = false;
       for (let attempt = 0; attempt < 100; attempt++) {
-        if ((await lstat(socket).catch(() => null))?.isSocket()) { ready = true; break; }
+        if ((await lstat(socket).catch(() => null))?.isSocket() &&
+          (await lstat(adminSocket).catch(() => null))?.isSocket()) { ready = true; break; }
         await Bun.sleep(100);
       }
-      expect(ready, "Dedicated broker did not open its private socket.");
+      expect(ready, "Dedicated broker did not open both private sockets.");
+      const administratorGrant = (grant: unknown, credential: string, unix: string) => fetch("http://localhost/v1/grants", {
+        unix,
+        method: "POST",
+        headers: { authorization: `Bearer ${credential}`, "content-type": "application/json" },
+        body: JSON.stringify(grant),
+      });
+      const grant = {
+        principal: { installationId: "daemon-qualification", instanceId: "qualification-client" },
+        plan,
+        expiresAt: Date.now() + 60_000,
+      };
+      expect((await administratorGrant(grant, token, adminSocket)).status === 401,
+        "Execution token was accepted on the grant socket.");
+      expect((await administratorGrant(grant, adminToken, socket)).status === 401,
+        "Administrator token was accepted on the execution socket.");
+      expect((await administratorGrant({ ...grant, plan: { ...plan, origins: [...plan.origins, "https://outside.test"] } }, adminToken, adminSocket)).status === 400,
+        "Administrator channel accepted multiple origins.");
+      expect((await administratorGrant({ ...grant, plan: { ...plan, invocation: { ...plan.invocation, argv: [...plan.invocation.argv, "--proxy", "http://outside.test"] } } }, adminToken, adminSocket)).status === 400,
+        "Administrator channel accepted an unqualified cURL argument.");
+      expect((await administratorGrant(grant, adminToken, adminSocket)).status === 201,
+        "Administrator channel rejected a valid structured grant.");
+      expect((await administratorGrant(grant, adminToken, adminSocket)).status === 409,
+        "Administrator channel accepted a duplicate authorization ID.");
       const client = new ExecutionBrokerClient((request) => fetch(request, { unix: socket }), token);
       expect((await client.prepare(plan)).status === "prepared", "Dedicated broker rejected the approved plan.");
       await client.start(plan.executionId);
@@ -359,7 +380,7 @@ try {
       const events = await client.readEvents(plan.executionId, -1);
       expect(events.events.some((event) => event.line === "approved-server"), "Dedicated broker did not return the approved response event.");
       expect(allowedEvents.length === before + 1, "Approved receiver did not observe the daemon request.");
-      return "separate broker process; approved receiver count +1; cleanup confirmed";
+      return "separate broker process; admin token only grants on admin socket; wide origins/argv rejected; duplicate denied; approved receiver count +1; cleanup confirmed";
     } finally {
       child.kill("SIGTERM");
       const timeout = setTimeout(() => child.kill("SIGKILL"), 10_000);

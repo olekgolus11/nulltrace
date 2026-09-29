@@ -29,16 +29,21 @@ export async function loadExecutionBrokerDaemonConfiguration(directory: string):
   const configPath = join(directory, "broker-daemon.json");
   const keyPath = join(directory, "broker.key");
   const tokenPath = join(directory, "client.token");
+  const adminTokenPath = join(directory, "admin.token");
   let configBytes: Buffer | undefined;
   let key: Buffer | undefined;
   let tokenBytes: Buffer | undefined;
+  let adminTokenBytes: Buffer | undefined;
   try {
     configBytes = await readPrivateFile(configPath, 65_536);
     key = await readPrivateFile(keyPath, 32);
     tokenBytes = await readPrivateFile(tokenPath, 64);
+    adminTokenBytes = await readPrivateFile(adminTokenPath, 64);
     if (key.byteLength !== 32) throw new Error("Invalid broker key length.");
     const token = tokenBytes.toString("ascii");
     if (!/^[a-f0-9]{64}$/.test(token)) throw new Error("Invalid broker client token.");
+    const adminToken = adminTokenBytes.toString("ascii");
+    if (!/^[a-f0-9]{64}$/.test(adminToken) || adminToken === token) throw new Error("Invalid broker administrator token.");
     const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(configBytes));
     const config = requireExecutionRecord(value, [
       "version", "installationId", "instanceId", "dockerExecutable", "images",
@@ -59,6 +64,7 @@ export async function loadExecutionBrokerDaemonConfiguration(directory: string):
       dockerExecutable: config.dockerExecutable,
       hostOptions: {
         directory,
+        adminToken,
         installationId,
         hmacKey: Uint8Array.from(key),
         identities: [{ token, principal }],
@@ -78,6 +84,7 @@ export async function loadExecutionBrokerDaemonConfiguration(directory: string):
     configBytes?.fill(0);
     key?.fill(0);
     tokenBytes?.fill(0);
+    adminTokenBytes?.fill(0);
   }
 }
 

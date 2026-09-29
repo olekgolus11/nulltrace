@@ -20,6 +20,7 @@ const plan = {
 };
 
 const token = "a".repeat(64);
+const adminToken = "b".repeat(64);
 const key = new Uint8Array(32).fill(7);
 async function fixture() {
   const directory = await mkdtemp(join(tmpdir(), "nulltrace-daemon-"));
@@ -44,6 +45,7 @@ async function fixture() {
   await writePrivate("broker-daemon.json", JSON.stringify(manifest));
   await writePrivate("broker.key", key);
   await writePrivate("client.token", token);
+  await writePrivate("admin.token", adminToken);
   const database = new Database(join(directory, "receipts.sqlite"), { create: true });
   provisionExecutionBrokerJournal(database, manifest.installationId, key);
   const profile = {
@@ -67,6 +69,8 @@ describe("private broker daemon configuration", () => {
       const startup = await loadExecutionBrokerDaemonConfiguration(directory);
       expect(startup.hostOptions.profiles.map((profile) => profile.id)).toEqual(["public-curl-v1"]);
       expect(startup.hostOptions.hmacKey).toEqual(key);
+      expect(startup.hostOptions.adminToken).toBe(adminToken);
+      expect(startup.hostOptions.adminToken).not.toBe(token);
       expect(startup.hostOptions.useAuthorizationLedger).toBe(true);
       expect(startup.hostOptions.authorizationPlanValidator?.({
         version: 1, executionId: "run", authorizationId: "approval", profileId: "public-curl-v1",
@@ -109,6 +113,7 @@ describe("private broker daemon configuration", () => {
       env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: directory },
     });
     const socket = join(directory, "broker.sock");
+    const adminSocket = join(directory, "broker-admin.sock");
     try {
       let ready = false;
       for (let attempt = 0; attempt < 100; attempt++) {
@@ -118,12 +123,29 @@ describe("private broker daemon configuration", () => {
         await Bun.sleep(50);
       }
       expect(ready).toBe(true);
+      for (let attempt = 0; attempt < 100 && !(await lstat(adminSocket).catch(() => null))?.isSocket(); attempt++) await Bun.sleep(50);
       expect((await lstat(socket)).mode & 0o777).toBe(0o600);
+      expect((await lstat(adminSocket)).mode & 0o777).toBe(0o600);
       const client = new ExecutionBrokerClient((request) => fetch(request, { unix: socket }), token);
       expect((await client.prepare(plan)).status).toBe("prepared");
+      const sendGrant = (grant: unknown, credential: string, unix = adminSocket) => fetch("http://localhost/v1/grants", {
+        unix, method: "POST", headers: { authorization: `Bearer ${credential}`, "content-type": "application/json" },
+        body: JSON.stringify(grant),
+      });
+      const secondPlan = { ...plan, executionId: "run-2", authorizationId: "approval-2" };
+      const principal = { installationId: "installation", instanceId: "instance" };
+      const grant = { principal, plan: secondPlan, expiresAt: Date.now() + 60_000 };
+      expect((await sendGrant(grant, token)).status).toBe(401);
+      expect((await sendGrant(grant, token, adminSocket)).status).toBe(401);
+      expect((await sendGrant(grant, adminToken, socket)).status).toBe(401);
+      expect((await sendGrant({ ...grant, plan: { ...secondPlan, origins: [...plan.origins, "https://other.test"] } }, adminToken)).status).toBe(400);
+      expect((await sendGrant({ ...grant, plan: { ...secondPlan, invocation: { ...plan.invocation, argv: [...plan.invocation.argv, "--proxy", "http://other.test"] } } }, adminToken)).status).toBe(400);
+      expect((await sendGrant(grant, adminToken)).status).toBe(201);
+      expect((await sendGrant(grant, adminToken)).status).toBe(409);
       child.kill("SIGTERM");
       expect(await child.exited).toBe(0);
       await expect(lstat(socket)).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(lstat(adminSocket)).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       child.kill("SIGKILL");
       await child.exited;

@@ -38,7 +38,7 @@ export class ExecutionAuthorizationLedgerRepository {
     )`);
   }
 
-  issue(principal: ExecutionPrincipal, value: unknown, expiresAt: number): void {
+  issue(principal: ExecutionPrincipal, value: unknown, expiresAt: number): boolean {
     const plan = parseExecutionPlan(value, this.profiles);
     if (!this.validatePlan(plan) || !validPrincipal(principal) || !Number.isSafeInteger(expiresAt) || expiresAt <= this.now() ||
       expiresAt - this.now() > 15 * 60_000) {
@@ -53,10 +53,14 @@ export class ExecutionAuthorizationLedgerRepository {
       plan_fingerprint: null,
     };
     const mac = this.sign(fields);
-    this.database.query(`INSERT INTO execution_authorizations
-      (authorization_id, principal, plan, expires_at, execution_id, plan_fingerprint, mac)
-      VALUES (?, ?, ?, ?, NULL, NULL, ?)`)
-      .run(fields.authorization_id, fields.principal, fields.plan, fields.expires_at, mac);
+    return this.database.transaction(() => {
+      if (this.database.query("SELECT 1 FROM execution_authorizations WHERE authorization_id = ?").get(fields.authorization_id)) return false;
+      this.database.query(`INSERT INTO execution_authorizations
+        (authorization_id, principal, plan, expires_at, execution_id, plan_fingerprint, mac)
+        VALUES (?, ?, ?, ?, NULL, NULL, ?)`)
+        .run(fields.authorization_id, fields.principal, fields.plan, fields.expires_at, mac);
+      return true;
+    }).immediate();
   }
 
   claim(principal: ExecutionPrincipal, authorizationId: string, requestedPlan: ExecutionPlan): ExecutionAuthorization | null {

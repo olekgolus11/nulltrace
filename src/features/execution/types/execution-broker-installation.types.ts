@@ -9,4 +9,5 @@ export interface ExecutionBrokerInstallation {
   journalPath: string;
   hmacKey: Uint8Array;
   clientToken: string;
+  adminToken: string;
 }

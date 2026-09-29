@@ -24,8 +24,10 @@ describe("ExecutionBrokerInstallationService", () => {
       const firstToken = first.clientToken;
       expect(firstKey.byteLength).toBe(32);
       expect(firstToken).toMatch(/^[a-f0-9]{64}$/);
+      expect(first.adminToken).toMatch(/^[a-f0-9]{64}$/);
+      expect(first.adminToken).not.toBe(firstToken);
       expect((await lstat(directory)).mode & 0o777).toBe(0o700);
-      for (const [name, size] of [["broker.key", 32], ["client.token", 64], ["receipts.sqlite", undefined]] as const) {
+      for (const [name, size] of [["broker.key", 32], ["client.token", 64], ["admin.token", 64], ["receipts.sqlite", undefined]] as const) {
         const stat = await lstat(join(directory, name));
         expect(stat.isFile()).toBe(true);
         expect(stat.isSymbolicLink()).toBe(false);
@@ -42,8 +44,31 @@ describe("ExecutionBrokerInstallationService", () => {
       const second = await new ExecutionBrokerInstallationService({ directory, installationId: "stable-installation" }).provision();
       expect(second.hmacKey).toEqual(firstKey);
       expect(second.clientToken).toBe(firstToken);
+      expect(second.adminToken).toBe(first.adminToken);
       first.hmacKey.fill(0);
       second.hmacKey.fill(0);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  });
+
+  test("adds the administrator credential to a valid legacy installation without replacing its state", async () => {
+    const parent = await createParent();
+    const directory = join(parent, "broker");
+    const service = new ExecutionBrokerInstallationService({ directory, installationId: "stable-installation" });
+    try {
+      const original = await service.provision();
+      const key = Buffer.from(original.hmacKey);
+      const token = original.clientToken;
+      original.hmacKey.fill(0);
+      await unlink(join(directory, "admin.token"));
+      const migrated = await service.provision();
+      expect(migrated.hmacKey).toEqual(key);
+      expect(migrated.clientToken).toBe(token);
+      expect(migrated.adminToken).toMatch(/^[a-f0-9]{64}$/);
+      expect(migrated.adminToken).not.toBe(token);
+      migrated.hmacKey.fill(0);
+      key.fill(0);
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
