@@ -11,7 +11,7 @@ import { assertExecutionBrokerJournal, provisionExecutionBrokerJournal } from ".
 
 const privateDirectoryMode = 0o700;
 const privateFileMode = 0o600;
-const managedFiles = ["broker.key", "client.token", "receipts.sqlite"] as const;
+const managedFiles = ["broker.key", "client.token", "admin.token", "receipts.sqlite"] as const;
 const journalSidecars = ["receipts.sqlite-journal", "receipts.sqlite-wal", "receipts.sqlite-shm"] as const;
 
 interface DirectoryIdentity {
@@ -171,41 +171,77 @@ export class ExecutionBrokerInstallationService {
       throw error;
     })));
     const presentCount = present.filter(Boolean).length;
-    if (presentCount !== 0 && presentCount !== managedFiles.length) {
+    const legacyInstallation = present[0] && present[1] && !present[2] && present[3];
+    if (presentCount !== 0 && presentCount !== managedFiles.length && !legacyInstallation) {
       throw new Error("Broker installation is partial; existing state was left untouched.");
+    }
+
+    if (legacyInstallation) {
+      const legacyKey = await this.readPrivateFile(paths[0]!, 32, uid);
+      const legacyClientToken = await this.readPrivateFile(paths[1]!, 64, uid);
+      try {
+        const clientToken = legacyClientToken.toString("ascii");
+        if (legacyKey.byteLength !== 32 || !/^[a-f0-9]{64}$/.test(clientToken) ||
+          !Buffer.from(clientToken, "ascii").equals(legacyClientToken)) {
+          throw new Error("Broker installation credentials are malformed.");
+        }
+        await this.assertNoJournalSidecars(directory);
+        await this.assertJournal(paths[3]!, legacyKey, uid, true);
+      } finally {
+        legacyKey.fill(0);
+        legacyClientToken.fill(0);
+      }
+      const adminTokenSeed = randomBytes(32);
+      const adminToken = Buffer.from(adminTokenSeed.toString("hex"), "ascii");
+      adminTokenSeed.fill(0);
+      try {
+        await this.createPrivateFile(paths[2]!, adminToken, uid, directory, directoryIdentity);
+      } finally {
+        adminToken.fill(0);
+      }
     }
 
     let key: Buffer<ArrayBufferLike> = Buffer.alloc(0);
     let tokenBytes: Buffer<ArrayBufferLike> = Buffer.alloc(0);
+    let adminTokenBytes: Buffer<ArrayBufferLike> = Buffer.alloc(0);
     if (presentCount === 0) {
       key = randomBytes(32);
       const tokenSeed = randomBytes(32);
       tokenBytes = Buffer.from(tokenSeed.toString("hex"), "ascii");
       tokenSeed.fill(0);
+      const adminTokenSeed = randomBytes(32);
+      adminTokenBytes = Buffer.from(adminTokenSeed.toString("hex"), "ascii");
+      adminTokenSeed.fill(0);
       try {
         await this.createPrivateFile(paths[0]!, key, uid, directory, directoryIdentity);
         await this.createPrivateFile(paths[1]!, tokenBytes, uid, directory, directoryIdentity);
-        await this.createPrivateFile(paths[2]!, Buffer.alloc(0), uid, directory, directoryIdentity);
-        await this.initializeJournal(paths[2]!, key, uid);
+        await this.createPrivateFile(paths[2]!, adminTokenBytes, uid, directory, directoryIdentity);
+        await this.createPrivateFile(paths[3]!, Buffer.alloc(0), uid, directory, directoryIdentity);
+        await this.initializeJournal(paths[3]!, key, uid);
       } catch (error) {
         key.fill(0);
         tokenBytes.fill(0);
+        adminTokenBytes.fill(0);
         throw error;
       }
     } else {
       try {
         key = await this.readPrivateFile(paths[0]!, 32, uid);
         tokenBytes = await this.readPrivateFile(paths[1]!, 64, uid);
+        adminTokenBytes = await this.readPrivateFile(paths[2]!, 64, uid);
         const token = tokenBytes.toString("ascii");
-        if (key.byteLength !== 32 || tokenBytes.byteLength !== 64 || !/^[a-f0-9]{64}$/.test(token) ||
+        const adminToken = adminTokenBytes.toString("ascii");
+        if (key.byteLength !== 32 || tokenBytes.byteLength !== 64 || adminTokenBytes.byteLength !== 64 ||
+          !/^[a-f0-9]{64}$/.test(token) || !/^[a-f0-9]{64}$/.test(adminToken) || token === adminToken ||
           !Buffer.from(token, "ascii").equals(tokenBytes)) {
           throw new Error("Broker installation credentials are malformed.");
         }
         await this.assertNoJournalSidecars(directory);
-        await this.assertJournal(paths[2]!, key, uid, true);
+        await this.assertJournal(paths[3]!, key, uid, true);
       } catch (error) {
         key.fill(0);
         tokenBytes.fill(0);
+        adminTokenBytes.fill(0);
         throw error;
       }
     }
@@ -214,18 +250,21 @@ export class ExecutionBrokerInstallationService {
       await this.assertDirectoryIdentity(directory, directoryIdentity);
       await this.assertPrivateFile(paths[0]!, 32, uid);
       await this.assertPrivateFile(paths[1]!, 64, uid);
-      await this.assertPrivateFile(paths[2]!, undefined, uid);
+      await this.assertPrivateFile(paths[2]!, 64, uid);
+      await this.assertPrivateFile(paths[3]!, undefined, uid);
       await this.assertNoJournalSidecars(directory);
       return {
         directory,
         installationId: this.installationId,
-        journalPath: paths[2]!,
+        journalPath: paths[3]!,
         hmacKey: Uint8Array.from(key),
         clientToken: tokenBytes.toString("ascii"),
+        adminToken: adminTokenBytes.toString("ascii"),
       };
     } finally {
       key.fill(0);
       tokenBytes.fill(0);
+      adminTokenBytes.fill(0);
     }
   }
 

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { ExecutionBrokerHostOptions } from "../types/execution-broker-host.types";
 import { DockerCommandService } from "./docker-command.service";
 import { ExecutionBrokerHttpService } from "./execution-broker-http.service";
+import { ExecutionBrokerAdminHttpService } from "./execution-broker-admin-http.service";
 import { ExecutionBrokerLockService } from "./execution-broker-lock.service";
 import { assertExecutionBrokerJournal } from "./execution-broker-journal.helpers";
 import { ExecutionBrokerService } from "./execution-broker.service";
@@ -22,6 +23,8 @@ export class ExecutionBrokerHostService {
   private supervisor: HttpExecutionSupervisorService | null = null;
   private recovery: ExecutionRecoveryService | null = null;
   private handler: ExecutionBrokerHttpService | null = null;
+  private adminServer: ReturnType<typeof Bun.serve> | null = null;
+  private adminHandler: ExecutionBrokerAdminHttpService | null = null;
 
   constructor(private readonly options: ExecutionBrokerHostOptions) {}
 
@@ -32,8 +35,16 @@ export class ExecutionBrokerHostService {
     const journalPath = join(directory, "receipts.sqlite");
     await this.requirePrivateFile(journalPath, "file", 0o600);
     const socketPath = join(directory, "broker.sock");
+    const adminSocketPath = join(directory, "broker-admin.sock");
     if (Buffer.byteLength(socketPath) > 100) throw new Error("Execution broker socket path is too long.");
+    if (this.options.useAuthorizationLedger && Buffer.byteLength(adminSocketPath) > 100) {
+      throw new Error("Execution broker administrator socket path is too long.");
+    }
     if (this.options.hmacKey.byteLength !== 32) throw new Error("Invalid execution broker key.");
+    if (this.options.useAuthorizationLedger && (!this.options.adminToken || !/^[a-f0-9]{64}$/.test(this.options.adminToken) ||
+      this.options.identities.some((identity) => identity.token === this.options.adminToken))) {
+      throw new Error("Invalid or missing broker administrator credential.");
+    }
     try {
       const lockPath = join(directory, "broker-lock.sqlite");
       try {
@@ -82,15 +93,24 @@ export class ExecutionBrokerHostService {
       this.recovery = new ExecutionRecoveryService(receipts, network);
       await this.recovery.reconcile();
       await this.removeStaleSocket(socketPath);
+      if (this.options.useAuthorizationLedger) await this.removeStaleSocket(adminSocketPath);
       const handler = new ExecutionBrokerHttpService(broker, this.options.identities);
       this.handler = handler;
+      if (this.options.useAuthorizationLedger) {
+        if (!authorizationLedger || !this.options.adminToken) throw new Error("Authorization ledger is unavailable.");
+        this.adminHandler = new ExecutionBrokerAdminHttpService(authorizationLedger, this.options.adminToken);
+      }
       const previousMask = process.umask(0o077);
       try {
         this.server = Bun.serve({ unix: socketPath, fetch: (request) => handler.handle(request) });
+        if (this.adminHandler) {
+          this.adminServer = Bun.serve({ unix: adminSocketPath, fetch: (request) => this.adminHandler!.handle(request) });
+        }
       } finally {
         process.umask(previousMask);
       }
       await chmod(socketPath, 0o600);
+      if (this.adminServer) await chmod(adminSocketPath, 0o600);
       return socketPath;
     } catch (error) {
       await this.close().catch(() => undefined);
@@ -101,11 +121,17 @@ export class ExecutionBrokerHostService {
   async close(): Promise<void> {
     if (!this.lock) return;
     this.handler?.beginShutdown();
+    this.adminHandler?.beginShutdown();
     const server = this.server;
     this.server = null;
     server?.stop(true);
+    const adminServer = this.adminServer;
+    this.adminServer = null;
+    adminServer?.stop(true);
     await this.handler?.waitForIdle();
+    await this.adminHandler?.waitForIdle();
     this.handler = null;
+    this.adminHandler = null;
     const supervisor = this.supervisor;
     this.supervisor = null;
     const recovery = this.recovery;
@@ -119,6 +145,10 @@ export class ExecutionBrokerHostService {
       try {
         const socketPath = join(await realpath(this.options.directory), "broker.sock");
         await this.removeStaleSocket(socketPath);
+        if (this.options.useAuthorizationLedger) {
+          const adminSocketPath = join(await realpath(this.options.directory), "broker-admin.sock");
+          await this.removeStaleSocket(adminSocketPath);
+        }
       } finally {
         this.lock.release();
         this.lock = null;

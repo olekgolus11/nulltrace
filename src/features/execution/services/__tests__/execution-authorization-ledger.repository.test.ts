@@ -60,4 +60,18 @@ describe("execution authorization ledger", () => {
       database.close();
     }
   });
+
+  test("rejects non-finite, expired, overlong, and duplicate grant expiries", () => {
+    const database = new Database(":memory:");
+    try {
+      const ledger = new ExecutionAuthorizationLedgerRepository(database, key, [profile], () => 1000);
+      for (const expiresAt of [Number.NaN, Number.POSITIVE_INFINITY, 1000, 16 * 60_000 + 1000]) {
+        expect(() => ledger.issue(principal, plan, expiresAt)).toThrow("Invalid execution authorization grant");
+      }
+      expect(ledger.issue(principal, plan, 2000)).toBe(true);
+      expect(ledger.issue(principal, plan, 2000)).toBe(false);
+    } finally {
+      database.close();
+    }
+  });
 });

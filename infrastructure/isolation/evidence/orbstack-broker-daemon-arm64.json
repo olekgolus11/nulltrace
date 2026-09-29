@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-09-23T06:54:49.457Z",
+  "checkedAt": "2026-09-29T18:03:53.017Z",
   "platform": "linux/arm64",
   "runtime": {
     "engine": "Docker Engine - Community 29.4.0",
@@ -11,6 +11,7 @@
     { "name": "bounded worker events drain without stopping the approved request", "passed": true },
     { "name": "private broker socket delivers an approved isolated request", "passed": true, "approvedReceiverIncrement": 1, "cleanupConfirmed": true },
     { "name": "dedicated broker process delivers an approved isolated request", "passed": true, "approvedReceiverIncrement": 1, "cleanupConfirmed": true },
+    { "name": "administrator grant channel enforces distinct credential and strict plans", "passed": true, "executionTokenAcceptedOnAdminSocket": false, "adminTokenAcceptedOnExecutionSocket": false, "wideOriginAccepted": false, "wideArgumentsAccepted": false, "duplicateGrantAccepted": false },
     { "name": "cross-origin redirect blocked before receiver", "passed": true, "forbiddenReceiverRequests": 0 },
     { "name": "direct proxy bypass blocked before receiver", "passed": true, "forbiddenReceiverRequests": 0 },
     { "name": "worker DNS and unauthorized IPv6 are blocked", "passed": true, "forbiddenReceiverRequests": 0 },

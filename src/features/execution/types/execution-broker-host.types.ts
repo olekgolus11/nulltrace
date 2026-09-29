@@ -6,6 +6,7 @@ export interface ExecutionBrokerHostOptions {
   directory: string;
   installationId: string;
   hmacKey: Uint8Array;
+  adminToken?: string;
   identities: ExecutionBrokerIdentity[];
   profiles: ExecutionProfile[];
   readAuthorization: (principal: ExecutionPrincipal, authorizationId: string) => ExecutionAuthorization | null;
