@@ -8,6 +8,7 @@ import { ExecutionBrokerLockService } from "./execution-broker-lock.service";
 import { assertExecutionBrokerJournal } from "./execution-broker-journal.helpers";
 import { ExecutionBrokerService } from "./execution-broker.service";
 import { ExecutionReceiptRepository } from "./execution-receipt.repository";
+import { ExecutionAuthorizationLedgerRepository } from "./execution-authorization-ledger.repository";
 import { ExecutionRecoveryService } from "./execution-recovery.service";
 import { toExecutionOutcome } from "./execution-outcome.helpers";
 import { HttpExecutionNetworkService } from "./http-execution-network.service";
@@ -46,6 +47,15 @@ export class ExecutionBrokerHostService {
       this.database = new Database(journalPath, { readwrite: true, create: false });
       assertExecutionBrokerJournal(this.database, this.options.installationId, this.options.hmacKey);
       const receipts = new ExecutionReceiptRepository(this.database, this.options.hmacKey);
+      const authorizationLedger = this.options.useAuthorizationLedger
+        ? new ExecutionAuthorizationLedgerRepository(
+          this.database,
+          this.options.hmacKey,
+          this.options.profiles,
+          Date.now,
+          this.options.authorizationPlanValidator,
+        )
+        : null;
       const network = new HttpExecutionNetworkService(this.options.docker ?? new DockerCommandService(), {
         images: this.options.images,
         installationId: this.options.installationId,
@@ -64,7 +74,9 @@ export class ExecutionBrokerHostService {
       });
       const broker = new ExecutionBrokerService(receipts, {
         profiles: this.options.profiles,
-        readAuthorization: this.options.readAuthorization,
+        readAuthorization: authorizationLedger
+          ? (principal, authorizationId, plan) => plan ? authorizationLedger.claim(principal, authorizationId, plan) : null
+          : this.options.readAuthorization,
         runtime: this.supervisor,
       });
       this.recovery = new ExecutionRecoveryService(receipts, network);

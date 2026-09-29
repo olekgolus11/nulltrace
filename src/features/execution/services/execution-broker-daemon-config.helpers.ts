@@ -4,8 +4,7 @@ import { isIP } from "node:net";
 import { isAbsolute, join } from "node:path";
 import { ExecutionBrokerDaemonStartup } from "../types/execution-broker-daemon.types";
 import { ExecutionPlan, ExecutionProfile } from "../types/execution-plan.types";
-import { parseExecutionPlan } from "./execution-plan.helpers";
-import { requireExecutionId, requireExecutionInteger, requireExecutionRecord } from "./execution-validation.helpers";
+import { requireExecutionId, requireExecutionRecord } from "./execution-validation.helpers";
 
 const publicCurlProfile: ExecutionProfile = {
   id: "public-curl-v1",
@@ -43,7 +42,7 @@ export async function loadExecutionBrokerDaemonConfiguration(directory: string):
     const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(configBytes));
     const config = requireExecutionRecord(value, [
       "version", "installationId", "instanceId", "dockerExecutable", "images",
-      "trustedNonPublicMappings", "approvedPlan", "expiresAt",
+      "trustedNonPublicMappings",
     ]);
     if (config.version !== 1) throw new Error("Unsupported broker configuration.");
     const installationId = requireExecutionId(config.installationId);
@@ -55,12 +54,7 @@ export async function loadExecutionBrokerDaemonConfiguration(directory: string):
       if (typeof image !== "string" || !/^sha256:[a-f0-9]{64}$/.test(image)) throw new Error("Invalid isolation image ID.");
     }
     const mappings = parseTrustedMappings(config.trustedNonPublicMappings);
-    const plan = parseExecutionPlan(config.approvedPlan, [publicCurlProfile]);
-    assertPublicCurlInvocation(plan);
-    const expiresAt = requireExecutionInteger(config.expiresAt, Number.MAX_SAFE_INTEGER);
-    if (expiresAt <= Date.now()) throw new Error("Broker approval expired.");
     const principal = { installationId, instanceId };
-    const approvedPlan: ExecutionPlan = structuredClone(plan);
     return {
       dockerExecutable: config.dockerExecutable,
       hostOptions: {
@@ -70,12 +64,9 @@ export async function loadExecutionBrokerDaemonConfiguration(directory: string):
         identities: [{ token, principal }],
         profiles: [publicCurlProfile],
         trustedNonPublicMappings: mappings,
-        readAuthorization(caller, authorizationId) {
-          return caller.installationId === installationId && caller.instanceId === instanceId &&
-            authorizationId === approvedPlan.authorizationId
-            ? { principal, plan: structuredClone(approvedPlan), expiresAt }
-            : null;
-        },
+        useAuthorizationLedger: true,
+        authorizationPlanValidator: isSupportedPublicCurlPlan,
+        readAuthorization: () => null,
         images: {
           worker: images.worker as string,
           proxy: images.proxy as string,
@@ -88,6 +79,20 @@ export async function loadExecutionBrokerDaemonConfiguration(directory: string):
     key?.fill(0);
     tokenBytes?.fill(0);
   }
+}
+
+function isSupportedPublicCurlPlan(plan: ExecutionPlan): boolean {
+  try {
+    const argv = plan.invocation.argv;
+    const prefix = ["--silent", "--show-error", "--fail"];
+    if (prefix.some((value, index) => argv[index] !== value)) return false;
+    const offset = argv[3] === "--location" ? 1 : 0;
+    if (argv.length !== 6 + offset || argv[3 + offset] !== "--max-time" ||
+      !/^(?:[1-9]|[12][0-9]|30)$/.test(argv[4 + offset] ?? "")) return false;
+    const target = new URL(argv[5 + offset]!);
+    return plan.origins.length === 1 && plan.origins[0] === target.origin &&
+      !target.username && !target.password && !target.search && !target.hash;
+  } catch { return false; }
 }
 
 async function requirePrivatePath(path: string, kind: "directory" | "file", mode: number): Promise<void> {
@@ -114,21 +119,6 @@ async function readPrivateFile(path: string, maximumBytes: number): Promise<Buff
     return bytes;
   } finally {
     await handle.close();
-  }
-}
-
-function assertPublicCurlInvocation(plan: ExecutionPlan): void {
-  const argv = plan.invocation.argv;
-  const prefix = ["--silent", "--show-error", "--fail"];
-  if (prefix.some((value, index) => argv[index] !== value)) throw new Error("Unsupported public cURL invocation.");
-  const offset = argv[3] === "--location" ? 1 : 0;
-  if (argv.length !== 6 + offset || argv[3 + offset] !== "--max-time" ||
-    !/^(?:[1-9]|[12][0-9]|30)$/.test(argv[4 + offset] ?? "")) {
-    throw new Error("Unsupported public cURL invocation.");
-  }
-  const target = new URL(argv[5 + offset]!);
-  if (!plan.origins.includes(target.origin) || target.username || target.password || target.search || target.hash) {
-    throw new Error("Public cURL target is outside the approved origin or contains private URL fields.");
   }
 }
 

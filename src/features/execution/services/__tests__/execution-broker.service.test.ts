@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ExecutionBrokerService } from "../execution-broker.service";
 import { ExecutionReceiptRepository } from "../execution-receipt.repository";
+import { ExecutionAuthorizationLedgerRepository } from "../execution-authorization-ledger.repository";
 import { ExecutionBrokerHttpService } from "../execution-broker-http.service";
 import { ExecutionBrokerClient } from "../execution-broker-client.service";
 import { parseExecutionPlan } from "../execution-plan.helpers";
@@ -72,6 +73,51 @@ describe("execution admission", () => {
     expect(() => broker.prepare({ ...principal, instanceId: "other" }, original)).toThrow("UNAUTHORIZED");
     broker.prepare(principal, original);
     expect(() => broker.get({ ...principal, instanceId: "other" }, original.executionId)).toThrow("NOT_FOUND");
+  });
+
+  test("keeps a durable grant bound through prepare, input sealing, and start", async () => {
+    const database = new Database(":memory:");
+    databases.push(database);
+    const receipts = new ExecutionReceiptRepository(database, new Uint8Array(32).fill(7));
+    const ledger = new ExecutionAuthorizationLedgerRepository(database, new Uint8Array(32).fill(7), [profile], () => 1000);
+    ledger.issue(principal, original, 2000);
+    let starts = 0;
+    const broker = new ExecutionBrokerService(receipts, {
+      profiles: [profile],
+      now: () => 1000,
+      readAuthorization(caller, authorizationId, requestedPlan) {
+        return requestedPlan ? ledger.claim(caller, authorizationId, requestedPlan) : null;
+      },
+      runtime: { async putInput() {}, async start() { starts++; } },
+    });
+    broker.prepare(principal, original);
+    await broker.putInput(principal, original.executionId, "credentials", new Uint8Array([1]));
+    await broker.start(principal, original.executionId);
+    expect(starts).toBe(1);
+    expect(ledger.claim(principal, "approval-1", { ...original, executionId: "another-run" })).toBeNull();
+  });
+
+  test("rejects a grant that expires after prepare but before start", async () => {
+    const database = new Database(":memory:");
+    databases.push(database);
+    const receipts = new ExecutionReceiptRepository(database, new Uint8Array(32).fill(7));
+    const publicProfile = { ...profile, id: "public-curl-v1", mode: "public", inputs: [] };
+    const publicPlan = { ...original, profileId: publicProfile.id, mode: "public", inputs: [] };
+    let now = 1000;
+    const ledger = new ExecutionAuthorizationLedgerRepository(database, new Uint8Array(32).fill(7), [publicProfile], () => now);
+    ledger.issue(principal, publicPlan, 2000);
+    let starts = 0;
+    const broker = new ExecutionBrokerService(receipts, {
+      profiles: [publicProfile], now: () => now,
+      readAuthorization(caller, authorizationId, requestedPlan) {
+        return requestedPlan ? ledger.claim(caller, authorizationId, requestedPlan) : null;
+      },
+      runtime: { async putInput() {}, async start() { starts++; } },
+    });
+    broker.prepare(principal, publicPlan);
+    now = 2000;
+    await expect(broker.start(principal, publicPlan.executionId)).rejects.toThrow("UNAUTHORIZED");
+    expect(starts).toBe(0);
   });
 
   test("seals only declared input, wipes adapter buffer and starts at most once", async () => {
