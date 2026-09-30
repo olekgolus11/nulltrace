@@ -9,9 +9,14 @@ let package = Package(
   ],
   targets: [
     .target(name: "NullTraceCredentialCompanion"),
+    .executableTarget(
+      name: "CredentialLockProbe",
+      dependencies: ["NullTraceCredentialCompanion"],
+      path: "Tests/CredentialLockProbe"
+    ),
     .testTarget(
       name: "NullTraceCredentialCompanionTests",
-      dependencies: ["NullTraceCredentialCompanion"]
+      dependencies: ["NullTraceCredentialCompanion", "CredentialLockProbe"]
     ),
   ]
 )
