@@ -11,6 +11,7 @@ import {
 } from "../types/http-execution-supervisor.types";
 import { HttpExecutionRunError } from "./http-execution-run.error";
 import { ExecutionEventBufferService } from "./execution-event-buffer.service";
+import { isBoundedSanitizedOutput } from "./execution-secret-output.helpers";
 
 export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
   private readonly runs = new Map<string, SupervisedEntry>();
@@ -148,7 +149,18 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
   }
 
   private async execute(entry: SupervisedEntry, plan: ExecutionPlan, inputs: HttpExecutionNetworkInput[]): Promise<void> {
+    const containsSecret = plan.inputs.some((slot) => slot.kind === "secret");
+    let secretOutput: ReturnType<NonNullable<HttpExecutionSupervisorOptions["secretOutputSanitizer"]>["create"]> = null;
+    let secretOutputFailed = containsSecret;
     try {
+      if (containsSecret && this.options.secretOutputSanitizer) {
+        try {
+          secretOutput = this.options.secretOutputSanitizer.create(plan, inputs);
+          secretOutputFailed = !secretOutput;
+        } catch {
+          secretOutputFailed = true;
+        }
+      }
       let policy;
       try {
         policy = await this.resolver.resolve(plan.executionId, plan.origins);
@@ -163,11 +175,29 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
         plan.invocation.argv,
         entry.controller.signal,
         (stream, chunk) => {
-          if (plan.inputs.some((slot) => slot.kind === "secret")) {
-            chunk.fill(0);
+          if (containsSecret) {
+            let retained = false;
+            try {
+              if (secretOutput && (stream === "stdout" || stream === "stderr")) {
+                retained = secretOutput.capture(stream, chunk);
+              }
+            } catch {
+              retained = false;
+            } finally {
+              chunk.fill(0);
+            }
+            if (!retained) {
+              secretOutputFailed = true;
+              try { secretOutput?.destroy(); } catch { /* Never expose sanitizer failures. */ }
+              secretOutput = null;
+            }
             return;
           }
-          entry.events.append(stream, chunk);
+          if (stream === "stdout" || stream === "stderr") {
+            entry.events.append(stream, chunk);
+          } else {
+            chunk.fill(0);
+          }
         },
         inputs,
       );
@@ -178,15 +208,38 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
       entry.result.cleanup = error instanceof HttpExecutionRunError && error.cleanupConfirmed ? "confirmed" : "pending";
       entry.result.status = entry.result.cleanup === "confirmed" ? "finished" : "interrupted";
     } finally {
-      inputs.forEach((input) => input.bytes.fill(0));
-      entry.events.finish();
-      if (entry.leaseTimer) clearTimeout(entry.leaseTimer);
-      if (entry.deadlineTimer) clearTimeout(entry.deadlineTimer);
       try {
-        await this.options.onSettled({ ...entry.result });
+        if (secretOutput && !secretOutputFailed) {
+          const sanitized = secretOutput.sanitize();
+          if (sanitized && isBoundedSanitizedOutput(sanitized, plan.limits.outputBytes)) {
+            const buffers: Buffer[] = [];
+            try {
+              buffers.push(Buffer.from(sanitized.stdout, "utf8"));
+              buffers.push(Buffer.from(sanitized.stderr, "utf8"));
+              if (buffers.reduce((total, buffer) => total + buffer.byteLength, 0) <= Math.min(plan.limits.outputBytes, 1024 * 1024)) {
+                for (let index = 0; index < buffers.length; index += 1) {
+                  entry.events.append(index === 0 ? "stdout" : "stderr", buffers[index]!);
+                }
+              }
+            } finally {
+              buffers.forEach((buffer) => buffer.fill(0));
+            }
+          }
+        }
       } catch {
-        entry.result.status = "interrupted";
-        entry.settlementFailed = true;
+        // Sanitizer failures never enter the retained event stream.
+      } finally {
+        try { secretOutput?.destroy(); } catch { /* Never expose sanitizer failures. */ }
+        inputs.forEach((input) => input.bytes.fill(0));
+        entry.events.finish();
+        if (entry.leaseTimer) clearTimeout(entry.leaseTimer);
+        if (entry.deadlineTimer) clearTimeout(entry.deadlineTimer);
+        try {
+          await this.options.onSettled({ ...entry.result });
+        } catch {
+          entry.result.status = "interrupted";
+          entry.settlementFailed = true;
+        }
       }
     }
   }

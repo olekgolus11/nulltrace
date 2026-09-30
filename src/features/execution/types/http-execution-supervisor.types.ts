@@ -1,4 +1,4 @@
-import { ExecutionLimits } from "./execution-plan.types";
+import { ExecutionLimits, ExecutionPlan } from "./execution-plan.types";
 import { HttpExecutionNetworkInput, HttpExecutionNetworkPolicy, HttpExecutionNetworkRunResult } from "./http-execution-network.types";
 import { ExecutionOutputStream } from "./execution-event.types";
 
@@ -17,7 +17,21 @@ export interface HttpExecutionSupervisorOptions {
   leaseMs: number;
   inputRetentionMs?: number;
   maximumRetainedRuns?: number;
+  secretOutputSanitizer?: HttpExecutionSecretOutputSanitizer;
   onSettled: (run: HttpExecutionSupervisedRun) => Promise<void> | void;
+}
+
+export interface HttpExecutionSecretOutputSanitizer {
+  /** A throwing create must release any partial state before it throws. */
+  create(plan: ExecutionPlan, inputs: readonly HttpExecutionNetworkInput[]): HttpExecutionSecretOutputSession | null;
+}
+
+export interface HttpExecutionSecretOutputSession {
+  /** Copies bounded bytes before returning; false permanently disables this session. */
+  capture(stream: "stdout" | "stderr", chunk: Uint8Array): boolean;
+  sanitize(): Readonly<Record<"stdout" | "stderr", string>> | null;
+  /** Idempotently wipes all captured bytes and releases secret-bearing closures. */
+  destroy(): void;
 }
 
 export interface HttpExecutionSupervisedResolver {
