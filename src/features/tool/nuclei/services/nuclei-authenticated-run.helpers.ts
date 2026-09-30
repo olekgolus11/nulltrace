@@ -1,6 +1,6 @@
 import { AuthenticatedRequestContext } from "../../../authentication/model/authenticated-request-context.types";
 import { splitAuthenticatedHeaderEntries } from "../../../authentication/services/authenticated-request-context-redaction";
-import { normalizeExactOrigin } from "../../../authentication/services/authenticated-request-context.service";
+import { normalizeExactOrigin } from "../../../authentication/services/authenticated-request-context-validation.helpers";
 
 export function buildNucleiSecretFile(context: AuthenticatedRequestContext) {
   const exactOrigin = normalizeExactOrigin(context.origin);

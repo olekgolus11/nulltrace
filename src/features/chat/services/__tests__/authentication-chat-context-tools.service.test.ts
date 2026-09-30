@@ -15,6 +15,7 @@ import {
 import { AuthenticationContextMetadataRepository } from "../../../authentication/services/authentication-context-metadata.repository";
 import { createAuthenticationContextMetadataTable } from "../../../authentication/services/authentication-context-metadata.schema";
 import { AuthenticatedRequestContextService } from "../../../authentication/services/authenticated-request-context.service";
+import { AuthenticationContextStateRepository } from "../../../authentication/services/authentication-context-state.repository";
 import { AuthCheckService } from "../../../authentication/services/auth-check.service";
 import {
   SecretStore,
@@ -36,6 +37,11 @@ class TestSecretStore implements SecretStore {
 
   async clear(key: string) {
     this.values.delete(key);
+  }
+
+  async clearWithResult(key: string) {
+    await this.clear(key);
+    return "cleared" as const;
   }
 }
 
@@ -261,7 +267,11 @@ describe("authentication chat context tools", () => {
     createAuthenticationContextMetadataTable(database);
     const appWriter = new AuthenticationContextMetadataRepository(database, "shared-runtime");
     const chatReader = new AuthenticationContextMetadataRepository(database, "shared-runtime");
-    const contextService = new AuthenticatedRequestContextService(new TestSecretStore(), appWriter);
+    const contextService = new AuthenticatedRequestContextService(
+      new TestSecretStore(),
+      appWriter,
+      new AuthenticationContextStateRepository(database),
+    );
     await contextService.save("session-1", "https://example.com", {
       origin: "https://example.com",
       cookies: "session=protected-value",
@@ -315,7 +325,11 @@ describe("authentication chat context tools", () => {
     createAuthenticationContextMetadataTable(database);
     const appWriter = new AuthenticationContextMetadataRepository(database, "shared-runtime");
     const chatReader = new AuthenticationContextMetadataRepository(database, "shared-runtime");
-    const contextService = new AuthenticatedRequestContextService(new TestSecretStore(), appWriter);
+    const contextService = new AuthenticatedRequestContextService(
+      new TestSecretStore(),
+      appWriter,
+      new AuthenticationContextStateRepository(database),
+    );
     await contextService.save("session-1", "https://example.com", {
       origin: "https://example.com",
       cookies: "session=protected-value",

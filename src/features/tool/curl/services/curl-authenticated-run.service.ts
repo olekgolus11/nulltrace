@@ -3,10 +3,8 @@ import { join } from "node:path";
 import { AuthenticatedRequestContext } from "../../../authentication/model/authenticated-request-context.types";
 import { authCheckService } from "../../../authentication/services/auth-check.service";
 import { createAuthenticatedRequestContextOutputRedactor } from "../../../authentication/services/authenticated-request-context-output-redaction.helpers";
-import {
-  authenticatedRequestContextService,
-  normalizeExactOrigin,
-} from "../../../authentication/services/authenticated-request-context.service";
+import { authenticatedRequestContextService } from "../../../authentication/services/authenticated-request-context.service";
+import { normalizeExactOrigin } from "../../../authentication/services/authenticated-request-context-validation.helpers";
 import { getAppDataDirectory } from "../../../session/services/session-database";
 import { buildAuthenticatedCurlConfig } from "./curl-authenticated-config.helpers";
 import {

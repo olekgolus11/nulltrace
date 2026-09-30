@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import {
-  AuthenticatedRequestContextService,
-  validateAuthenticatedRequestContextOrigin,
-} from "../authenticated-request-context.service";
+import { AuthenticatedRequestContextService } from "../authenticated-request-context.service";
+import { validateAuthenticatedRequestContextOrigin } from "../authenticated-request-context-validation.helpers";
 import { createRedactedAuthenticatedRequestContextPreview } from "../authenticated-request-context-redaction";
 import {
   MacOSKeychainSecretStoreAdapter,
@@ -15,11 +13,15 @@ import {
 } from "../platform-secret-store";
 import { AuthenticationContextMetadataRepository } from "../authentication-context-metadata.repository";
 import { createAuthenticationContextMetadataTable } from "../authentication-context-metadata.schema";
+import { AuthenticationContextStateRepository } from "../authentication-context-state.repository";
 
 class TestSecretStore implements SecretStore {
-  private readonly values = new Map<string, string>();
+  protected readonly values = new Map<string, string>();
 
-  constructor(private readonly storageMode: SecretStoreValue["storageMode"] = "secure") {}
+  constructor(
+    private readonly storageMode: SecretStoreValue["storageMode"] = "secure",
+    private clearResult: "cleared" | "pending" = "cleared",
+  ) {}
 
   async save(key: string, value: string) {
     this.values.set(key, value);
@@ -34,22 +36,244 @@ class TestSecretStore implements SecretStore {
   async clear(key: string) {
     this.values.delete(key);
   }
+
+  async clearWithResult(key: string) {
+    if (this.clearResult === "pending") {
+      return "pending" as const;
+    }
+    await this.clear(key);
+    return "cleared" as const;
+  }
+
+  setClearResult(result: "cleared" | "pending") {
+    this.clearResult = result;
+  }
 }
 
-function createMetadataRepository() {
+function createRepositories() {
   const database = new Database(":memory:", { create: true, strict: true });
   database.exec("CREATE TABLE sessions (id TEXT PRIMARY KEY);");
   database.exec("INSERT INTO sessions (id) VALUES ('session-1');");
+  database.exec("INSERT INTO sessions (id) VALUES ('session-2');");
   createAuthenticationContextMetadataTable(database);
-  return new AuthenticationContextMetadataRepository(database, "runtime-1");
+  return {
+    metadataRepository: new AuthenticationContextMetadataRepository(database, "runtime-1"),
+    stateRepository: new AuthenticationContextStateRepository(database),
+    database,
+  };
 }
 
 describe("AuthenticatedRequestContextService", () => {
+  test("keeps generations durable across service restart without persisting secrets", async () => {
+    const { database, metadataRepository, stateRepository } = createRepositories();
+    const secretStore = new TestSecretStore();
+    const service = new AuthenticatedRequestContextService(secretStore, metadataRepository, stateRepository);
+    await service.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=restart-canary",
+      headers: "",
+    });
+
+    const storedState = database
+      .query("SELECT * FROM session_authentication_context_state")
+      .all();
+    const storedKeyLedger = database
+      .query("SELECT * FROM session_authentication_context_secret_keys")
+      .all();
+    expect(JSON.stringify(storedState)).not.toContain("restart-canary");
+    expect(JSON.stringify(storedKeyLedger)).not.toContain("restart-canary");
+
+    const restarted = new AuthenticatedRequestContextService(
+      secretStore,
+      new AuthenticationContextMetadataRepository(database, "runtime-1"),
+      new AuthenticationContextStateRepository(database),
+    );
+    expect(restarted.getAuthStateVersion("session-1")).toBe(1);
+    expect(await restarted.loadProtectedContext("session-1")).toMatchObject({
+      cookies: "session=restart-canary",
+    });
+    expect(await restarted.getMetadata("session-1")).toMatchObject({
+      origin: "https://app.example.test",
+      cookieCount: 1,
+    });
+  });
+
+  test("drops a prior secure value when the replacement existed only in process memory", async () => {
+    let available = true;
+    const platformValues = new Map<string, string>();
+    const adapter: PlatformSecretStoreAdapter = {
+      isAvailable: async () => available,
+      save: async (key, value) => {
+        platformValues.set(key, value);
+      },
+      load: async (key) => platformValues.get(key) ?? null,
+      clear: async (key) => {
+        platformValues.delete(key);
+      },
+    };
+    const { database, metadataRepository, stateRepository } = createRepositories();
+    const firstStore = new PlatformSecretStore(adapter);
+    const firstService = new AuthenticatedRequestContextService(
+      firstStore,
+      metadataRepository,
+      stateRepository,
+    );
+    await firstService.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=old-secure-canary",
+      headers: "",
+    });
+    available = false;
+    const memoryMetadata = await firstService.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=memory-only-canary",
+      headers: "",
+    });
+    expect(memoryMetadata.storageMode).toBe("memory");
+    available = true;
+
+    const restarted = new AuthenticatedRequestContextService(
+      new PlatformSecretStore(adapter),
+      new AuthenticationContextMetadataRepository(database, "runtime-2"),
+      new AuthenticationContextStateRepository(database),
+    );
+    expect(await restarted.loadProtectedContext("session-1")).toBeNull();
+    expect(await restarted.getMetadata("session-1")).toBeNull();
+    expect(platformValues.size).toBe(0);
+    expect(JSON.stringify(database.query("SELECT * FROM session_authentication_context_state").all())).not.toContain(
+      "old-secure-canary",
+    );
+  });
+
+  test("keeps a pending deletion tombstone across restart and reconciles it after store recovery", async () => {
+    const { database, metadataRepository, stateRepository } = createRepositories();
+    const secretStore = new TestSecretStore("secure", "pending");
+    const service = new AuthenticatedRequestContextService(secretStore, metadataRepository, stateRepository);
+    await service.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=pending-delete-canary",
+      headers: "",
+    });
+
+    expect(await service.clear("session-1")).toEqual({ status: "pending" });
+    expect(stateRepository.find("session-1")).toMatchObject({ status: "clear_pending" });
+    secretStore.setClearResult("cleared");
+    const restarted = new AuthenticatedRequestContextService(
+      secretStore,
+      new AuthenticationContextMetadataRepository(database, "runtime-1"),
+      new AuthenticationContextStateRepository(database),
+    );
+    expect(await restarted.getMetadata("session-1")).toBeNull();
+    expect(await restarted.loadProtectedContext("session-1")).toBeNull();
+    expect(stateRepository.find("session-1")).toMatchObject({ status: "cleared" });
+  });
+
+  test("does not let a late save overwrite or delete a newer generation", async () => {
+    let releaseFirstSave = () => {};
+    let notifyFirstSaveStarted = () => {};
+    const firstSaveStarted = new Promise<void>((resolve) => {
+      notifyFirstSaveStarted = resolve;
+    });
+    const release = new Promise<void>((resolve) => {
+      releaseFirstSave = resolve;
+    });
+    class DeferredFirstSaveStore extends TestSecretStore {
+      private saveCount = 0;
+
+      override async save(key: string, value: string) {
+        this.saveCount += 1;
+        if (this.saveCount === 1) {
+          notifyFirstSaveStarted();
+          await release;
+        }
+        this.values.set(key, value);
+        return "secure" as const;
+      }
+    }
+
+    const { database, metadataRepository, stateRepository } = createRepositories();
+    const secretStore = new DeferredFirstSaveStore();
+    const firstService = new AuthenticatedRequestContextService(secretStore, metadataRepository, stateRepository);
+    const secondService = new AuthenticatedRequestContextService(
+      secretStore,
+      new AuthenticationContextMetadataRepository(database, "runtime-1"),
+      new AuthenticationContextStateRepository(database),
+    );
+    const firstSave = firstService.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=late-old-value",
+      headers: "",
+    });
+    await firstSaveStarted;
+    await secondService.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=current-value",
+      headers: "",
+    });
+    releaseFirstSave();
+    await expect(firstSave).rejects.toThrow("changed while it was being saved");
+    expect(await secondService.loadProtectedContext("session-1")).toMatchObject({
+      cookies: "session=current-value",
+    });
+    expect(await secondService.getMetadata("session-1")).toMatchObject({ cookieCount: 1 });
+  });
+
+  test("does not clear newer metadata when an older read completes late", async () => {
+    let releaseLoad = () => {};
+    let notifyLoadStarted = () => {};
+    const loadStarted = new Promise<void>((resolve) => {
+      notifyLoadStarted = resolve;
+    });
+    const release = new Promise<void>((resolve) => {
+      releaseLoad = resolve;
+    });
+    class DeferredLoadStore extends TestSecretStore {
+      private shouldDelay = true;
+
+      override async load(key: string) {
+        if (this.shouldDelay) {
+          this.shouldDelay = false;
+          notifyLoadStarted();
+          await release;
+        }
+        return super.load(key);
+      }
+    }
+
+    const { database, metadataRepository, stateRepository } = createRepositories();
+    const secretStore = new DeferredLoadStore();
+    const service = new AuthenticatedRequestContextService(secretStore, metadataRepository, stateRepository);
+    await service.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=old-context",
+      headers: "",
+    });
+    const oldRead = service.getMetadata("session-1");
+    await loadStarted;
+    await service.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=new-context",
+      headers: "",
+    });
+    releaseLoad();
+    expect(await oldRead).toBeNull();
+    const currentService = new AuthenticatedRequestContextService(
+      secretStore,
+      new AuthenticationContextMetadataRepository(database, "runtime-1"),
+      new AuthenticationContextStateRepository(database),
+    );
+    expect(await currentService.getMetadata("session-1")).toMatchObject({ cookieCount: 1 });
+    expect(await currentService.loadProtectedContext("session-1")).toMatchObject({
+      cookies: "session=new-context",
+    });
+  });
+
   test("stores only redacted metadata outside the secure-store payload", async () => {
-    const metadataRepository = createMetadataRepository();
+    const { metadataRepository, stateRepository } = createRepositories();
     const service = new AuthenticatedRequestContextService(
       new TestSecretStore(),
       metadataRepository,
+      stateRepository,
     );
 
     const metadata = await service.save("session-1", "https://app.example.test/login", {
@@ -80,10 +304,11 @@ describe("AuthenticatedRequestContextService", () => {
   });
 
   test("normalizes duplicate cookie names before protected storage", async () => {
-    const metadataRepository = createMetadataRepository();
+    const { metadataRepository, stateRepository } = createRepositories();
     const service = new AuthenticatedRequestContextService(
       new TestSecretStore(),
       metadataRepository,
+      stateRepository,
     );
 
     const metadata = await service.save("session-1", "https://app.example.test", {
@@ -108,10 +333,11 @@ describe("AuthenticatedRequestContextService", () => {
   });
 
   test("keeps browser storage values only in the protected context", async () => {
-    const metadataRepository = createMetadataRepository();
+    const { metadataRepository, stateRepository } = createRepositories();
     const service = new AuthenticatedRequestContextService(
       new TestSecretStore(),
       metadataRepository,
+      stateRepository,
     );
 
     const metadata = await service.save("session-1", "https://app.example.test", {
@@ -149,9 +375,11 @@ describe("AuthenticatedRequestContextService", () => {
         updatedAt: "2026-07-15T10:00:00.000Z",
       }),
     );
+    const { database, metadataRepository, stateRepository } = createRepositories();
     const service = new AuthenticatedRequestContextService(
       secretStore,
-      createMetadataRepository(),
+      metadataRepository,
+      stateRepository,
     );
 
     expect(await service.loadProtectedContext("session-1")).toMatchObject({
@@ -159,13 +387,173 @@ describe("AuthenticatedRequestContextService", () => {
       cookies: "session=legacy-secret",
       headers: "",
     });
+    expect(await service.loadProtectedContext("session-1")).toMatchObject({
+      cookies: "session=legacy-secret",
+    });
+    const restarted = new AuthenticatedRequestContextService(
+      secretStore,
+      new AuthenticationContextMetadataRepository(database, "runtime-2"),
+      new AuthenticationContextStateRepository(database),
+    );
+    expect(await restarted.loadProtectedContext("session-1")).toMatchObject({
+      cookies: "session=legacy-secret",
+    });
   });
 
-  test("replacement and clearing invalidate dependent auth state", async () => {
-    const metadataRepository = createMetadataRepository();
+  test("a clear stays pending while a save can still write, then retries without touching newer keys", async () => {
+    let releaseFirstSave = () => {};
+    let notifyFirstSaveStarted = () => {};
+    const firstSaveStarted = new Promise<void>((resolve) => {
+      notifyFirstSaveStarted = resolve;
+    });
+    const release = new Promise<void>((resolve) => {
+      releaseFirstSave = resolve;
+    });
+    class DeferredFirstSaveStore extends TestSecretStore {
+      private saveCount = 0;
+
+      override async save(key: string, value: string) {
+        this.saveCount += 1;
+        if (this.saveCount === 1) {
+          notifyFirstSaveStarted();
+          await release;
+        }
+        this.values.set(key, value);
+        return "secure" as const;
+      }
+    }
+
+    const { database, metadataRepository, stateRepository } = createRepositories();
+    const secretStore = new DeferredFirstSaveStore("secure", "cleared");
+    const service = new AuthenticatedRequestContextService(secretStore, metadataRepository, stateRepository);
+    const lateSave = service.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=late-write-canary",
+      headers: "",
+    });
+    await firstSaveStarted;
+    expect(await service.clear("session-1")).toEqual({ status: "pending" });
+    expect(stateRepository.find("session-1")).toMatchObject({ status: "clear_pending" });
+    const restartedWhileWriterPending = new AuthenticatedRequestContextService(
+      secretStore,
+      new AuthenticationContextMetadataRepository(database, "runtime-2"),
+      new AuthenticationContextStateRepository(database),
+    );
+    expect(await restartedWhileWriterPending.clear("session-1")).toEqual({ status: "pending" });
+    expect(stateRepository.findSecretKeyGenerations("session-1", 10)).toEqual([]);
+    expect(stateRepository.hasUnsettledSecretWrites("session-1", 10)).toBe(true);
+    secretStore.setClearResult("pending");
+    releaseFirstSave();
+    await expect(lateSave).rejects.toThrow("changed while it was being saved");
+    expect(stateRepository.findSecretKeyGenerations("session-1", 10)).toContain(1);
+    expect(stateRepository.hasUnsettledSecretWrites("session-1", 10)).toBe(false);
+    secretStore.setClearResult("cleared");
+    const restarted = new AuthenticatedRequestContextService(
+      secretStore,
+      new AuthenticationContextMetadataRepository(database, "runtime-2"),
+      new AuthenticationContextStateRepository(database),
+    );
+    expect(await restarted.getMetadata("session-1")).toBeNull();
+    expect(stateRepository.find("session-1")).toMatchObject({ status: "cleared" });
+    expect(stateRepository.findSecretKeyGenerations("session-1", 10)).toEqual([]);
+  });
+
+  test("a delayed old-generation clear cannot remove a newer protected value", async () => {
+    let releaseOldKeyClear = () => {};
+    let notifyOldKeyClear = () => {};
+    const oldKeyClearStarted = new Promise<void>((resolve) => {
+      notifyOldKeyClear = resolve;
+    });
+    const release = new Promise<void>((resolve) => {
+      releaseOldKeyClear = resolve;
+    });
+    class DeferredOldKeyClearStore extends TestSecretStore {
+      private delayed = false;
+
+      override async clearWithResult(key: string) {
+        if (key.endsWith(":generation:1") && !this.delayed) {
+          this.delayed = true;
+          notifyOldKeyClear();
+          await release;
+        }
+        return super.clearWithResult(key);
+      }
+    }
+
+    const { database, metadataRepository, stateRepository } = createRepositories();
+    const secretStore = new DeferredOldKeyClearStore();
+    const service = new AuthenticatedRequestContextService(secretStore, metadataRepository, stateRepository);
+    await service.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=old-key-value",
+      headers: "",
+    });
+    const oldClear = service.clear("session-1");
+    await oldKeyClearStarted;
+
+    const newService = new AuthenticatedRequestContextService(
+      secretStore,
+      new AuthenticationContextMetadataRepository(database, "runtime-1"),
+      new AuthenticationContextStateRepository(database),
+    );
+    await newService.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=new-key-value",
+      headers: "",
+    });
+    releaseOldKeyClear();
+    expect(await oldClear).toEqual({ status: "pending" });
+    expect(await newService.loadProtectedContext("session-1")).toMatchObject({
+      cookies: "session=new-key-value",
+    });
+    expect(await newService.getMetadata("session-1")).toMatchObject({ cookieCount: 1 });
+  });
+
+  test("notifies remaining invalidation listeners when one listener throws", async () => {
+    const { metadataRepository, stateRepository } = createRepositories();
     const service = new AuthenticatedRequestContextService(
       new TestSecretStore(),
       metadataRepository,
+      stateRepository,
+    );
+    const received: number[] = [];
+    service.subscribeToInvalidation(() => {
+      throw new Error("subscriber failure");
+    });
+    service.subscribeToInvalidation((invalidation) => received.push(invalidation.version));
+
+    await service.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=listener-value",
+      headers: "",
+    });
+    expect(received).toEqual([1]);
+  });
+
+  test("keeps another session's protected generation intact when one session is cleared", async () => {
+    const { metadataRepository, stateRepository } = createRepositories();
+    const store = new TestSecretStore();
+    const service = new AuthenticatedRequestContextService(store, metadataRepository, stateRepository);
+    for (const sessionId of ["session-1", "session-2"]) {
+      await service.save(sessionId, "https://app.example.test", {
+        origin: "https://app.example.test",
+        cookies: `session=${sessionId}-secret`,
+        headers: "",
+      });
+    }
+    expect(await service.clear("session-1")).toEqual({ status: "cleared" });
+    expect(await service.loadProtectedContext("session-1")).toBeNull();
+    expect(await service.loadProtectedContext("session-2")).toMatchObject({
+      cookies: "session=session-2-secret",
+    });
+  });
+
+  test("replacement and clearing invalidate dependent auth state", async () => {
+    const { metadataRepository, stateRepository } = createRepositories();
+    const service = new AuthenticatedRequestContextService(
+      new TestSecretStore(),
+      metadataRepository,
+      stateRepository,
     );
     const invalidations: string[] = [];
     service.subscribeToInvalidation((invalidation) => {
@@ -271,7 +659,7 @@ describe("PlatformSecretStore", () => {
       value: "protected-value",
       storageMode: "secure",
     });
-    await store.clear("session-1");
+    expect(await store.clearWithResult("session-1")).toBe("cleared");
     expect(await store.load("session-1")).toBeNull();
   });
 
@@ -295,6 +683,7 @@ describe("PlatformSecretStore", () => {
     });
 
     await store.clear("session-1");
+    expect(await store.clearWithResult("session-1")).toBe("pending");
     expect(await store.load("session-1")).toBeNull();
   });
 });

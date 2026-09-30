@@ -19,7 +19,7 @@ import {
   NucleiSeverityPreset,
   NucleiToolData,
 } from "../types/nuclei.types";
-import { normalizeExactOrigin } from "../../../authentication/services/authenticated-request-context.service";
+import { normalizeExactOrigin } from "../../../authentication/services/authenticated-request-context-validation.helpers";
 import { nucleiAuthenticatedRunService } from "./nuclei-authenticated-run.service";
 import { redactNucleiCommandForPersistence } from "./nuclei-command-redaction.helpers";
 import { validateAuthenticatedNucleiCommand } from "./nuclei-authenticated-command.helpers";

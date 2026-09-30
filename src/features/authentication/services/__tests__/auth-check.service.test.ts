@@ -10,6 +10,7 @@ import { AuthenticatedRequestContextService } from "../authenticated-request-con
 import { SecretStore, SecretStoreValue } from "../platform-secret-store";
 import { AuthenticationContextMetadataRepository } from "../authentication-context-metadata.repository";
 import { createAuthenticationContextMetadataTable } from "../authentication-context-metadata.schema";
+import { AuthenticationContextStateRepository } from "../authentication-context-state.repository";
 
 class TestSecretStore implements SecretStore {
   private readonly values = new Map<string, string>();
@@ -27,14 +28,22 @@ class TestSecretStore implements SecretStore {
   async clear(key: string) {
     this.values.delete(key);
   }
+
+  async clearWithResult(key: string) {
+    await this.clear(key);
+    return "cleared" as const;
+  }
 }
 
-function createMetadataRepository() {
+function createRepositories() {
   const database = new Database(":memory:", { create: true, strict: true });
   database.exec("CREATE TABLE sessions (id TEXT PRIMARY KEY);");
   database.exec("INSERT INTO sessions (id) VALUES ('session-1');");
   createAuthenticationContextMetadataTable(database);
-  return new AuthenticationContextMetadataRepository(database, "runtime-1");
+  return {
+    metadataRepository: new AuthenticationContextMetadataRepository(database, "runtime-1"),
+    stateRepository: new AuthenticationContextStateRepository(database),
+  };
 }
 
 function createSignals(
@@ -183,10 +192,11 @@ describe("Auth Check URL selection", () => {
 
 describe("Auth Check state", () => {
   test("uses the same normalized cookie selection as Page Inspection", async () => {
-    const metadataRepository = createMetadataRepository();
+    const { metadataRepository, stateRepository } = createRepositories();
     const contextService = new AuthenticatedRequestContextService(
       new TestSecretStore(),
       metadataRepository,
+      stateRepository,
     );
     await contextService.save("session-1", "https://app.example.test", {
       origin: "https://app.example.test",
@@ -216,10 +226,11 @@ describe("Auth Check state", () => {
   });
 
   test("rechecks the stored verification URL with current runtime credentials", async () => {
-    const metadataRepository = createMetadataRepository();
+    const { metadataRepository, stateRepository } = createRepositories();
     const contextService = new AuthenticatedRequestContextService(
       new TestSecretStore(),
       metadataRepository,
+      stateRepository,
     );
     await contextService.save("session-1", "https://app.example.test", {
       origin: "https://app.example.test",
@@ -266,10 +277,11 @@ describe("Auth Check state", () => {
   });
 
   test("never forwards context across an off-origin redirect", async () => {
-    const metadataRepository = createMetadataRepository();
+    const { metadataRepository, stateRepository } = createRepositories();
     const contextService = new AuthenticatedRequestContextService(
       new TestSecretStore(),
       metadataRepository,
+      stateRepository,
     );
     await contextService.save("session-1", "https://app.example.test", {
       origin: "https://app.example.test",
@@ -304,10 +316,11 @@ describe("Auth Check state", () => {
   });
 
   test("requires explicit acknowledgement before an inconclusive context may proceed", async () => {
-    const metadataRepository = createMetadataRepository();
+    const { metadataRepository, stateRepository } = createRepositories();
     const contextService = new AuthenticatedRequestContextService(
       new TestSecretStore(),
       metadataRepository,
+      stateRepository,
     );
     await contextService.save("session-1", "https://app.example.test", {
       origin: "https://app.example.test",
@@ -367,10 +380,11 @@ describe("Auth Check state", () => {
   });
 
   test("preserves acknowledged inconclusive state during crawl verification", async () => {
-    const metadataRepository = createMetadataRepository();
+    const { metadataRepository, stateRepository } = createRepositories();
     const contextService = new AuthenticatedRequestContextService(
       new TestSecretStore(),
       metadataRepository,
+      stateRepository,
     );
     await contextService.save("session-1", "https://app.example.test", {
       origin: "https://app.example.test",
@@ -409,10 +423,11 @@ describe("Auth Check state", () => {
   });
 
   test("invalidates check state when the protected context is replaced", async () => {
-    const metadataRepository = createMetadataRepository();
+    const { metadataRepository, stateRepository } = createRepositories();
     const contextService = new AuthenticatedRequestContextService(
       new TestSecretStore(),
       metadataRepository,
+      stateRepository,
     );
     await contextService.save("session-1", "https://app.example.test", {
       origin: "https://app.example.test",
@@ -452,10 +467,11 @@ describe("Auth Check state", () => {
   });
 
   test("discards an in-flight result when the protected context changes", async () => {
-    const metadataRepository = createMetadataRepository();
+    const { metadataRepository, stateRepository } = createRepositories();
     const contextService = new AuthenticatedRequestContextService(
       new TestSecretStore(),
       metadataRepository,
+      stateRepository,
     );
     await contextService.save("session-1", "https://app.example.test", {
       origin: "https://app.example.test",
@@ -491,5 +507,69 @@ describe("Auth Check state", () => {
     expect(requestCount).toBe(1);
     expect(authCheckService.getMetadata("session-1").status).toBe("not_checked");
     expect(authCheckService.isProceedAllowed("session-1")).toBe(false);
+  });
+
+  test("does not let an old verifier write Auth Check metadata for a replacement generation", async () => {
+    const { metadataRepository, stateRepository } = createRepositories();
+    const secretStore = new TestSecretStore();
+    const contextService = new AuthenticatedRequestContextService(
+      secretStore,
+      metadataRepository,
+      stateRepository,
+    );
+    await contextService.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=old-verification-context",
+      headers: "",
+    });
+    const seedAuthCheck = new AuthCheckService({
+      contextService,
+      metadataRepository,
+      fetch: async () =>
+        new Response("<html><title>Same</title></html>", {
+          headers: { "content-type": "text/html" },
+        }),
+    });
+    await seedAuthCheck.run(
+      "session-1",
+      "https://app.example.test",
+      "https://app.example.test/account",
+    );
+
+    let releaseFirstRequest = () => {};
+    let notifyFirstRequest = () => {};
+    const firstRequestStarted = new Promise<void>((resolve) => {
+      notifyFirstRequest = resolve;
+    });
+    const release = new Promise<void>((resolve) => {
+      releaseFirstRequest = resolve;
+    });
+    const deferredVerifier = new AuthCheckService({
+      contextService,
+      metadataRepository,
+      fetch: async () => {
+        notifyFirstRequest();
+        await release;
+        return new Response("<html><title>Changed</title></html>", {
+          headers: { "content-type": "text/html" },
+        });
+      },
+    });
+    const verification = deferredVerifier.verify({
+      sessionId: "session-1",
+      targetUrl: "https://app.example.test",
+      cookies: "session=old-verification-context",
+      headers: "",
+    });
+    await firstRequestStarted;
+    await contextService.save("session-1", "https://app.example.test", {
+      origin: "https://app.example.test",
+      cookies: "session=new-verification-context",
+      headers: "",
+    });
+    releaseFirstRequest();
+
+    expect(await verification).toBe("inconclusive");
+    expect(deferredVerifier.getMetadata("session-1").status).toBe("not_checked");
   });
 });

@@ -7,8 +7,8 @@ import {
 import {
   authenticatedRequestContextService,
   AuthenticatedRequestContextService,
-  normalizeExactOrigin,
 } from "./authenticated-request-context.service";
+import { normalizeExactOrigin } from "./authenticated-request-context-validation.helpers";
 import { createUncheckedAuthCheckMetadata } from "./authenticated-request-context-redaction";
 import {
   normalizeAuthenticatedRequestCookies,
@@ -312,7 +312,10 @@ export class AuthCheckService implements AuthenticatedContextVerifier {
       summary:
         "The operator acknowledged an inconclusive Auth Check. Authorization scope is not established.",
     };
-    this.metadataRepository.updateAuthCheck(sessionId, acknowledged);
+    const generation = this.contextService.getAuthStateVersion(sessionId);
+    if (!this.metadataRepository.updateAuthCheckForGeneration(sessionId, acknowledged, generation)) {
+      throw new Error("Authentication context changed. Load it again before acknowledging.");
+    }
     return acknowledged;
   }
 
@@ -326,6 +329,9 @@ export class AuthCheckService implements AuthenticatedContextVerifier {
     const context = await this.contextService.loadProtectedContext(sessionId);
     if (!context) {
       throw new Error("Save an authentication context before running Auth Check.");
+    }
+    if (!this.metadataRepository.findBySessionId(sessionId, contextVersion)) {
+      await this.contextService.getMetadata(sessionId);
     }
     if (context.origin !== normalizeExactOrigin(targetUrl)) {
       throw new Error("Authentication context no longer matches the target origin.");
@@ -357,13 +363,15 @@ export class AuthCheckService implements AuthenticatedContextVerifier {
         checkedAt,
         acknowledgedAt: null,
       };
-      this.metadataRepository.updateAuthCheck(sessionId, metadata);
+      if (!this.metadataRepository.updateAuthCheckForGeneration(sessionId, metadata, contextVersion)) {
+        throw new Error("Authentication context changed during Auth Check.");
+      }
       return metadata;
     } catch {
       if (this.contextService.getAuthStateVersion(sessionId) !== contextVersion) {
         throw new Error("Authentication context changed during Auth Check. Run it again.");
       }
-      this.metadataRepository.updateAuthCheck(sessionId, {
+      const updated = this.metadataRepository.updateAuthCheckForGeneration(sessionId, {
         status: "failed",
         verificationUrl: createMetadataVerificationUrl(normalizedVerificationUrl),
         checkedAt: new Date().toISOString(),
@@ -372,7 +380,10 @@ export class AuthCheckService implements AuthenticatedContextVerifier {
         summary:
           "Auth Check could not compare bounded responses. Authorization scope is not established.",
         signals: null,
-      });
+      }, contextVersion);
+      if (!updated) {
+        throw new Error("Authentication context changed during Auth Check. Run it again.");
+      }
       throw new Error("Auth Check could not compare the selected same-origin URL.");
     }
   }
@@ -380,6 +391,7 @@ export class AuthCheckService implements AuthenticatedContextVerifier {
   async verify(
     input: AuthenticatedContextVerificationInput,
   ): Promise<AuthenticatedContextVerificationResult> {
+    const contextVersion = this.contextService.getAuthStateVersion(input.sessionId);
     const verificationUrl = this.getMetadata(input.sessionId).verificationUrl;
     if (!verificationUrl) {
       return "inconclusive";
@@ -397,10 +409,16 @@ export class AuthCheckService implements AuthenticatedContextVerifier {
         normalizedVerificationUrl,
         createRequestHeaders("", ""),
       );
+      if (this.contextService.getAuthStateVersion(input.sessionId) !== contextVersion) {
+        return "inconclusive";
+      }
       const authenticated = await this.fetchSignals(
         normalizedVerificationUrl,
         createRequestHeaders(input.cookies, input.headers),
       );
+      if (this.contextService.getAuthStateVersion(input.sessionId) !== contextVersion) {
+        return "inconclusive";
+      }
       const comparison = compareAuthCheckSignals({ unauthenticated, authenticated });
       const metadata = createAuthCheckVerificationMetadata(
         this.getMetadata(input.sessionId),
@@ -408,7 +426,15 @@ export class AuthCheckService implements AuthenticatedContextVerifier {
         createMetadataVerificationUrl(normalizedVerificationUrl),
         new Date().toISOString(),
       );
-      this.metadataRepository.updateAuthCheck(input.sessionId, metadata);
+      if (
+        !this.metadataRepository.updateAuthCheckForGeneration(
+          input.sessionId,
+          metadata,
+          contextVersion,
+        )
+      ) {
+        return "inconclusive";
+      }
 
       if (comparison.status === "verified") {
         return "valid";
