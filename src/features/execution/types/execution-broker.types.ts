@@ -35,9 +35,9 @@ export interface ExecutionReceipt {
 }
 
 export interface ExecutionRuntimeAdapter {
-  putInput(plan: ExecutionPlan, slot: ExecutionInputSlot, bytes: Uint8Array): Promise<void>;
+  putInput(plan: ExecutionPlan, slot: ExecutionInputSlot, bytes: Uint8Array, credentialBinding?: ExecutionCredentialBinding | null): Promise<void>;
   discardInputs?(executionId: string): void;
-  start(plan: ExecutionPlan): Promise<void>;
+  start(plan: ExecutionPlan, credentialBinding?: ExecutionCredentialBinding | null): Promise<void>;
   readEvents?(executionId: string, afterSequence: number, maximumEvents?: number): ExecutionEventPage;
   cancel?(executionId: string): ExecutionControlReceipt;
   waitForCleanup?(executionId: string): Promise<ExecutionControlReceipt>;
@@ -58,6 +58,7 @@ export interface ExecutionBrokerOptions {
   publicDataEventProfileIds?: string[];
   readAuthorization: (principal: ExecutionPrincipal, authorizationId: string, requestedPlan?: ExecutionPlan) => ExecutionAuthorization | null;
   credentialAuthority?: ExecutionCredentialAuthority;
+  authCheckOutputProfileId?: string;
   runtime?: ExecutionRuntimeAdapter;
   now?: () => number;
 }

@@ -1,4 +1,5 @@
 import { ExecutionLimits, ExecutionPlan } from "./execution-plan.types";
+import { ExecutionCredentialBinding } from "./execution-broker.types";
 import { HttpExecutionNetworkInput, HttpExecutionNetworkPolicy, HttpExecutionNetworkRunResult } from "./http-execution-network.types";
 import { ExecutionOutputStream } from "./execution-event.types";
 
@@ -24,7 +25,7 @@ export interface HttpExecutionSupervisorOptions {
 
 export interface HttpExecutionSecretOutputSanitizer {
   /** A throwing create must release any partial state before it throws. */
-  create(plan: ExecutionPlan, inputs: readonly HttpExecutionNetworkInput[]): HttpExecutionSecretOutputSession | null;
+  create(plan: ExecutionPlan, inputs: readonly HttpExecutionNetworkInput[], credentialBinding?: ExecutionCredentialBinding | null): HttpExecutionSecretOutputSession | null;
 }
 
 export interface HttpExecutionSecretOutputSession {

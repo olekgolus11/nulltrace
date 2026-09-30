@@ -13,6 +13,7 @@ import { ExecutionAuthorization, ExecutionBrokerOptions, ExecutionRuntimeAdapter
 import { ExecutionPlan, ExecutionProfile } from "../../types/execution-plan.types";
 import { HttpExecutionSupervisorService } from "../http-execution-supervisor.service";
 import { HttpExecutionNetworkPolicy } from "../../types/http-execution-network.types";
+import { authCheckExecutionProfile, createAuthCheckExecutionPlan } from "../auth-check-execution-profile.helpers";
 
 const principal = { installationId: "installation", instanceId: "instance" };
 const token = "a".repeat(64);
@@ -73,6 +74,113 @@ function request(path: string, body: BodyInit, credential = token, contentType =
 }
 
 describe("execution admission", () => {
+  test("rejects Auth Check profile changes before prepare can reach runtime", () => {
+    const authPlan = createAuthCheckExecutionPlan({ executionId: "auth-run", authorizationId: "auth-approval", origin: "https://example.test" });
+    const database = new Database(":memory:");
+    databases.push(database);
+    const receipts = new ExecutionReceiptRepository(database, new Uint8Array(32).fill(7));
+    let starts = 0;
+    const broker = new ExecutionBrokerService(receipts, {
+      profiles: [authCheckExecutionProfile],
+      authCheckOutputProfileId: authCheckExecutionProfile.id,
+      credentialAuthority: {
+        resolveBinding: () => ({ scopeId: "scope-1", generation: 3 }),
+        isCurrent: () => true,
+      },
+      readAuthorization: () => ({ principal, plan: authPlan, expiresAt: 2000 }),
+      runtime: {
+        async putInput() {},
+        discardInputs() {},
+        async start() { starts += 1; },
+        cancel(executionId) { return { executionId, status: "running", stopReason: "cancelled", cleanup: "pending", exitCode: null }; },
+        async waitForCleanup(executionId) { return { executionId, status: "finished", stopReason: "cancelled", cleanup: "confirmed", exitCode: null }; },
+      },
+      now: () => 1000,
+    });
+    for (const patch of [
+      { invocation: { executableId: "bun", argv: ["run", "/tmp/attacker.js"] } },
+      { inputs: [{ id: "other-slot", kind: "secret", maximumBytes: 128 * 1024 }] },
+      { limits: { ...authPlan.limits, timeoutMs: 60_001 } },
+      { origins: ["https://example.test", "https://other.test"] },
+    ]) {
+      expect(() => broker.prepare(principal, { ...authPlan, ...patch })).toThrow("INVALID_REQUEST");
+    }
+    expect(starts).toBe(0);
+  });
+
+  test("rejects a private config from another credential generation before runtime staging", async () => {
+    const authPlan = createAuthCheckExecutionPlan({ executionId: "auth-stale-input", authorizationId: "auth-approval", origin: "https://example.test" });
+    const database = new Database(":memory:");
+    databases.push(database);
+    const receipts = new ExecutionReceiptRepository(database, new Uint8Array(32).fill(7));
+    let writes = 0;
+    let starts = 0;
+    const broker = new ExecutionBrokerService(receipts, {
+      profiles: [authCheckExecutionProfile],
+      authCheckOutputProfileId: authCheckExecutionProfile.id,
+      credentialAuthority: { resolveBinding: () => ({ scopeId: "scope-1", generation: 3 }), isCurrent: () => true },
+      readAuthorization: () => ({ principal, plan: authPlan, expiresAt: 2000 }),
+      runtime: {
+        async putInput() { writes += 1; },
+        discardInputs() {},
+        async start() { starts += 1; },
+        cancel(executionId) { return { executionId, status: "running", stopReason: "cancelled", cleanup: "pending", exitCode: null }; },
+        async waitForCleanup(executionId) { return { executionId, status: "finished", stopReason: "cancelled", cleanup: "confirmed", exitCode: null }; },
+      },
+      now: () => 1000,
+    });
+    broker.prepare(principal, authPlan);
+    const staleConfig = {
+      version: 1, operation: "auth-check", contextVersion: 2, targetOrigin: "https://example.test",
+      verificationUrl: "https://example.test/check", authenticatedHeaders: ["cookie: old-generation-secret"],
+      requestTimeoutMs: 10_000, maximumResponseBytes: 128_000, maximumRedirectCount: 5, totalDeadlineMs: 30_000,
+    };
+    await expect(broker.putInput(principal, authPlan.executionId, "auth-check-config", new TextEncoder().encode(JSON.stringify(staleConfig))))
+      .rejects.toThrow("INVALID_REQUEST");
+    expect(writes).toBe(0);
+    expect(starts).toBe(0);
+  });
+
+  test("exposes an Auth Check frame only after its bound execution is closed and cleanup is confirmed", async () => {
+    const authPlan = createAuthCheckExecutionPlan({ executionId: "auth-result-run", authorizationId: "auth-approval", origin: "https://example.test" });
+    const database = new Database(":memory:");
+    databases.push(database);
+    const receipts = new ExecutionReceiptRepository(database, new Uint8Array(32).fill(7));
+    const binding = { scopeId: "scope-1", generation: 3 };
+    const safeFrame = JSON.stringify({ version: 1, operation: "auth-check", status: "failed", isProceedAllowed: false,
+      unauthenticated: { status: 401, redirectCount: 0, hasCrossOriginRedirect: false, contentKind: "html", hasLoginForm: true },
+      authenticated: { status: 403, redirectCount: 0, hasCrossOriginRedirect: false, contentKind: "html", hasLoginForm: true },
+      differences: { statusChanged: true, redirectsChanged: false, contentKindChanged: false, contentChanged: false, titleChanged: false, loginFormChanged: false },
+    });
+    const broker = new ExecutionBrokerService(receipts, {
+      profiles: [authCheckExecutionProfile],
+      authCheckOutputProfileId: authCheckExecutionProfile.id,
+      credentialAuthority: { resolveBinding: () => binding, isCurrent: () => true },
+      readAuthorization: () => ({ principal, plan: authPlan, expiresAt: 2000 }),
+      runtime: {
+        async putInput() {},
+        discardInputs() {},
+        async start() {},
+        cancel(executionId) { return { executionId, status: "running", stopReason: "cancelled", cleanup: "pending", exitCode: null }; },
+        async waitForCleanup(executionId) { return { executionId, status: "finished", stopReason: "cancelled", cleanup: "confirmed", exitCode: null }; },
+        readEvents(executionId, afterSequence) {
+          return { executionId, events: afterSequence < 0 ? [{ executionId, sequence: 0, stream: "stdout", line: safeFrame }] : [], nextSequence: 0, hasMore: false };
+        },
+      },
+      now: () => 1000,
+    });
+    broker.prepare(principal, authPlan);
+    await broker.putInput(principal, authPlan.executionId, "auth-check-config", new TextEncoder().encode(JSON.stringify({
+      version: 1, operation: "auth-check", contextVersion: 3, targetOrigin: "https://example.test",
+      verificationUrl: "https://example.test/check", authenticatedHeaders: [], requestTimeoutMs: 10_000,
+      maximumResponseBytes: 128_000, maximumRedirectCount: 5, totalDeadlineMs: 30_000,
+    })));
+    await broker.start(principal, authPlan.executionId);
+    expect(() => broker.readEvents(principal, authPlan.executionId, -1)).toThrow("CONFLICT");
+    receipts.recordOutcome({ executionId: authPlan.executionId, cause: "normal", exitCode: 0, cleanup: "confirmed" });
+    expect(broker.readEvents(principal, authPlan.executionId, -1).events[0]?.line).toBe(safeFrame);
+  });
+
   test.each([
     { mounts: ["/Users:/host"] }, { image: "attacker" }, { capabilities: ["ALL"] },
     { version: 2 }, { origins: ["https://example.test/path"] },

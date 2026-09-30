@@ -20,7 +20,7 @@ FROM ${BUN_IMAGE} AS auth-check-worker-build
 WORKDIR /worker
 COPY auth-check-worker-deps/package.json auth-check-worker-deps/bun.lock ./
 RUN bun install --frozen-lockfile --ignore-scripts --production
-COPY auth-check-worker.ts auth-check-worker.helpers.ts auth-check-worker.types.ts ./
+COPY auth-check-worker.ts auth-check-worker.helpers.ts auth-check-worker-protocol.helpers.ts auth-check-worker.types.ts ./
 RUN mkdir -p /out && bun build auth-check-worker.ts --target=bun --outfile=/out/auth-check-worker.js && \
     mkdir -p /out/licenses && \
     find -L node_modules -type f \( -iname 'LICENSE*' -o -iname 'COPYING*' \) -exec cp --parents '{}' /out/licenses/ \;

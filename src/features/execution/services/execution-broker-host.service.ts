@@ -15,6 +15,8 @@ import { toExecutionOutcome } from "./execution-outcome.helpers";
 import { HttpExecutionNetworkService } from "./http-execution-network.service";
 import { HttpExecutionResolverService } from "./http-execution-resolver.service";
 import { HttpExecutionSupervisorService } from "./http-execution-supervisor.service";
+import { authCheckExecutionProfile, isSupportedAuthCheckExecutionPlan } from "./auth-check-execution-profile.helpers";
+import { ExecutionAuthCheckOutputSanitizerService } from "./execution-auth-check-output-sanitizer.service";
 
 export class ExecutionBrokerHostService {
   private server: ReturnType<typeof Bun.serve> | null = null;
@@ -58,13 +60,22 @@ export class ExecutionBrokerHostService {
       this.database = new Database(journalPath, { readwrite: true, create: false });
       assertExecutionBrokerJournal(this.database, this.options.installationId, this.options.hmacKey);
       const receipts = new ExecutionReceiptRepository(this.database, this.options.hmacKey);
+      const profiles = [...this.options.profiles];
+      if (this.options.credentialAuthority) {
+        if (profiles.some(({ id }) => id === authCheckExecutionProfile.id)) {
+          throw new Error("Auth Check profile cannot be caller configured.");
+        }
+        profiles.push(structuredClone(authCheckExecutionProfile));
+      }
       const authorizationLedger = this.options.useAuthorizationLedger
         ? new ExecutionAuthorizationLedgerRepository(
           this.database,
           this.options.hmacKey,
-          this.options.profiles,
+          profiles,
           Date.now,
-          this.options.authorizationPlanValidator,
+          (plan) => plan.profileId === authCheckExecutionProfile.id
+            ? isSupportedAuthCheckExecutionPlan(plan)
+            : this.options.authorizationPlanValidator?.(plan) ?? true,
         )
         : null;
       const network = new HttpExecutionNetworkService(this.options.docker ?? new DockerCommandService(), {
@@ -81,14 +92,19 @@ export class ExecutionBrokerHostService {
         ...(this.options.lookup ? { lookup: this.options.lookup } : {}),
       }), {
         leaseMs: this.options.leaseMs ?? 30_000,
+        ...(this.options.credentialAuthority ? { secretOutputSanitizer: new ExecutionAuthCheckOutputSanitizerService() } : {}),
         onSettled(run) { receipts.recordOutcome(toExecutionOutcome(run)); },
       });
       const broker = new ExecutionBrokerService(receipts, {
-        profiles: this.options.profiles,
+        profiles,
+        ...(this.options.credentialAuthority ? {
+          credentialAuthority: this.options.credentialAuthority,
+          authCheckOutputProfileId: authCheckExecutionProfile.id,
+        } : {}),
         ...(this.options.publicDataEventProfileIds ? { publicDataEventProfileIds: this.options.publicDataEventProfileIds } : {}),
         readAuthorization: authorizationLedger
           ? (principal, authorizationId, plan) => plan ? authorizationLedger.claim(principal, authorizationId, plan) : null
-          : this.options.readAuthorization,
+          : (principal, authorizationId, plan) => this.options.readAuthorization(principal, authorizationId, plan),
         runtime: this.supervisor,
       });
       this.recovery = new ExecutionRecoveryService(receipts, network);

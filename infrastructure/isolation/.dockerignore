@@ -16,6 +16,7 @@
 !curl-worker.types.ts
 !auth-check-worker.ts
 !auth-check-worker.helpers.ts
+!auth-check-worker-protocol.helpers.ts
 !auth-check-worker.types.ts
 !auth-check-worker-deps/
 !auth-check-worker-deps/package.json

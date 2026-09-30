@@ -1,0 +1,28 @@
+{
+  "qualification": "auth-check-broker-profile",
+  "platform": "linux/arm64",
+  "generatedAt": "2026-09-30T17:45:32.889Z",
+  "engineVersion": "29.4.0",
+  "imageIds": {
+    "worker": "sha256:4ee0b306f906e41f20a0510f4b322b6058f51e6f815fe8f07f6586965fb94281",
+    "proxy": "sha256:f09182c93bd061a9b848b3f9eb7c1565a7b00f05b72c27d6c5baee4a98cc19f1",
+    "initializer": "sha256:45217ed397209f25014ac7e1e5d27f4f5146a394b4db40ec560d98a6abb2d2a7"
+  },
+  "bReceiverPositiveControlCount": 1,
+  "observations": {
+    "staleConfigReceiverDelta": 0,
+    "allowedUnauthenticatedLeg": true,
+    "allowedAuthenticatedLeg": true,
+    "allowedResultFrameCount": 1,
+    "offOriginBReceiverCount": 0,
+    "crossOriginResultFrameCount": 1,
+    "activeRevocationCleanupConfirmed": true,
+    "activeRevocationResultReleased": false,
+    "activeAuthenticatedRequestObserved": true,
+    "receiverARequestCount": 6,
+    "canaryScanPassed": true,
+    "remainingContainers": 0,
+    "remainingNetworks": 0,
+    "temporaryImageRemoved": true
+  }
+}

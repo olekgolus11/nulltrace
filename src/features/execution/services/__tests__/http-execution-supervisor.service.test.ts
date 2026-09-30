@@ -8,6 +8,9 @@ import { HttpExecutionSupervisorService } from "../http-execution-supervisor.ser
 import { ExecutionReceiptRepository } from "../execution-receipt.repository";
 import { toExecutionOutcome } from "../execution-outcome.helpers";
 import { ExecutionSecretOutputSanitizerService } from "../execution-secret-output-sanitizer.service";
+import { ExecutionAuthCheckOutputSanitizerService } from "../execution-auth-check-output-sanitizer.service";
+import { createAuthCheckExecutionPlan } from "../auth-check-execution-profile.helpers";
+import { ExecutionCredentialBinding } from "../../types/execution-broker.types";
 
 const plan: ExecutionPlan = {
   version: 1,
@@ -53,6 +56,92 @@ function fixture(leaseMs = 100) {
 }
 
 describe("HTTP execution ownership", () => {
+  test("releases only a valid Auth Check frame after successful worker exit and confirmed cleanup", async () => {
+    const authPlan = createAuthCheckExecutionPlan({ executionId: "auth-check-run", authorizationId: "trusted-approval", origin: "https://example.test" });
+    const authPolicy = { ...policy, executionId: authPlan.executionId };
+    const binding: ExecutionCredentialBinding = { scopeId: "scope-1", generation: 3 };
+    const config = new TextEncoder().encode(JSON.stringify({
+      version: 1, operation: "auth-check", contextVersion: 3, targetOrigin: "https://example.test",
+      verificationUrl: "https://example.test/check", authenticatedHeaders: ["cookie: session=must-not-return"],
+      requestTimeoutMs: 10_000, maximumResponseBytes: 128_000, maximumRedirectCount: 5, totalDeadlineMs: 30_000,
+    }));
+    const frame = `${JSON.stringify({
+      version: 1, operation: "auth-check", status: "verified", isProceedAllowed: true,
+      unauthenticated: { status: 401, redirectCount: 0, hasCrossOriginRedirect: false, contentKind: "html", hasLoginForm: true },
+      authenticated: { status: 200, redirectCount: 0, hasCrossOriginRedirect: false, contentKind: "html", hasLoginForm: false },
+      differences: { statusChanged: true, redirectsChanged: false, contentKindChanged: false, contentChanged: false, titleChanged: false, loginFormChanged: true },
+    })}\n`;
+    const createSupervisor = (exitCode: number, cleanupConfirmed = true) => new HttpExecutionSupervisorService({
+      async run(_policy, _limits, _executable, _argv, _signal, onOutput) {
+        onOutput?.("stdout", new TextEncoder().encode(frame));
+        return {
+          command: { exitCode, stdout: "", stderr: "" },
+          evidence: { executionId: authPlan.executionId, workerRulesSha256: "", proxyRulesSha256: "", proxyDecisions: [], cleanupConfirmed },
+        };
+      },
+    }, { async resolve() { return authPolicy; } }, {
+      leaseMs: 1_000, secretOutputSanitizer: new ExecutionAuthCheckOutputSanitizerService(), onSettled() {},
+    });
+    const successful = createSupervisor(0);
+    await successful.putInput(authPlan, authPlan.inputs[0]!, config, binding);
+    await successful.start(authPlan, binding);
+    await successful.wait(authPlan.executionId);
+    expect(successful.readEvents(authPlan.executionId, -1).events).toHaveLength(1);
+    expect(successful.readEvents(authPlan.executionId, -1).events[0]?.line).toBe(frame.trimEnd());
+
+    const failed = createSupervisor(2);
+    await failed.putInput(authPlan, authPlan.inputs[0]!, config, binding);
+    await failed.start(authPlan, binding);
+    await failed.wait(authPlan.executionId);
+    expect(failed.readEvents(authPlan.executionId, -1).events).toEqual([]);
+
+    const uncertain = createSupervisor(0, false);
+    await uncertain.putInput(authPlan, authPlan.inputs[0]!, config, binding);
+    await uncertain.start(authPlan, binding);
+    await uncertain.wait(authPlan.executionId);
+    expect(uncertain.readEvents(authPlan.executionId, -1).events).toEqual([]);
+  });
+
+  test("withholds a valid Auth Check frame when cancellation races worker completion", async () => {
+    const authPlan = createAuthCheckExecutionPlan({ executionId: "auth-check-cancel", authorizationId: "trusted-approval", origin: "https://example.test" });
+    const authPolicy = { ...policy, executionId: authPlan.executionId };
+    const binding: ExecutionCredentialBinding = { scopeId: "scope-1", generation: 3 };
+    const config = new TextEncoder().encode(JSON.stringify({
+      version: 1, operation: "auth-check", contextVersion: 3, targetOrigin: "https://example.test",
+      verificationUrl: "https://example.test/check", authenticatedHeaders: [], requestTimeoutMs: 10_000,
+      maximumResponseBytes: 128_000, maximumRedirectCount: 5, totalDeadlineMs: 30_000,
+    }));
+    let finishRun!: () => void;
+    let signalRunStarted!: () => void;
+    const enteredRun = new Promise<void>((resolve) => { signalRunStarted = resolve; });
+    const network: HttpExecutionSupervisedNetwork = {
+      async run(_policy, _limits, _executable, _argv, _signal, onOutput) {
+        onOutput?.("stdout", new TextEncoder().encode(`${JSON.stringify({
+          version: 1, operation: "auth-check", status: "verified", isProceedAllowed: true,
+          unauthenticated: { status: 401, redirectCount: 0, hasCrossOriginRedirect: false, contentKind: "html", hasLoginForm: true },
+          authenticated: { status: 200, redirectCount: 0, hasCrossOriginRedirect: false, contentKind: "html", hasLoginForm: false },
+          differences: { statusChanged: true, redirectsChanged: false, contentKindChanged: false, contentChanged: false, titleChanged: false, loginFormChanged: true },
+        })}\n`));
+        signalRunStarted();
+        await new Promise<void>((finish) => { finishRun = finish; });
+        return {
+          command: { exitCode: 0, stdout: "", stderr: "" },
+          evidence: { executionId: authPlan.executionId, workerRulesSha256: "", proxyRulesSha256: "", proxyDecisions: [], cleanupConfirmed: true },
+        };
+      },
+    };
+    const supervisor = new HttpExecutionSupervisorService(network, { async resolve() { return authPolicy; } }, {
+      leaseMs: 1_000, secretOutputSanitizer: new ExecutionAuthCheckOutputSanitizerService(), onSettled() {},
+    });
+    await supervisor.putInput(authPlan, authPlan.inputs[0]!, config, binding);
+    await supervisor.start(authPlan, binding);
+    await enteredRun;
+    supervisor.cancel(authPlan.executionId);
+    finishRun();
+    await supervisor.wait(authPlan.executionId);
+    expect(supervisor.readEvents(authPlan.executionId, -1).events).toEqual([]);
+  });
+
   test("stages bounded slot copies and wipes them after network delivery", async () => {
     const secret = new TextEncoder().encode("worker-secret-canary");
     let retained: Uint8Array | undefined;

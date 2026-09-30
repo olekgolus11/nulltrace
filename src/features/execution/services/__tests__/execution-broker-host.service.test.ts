@@ -25,8 +25,9 @@ const principal = { installationId: "installation", instanceId: "instance" };
 const token = "a".repeat(64);
 const image = `sha256:${"a".repeat(64)}`;
 
-async function fixture() {
-  const directory = await mkdtemp(join(tmpdir(), "nulltrace-broker-host-"));
+async function fixture(shortSocketPath = false) {
+  const prefix = shortSocketPath ? "/tmp/nbh-" : join(tmpdir(), "nulltrace-broker-host-");
+  const directory = await mkdtemp(prefix);
   await chmod(directory, 0o700);
   const database = new Database(join(directory, "receipts.sqlite"), { create: true });
   provisionExecutionBrokerJournal(database, "installation", new Uint8Array(32).fill(7));
@@ -128,6 +129,128 @@ describe("private execution broker host", () => {
       await expect(new ExecutionBrokerHostService(options).start()).rejects.toThrow("not private");
     } finally {
       await rm(alias, { force: true });
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps configured public grants available when the Auth Check authority is enabled", async () => {
+    const { directory, options } = await fixture(true);
+    const configured = {
+      ...options,
+      adminToken: "c".repeat(64),
+      useAuthorizationLedger: true,
+      credentialAuthority: {
+        resolveBinding: () => ({ scopeId: "scope", generation: 1 }),
+        isCurrent: () => true,
+      },
+    };
+    const host = new ExecutionBrokerHostService(configured);
+    try {
+      await host.start();
+      const grant = await fetch("http://localhost/v1/grants", {
+        unix: join(directory, "broker-admin.sock"),
+        method: "POST",
+        headers: { authorization: `Bearer ${configured.adminToken}`, "content-type": "application/json" },
+        body: JSON.stringify({ principal, plan, expiresAt: Date.now() + 60_000 }),
+      });
+      expect(grant.status).toBe(201);
+
+      const admission = await fetch("http://localhost/v1/prepare", {
+        unix: join(directory, "broker.sock"),
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify(plan),
+      });
+      expect(admission.status).toBe(200);
+      expect(await admission.json()).toMatchObject({ executionId: plan.executionId, status: "prepared" });
+    } finally {
+      await host.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("continues to apply a restrictive custom validator to public grants", async () => {
+    const { directory, options } = await fixture(true);
+    const configured = {
+      ...options,
+      adminToken: "c".repeat(64),
+      useAuthorizationLedger: true,
+      credentialAuthority: {
+        resolveBinding: () => ({ scopeId: "scope", generation: 1 }),
+        isCurrent: () => true,
+      },
+      authorizationPlanValidator: (candidate: ExecutionPlan) =>
+        candidate.origins[0] === "https://example.test",
+    };
+    const host = new ExecutionBrokerHostService(configured);
+    try {
+      await host.start();
+      const issueGrant = (candidate: ExecutionPlan) => fetch("http://localhost/v1/grants", {
+        unix: join(directory, "broker-admin.sock"),
+        method: "POST",
+        headers: { authorization: `Bearer ${configured.adminToken}`, "content-type": "application/json" },
+        body: JSON.stringify({ principal, plan: candidate, expiresAt: Date.now() + 60_000 }),
+      });
+      expect((await issueGrant(plan)).status).toBe(201);
+
+      const rejectedPlan: ExecutionPlan = {
+        ...plan,
+        executionId: "run-other-origin",
+        authorizationId: "approval-other-origin",
+        invocation: { ...plan.invocation, argv: ["https://other.test"] },
+        origins: ["https://other.test"],
+      };
+      expect((await issueGrant(rejectedPlan)).status).toBe(400);
+    } finally {
+      await host.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("does not let a permissive custom validator bypass the fixed Auth Check plan", async () => {
+    const { directory, options } = await fixture(true);
+    const configured = {
+      ...options,
+      adminToken: "c".repeat(64),
+      useAuthorizationLedger: true,
+      credentialAuthority: {
+        resolveBinding: () => ({ scopeId: "scope", generation: 1 }),
+        isCurrent: () => true,
+      },
+      authorizationPlanValidator: () => true,
+    };
+    const host = new ExecutionBrokerHostService(configured);
+    try {
+      await host.start();
+      const authCheckPlan: ExecutionPlan = {
+        version: 1,
+        executionId: "auth-run",
+        authorizationId: "auth-approval",
+        profileId: "auth-check-worker-v1",
+        tool: "auth-check",
+        mode: "authenticated-worker",
+        invocation: { executableId: "bun", argv: ["run", "/tmp/untrusted-worker.js"] },
+        origins: ["https://example.test"],
+        inputs: [{ id: "auth-check-config", kind: "secret", maximumBytes: 128 * 1024 }],
+        limits: {
+          timeoutMs: 60_000,
+          memoryBytes: 256 * 1024 * 1024,
+          cpuMilliCores: 1_000,
+          processCount: 32,
+          scratchBytes: 2 * 1024 * 1024,
+          fileBytes: 128 * 1024,
+          outputBytes: 4_096,
+        },
+      };
+      const response = await fetch("http://localhost/v1/grants", {
+        unix: join(directory, "broker-admin.sock"),
+        method: "POST",
+        headers: { authorization: `Bearer ${configured.adminToken}`, "content-type": "application/json" },
+        body: JSON.stringify({ principal, plan: authCheckPlan, expiresAt: Date.now() + 60_000 }),
+      });
+      expect(response.status).toBe(400);
+    } finally {
+      await host.close();
       await rm(directory, { recursive: true, force: true });
     }
   });
