@@ -72,6 +72,7 @@ const allowed = Bun.serve({
     if (url.pathname === "/curl-worker-get") return new Response("echo query-canary header-canary\n");
     if (url.pathname === "/curl-worker-post") return new Response("echo body-canary\n");
     if (url.pathname === "/curl-worker-final") return new Response("echo redirect-canary\n");
+    if (url.pathname === "/curl-worker-large") return new Response("z".repeat(2 * 1024 * 1024));
     if (url.pathname === "/secret-input") {
       const matched = inputSecret !== null && request.headers.get("authorization") === `Bearer ${inputSecret}`;
       secretReceiverChecks.push(matched);
@@ -490,7 +491,47 @@ try {
       expect(allowedEvents.length === before + 1, "Approved receiver did not observe the daemon request.");
       expect(curlWorkerRequests.at(-1)?.path === "/curl-worker-get" && curlWorkerRequests.at(-1)?.header === "header-canary",
         "Approved cURL request did not reach the controlled receiver with its inline header.");
-      return "separate broker process; worker profile granted on admin socket; input slot sealed; query/header output redacted; cleanup confirmed";
+
+      const largePlan = { ...plan, executionId: "daemon-qualification-large", authorizationId: "approved-large-run" };
+      const largeInput = Buffer.from(JSON.stringify({
+        version: 1, targetUrl: `${targetOrigin}/curl-worker-large`, exactOrigin: targetOrigin,
+        method: "GET", headers: [], bodyOperations: [], maximumRedirectCount: 5,
+        maximumResponseBytes: 2 * 1024 * 1024, timeoutSeconds: 10,
+      }));
+      const largeGrant = { ...grant, plan: largePlan };
+      expect((await administratorGrant(largeGrant, adminToken, adminSocket)).status === 201,
+        "Administrator channel rejected the bounded large-response grant.");
+      expect((await client.prepare(largePlan)).status === "prepared", "Dedicated broker rejected the large-response plan.");
+      expect((await client.putInput(largePlan.executionId, "curl-config", largeInput)).status === "prepared",
+        "Dedicated broker did not accept the large-response cURL input.");
+      largeInput.fill(0);
+      await client.start(largePlan.executionId);
+      receipt = await client.get(largePlan.executionId);
+      for (let attempt = 0; attempt < 100 && receipt.status !== "closed"; attempt++) {
+        await Bun.sleep(100);
+        receipt = await client.get(largePlan.executionId);
+      }
+      const largeControl = await client.cancel(largePlan.executionId);
+      expect(receipt.status === "closed" && receipt.cleanup === "confirmed" &&
+        largeControl.status === "finished" && largeControl.cleanup === "confirmed" && largeControl.exitCode === 0,
+        "Dedicated broker did not report successful cURL completion and confirmed cleanup after the large response.");
+      const replayedLines: string[] = [];
+      let cursor = -1;
+      while (true) {
+        const page = await client.readEvents(largePlan.executionId, cursor);
+        replayedLines.push(...page.events.map((event) => event.line));
+        if (!page.hasMore) break;
+        cursor = page.nextSequence;
+      }
+      expect(/^\[http 200\] \d+(?:\.\d+)?s /.test(replayedLines.at(-1) ?? ""),
+        "The replayed large response did not retain its HTTP status and timing footer.");
+      expect(replayedLines.some((line) => line.includes("response body truncated by output limit")),
+        "The large response did not produce an explicit bounded-preview marker.");
+      expect(replayedLines.length < 2_000, "Large response exhausted the broker output-line budget.");
+      expect(allowedEvents.length === before + 2 && curlWorkerRequests.at(-1)?.path === "/curl-worker-large",
+        "Approved large response did not reach the controlled receiver exactly once.");
+      const replayedLineBytes = Buffer.byteLength(replayedLines.join("\n"));
+      return `separate broker process; 2097152-byte response; ${replayedLines.length} replayed events (${replayedLineBytes} line bytes); HTTP 200 with timing; exit code 0; both runs cleaned up`;
     } finally {
       child.kill("SIGTERM");
       const timeout = setTimeout(() => child.kill("SIGKILL"), 10_000);

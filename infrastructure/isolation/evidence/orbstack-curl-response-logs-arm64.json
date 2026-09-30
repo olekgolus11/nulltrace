@@ -1,0 +1,67 @@
+{
+  "checkedAt": "2026-09-30T07:05:37.379Z",
+  "platform": "linux/arm64",
+  "runtime": {
+    "engine": "Docker Engine 29.4.0",
+    "apiVersion": "1.54",
+    "kernel": "7.0.14-orbstack-00380-ga7e0a2dc9535"
+  },
+  "releaseLockSha256": "0b24c4e3933cc22efdcd9351f44c45d286e0ed99fc271b0776c210d026db1505",
+  "images": {
+    "worker": "sha256:bea7401b17ddc0f35761a6cfbcf2053437958cd98a99d5c8496e8e150245461a",
+    "proxy": "sha256:f09182c93bd061a9b848b3f9eb7c1565a7b00f05b72c27d6c5baee4a98cc19f1",
+    "initializer": "sha256:45217ed397209f25014ac7e1e5d27f4f5146a394b4db40ec560d98a6abb2d2a7"
+  },
+  "imageVerifier": {
+    "checksPassed": 6,
+    "checksTotal": 6
+  },
+  "hostRoute": {
+    "receiver": "controlled Mac-local test receiver",
+    "targetMapping": "approved.test and a controlled local IPv4 mapping; raw addresses and ports omitted"
+  },
+  "checksPassed": 14,
+  "checksTotal": 14,
+  "checks": [
+    { "name": "allowed exact-origin request", "passed": true, "detail": "receiver count 1; cleanup confirmed" },
+    { "name": "bounded worker events drain without stopping the approved request", "passed": true, "detail": "approved large response completed; bounded events and cleanup confirmed" },
+    { "name": "worker resource limits are effective inside the container", "passed": true, "detail": "uid 65532; memory 134217728; pids 48; cpu 50000 100000; file 8388608" },
+    { "name": "worker memory limit stops an oversized allocation", "passed": true, "detail": "oversized child received SIGKILL; cgroup OOM kill delta 1; cleanup confirmed" },
+    { "name": "worker process limit rejects excess child processes", "passed": true, "detail": "fork rejected after 46 children; cleanup confirmed" },
+    { "name": "worker file-size limit rejects oversized files", "passed": true, "detail": "largest file 8388608 bytes under 8388608 byte limit; cleanup confirmed" },
+    { "name": "worker deadline kills the command and confirms cleanup", "passed": true, "detail": "worker timed out; container and network counts 0" },
+    { "name": "private broker socket delivers an approved isolated request", "passed": true, "detail": "broker input delivered through worker tmpfs; receiver matched the authorization canary; host files clean; containers/networks 0" },
+    { "name": "public cURL worker preserves requests and blocks an unapproved redirect", "passed": true, "detail": "GET, POST headers and ordered body, same-origin redirect passed; cross-origin redirect and forged input origin receiver count 0; output canaries redacted; tmpfs cleaned" },
+    { "name": "dedicated broker process delivers an approved isolated request", "passed": true, "detail": "separate broker process; 2097152-byte response; 85 replayed events (262613 line bytes); HTTP 200 with timing; exit code 0; both runs cleaned up" },
+    { "name": "cross-origin redirect blocked before receiver", "passed": true, "detail": "forbidden receiver count 0; proxy deny recorded" },
+    { "name": "direct proxy bypass blocked before receiver", "passed": true, "detail": "forbidden receiver count 0" },
+    { "name": "worker DNS and unauthorized IPv6 are blocked", "passed": true, "detail": "both commands rejected; forbidden receiver count 0" },
+    { "name": "cancellation removes a live worker and its networks", "passed": true, "detail": "live request cancelled; container and network counts 0" }
+  ],
+  "responsePreview": {
+    "responseFileLimitBytes": 2097152,
+    "previewBytesLimit": 262144,
+    "headersBytesLimit": 65536,
+    "diagnosticsBytesLimit": 8192,
+    "transcriptBytesLimit": 393216,
+    "transcriptLineLimit": 2000,
+    "lineBytesLimit": 3500,
+    "replayedEvents": 85,
+    "replayedLineBytes": 262613,
+    "statusAndTimingRetained": true,
+    "rawResponseArtifactCreated": false
+  },
+  "receiverSummary": {
+    "approvedRequests": 12,
+    "forbiddenRequests": 0
+  },
+  "notQualified": [
+    "Docker Desktop",
+    "linux/amd64",
+    "public IPv6 delivery",
+    "LAN and VPN targets",
+    "AppArmor or SELinux enforcement",
+    "TUI approval routing",
+    "authenticated cURL"
+  ]
+}

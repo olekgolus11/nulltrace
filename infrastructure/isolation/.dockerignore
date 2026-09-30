@@ -12,4 +12,5 @@
 !curl-worker.ts
 !curl-worker.service.ts
 !curl-worker.helpers.ts
+!curl-worker-output.helpers.ts
 !curl-worker.types.ts

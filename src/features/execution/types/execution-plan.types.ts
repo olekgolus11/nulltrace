@@ -34,4 +34,5 @@ export interface ExecutionProfile {
   executableIds: string[];
   inputs: ExecutionInputSlot[];
   maximumLimits: ExecutionLimits;
+  minimumOutputBytes?: number;
 }
