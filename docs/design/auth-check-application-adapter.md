@@ -1,0 +1,21 @@
+# Auth Check application adapter
+
+**Status: NOT IMPLEMENTED.** This document records integration requirements; no real credentials or executable credential-transfer example belong here.
+
+## Current boundary
+
+The host-owned `auth-check-worker-v1` profile exists only when `ExecutionBrokerHostService` receives a trusted `ExecutionCredentialAuthority`. The packaged daemon remains public-only. `AuthCheckService` continues to use host `fetch` and is not connected to the broker profile. There is no production grant provider or native companion identity for app requests. The adapter must fit the existing operator-triggered Auth Check workflow and preserve its inconclusive-result acknowledgement behavior.
+
+## Requirements before implementation
+
+- Bind an operation to the context generation that produced its credentials. Read `getAuthStateVersion(sessionId)` **before** `loadProtectedContext`, then recheck immediately after the asynchronous load; reject the snapshot if the generation changed. Bind the generation in the broker-private configuration and let the trusted broker authority validate it. Do not infer scope or generation from public receipts or output events.
+- When the authenticated sitemap crawler later verifies a request, carry the original context generation captured for that crawl. The temporary cookie jar can change as responses set cookies; those changes remain part of the original crawl authorization and must not be mistaken for a newly saved context generation. The current crawler passes its live cookie header to `verify` but does not yet carry a source generation.
+- For `verify` calls without a source generation, load the current protected context and compare its normalized cookies and headers with the supplied values before any executor or broker call. If equality or current-generation status cannot be established, return `inconclusive` without preparing an execution.
+- Build the full canonical execution plan locally, including fresh execution and authorization IDs, exact profile, fixed argv, one normalized target origin, fixed secret slot, and bounded limits. Freeze that plan before asking the trusted grant provider to issue authorization for it. Require the provider to return the same authorization ID already in that plan. Never modify the plan after issuance or accept a caller-selected profile, origin set, or generation.
+- Send private configuration only through the fixed secret slot. Keep it out of argv, environment, logs, errors, and retained events; zero the local serialized byte buffer in `finally`. A selected isolated executor failure must fail closed and must never fall back to host `fetch`.
+- Poll with bounded deadlines while renewing broker ownership. Accept output only after terminal `finished`, `cleanup: confirmed`, exit code zero, and no stop reason. Cancel and wait for confirmed cleanup after partial preparation or any operation failure. Early output does not prove successful execution or cleanup.
+- Require exactly one stdout event, with no stderr/system events and no pagination. The broker event API's `line` field omits the newline terminator, so first reject embedded CR/LF and other extra-frame forms, then append one newline for the canonical worker frame parser. Reject malformed or extra output.
+- Recheck the source generation after execution and before persistence. Persist results only with the repository's conditional generation update so an old operation cannot overwrite a replacement context. On a same-generation infrastructure, protocol, or cleanup failure, write fixed failed metadata, set `isProceedAllowed` to false, clear `acknowledgedAt`, and persist no worker-controlled text. If the generation changed, do not write metadata for the replacement.
+- Map only bounded primitive worker signals and rerun the existing app-owned Auth Check comparison policy. Worker `status` and `isProceedAllowed` fields are untrusted and cannot set the app's proceed decision.
+
+Production activation remains blocked until the app has an owner-controlled native companion identity, a trusted grant provider, and verified provenance, conditional persistence, and revocation behavior. Broker profile qualification alone does not satisfy those technical prerequisites.
