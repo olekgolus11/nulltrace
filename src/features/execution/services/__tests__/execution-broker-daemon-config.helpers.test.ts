@@ -7,6 +7,7 @@ import { ExecutionBrokerClient } from "../execution-broker-client.service";
 import { loadExecutionBrokerDaemonConfiguration } from "../execution-broker-daemon-config.helpers";
 import { provisionExecutionBrokerJournal } from "../execution-broker-journal.helpers";
 import { ExecutionAuthorizationLedgerRepository } from "../execution-authorization-ledger.repository";
+import { parseExecutionPlan } from "../execution-plan.helpers";
 
 const plan = {
   version: 1 as const, executionId: "run-1", authorizationId: "approval-1", profileId: "public-curl-v1",
@@ -87,8 +88,18 @@ describe("private broker daemon configuration", () => {
         mode: "public-worker",
         invocation: { executableId: "bun", argv: ["run", "/opt/nulltrace/workers/curl-worker.ts"] },
         inputs: [{ id: "curl-config", kind: "data" as const, maximumBytes: 2 * 1024 * 1024 }],
+        limits: { ...plan.limits, outputBytes: 384 * 1024 },
       };
       expect(startup.hostOptions.authorizationPlanValidator?.(workerPlan)).toBe(true);
+      expect(parseExecutionPlan(workerPlan, startup.hostOptions.profiles)).toEqual(workerPlan);
+      expect(startup.hostOptions.authorizationPlanValidator?.({
+        ...workerPlan,
+        limits: { ...workerPlan.limits, outputBytes: 1_024 },
+      })).toBe(false);
+      expect(() => parseExecutionPlan({
+        ...workerPlan,
+        limits: { ...workerPlan.limits, outputBytes: 1_024 },
+      }, startup.hostOptions.profiles)).toThrow("profile minimum");
       expect(startup.hostOptions.authorizationPlanValidator?.({
         ...workerPlan,
         invocation: { executableId: "bun", argv: ["run", "/opt/nulltrace/workers/curl-worker.ts", "https://other.test"] },

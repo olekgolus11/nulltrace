@@ -49,25 +49,6 @@ export function readCurlWorkerFile(path: string, maximumBytes: number): Buffer {
   return readFileSync(path);
 }
 
-export function redactCurlWorkerOutput(
-  value: string,
-  config: CurlWorkerConfiguration,
-  previousQueryValues: readonly string[] = [],
-): string {
-  const sensitiveValues = [...config.bodyOperations.map((operation) => operation.value), ...config.headers.map((header) => header.slice(header.indexOf(":") + 1).trim())]
-    .filter((entry) => entry.length > 0);
-  sensitiveValues.push(...previousQueryValues.filter(Boolean));
-  let safe = value;
-  for (const entry of sensitiveValues) safe = safe.replaceAll(entry, "[redacted]");
-  try {
-    const url = new URL(config.targetUrl);
-    if (url.search) safe = safe.replaceAll(url.search, "?[redacted]");
-    for (const [, queryValue] of url.searchParams) if (queryValue) safe = safe.replaceAll(queryValue, "[redacted]");
-    for (const queryValue of readRawQueryValues(url.search)) if (queryValue) safe = safe.replaceAll(queryValue, "[redacted]");
-  } catch { /* The URL was validated before execution. */ }
-  return safe;
-}
-
 export async function readCurlWorkerStream(
   stream: ReadableStream<Uint8Array>,
   maximumBytes: number,
@@ -132,10 +113,6 @@ function validateCurlWorkerHeader(value: string): void {
   if (!name || ["authorization", "cookie", "proxy-authorization", "api-key", "x-api-key", "x-auth-token", "connection", "content-length", "host", "proxy-connection", "transfer-encoding", "upgrade"].includes(name)) {
     throw new Error("Sensitive or transport-level cURL headers are not allowed in the public profile.");
   }
-}
-
-function readRawQueryValues(search: string): string[] {
-  return search.slice(1).split("&").map((part) => part.slice(part.indexOf("=") + 1)).filter(Boolean);
 }
 
 function parseHttpUrl(value: string): URL {

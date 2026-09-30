@@ -61,6 +61,36 @@ describe("execution authorization ledger", () => {
     }
   });
 
+  test("rejects an older low-output cURL grant after the release profile adds its transcript minimum", () => {
+    const database = new Database(":memory:");
+    try {
+      const previousProfile: ExecutionProfile = {
+        id: "public-curl-worker-v1", tool: "curl", mode: "public-worker", executableIds: ["bun"],
+        inputs: [{ id: "curl-config", kind: "data", maximumBytes: 2 * 1024 * 1024 }],
+        maximumLimits: { ...limits, outputBytes: 1024 * 1024 },
+      };
+      const previousPlan: ExecutionPlan = {
+        ...plan,
+        authorizationId: "old-low-output-grant",
+        profileId: previousProfile.id,
+        mode: "public-worker",
+        invocation: { executableId: "bun", argv: ["run", "/opt/nulltrace/workers/curl-worker.ts"] },
+        inputs: [{ id: "curl-config", kind: "data", maximumBytes: 2 * 1024 * 1024 }],
+        limits: { ...limits, outputBytes: 1_024 },
+      };
+      const oldLedger = new ExecutionAuthorizationLedgerRepository(database, key, [previousProfile], () => 1000);
+      oldLedger.issue(principal, previousPlan, 2000);
+
+      const currentLedger = new ExecutionAuthorizationLedgerRepository(database, key, [{
+        ...previousProfile,
+        minimumOutputBytes: 384 * 1024,
+      }], () => 1000);
+      expect(currentLedger.claim(principal, previousPlan.authorizationId, previousPlan)).toBeNull();
+    } finally {
+      database.close();
+    }
+  });
+
   test("rejects non-finite, expired, overlong, and duplicate grant expiries", () => {
     const database = new Database(":memory:");
     try {

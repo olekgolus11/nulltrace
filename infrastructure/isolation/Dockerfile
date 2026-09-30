@@ -33,7 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl nmap pytho
     dpkg-query -W > /opt/nulltrace/provenance/packages.tsv && rm -rf /var/lib/apt/lists/*
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=nuclei /usr/local/bin/nuclei /usr/local/bin/nuclei
-COPY curl-worker.ts curl-worker.service.ts curl-worker.helpers.ts curl-worker.types.ts /opt/nulltrace/workers/
+COPY curl-worker.ts curl-worker.service.ts curl-worker.helpers.ts curl-worker-output.helpers.ts curl-worker.types.ts /opt/nulltrace/workers/
 COPY --from=scanner-source /sources /opt/nulltrace/scanner-sources
 RUN printf '#!/bin/sh\nexec /usr/bin/perl /opt/nulltrace/scanner-sources/nikto/files/program/nikto.pl "$@"\n' > /usr/local/bin/nikto && \
     printf '#!/bin/sh\nexec /usr/bin/python3 /opt/nulltrace/scanner-sources/sqlmap/files/sqlmap.py "$@"\n' > /usr/local/bin/sqlmap && \

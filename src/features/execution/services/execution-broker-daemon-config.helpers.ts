@@ -29,6 +29,7 @@ const publicCurlWorkerProfile: ExecutionProfile = {
   mode: "public-worker",
   executableIds: ["bun"],
   inputs: [{ id: "curl-config", kind: "data", maximumBytes: 2 * 1024 * 1024 }],
+  minimumOutputBytes: 384 * 1024,
   maximumLimits: {
     timeoutMs: 30_000,
     memoryBytes: 512 * 1024 * 1024,
@@ -130,7 +131,8 @@ function isSupportedPublicCurlWorkerPlan(plan: ExecutionPlan): boolean {
       plan.invocation.argv[1] !== "/opt/nulltrace/workers/curl-worker.ts" ||
       plan.origins.length !== 1 || plan.inputs.length !== 1 ||
       plan.inputs[0]?.id !== "curl-config" || plan.inputs[0]?.kind !== "data" ||
-      plan.inputs[0]?.maximumBytes !== 2 * 1024 * 1024) return false;
+      plan.inputs[0]?.maximumBytes !== 2 * 1024 * 1024 ||
+      plan.limits.outputBytes < (publicCurlWorkerProfile.minimumOutputBytes ?? Number.MAX_SAFE_INTEGER)) return false;
     const origin = new URL(plan.origins[0]!);
     return origin.origin === plan.origins[0] &&
       (origin.protocol === "http:" || origin.protocol === "https:") &&

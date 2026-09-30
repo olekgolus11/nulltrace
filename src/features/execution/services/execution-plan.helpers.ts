@@ -41,6 +41,10 @@ export function parseExecutionPlan(value: unknown, profiles: readonly ExecutionP
     inputs.reduce((total, input) => total + input.maximumBytes, 0) > 8 * 1024 * 1024) {
     throw new Error("Execution input slots do not match the profile.");
   }
+  const limits = parseLimits(record.limits, profile.maximumLimits);
+  if (profile.minimumOutputBytes !== undefined && limits.outputBytes < profile.minimumOutputBytes) {
+    throw new Error("Execution output limit is below the profile minimum.");
+  }
   return {
     version: 1,
     executionId: requireExecutionId(record.executionId),
@@ -51,7 +55,7 @@ export function parseExecutionPlan(value: unknown, profiles: readonly ExecutionP
     invocation: { executableId, argv },
     origins,
     inputs,
-    limits: parseLimits(record.limits, profile.maximumLimits),
+    limits,
   };
 }
 

@@ -2,14 +2,16 @@ import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CurlWorkerConfiguration } from "./curl-worker.types";
 import {
-  formatCurlWorkerUrl,
   quoteCurlConfigValue,
   readCurlWorkerFile,
   readCurlWorkerLocation,
   readCurlWorkerStream,
-  redactCurlWorkerHeaders,
-  redactCurlWorkerOutput,
 } from "./curl-worker.helpers";
+import {
+  formatCurlWorkerDiagnostics,
+  formatCurlWorkerResponse,
+  parseCurlWorkerWriteout,
+} from "./curl-worker-output.helpers";
 
 export class CurlWorkerService {
   constructor(
@@ -44,7 +46,7 @@ export class CurlWorkerService {
         "--max-redirs", "0", "--max-filesize", String(config.maximumResponseBytes),
         "--connect-timeout", String(Math.min(remainingSeconds, 10)), "--max-time", String(remainingSeconds),
         "--dump-header", headerPath, "--output", responsePath,
-        "--write-out", "%{http_code}\t%{time_total}\t%{url_effective}", "--config", requestConfigPath,
+        "--write-out", "%{http_code}\t%{time_total}", "--config", requestConfigPath,
       ];
       try {
         const child = Bun.spawn({ cmd: ["curl", ...args], stdin: "ignore", stdout: "pipe", stderr: "pipe", env: this.environment });
@@ -61,17 +63,24 @@ export class CurlWorkerService {
           child.exited,
         ]).finally(() => clearInterval(fileMonitor));
         if (fileLimitExceeded) throw new Error("cURL response exceeded its size limit.");
-        const [statusText = "000", elapsed = "0", effectiveUrl = url] = stdout.split("\t");
+        const [statusText, elapsed] = parseCurlWorkerWriteout(stdout);
         const status = Number.parseInt(statusText, 10);
         const responseHeaders = existsSync(headerPath) ? readCurlWorkerFile(headerPath, 64 * 1024).toString("utf8") : "";
         const responseBody = existsSync(responsePath) ? readCurlWorkerFile(responsePath, config.maximumResponseBytes) : Buffer.alloc(0);
         const location = readCurlWorkerLocation(responseHeaders);
         const outputConfiguration = { ...config, targetUrl: url };
         if (![301, 302, 303, 307, 308].includes(status) || !location) {
-          if (responseHeaders.trim()) console.log(redactCurlWorkerOutput(redactCurlWorkerHeaders(responseHeaders, config.exactOrigin), outputConfiguration, previousQueryValues));
-          if (responseBody.length && method !== "HEAD") console.log(redactCurlWorkerOutput(responseBody.toString("utf8"), outputConfiguration, previousQueryValues));
-          console.log(`[http ${statusText}] ${elapsed}s ${formatCurlWorkerUrl(effectiveUrl)}`);
-          if (stderr.trim()) console.error(redactCurlWorkerOutput(stderr.trim(), outputConfiguration, previousQueryValues));
+          const outputLines = formatCurlWorkerResponse(
+            responseHeaders.trim(),
+            responseBody.length && method !== "HEAD" ? responseBody.toString("utf8") : "",
+            statusText,
+            elapsed,
+            url,
+            outputConfiguration,
+            previousQueryValues,
+          );
+          for (const line of outputLines) console.log(line);
+          for (const line of formatCurlWorkerDiagnostics(stderr.trim(), outputConfiguration, previousQueryValues)) console.error(line);
           if (exitCode !== 0) process.exitCode = exitCode;
           return;
         }
