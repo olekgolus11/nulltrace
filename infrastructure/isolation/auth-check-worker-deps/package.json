@@ -1,0 +1,8 @@
+{
+  "name": "nulltrace-auth-check-worker",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "cheerio": "1.2.0"
+  }
+}
