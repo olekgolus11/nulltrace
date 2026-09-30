@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { theme } from "../../../app/theme/theme";
+import { clamp } from "../../../shared/model/number.helpers";
 import { ActiveSessionConversation } from "../services/session-conversation.service";
 
 interface ConversationSwitcherProps {
@@ -23,10 +24,6 @@ const navigationTileWidth = 3;
 const compactWidthBreakpoint = 42;
 const minimumTabWidth = 8;
 const rowGap = 1;
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
 
 function truncateTitle(title: string, maxLength: number) {
   if (title.length <= maxLength) {

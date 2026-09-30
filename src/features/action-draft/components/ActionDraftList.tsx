@@ -40,7 +40,7 @@ export function ActionDraftList({
   }
 
   return (
-    <box flexDirection="column" gap={0}>
+    <box flexDirection="column">
       {drafts.map((draft, index) => {
         const isSelected = draft.id === selectedDraftId;
 

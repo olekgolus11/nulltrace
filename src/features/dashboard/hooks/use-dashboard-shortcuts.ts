@@ -5,6 +5,7 @@ import { tools } from "../data/tool-catalog";
 import { dashboardPanels, initialDashboardState } from "../model/dashboard.state";
 import { DashboardPanelId, DashboardState } from "../model/dashboard.types";
 import { cyclePanel } from "../../../shared/model/panel-navigation";
+import { clamp } from "../../../shared/model/number.helpers";
 import { FindingReviewStatus, SessionFindingRecord } from "../../finding/model/finding.types";
 import { ToolName } from "../../tool/shared/types/tool-screen.types";
 import { ActiveSessionConversation } from "../../chat/services/session-conversation.service";
@@ -44,10 +45,6 @@ interface UseDashboardShortcutsProps {
   onSelectConversation: (conversationId: string) => void;
   onCreateConversation: () => void;
   onArchiveActiveConversation: () => void;
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
 }
 
 const reviewStatusByShortcut: Record<string, FindingReviewStatus> = {
