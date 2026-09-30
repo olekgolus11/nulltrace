@@ -1,15 +1,19 @@
 import {
+  AuthenticatedContextStorageMode,
   AuthenticatedContextInvalidation,
   AuthenticatedRequestContext,
   AuthenticatedRequestContextInput,
 } from "../model/authenticated-request-context.types";
+import {
+  AuthenticationContextClearResult,
+} from "../model/authentication-context-state.types";
+import { StoredAuthenticatedRequestContext } from "../model/authenticated-request-context-storage.types";
 import {
   normalizeAuthenticatedRequestCookies,
   partitionAuthenticatedRequestCookieHeaders,
 } from "./authenticated-request-context-cookie.helpers";
 import {
   createAuthenticatedRequestContextMetadata,
-  splitAuthenticatedHeaderEntries,
 } from "./authenticated-request-context-redaction";
 import { platformSecretStore, SecretStore } from "./platform-secret-store";
 import {
@@ -17,99 +21,37 @@ import {
   authenticationContextMetadataRepository,
 } from "./authentication-context-metadata.repository";
 import {
+  AuthenticationContextStateRepository,
+} from "./authentication-context-state.repository";
+import {
+  getAuthenticatedRequestContextSecretKey,
+  getVersionedAuthenticatedRequestContextSecretKey,
+  parseStoredAuthenticatedRequestContext,
+} from "./authenticated-request-context-storage.helpers";
+import {
+  validateAuthenticatedRequestContextOrigin,
+  validateAuthenticatedRequestHeaders,
+} from "./authenticated-request-context-validation.helpers";
+import {
   hasAuthenticatedRequestBrowserStorage,
   normalizeAuthenticatedRequestBrowserStorage,
 } from "./authenticated-request-browser-storage.helpers";
-
-interface StoredAuthenticatedRequestContext extends AuthenticatedRequestContext {
-  version: 1 | 2;
-}
-
-function getSecretStoreKey(sessionId: string) {
-  return `session:${sessionId}:authenticated-request-context`;
-}
-
-function parseStoredContext(value: string): StoredAuthenticatedRequestContext | null {
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (
-      !parsed ||
-      typeof parsed !== "object" ||
-      !(
-        "version" in parsed &&
-        "origin" in parsed &&
-        "cookies" in parsed &&
-        "headers" in parsed &&
-        "updatedAt" in parsed
-      )
-    ) {
-      return null;
-    }
-    const context = parsed as StoredAuthenticatedRequestContext;
-    if (
-      (context.version !== 1 && context.version !== 2) ||
-      typeof context.origin !== "string" ||
-      typeof context.cookies !== "string" ||
-      typeof context.headers !== "string" ||
-      typeof context.updatedAt !== "string"
-    ) {
-      return null;
-    }
-    const browserStorage = normalizeAuthenticatedRequestBrowserStorage(context.browserStorage);
-    return {
-      ...context,
-      ...(browserStorage ? { browserStorage } : {}),
-      importSource:
-        context.importSource === "curl" || context.importSource === "har"
-          ? context.importSource
-          : "manual",
-    };
-  } catch {
-    return null;
-  }
-}
-
-function validateHeaders(headers: string) {
-  const entries = splitAuthenticatedHeaderEntries(headers);
-  const invalidHeader = entries.find((entry) => {
-    const separatorIndex = entry.indexOf(":");
-    return separatorIndex <= 0 || !entry.slice(separatorIndex + 1).trim();
-  });
-  if (invalidHeader) {
-    throw new Error("Each request header must use the Name: value format.");
-  }
-}
-
-export function normalizeExactOrigin(value: string) {
-  const url = new URL(value);
-  if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new Error("Authentication context requires an HTTP or HTTPS target.");
-  }
-  return url.origin;
-}
-
-export function validateAuthenticatedRequestContextOrigin(
-  targetUrl: string,
-  contextOrigin: string,
-) {
-  const targetOrigin = normalizeExactOrigin(targetUrl);
-  const normalizedContextOrigin = normalizeExactOrigin(contextOrigin);
-  if (targetOrigin !== normalizedContextOrigin) {
-    throw new Error("Authentication context must match the session target's exact origin.");
-  }
-  return targetOrigin;
-}
 
 export class AuthenticatedRequestContextService {
   private readonly invalidationListeners = new Set<
     (invalidation: AuthenticatedContextInvalidation) => void
   >();
-  private readonly versions = new Map<string, number>();
 
   constructor(
     private readonly secretStore: SecretStore = platformSecretStore,
     private readonly metadataRepository: AuthenticationContextMetadataRepository = authenticationContextMetadataRepository,
-  ) {}
+    stateRepository?: AuthenticationContextStateRepository,
+  ) {
+    this.stateRepository =
+      stateRepository ?? metadataRepository.createContextStateRepository();
+  }
+
+  private readonly stateRepository: AuthenticationContextStateRepository;
 
   subscribeToInvalidation(listener: (invalidation: AuthenticatedContextInvalidation) => void) {
     this.invalidationListeners.add(listener);
@@ -119,42 +61,135 @@ export class AuthenticatedRequestContextService {
   }
 
   getAuthStateVersion(sessionId: string) {
-    return this.versions.get(sessionId) ?? 0;
+    return this.stateRepository.find(sessionId)?.generation ?? 0;
   }
 
-  private invalidate(sessionId: string, reason: AuthenticatedContextInvalidation["reason"]) {
-    const version = this.getAuthStateVersion(sessionId) + 1;
-    this.versions.set(sessionId, version);
+  private invalidate(
+    sessionId: string,
+    reason: AuthenticatedContextInvalidation["reason"],
+    version: number,
+  ) {
     const invalidation = { sessionId, reason, version } as const;
-    this.invalidationListeners.forEach((listener) => listener(invalidation));
+    for (const listener of this.invalidationListeners) {
+      try {
+        listener(invalidation);
+      } catch {
+        // Revocation notification must continue even if one subscriber fails.
+      }
+    }
+  }
+
+  private async loadValidatedContext(sessionId: string): Promise<LoadedAuthenticatedContext | null> {
+    const initialState = this.stateRepository.find(sessionId);
+    if (initialState && initialState.status !== "active") {
+      if (initialState.status === "clear_pending") {
+        const allDeleted = await this.retryPendingDeletion(sessionId, initialState.generation);
+        if (allDeleted) {
+          this.stateRepository.confirmClear(sessionId, initialState.generation);
+        }
+      }
+      return null;
+    }
+
+    const secretKey = initialState
+      ? initialState.generation === 0
+        ? getAuthenticatedRequestContextSecretKey(sessionId)
+        : getVersionedAuthenticatedRequestContextSecretKey(sessionId, initialState.generation)
+      : getAuthenticatedRequestContextSecretKey(sessionId);
+    const stored = await this.secretStore.load(secretKey);
+    const currentState = this.stateRepository.find(sessionId);
+
+    if (initialState) {
+      if (
+        initialState.storageMode === null ||
+        !currentState ||
+        currentState.status !== "active" ||
+        currentState.generation !== initialState.generation ||
+        currentState.storageMode !== initialState.storageMode
+      ) {
+        return null;
+      }
+      await this.retryPendingDeletion(sessionId, initialState.generation);
+      const latestState = this.stateRepository.find(sessionId);
+      if (
+        !latestState ||
+        latestState.status !== "active" ||
+        latestState.generation !== initialState.generation ||
+        latestState.storageMode !== initialState.storageMode
+      ) {
+        return null;
+      }
+      if (!stored || stored.storageMode !== initialState.storageMode) {
+        return null;
+      }
+      const context = parseStoredAuthenticatedRequestContext(stored.value, initialState.generation);
+      if (!context) {
+        return null;
+      }
+      return { context, generation: initialState.generation, storageMode: initialState.storageMode };
+    }
+
+    if (!stored || currentState) {
+      return null;
+    }
+    const legacyContext = parseStoredAuthenticatedRequestContext(stored.value);
+    if (!legacyContext || legacyContext.version === 3) {
+      return null;
+    }
+    const adoptedState = this.stateRepository.adoptLegacyContext(sessionId, stored.storageMode);
+    if (
+      !adoptedState ||
+      adoptedState.generation !== 0 ||
+      adoptedState.status !== "active" ||
+      adoptedState.storageMode !== stored.storageMode
+    ) {
+      return null;
+    }
+    const verifiedState = this.stateRepository.find(sessionId);
+    if (
+      !verifiedState ||
+      verifiedState.generation !== adoptedState.generation ||
+      verifiedState.status !== "active" ||
+      verifiedState.storageMode !== stored.storageMode
+    ) {
+      return null;
+    }
+    return {
+      context: legacyContext,
+      generation: adoptedState.generation,
+      storageMode: adoptedState.storageMode,
+    };
   }
 
   async getMetadata(sessionId: string) {
-    const activeMetadata = this.metadataRepository.findBySessionId(sessionId);
-    if (activeMetadata) {
-      return activeMetadata;
-    }
-    const stored = await this.secretStore.load(getSecretStoreKey(sessionId));
-    if (!stored) {
+    const loaded = await this.loadValidatedContext(sessionId);
+    if (!loaded) {
       return null;
     }
-    const context = parseStoredContext(stored.value);
-    if (!context) {
+    const state = this.stateRepository.find(sessionId);
+    if (
+      !state ||
+      state.status !== "active" ||
+      state.generation !== loaded.generation ||
+      state.storageMode !== loaded.storageMode
+    ) {
       return null;
     }
-    return this.metadataRepository.upsert(
-      sessionId,
-      createAuthenticatedRequestContextMetadata(context, stored.storageMode),
-    );
+    const currentMetadata = this.metadataRepository.findBySessionId(sessionId, loaded.generation);
+    if (currentMetadata) {
+      return currentMetadata;
+    }
+    const rebuiltMetadata = this.metadataRepository.upsert(
+        sessionId,
+        createAuthenticatedRequestContextMetadata(loaded.context, loaded.storageMode),
+        loaded.generation,
+      );
+    return rebuiltMetadata;
   }
 
   async loadProtectedContext(sessionId: string): Promise<AuthenticatedRequestContext | null> {
-    const stored = await this.secretStore.load(getSecretStoreKey(sessionId));
-    if (!stored) {
-      return null;
-    }
-
-    return parseStoredContext(stored.value);
+    const loaded = await this.loadValidatedContext(sessionId);
+    return loaded?.context ?? null;
   }
 
   async save(sessionId: string, targetUrl: string, input: AuthenticatedRequestContextInput) {
@@ -168,7 +203,7 @@ export class AuthenticatedRequestContextService {
     ) {
       throw new Error("Enter at least one cookie, request header, or browser storage entry.");
     }
-    validateHeaders(rawHeaders);
+    validateAuthenticatedRequestHeaders(rawHeaders);
     const { headerDerivedCookies, remainingHeaders } =
       partitionAuthenticatedRequestCookieHeaders(rawHeaders);
     const cookies = normalizeAuthenticatedRequestCookies(headerDerivedCookies, [input.cookies]);
@@ -177,8 +212,13 @@ export class AuthenticatedRequestContextService {
       throw new Error("Enter at least one cookie, request header, or browser storage entry.");
     }
 
+    const generation = this.stateRepository.beginSave(sessionId);
+    this.metadataRepository.clearForGeneration(sessionId, generation);
+    this.invalidate(sessionId, "replaced", generation);
+
     const context: StoredAuthenticatedRequestContext = {
-      version: 2,
+      version: 3,
+      generation,
       origin,
       cookies,
       headers,
@@ -186,23 +226,84 @@ export class AuthenticatedRequestContextService {
       updatedAt: new Date().toISOString(),
       ...(browserStorage ? { browserStorage } : {}),
     };
-    const storageMode = await this.secretStore.save(
-      getSecretStoreKey(sessionId),
-      JSON.stringify(context),
-    );
-    this.metadataRepository.clear(sessionId);
-    this.invalidate(sessionId, "replaced");
-    return this.metadataRepository.upsert(
+    const secretKey = getVersionedAuthenticatedRequestContextSecretKey(sessionId, generation);
+    let storageMode: AuthenticatedContextStorageMode;
+    try {
+      storageMode = await this.secretStore.save(secretKey, JSON.stringify(context));
+    } catch {
+      this.stateRepository.markSecretKeyPending(sessionId, generation);
+      await this.deleteTrackedSecretKey(sessionId, generation);
+      throw new Error("Unable to save protected authentication context. Check the platform secret store.");
+    }
+    this.stateRepository.markSecretKeyPending(sessionId, generation);
+    if (!this.stateRepository.activate(sessionId, generation, storageMode)) {
+      await this.deleteTrackedSecretKey(sessionId, generation);
+      throw new Error("Authentication context changed while it was being saved. Save it again.");
+    }
+    await this.retryPendingDeletion(sessionId, generation);
+    const metadata = this.metadataRepository.upsert(
       sessionId,
       createAuthenticatedRequestContextMetadata(context, storageMode),
+      generation,
+    );
+    if (!metadata) {
+      throw new Error("Authentication context changed while its metadata was being saved.");
+    }
+    return metadata;
+  }
+
+  async clear(sessionId: string): Promise<AuthenticationContextClearResult> {
+    const generation = this.stateRepository.beginClear(sessionId);
+    this.metadataRepository.clearForGeneration(sessionId, generation);
+    this.invalidate(sessionId, "cleared", generation);
+    const allDeleted = await this.retryPendingDeletion(sessionId, generation);
+    if (allDeleted && this.stateRepository.confirmClear(sessionId, generation)) {
+      return { status: "cleared" };
+    }
+    return { status: "pending" };
+  }
+
+  private async retryPendingDeletion(sessionId: string, beforeGeneration: number) {
+    for (let batch = 0; batch < 4; batch += 1) {
+      const generations = this.stateRepository.findSecretKeyGenerations(sessionId, beforeGeneration);
+      if (generations.length === 0) {
+        return !this.stateRepository.hasUnsettledSecretWrites(sessionId, beforeGeneration);
+      }
+      for (const generation of generations) {
+        await this.deleteTrackedSecretKey(sessionId, generation);
+      }
+      const remaining = this.stateRepository.findSecretKeyGenerations(sessionId, beforeGeneration);
+      if (remaining.length >= generations.length) {
+        return false;
+      }
+    }
+    return (
+      this.stateRepository.findSecretKeyGenerations(sessionId, beforeGeneration).length === 0 &&
+      !this.stateRepository.hasUnsettledSecretWrites(sessionId, beforeGeneration)
     );
   }
 
-  async clear(sessionId: string) {
-    await this.secretStore.clear(getSecretStoreKey(sessionId));
-    this.metadataRepository.clear(sessionId);
-    this.invalidate(sessionId, "cleared");
+  private async deleteTrackedSecretKey(sessionId: string, generation: number) {
+    let result: "cleared" | "pending" = "pending";
+    try {
+      const key =
+        generation === 0
+          ? getAuthenticatedRequestContextSecretKey(sessionId)
+          : getVersionedAuthenticatedRequestContextSecretKey(sessionId, generation);
+      result = await this.secretStore.clearWithResult(key);
+    } catch {
+      result = "pending";
+    }
+    if (result === "cleared") {
+      this.stateRepository.markSecretKeyDeleted(sessionId, generation);
+    }
   }
 }
 
 export const authenticatedRequestContextService = new AuthenticatedRequestContextService();
+
+interface LoadedAuthenticatedContext {
+  context: StoredAuthenticatedRequestContext;
+  generation: number;
+  storageMode: AuthenticatedContextStorageMode;
+}

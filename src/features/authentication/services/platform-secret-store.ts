@@ -3,6 +3,7 @@ import {
   appendMacOSKeychainPath,
   getConfiguredMacOSKeychainPath,
 } from "./platform-secret-store.helpers";
+import { SecretStoreClearResult } from "./platform-secret-store.types";
 
 export interface SecretStoreValue {
   value: string;
@@ -13,6 +14,7 @@ export interface SecretStore {
   save: (key: string, value: string) => Promise<AuthenticatedContextStorageMode>;
   load: (key: string) => Promise<SecretStoreValue | null>;
   clear: (key: string) => Promise<void>;
+  clearWithResult: (key: string) => Promise<SecretStoreClearResult>;
 }
 
 export interface SecretStoreCommandResult {
@@ -135,6 +137,7 @@ export class MacOSKeychainSecretStoreAdapter implements PlatformSecretStoreAdapt
       throw createCommandError("clear", result);
     }
   }
+
 }
 
 export class LinuxSecretServiceSecretStoreAdapter implements PlatformSecretStoreAdapter {
@@ -191,6 +194,7 @@ export class LinuxSecretServiceSecretStoreAdapter implements PlatformSecretStore
       throw createCommandError("clear", result);
     }
   }
+
 }
 
 const windowsCredentialManagerType = String.raw`
@@ -343,18 +347,30 @@ export class PlatformSecretStore implements SecretStore {
     }
   }
 
-  async clear(key: string) {
-    this.memory.delete(key);
-    this.memoryKeys.delete(key);
+  async clearWithResult(key: string): Promise<SecretStoreClearResult> {
+    const hadMemoryValue = this.memory.delete(key);
+    const wasMemoryOnly = this.memoryKeys.has(key);
+    if (hadMemoryValue) {
+      this.memoryKeys.add(key);
+    }
 
     try {
       if (!this.adapter || !(await this.adapter.isAvailable())) {
-        return;
+        return "pending" as const;
       }
       await this.adapter.clear(key);
+      this.memoryKeys.delete(key);
+      return "cleared" as const;
     } catch {
-      // A missing platform credential is already effectively cleared.
+      if (wasMemoryOnly && !hadMemoryValue) {
+        this.memoryKeys.add(key);
+      }
+      return "pending" as const;
     }
+  }
+
+  async clear(key: string) {
+    await this.clearWithResult(key);
   }
 }
 

@@ -1,6 +1,6 @@
 import { AuthenticatedRequestContextInput } from "../model/authenticated-request-context.types";
 import { normalizeAuthenticatedRequestCookies } from "./authenticated-request-context-cookie.helpers";
-import { normalizeExactOrigin } from "./authenticated-request-context.service";
+import { normalizeExactOrigin } from "./authenticated-request-context-validation.helpers";
 
 interface ParsedHeader {
   name: string;

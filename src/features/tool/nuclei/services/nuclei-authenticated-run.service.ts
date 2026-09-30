@@ -2,9 +2,9 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:f
 import { join } from "node:path";
 import { AuthenticatedRequestContext } from "../../../authentication/model/authenticated-request-context.types";
 import {
-  normalizeExactOrigin,
   authenticatedRequestContextService,
 } from "../../../authentication/services/authenticated-request-context.service";
+import { normalizeExactOrigin } from "../../../authentication/services/authenticated-request-context-validation.helpers";
 import { authCheckService } from "../../../authentication/services/auth-check.service";
 import { getAppDataDirectory } from "../../../session/services/session-database";
 import { buildNucleiSecretFile } from "./nuclei-authenticated-run.helpers";

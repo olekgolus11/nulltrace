@@ -1,4 +1,4 @@
-import { normalizeExactOrigin } from "../../authentication/services/authenticated-request-context.service";
+import { normalizeExactOrigin } from "../../authentication/services/authenticated-request-context-validation.helpers";
 
 export function validateAuthenticatedSqlmapDraftOrigin(
   targetUrl: string,

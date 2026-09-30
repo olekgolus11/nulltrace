@@ -1,144 +1,13 @@
 import { Database } from "bun:sqlite";
 import {
   AuthCheckMetadata,
-  AuthCheckSignalMetadata,
-  AuthCheckStatus,
-  AuthenticatedContextImportSource,
-  AuthenticatedContextStorageMode,
   AuthenticatedRequestContextMetadata,
 } from "../model/authenticated-request-context.types";
 import { sessionDatabase } from "../../session/services/session-database";
+import { AuthenticationContextMetadataRow } from "../model/authentication-context-metadata.types";
+import { AuthenticationContextStateRepository } from "./authentication-context-state.repository";
+import { mapAuthenticationContextMetadataRow } from "./authentication-context-metadata.helpers";
 import { getAuthenticationRuntimeId } from "./authentication-runtime";
-
-interface AuthenticationContextMetadataRow {
-  sessionId: string;
-  origin: string;
-  cookieCount: number;
-  headerNamesJson: string;
-  storageMode: string;
-  importSource: string;
-  updatedAt: string;
-  authCheckJson: string;
-  localStorageEntryCount: number;
-  sessionStorageEntryCount: number;
-}
-
-const authCheckStatuses = ["not_checked", "verified", "inconclusive", "failed"] as const;
-
-function isNullableString(value: unknown): value is string | null {
-  return value === null || typeof value === "string";
-}
-
-function isAuthCheckSignals(value: unknown): value is AuthCheckSignalMetadata | null {
-  if (value === null) {
-    return true;
-  }
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-  const signals = value as Record<string, unknown>;
-  return (
-    typeof signals.unauthenticatedStatus === "number" &&
-    typeof signals.authenticatedStatus === "number" &&
-    typeof signals.unauthenticatedRedirectCount === "number" &&
-    typeof signals.authenticatedRedirectCount === "number" &&
-    typeof signals.unauthenticatedContentType === "string" &&
-    typeof signals.authenticatedContentType === "string" &&
-    typeof signals.unauthenticatedHasLoginForm === "boolean" &&
-    typeof signals.authenticatedHasLoginForm === "boolean" &&
-    typeof signals.hasStatusChanged === "boolean" &&
-    typeof signals.hasRedirectsChanged === "boolean" &&
-    typeof signals.hasContentTypeChanged === "boolean" &&
-    typeof signals.hasContentFingerprintChanged === "boolean" &&
-    typeof signals.hasTitleChanged === "boolean" &&
-    typeof signals.hasLoginFormChanged === "boolean"
-  );
-}
-
-function parseAuthCheckMetadata(value: string): AuthCheckMetadata | null {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (!parsed || typeof parsed !== "object") {
-      return null;
-    }
-    const authCheck = parsed as Record<string, unknown>;
-    if (
-      typeof authCheck.status !== "string" ||
-      !authCheckStatuses.includes(authCheck.status as AuthCheckStatus) ||
-      !isNullableString(authCheck.verificationUrl) ||
-      !isNullableString(authCheck.checkedAt) ||
-      !isNullableString(authCheck.acknowledgedAt) ||
-      typeof authCheck.isProceedAllowed !== "boolean" ||
-      typeof authCheck.summary !== "string" ||
-      !isAuthCheckSignals(authCheck.signals)
-    ) {
-      return null;
-    }
-    return {
-      status: authCheck.status as AuthCheckStatus,
-      verificationUrl: authCheck.verificationUrl,
-      checkedAt: authCheck.checkedAt,
-      acknowledgedAt: authCheck.acknowledgedAt,
-      isProceedAllowed: authCheck.isProceedAllowed,
-      summary: authCheck.summary,
-      signals: authCheck.signals,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function parseHeaderNames(value: string) {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) && parsed.every((name) => typeof name === "string") ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function normalizeStorageMode(value: string): AuthenticatedContextStorageMode | null {
-  return value === "memory" || value === "secure" ? value : null;
-}
-
-function normalizeImportSource(value: string): AuthenticatedContextImportSource | null {
-  return value === "manual" || value === "curl" || value === "har" ? value : null;
-}
-
-function mapMetadataRow(
-  row: AuthenticationContextMetadataRow,
-): AuthenticatedRequestContextMetadata | null {
-  const authCheck = parseAuthCheckMetadata(row.authCheckJson);
-  const storageMode = normalizeStorageMode(row.storageMode);
-  const importSource = normalizeImportSource(row.importSource);
-  if (
-    !authCheck ||
-    !storageMode ||
-    !importSource ||
-    row.cookieCount < 0 ||
-    row.localStorageEntryCount < 0 ||
-    row.sessionStorageEntryCount < 0
-  ) {
-    return null;
-  }
-  return {
-    origin: row.origin,
-    cookieCount: row.cookieCount,
-    headerNames: parseHeaderNames(row.headerNamesJson),
-    storageMode,
-    importSource,
-    updatedAt: row.updatedAt,
-    authCheck,
-    ...(row.localStorageEntryCount > 0 || row.sessionStorageEntryCount > 0
-      ? {
-          browserStorage: {
-            localStorageEntryCount: row.localStorageEntryCount,
-            sessionStorageEntryCount: row.sessionStorageEntryCount,
-          },
-        }
-      : {}),
-  };
-}
 
 export class AuthenticationContextMetadataRepository {
   constructor(
@@ -146,7 +15,14 @@ export class AuthenticationContextMetadataRepository {
     private readonly runtimeId: string = getAuthenticationRuntimeId(),
   ) {}
 
-  findBySessionId(sessionId: string): AuthenticatedRequestContextMetadata | null {
+  createContextStateRepository() {
+    return new AuthenticationContextStateRepository(this.database);
+  }
+
+  findBySessionId(
+    sessionId: string,
+    expectedContextGeneration?: number,
+  ): AuthenticatedRequestContextMetadata | null {
     const row = this.database
       .query<AuthenticationContextMetadataRow, [string, string]>(
         `SELECT
@@ -159,22 +35,52 @@ export class AuthenticationContextMetadataRepository {
           updated_at AS updatedAt,
           auth_check_json AS authCheckJson,
           local_storage_entry_count AS localStorageEntryCount,
-          session_storage_entry_count AS sessionStorageEntryCount
+          session_storage_entry_count AS sessionStorageEntryCount,
+          context_generation AS contextGeneration
         FROM session_authentication_context_metadata
-        WHERE session_id = ?1 AND runtime_id = ?2`,
+        WHERE session_id = ?1 AND runtime_id = ?2
+          AND (
+            (context_generation IS NULL AND NOT EXISTS (
+              SELECT 1 FROM session_authentication_context_state WHERE session_id = ?1
+            ))
+            OR EXISTS (
+              SELECT 1 FROM session_authentication_context_state AS context_state
+              WHERE context_state.session_id = ?1
+                AND context_state.status = 'active'
+                AND context_state.generation = session_authentication_context_metadata.context_generation
+                AND context_state.storage_mode = session_authentication_context_metadata.storage_mode
+            )
+          )`,
       )
       .get(sessionId, this.runtimeId);
-    return row ? mapMetadataRow(row) : null;
+    if (!row || (expectedContextGeneration !== undefined && row.contextGeneration !== expectedContextGeneration)) {
+      return null;
+    }
+    return mapAuthenticationContextMetadataRow(row);
   }
 
-  upsert(sessionId: string, metadata: AuthenticatedRequestContextMetadata) {
+  upsert(
+    sessionId: string,
+    metadata: AuthenticatedRequestContextMetadata,
+    contextGeneration: number | null = null,
+  ) {
     this.database
       .query(
         `INSERT INTO session_authentication_context_metadata (
           session_id, runtime_id, origin, cookie_count, header_names_json,
           storage_mode, import_source, updated_at, auth_check_json,
-          local_storage_entry_count, session_storage_entry_count
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+          local_storage_entry_count, session_storage_entry_count, context_generation
+        ) SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12
+        WHERE (
+          (?12 IS NOT NULL AND EXISTS (
+            SELECT 1 FROM session_authentication_context_state
+            WHERE session_id = ?1 AND generation = ?12 AND status = 'active'
+              AND storage_mode = ?6
+          ))
+          OR (?12 IS NULL AND NOT EXISTS (
+            SELECT 1 FROM session_authentication_context_state WHERE session_id = ?1
+          ))
+        )
         ON CONFLICT(session_id) DO UPDATE SET
           runtime_id = excluded.runtime_id,
           origin = excluded.origin,
@@ -185,7 +91,20 @@ export class AuthenticationContextMetadataRepository {
           updated_at = excluded.updated_at,
           auth_check_json = excluded.auth_check_json,
           local_storage_entry_count = excluded.local_storage_entry_count,
-          session_storage_entry_count = excluded.session_storage_entry_count`,
+          session_storage_entry_count = excluded.session_storage_entry_count,
+          context_generation = excluded.context_generation
+        WHERE (
+          (excluded.context_generation IS NOT NULL AND EXISTS (
+            SELECT 1 FROM session_authentication_context_state
+            WHERE session_id = excluded.session_id
+              AND generation = excluded.context_generation AND status = 'active'
+              AND storage_mode = excluded.storage_mode
+          ))
+          OR (excluded.context_generation IS NULL AND NOT EXISTS (
+            SELECT 1 FROM session_authentication_context_state
+            WHERE session_id = excluded.session_id
+          ))
+        )`,
       )
       .run(
         sessionId,
@@ -199,13 +118,58 @@ export class AuthenticationContextMetadataRepository {
         JSON.stringify(metadata.authCheck),
         metadata.browserStorage?.localStorageEntryCount ?? 0,
         metadata.browserStorage?.sessionStorageEntryCount ?? 0,
+        contextGeneration,
       );
-    return metadata;
+    return this.findBySessionId(sessionId, contextGeneration ?? undefined);
   }
 
   updateAuthCheck(sessionId: string, authCheck: AuthCheckMetadata) {
-    const metadata = this.findBySessionId(sessionId);
-    return metadata ? this.upsert(sessionId, { ...metadata, authCheck }) : null;
+    const generation = this.database
+      .query<{ contextGeneration: number | null }, [string, string]>(
+        `SELECT context_generation AS contextGeneration
+         FROM session_authentication_context_metadata
+         WHERE session_id = ?1 AND runtime_id = ?2`,
+      )
+      .get(sessionId, this.runtimeId)?.contextGeneration;
+    if (generation === undefined || generation === null) {
+      return null;
+    }
+    return this.updateAuthCheckForGeneration(sessionId, authCheck, generation)
+      ? this.findBySessionId(sessionId, generation)
+      : null;
+  }
+
+  updateAuthCheckForGeneration(
+    sessionId: string,
+    authCheck: AuthCheckMetadata,
+    generation: number,
+  ) {
+    const result = this.database
+      .query(
+        `UPDATE session_authentication_context_metadata
+         SET auth_check_json = ?3
+         WHERE session_id = ?1 AND runtime_id = ?2 AND context_generation = ?4
+           AND EXISTS (
+             SELECT 1 FROM session_authentication_context_state
+             WHERE session_id = ?1 AND generation = ?4 AND status = 'active'
+               AND storage_mode = (
+                 SELECT metadata.storage_mode FROM session_authentication_context_metadata AS metadata
+                 WHERE metadata.session_id = ?1 AND metadata.runtime_id = ?2
+               )
+           )`,
+      )
+      .run(sessionId, this.runtimeId, JSON.stringify(authCheck), generation);
+    return result.changes === 1;
+  }
+
+  clearForGeneration(sessionId: string, generation: number) {
+    this.database
+      .query(
+        `DELETE FROM session_authentication_context_metadata
+         WHERE session_id = ?1 AND runtime_id = ?2
+           AND (context_generation IS NULL OR context_generation < ?3)`,
+      )
+      .run(sessionId, this.runtimeId, generation);
   }
 
   clear(sessionId: string) {

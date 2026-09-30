@@ -63,6 +63,7 @@ export function useSessionAuthenticatedRequestContext(
         return false;
       }
 
+      setMetadata(null);
       setIsSaving(true);
       try {
         const nextMetadata = await authenticatedRequestContextService.save(
@@ -88,11 +89,16 @@ export function useSessionAuthenticatedRequestContext(
       return;
     }
 
+    setMetadata(null);
+    setError(null);
     setIsSaving(true);
     try {
-      await authenticatedRequestContextService.clear(sessionId);
-      setMetadata(null);
-      setError(null);
+      const result = await authenticatedRequestContextService.clear(sessionId);
+      setError(
+        result.status === "pending"
+          ? "Authentication context is revoked locally, but platform-store deletion is pending. Retry Clear after the platform store is available."
+          : null,
+      );
     } catch (nextError) {
       setError(getReadableError(nextError));
     } finally {

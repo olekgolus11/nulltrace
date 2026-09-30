@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { getAppDataDirectory } from "../../../session/services/session-database";
-import { normalizeExactOrigin } from "../../../authentication/services/authenticated-request-context.service";
+import { normalizeExactOrigin } from "../../../authentication/services/authenticated-request-context-validation.helpers";
 import { ToolRunArtifactInput } from "../../../session/model/session.repository.types";
 import {
   ToolPrepareCommand,
