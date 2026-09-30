@@ -5,7 +5,11 @@ struct KeychainCredentialRecordBackend: CredentialRecordBackend {
   private let installationNamespace: UUID
 
   // Internal construction keeps installation identity in the trusted companion boundary.
-  init(installationNamespace: UUID) {
+  init(installationNamespace: UUID, ownership: CredentialCompanionOwnership) throws {
+    guard ownership.installationNamespace == installationNamespace else {
+      throw CredentialCompanionOwnershipFailure.unavailable
+    }
+    try ownership.withBackendAccess {}
     self.installationNamespace = installationNamespace
   }
 
@@ -50,7 +54,8 @@ struct KeychainCredentialRecordBackend: CredentialRecordBackend {
   private func query(for key: CredentialRecordKey) -> [String: Any] {
     [
       kSecClass as String: kSecClassGenericPassword,
-      kSecAttrService as String: "com.nulltrace.credential-companion.\(installationNamespace.uuidString.lowercased())",
+      kSecAttrService as String:
+        "com.nulltrace.credential-companion.\(installationNamespace.uuidString.lowercased())",
       kSecAttrAccount as String: "\(key.kind.rawValue):\(key.id.value.uuidString.lowercased())",
     ]
   }

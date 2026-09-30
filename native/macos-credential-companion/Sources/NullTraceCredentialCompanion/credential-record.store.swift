@@ -1,58 +1,66 @@
-import Foundation
 import CoreFoundation
 import Darwin
+import Foundation
 
 public actor CredentialRecordStore {
   private static let maximumAllowedPayloadBytes = 64 * 1024
   private let backend: any CredentialRecordBackend
+  private let ownership: CredentialCompanionOwnership
   private let maximumPayloadBytes: Int
 
   // The backend is constructed by the trusted companion with enrollment-owned identity.
   // It is never an operation argument or caller-claimed authorization.
   init(
     backend: any CredentialRecordBackend,
+    ownership: CredentialCompanionOwnership,
     maximumPayloadBytes: Int = 64 * 1024
   ) {
     self.backend = backend
+    self.ownership = ownership
     self.maximumPayloadBytes = min(maximumPayloadBytes, Self.maximumAllowedPayloadBytes)
   }
 
   public func load(kind: CredentialRecordKind, id: CredentialRecordID) -> CredentialReadResult {
     let key = CredentialRecordKey(kind: kind, id: id)
     do {
-      guard let data = try backend.read(key) else {
-        return .failure(.notFound)
-      }
-      guard data.count <= maximumEncodedRecordBytes else {
-        return .failure(.corruptRecord)
-      }
-      guard let envelope = try? JSONDecoder().decode(CredentialRecordEnvelope.self, from: data),
-        envelope.kind == kind,
-        envelope.id == id.value,
-        envelope.generation > 0
-      else {
-        return .failure(.corruptRecord)
-      }
-      if envelope.isDeleted {
-        guard envelope.schemaVersion == 1, envelope.payload.isEmpty else {
+      return try ownership.withExclusiveTransaction {
+        guard let data = try ownership.withBackendAccess({ try backend.read(key) }) else {
+          return .failure(.notFound)
+        }
+        guard data.count <= maximumEncodedRecordBytes else {
           return .failure(.corruptRecord)
         }
-        return .failure(.notFound)
-      }
-      guard isValidPayload(envelope.payload, schemaVersion: envelope.schemaVersion, kind: kind) else {
-        return .failure(.corruptRecord)
-      }
-      return .value(
-        StoredCredential(
-          id: id,
-          kind: kind,
-          generation: envelope.generation,
-          schemaVersion: envelope.schemaVersion,
-          payload: envelope.payload
+        guard let envelope = try? JSONDecoder().decode(CredentialRecordEnvelope.self, from: data),
+          envelope.kind == kind,
+          envelope.id == id.value,
+          envelope.generation > 0
+        else {
+          return .failure(.corruptRecord)
+        }
+        if envelope.isDeleted {
+          guard envelope.schemaVersion == 1, envelope.payload.isEmpty else {
+            return .failure(.corruptRecord)
+          }
+          return .failure(.notFound)
+        }
+        guard isValidPayload(envelope.payload, schemaVersion: envelope.schemaVersion, kind: kind)
+        else {
+          return .failure(.corruptRecord)
+        }
+        return .value(
+          StoredCredential(
+            id: id,
+            kind: kind,
+            generation: envelope.generation,
+            schemaVersion: envelope.schemaVersion,
+            payload: envelope.payload
+          )
         )
-      )
+      }
     } catch let failure as CredentialBackendFailure {
       return .failure(map(failure))
+    } catch is CredentialCompanionOwnershipFailure {
+      return .failure(.unavailable)
     } catch {
       return .failure(.backendFailure)
     }
@@ -109,42 +117,47 @@ public actor CredentialRecordStore {
   ) -> CredentialWriteResult {
     let key = CredentialRecordKey(kind: kind, id: id)
     do {
-      let current: CredentialRecordEnvelope?
-      if let data = try backend.read(key) {
-        guard data.count <= maximumEncodedRecordBytes else {
-          return .failure(.corruptRecord)
+      return try ownership.withExclusiveTransaction {
+        let current: CredentialRecordEnvelope?
+        if let data = try ownership.withBackendAccess({ try backend.read(key) }) {
+          guard data.count <= maximumEncodedRecordBytes else {
+            return .failure(.corruptRecord)
+          }
+          guard let decoded = try? JSONDecoder().decode(CredentialRecordEnvelope.self, from: data),
+            decoded.kind == kind,
+            decoded.id == id.value,
+            decoded.generation > 0,
+            decoded.isDeleted
+              ? decoded.schemaVersion == 1 && decoded.payload.isEmpty
+              : isValidPayload(decoded.payload, schemaVersion: decoded.schemaVersion, kind: kind)
+          else {
+            return .failure(.corruptRecord)
+          }
+          current = decoded
+        } else {
+          current = nil
         }
-        guard let decoded = try? JSONDecoder().decode(CredentialRecordEnvelope.self, from: data),
-          decoded.kind == kind,
-          decoded.id == id.value,
-          decoded.generation > 0,
-          decoded.isDeleted
-            ? decoded.schemaVersion == 1 && decoded.payload.isEmpty
-            : isValidPayload(decoded.payload, schemaVersion: decoded.schemaVersion, kind: kind)
-        else {
-          return .failure(.corruptRecord)
+        let actualGeneration = current?.generation ?? 0
+        guard expectedGeneration == actualGeneration else {
+          return .failure(.conflict(currentGeneration: actualGeneration))
         }
-        current = decoded
-      } else {
-        current = nil
+        let nextGeneration = actualGeneration + 1
+        let envelope = CredentialRecordEnvelope(
+          kind: kind,
+          id: id.value,
+          generation: nextGeneration,
+          schemaVersion: schemaVersion,
+          isDeleted: isDeleted,
+          payload: payload
+        )
+        let encoded = try JSONEncoder().encode(envelope)
+        try ownership.withBackendAccess { try backend.write(encoded, for: key) }
+        return isDeleted ? .deleted(generation: nextGeneration) : .saved(generation: nextGeneration)
       }
-      let actualGeneration = current?.generation ?? 0
-      guard expectedGeneration == actualGeneration else {
-        return .failure(.conflict(currentGeneration: actualGeneration))
-      }
-      let nextGeneration = actualGeneration + 1
-      let envelope = CredentialRecordEnvelope(
-        kind: kind,
-        id: id.value,
-        generation: nextGeneration,
-        schemaVersion: schemaVersion,
-        isDeleted: isDeleted,
-        payload: payload
-      )
-      try backend.write(JSONEncoder().encode(envelope), for: key)
-      return isDeleted ? .deleted(generation: nextGeneration) : .saved(generation: nextGeneration)
     } catch let failure as CredentialBackendFailure {
       return .failure(map(failure))
+    } catch is CredentialCompanionOwnershipFailure {
+      return .failure(.unavailable)
     } catch {
       return .failure(.backendFailure)
     }
@@ -205,7 +218,7 @@ public actor CredentialRecordStore {
       let components = URLComponents(string: value),
       let scheme = components.scheme,
       let rawHost = components.host,
-      (scheme == "http" || scheme == "https"),
+      scheme == "http" || scheme == "https",
       components.user == nil,
       components.password == nil,
       components.query == nil,
@@ -213,7 +226,8 @@ public actor CredentialRecordStore {
       components.path.isEmpty || components.path == "/",
       rawHost == rawHost.lowercased(),
       components.port.map((1...65_535).contains) ?? true,
-      !((scheme == "http" && components.port == 80) || (scheme == "https" && components.port == 443)),
+      !((scheme == "http" && components.port == 80)
+        || (scheme == "https" && components.port == 443)),
       isCanonicalHost(unbracketedHost(rawHost))
     else {
       return false
@@ -295,7 +309,9 @@ public actor CredentialRecordStore {
       return false
     }
     let host = URLComponents(string: origin)?.host.map(unbracketedHost)
-    let keys: Set<String> = ["name", "value", "domain", "path", "expires", "httpOnly", "secure", "sameSite"]
+    let keys: Set<String> = [
+      "name", "value", "domain", "path", "expires", "httpOnly", "secure", "sameSite",
+    ]
     return cookies.allSatisfy { cookie in
       guard cookie.keys.allSatisfy(keys.contains),
         let name = cookie["name"] as? String,
@@ -348,12 +364,13 @@ public actor CredentialRecordStore {
 
   private func isRFCToken(_ value: String) -> Bool {
     let punctuation = Set("!#$%&'*+-.^_`|~".utf8)
-    return !value.isEmpty && value.utf8.allSatisfy { byte in
-      (byte >= 48 && byte <= 57)
-        || (byte >= 65 && byte <= 90)
-        || (byte >= 97 && byte <= 122)
-        || punctuation.contains(byte)
-    }
+    return !value.isEmpty
+      && value.utf8.allSatisfy { byte in
+        (byte >= 48 && byte <= 57)
+          || (byte >= 65 && byte <= 90)
+          || (byte >= 97 && byte <= 122)
+          || punctuation.contains(byte)
+      }
   }
 
   private func isValidHeaderValue(_ value: String) -> Bool {
