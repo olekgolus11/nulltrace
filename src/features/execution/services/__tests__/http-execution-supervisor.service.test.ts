@@ -459,4 +459,77 @@ describe("HTTP execution ownership", () => {
     await supervisor.start({ ...plan, executionId: "run-2" });
     await supervisor.wait("run-2");
   });
+
+  test("waitForCleanup waits for durable settlement before confirming cleanup", async () => {
+    const database = new Database(":memory:");
+    try {
+      const receipts = new ExecutionReceiptRepository(database, new Uint8Array(32).fill(7));
+      receipts.reserve("owner", "run-1", "plan-fingerprint");
+      receipts.commitStart("run-1");
+      let announceSettlement!: () => void;
+      let releaseSettlement!: () => void;
+      const settlementStarted = new Promise<void>((resolve) => { announceSettlement = resolve; });
+      const settlementGate = new Promise<void>((resolve) => { releaseSettlement = resolve; });
+      const supervisor = new HttpExecutionSupervisorService({
+        async run() {
+          return {
+            command: { exitCode: 0, stdout: "", stderr: "" },
+            evidence: { executionId: "run-1", workerRulesSha256: "", proxyRulesSha256: "", proxyDecisions: [], cleanupConfirmed: true },
+          };
+        },
+      }, { async resolve() { return policy; } }, {
+        leaseMs: 100,
+        cleanupWaitMs: 1_000,
+        async onSettled(run) {
+          announceSettlement();
+          await settlementGate;
+          receipts.recordOutcome(toExecutionOutcome(run));
+        },
+      });
+      await supervisor.start(plan);
+      let cleanupReturned = false;
+      const cleanup = supervisor.waitForCleanup("run-1").then((result) => {
+        cleanupReturned = true;
+        return result;
+      });
+      await settlementStarted;
+      expect(receipts.find("run-1")).toMatchObject({ status: "start_committed", cleanup: "pending" });
+      expect(cleanupReturned).toBe(false);
+      releaseSettlement();
+      await expect(cleanup).resolves.toMatchObject({ status: "finished", cleanup: "confirmed" });
+      expect(receipts.find("run-1")).toMatchObject({ status: "closed", cleanup: "confirmed" });
+    } finally {
+      database.close();
+    }
+  });
+
+  test("waitForCleanup rejects when bounded cleanup settlement times out", async () => {
+    let releaseSettlement!: () => void;
+    const settlementGate = new Promise<void>((resolve) => { releaseSettlement = resolve; });
+    const supervisor = new HttpExecutionSupervisorService({
+      async run() {
+        return {
+          command: { exitCode: 0, stdout: "", stderr: "" },
+          evidence: { executionId: "run-1", workerRulesSha256: "", proxyRulesSha256: "", proxyDecisions: [], cleanupConfirmed: true },
+        };
+      },
+    }, { async resolve() { return policy; } }, {
+      leaseMs: 100,
+      cleanupWaitMs: 100,
+      async onSettled() { await settlementGate; },
+    });
+    await supervisor.start(plan);
+    await expect(supervisor.waitForCleanup("run-1")).rejects.toThrow("cleanup wait expired");
+    releaseSettlement();
+    await expect(supervisor.waitForCleanup("run-1")).resolves.toMatchObject({ status: "finished", cleanup: "confirmed" });
+  });
+
+  test("rejects an invalid bounded cleanup wait", () => {
+    const network: HttpExecutionSupervisedNetwork = { async run() { throw new Error("not reached"); } };
+    expect(() => new HttpExecutionSupervisorService(network, { async resolve() { return policy; } }, {
+      leaseMs: 100,
+      cleanupWaitMs: 99,
+      onSettled() {},
+    })).toThrow("Invalid execution cleanup wait");
+  });
 });

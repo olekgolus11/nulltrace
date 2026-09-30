@@ -137,6 +137,29 @@ export class HttpExecutionNetworkService {
       });
       if (containers.exitCode !== 0) throw new Error("Execution container inventory is unavailable.");
       const containerIds = this.requireResourceIds(containers.stdout);
+      const proxies = await this.docker.run(["ps", "-aq", "--filter", filter, "--filter", "label=nulltrace.role=proxy"], {
+        timeoutMs: this.options.cleanupTimeoutMs,
+      });
+      if (proxies.exitCode !== 0) throw new Error("Execution proxy inventory is unavailable.");
+      for (const proxyId of this.requireResourceIds(proxies.stdout)) {
+        const stopped = await this.docker.run(["stop", "--time", "0", proxyId], { timeoutMs: this.options.cleanupTimeoutMs });
+        if (stopped.exitCode !== 0) throw new Error("Execution egress could not be revoked.");
+        const state = await this.docker.run(["inspect", "--format", "{{.State.Running}}", proxyId], { timeoutMs: this.options.cleanupTimeoutMs });
+        if (state.exitCode !== 0 || state.stdout.trim() !== "false") throw new Error("Execution egress revocation could not be confirmed.");
+      }
+      const legacyContainers = this.requireResourceIds(containers.stdout);
+      for (const containerId of legacyContainers) {
+        const details = await this.docker.run(["inspect", "--format", "{{.Name}} {{index .Config.Labels \"nulltrace.role\"}}", containerId], {
+          timeoutMs: this.options.cleanupTimeoutMs,
+        });
+        if (details.exitCode !== 0) throw new Error("Execution container role is unavailable.");
+        if (!/(?:-proxy) (?:<no value>|<nil>|null|proxy)$/.test(details.stdout.trim())) continue;
+        if (proxies.stdout.split("\n").some((proxyId) => proxyId.trim() === containerId)) continue;
+        const stopped = await this.docker.run(["stop", "--time", "0", containerId], { timeoutMs: this.options.cleanupTimeoutMs });
+        if (stopped.exitCode !== 0) throw new Error("Legacy execution egress could not be revoked.");
+        const state = await this.docker.run(["inspect", "--format", "{{.State.Running}}", containerId], { timeoutMs: this.options.cleanupTimeoutMs });
+        if (state.exitCode !== 0 || state.stdout.trim() !== "false") throw new Error("Legacy execution egress revocation could not be confirmed.");
+      }
       if (containerIds.length) {
         const removed = await this.docker.run(["rm", "-f", ...containerIds], {
           timeoutMs: this.options.cleanupTimeoutMs,
@@ -194,11 +217,11 @@ export class HttpExecutionNetworkService {
       "network", "create", "--ipv6", "--subnet", `${names.backIpv4}.0/24`, "--subnet", `${names.backIpv6}::/64`,
       "--label", `nulltrace.execution=${names.label}`, "--label", `nulltrace.installation=${this.options.installationId}`, names.backNetwork,
     ], this.options.setupTimeoutMs, undefined, signal);
-    await this.createContainer(names.proxyContainer, this.options.images.proxy, names.backNetwork, names.proxyBackIpv4, names.proxyBackIpv6, limits, names, signal);
+    await this.createContainer(names.proxyContainer, this.options.images.proxy, names.backNetwork, names.proxyBackIpv4, names.proxyBackIpv6, limits, names, "proxy", signal);
     await this.requireSuccess([
       "network", "connect", "--ip", names.proxyIpv4, "--ip6", names.proxyIpv6, names.frontNetwork, names.proxyContainer,
     ], this.options.setupTimeoutMs, undefined, signal);
-    await this.createContainer(names.workerContainer, this.options.images.worker, names.frontNetwork, names.workerIpv4, names.workerIpv6, limits, names, signal);
+    await this.createContainer(names.workerContainer, this.options.images.worker, names.frontNetwork, names.workerIpv4, names.workerIpv6, limits, names, "worker", signal);
     return {
       executionId: policy.executionId,
       workerContainerId: names.workerContainer,
@@ -217,12 +240,13 @@ export class HttpExecutionNetworkService {
     ipv6: string,
     limits: ExecutionLimits,
     names: EnvironmentNames,
+    role: "worker" | "proxy",
     signal?: AbortSignal,
   ): Promise<void> {
     const cpu = Math.max(0.001, limits.cpuMilliCores / 1000).toFixed(3);
     await this.requireSuccess([
       "run", "-d", "--name", name, "--hostname", "runtime", "--label", `nulltrace.execution=${names.label}`,
-      "--label", `nulltrace.installation=${this.options.installationId}`,
+      "--label", `nulltrace.installation=${this.options.installationId}`, "--label", `nulltrace.role=${role}`,
       "--network", network, "--ip", ipv4, "--ip6", ipv6,
       "--read-only", "--user", "65532:65532", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
       "--memory", String(limits.memoryBytes), "--memory-swap", String(limits.memoryBytes), "--cpus", cpu,
@@ -345,6 +369,13 @@ export class HttpExecutionNetworkService {
   }
 
   private async cleanup(names: EnvironmentNames): Promise<boolean> {
+    const egressRevoked = await this.revokeEgress(names).catch(() => false);
+    if (!egressRevoked) {
+      await this.docker.run(["rm", "-f", names.workerContainer], { timeoutMs: this.options.cleanupTimeoutMs }).catch(() => null);
+      await this.docker.run(["rm", "-f", names.proxyContainer], { timeoutMs: this.options.cleanupTimeoutMs }).catch(() => null);
+      this.recoveryRequired = true;
+      return false;
+    }
     for (const container of [names.workerContainer, names.proxyContainer]) {
       await this.docker.run(["rm", "-f", container], { timeoutMs: this.options.cleanupTimeoutMs }).catch(() => null);
     }
@@ -365,6 +396,21 @@ export class HttpExecutionNetworkService {
       "network", "ls", "-q", "--filter", `label=nulltrace.execution=${names.label}`,
     ], { timeoutMs: this.options.cleanupTimeoutMs }).catch(() => null);
     return Boolean(result && networks && result.exitCode === 0 && networks.exitCode === 0 && !result.stdout.trim() && !networks.stdout.trim());
+  }
+
+  private async revokeEgress(names: EnvironmentNames): Promise<boolean> {
+    const matching = await this.docker.run(["ps", "-aq", "--filter", `label=nulltrace.execution=${names.label}`, "--filter", "label=nulltrace.role=proxy"], {
+      timeoutMs: this.options.cleanupTimeoutMs,
+    }).catch(() => null);
+    if (!matching || matching.exitCode !== 0) return false;
+    const ids = this.requireResourceIds(matching.stdout);
+    for (const id of ids) {
+      const stopped = await this.docker.run(["stop", "--time", "0", id], { timeoutMs: this.options.cleanupTimeoutMs }).catch(() => null);
+      if (!stopped || stopped.exitCode !== 0) return false;
+      const state = await this.docker.run(["inspect", "--format", "{{.State.Running}}", id], { timeoutMs: this.options.cleanupTimeoutMs }).catch(() => null);
+      if (!state || state.exitCode !== 0 || state.stdout.trim() !== "false") return false;
+    }
+    return true;
   }
 
   private resourceIds(value: string): string[] {

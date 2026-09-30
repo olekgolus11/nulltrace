@@ -12,6 +12,20 @@ export interface ExecutionAuthorization {
   expiresAt: number;
 }
 
+export interface ExecutionCredentialBinding {
+  scopeId: string;
+  generation: number;
+}
+
+export interface ExecutionCredentialAuthority {
+  resolveBinding(
+    principal: ExecutionPrincipal,
+    authorizationId: string,
+    plan: ExecutionPlan,
+  ): ExecutionCredentialBinding | null;
+  isCurrent(principal: ExecutionPrincipal, binding: ExecutionCredentialBinding): boolean;
+}
+
 export type ExecutionAdmissionStatus = "prepared" | "start_committed" | "started" | "interrupted" | "closed";
 
 export interface ExecutionReceipt {
@@ -26,6 +40,7 @@ export interface ExecutionRuntimeAdapter {
   start(plan: ExecutionPlan): Promise<void>;
   readEvents?(executionId: string, afterSequence: number, maximumEvents?: number): ExecutionEventPage;
   cancel?(executionId: string): ExecutionControlReceipt;
+  waitForCleanup?(executionId: string): Promise<ExecutionControlReceipt>;
   getControl?(executionId: string): ExecutionControlReceipt;
   renewOwnership?(executionId: string): ExecutionControlReceipt;
 }
@@ -42,6 +57,7 @@ export interface ExecutionBrokerOptions {
   profiles: ExecutionProfile[];
   publicDataEventProfileIds?: string[];
   readAuthorization: (principal: ExecutionPrincipal, authorizationId: string, requestedPlan?: ExecutionPlan) => ExecutionAuthorization | null;
+  credentialAuthority?: ExecutionCredentialAuthority;
   runtime?: ExecutionRuntimeAdapter;
   now?: () => number;
 }
@@ -55,6 +71,8 @@ export interface StoredExecutionReceipt extends ExecutionReceipt {
   owner: string;
   fingerprint: string;
   sealedInputs: Record<string, string>;
+  credentialBinding: ExecutionCredentialBinding | null;
+  credentialRevoked: boolean;
 }
 
 export type ExecutionOutcomeCause = "normal" | "nonzero_exit" | "cancelled" | "lease_expired" | "deadline" | "infrastructure";

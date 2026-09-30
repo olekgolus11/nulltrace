@@ -33,6 +33,10 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
     if (!Number.isSafeInteger(inputRetention) || inputRetention < 100 || inputRetention > 15 * 60_000) {
       throw new Error("Invalid execution input retention.");
     }
+    const cleanupWait = options.cleanupWaitMs ?? 30_000;
+    if (!Number.isSafeInteger(cleanupWait) || cleanupWait < 100 || cleanupWait > 30 * 60_000) {
+      throw new Error("Invalid execution cleanup wait.");
+    }
   }
 
   async putInput(plan: ExecutionPlan, slot: ExecutionInputSlot, bytes: Uint8Array): Promise<void> {
@@ -130,6 +134,26 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
   async wait(executionId: string): Promise<HttpExecutionSupervisedRun> {
     const entry = this.requireRun(executionId);
     await entry.task;
+    return { ...entry.result };
+  }
+
+  async waitForCleanup(executionId: string): Promise<HttpExecutionSupervisedRun> {
+    const entry = this.requireRun(executionId);
+    if (!entry.task) throw new Error("Execution cleanup has not started.");
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        entry.task,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("Execution cleanup wait expired.")), this.options.cleanupWaitMs ?? 30_000);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+    if (entry.result.status !== "finished" || entry.result.cleanup !== "confirmed") {
+      throw new Error("Execution cleanup could not be confirmed.");
+    }
     return { ...entry.result };
   }
 
