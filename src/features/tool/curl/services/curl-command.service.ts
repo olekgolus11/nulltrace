@@ -1,40 +1,31 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { getAppDataDirectory } from "../../../session/services/session-database";
-import {
-  ToolPrepareCommand,
-  ToolPreparedCommand,
-} from "../../shared/types/tool-screen.types";
-import {
-  curlMaximumResponseBytes,
-  curlMaximumRedirectCount,
-  curlRequestTimeoutSeconds,
-  getCurlFieldOrder,
-} from "../config/curl.config";
+import { ToolPrepareCommand, ToolPreparedIsolatedRun } from "../../shared/types/tool-screen.types";
+import { getCurlFieldOrder } from "../config/curl.config";
 import {
   CurlBodyMode,
   CurlFormState,
   CurlHttpMethod,
   CurlToolData,
+  CurlValidatedCommand,
 } from "../types/curl.types";
-import { curlAuthenticatedRunService } from "./curl-authenticated-run.service";
+import { curlBrokerExecutionService } from "./curl-broker-execution.service";
 import {
+  hasContentTypeHeader,
   normalizeCurlMethod,
   quoteCurlShellValue,
+  readCurlHeaders,
   redactCurlCommand,
   validateCurlCommand,
   validateCurlRequestBodySize,
 } from "./curl-command.helpers";
-import { CurlExecutionInput } from "./curl-execution.types";
 
 interface CurlCommandDependencies {
-  authenticatedRunService: Pick<typeof curlAuthenticatedRunService, "prepare">;
+  isolatedRunService: Pick<typeof curlBrokerExecutionService, "prepare">;
 }
 
 class CurlCommandService {
   constructor(
     private readonly dependencies: CurlCommandDependencies = {
-      authenticatedRunService: curlAuthenticatedRunService,
+      isolatedRunService: curlBrokerExecutionService,
     },
   ) {}
 
@@ -179,9 +170,18 @@ class CurlCommandService {
     sessionId,
     targetUrl,
     toolData,
-  }: ToolPrepareCommand): Promise<ToolPreparedCommand> {
+  }: ToolPrepareCommand): Promise<ToolPreparedIsolatedRun> {
     if (!targetUrl) throw new Error("cURL requires an active session target.");
-    const validated = validateCurlCommand(command, targetUrl);
+    let validated: CurlValidatedCommand;
+    try {
+      validated = validateCurlCommand(command, targetUrl);
+    } catch (error) {
+      if (error instanceof Error && [
+        "cURL request body cannot exceed 256 KiB.",
+        "A cURL request must contain exactly one target URL.",
+      ].includes(error.message)) throw error;
+      throw new Error("cURL command is invalid or contains unsupported input.");
+    }
     const curlToolData = toolData as CurlToolData | undefined;
     if (curlToolData?.form.bodyMode === "json" && curlToolData.form.body.trim()) {
       try {
@@ -191,87 +191,31 @@ class CurlCommandService {
       }
     }
     validateCurlRequestBodySize(curlToolData?.form.body ?? "");
-    if (curlToolData?.form.useAuthenticatedContext && !sessionId) {
-      throw new Error("Authenticated cURL runs require an active persisted session.");
-    }
-    const authenticated = curlToolData?.form.useAuthenticatedContext
-      ? await this.dependencies.authenticatedRunService.prepare({
-          sessionId: sessionId!,
-          targetUrl: validated.targetUrl,
-          command: command.trim(),
-        })
-      : null;
-    let executionDirectory: string | null = null;
-    try {
-      const rootDirectory = join(getAppDataDirectory(), "run-secrets");
-      mkdirSync(rootDirectory, { recursive: true, mode: 0o700 });
-      chmodSync(rootDirectory, 0o700);
-      executionDirectory = mkdtempSync(join(rootDirectory, "curl-execution-"));
-      chmodSync(executionDirectory, 0o700);
-      const executionPath = join(executionDirectory, "execution.json");
-      const sessionOrigin = new URL(targetUrl).origin;
-      const input: CurlExecutionInput = {
-        tokens: validated.tokens,
-        method: validated.method,
-        targetUrl: validated.targetUrl,
-        exactOrigin: sessionOrigin,
-        authenticationConfigPath: authenticated?.configPath ?? null,
-        maximumRedirectCount: curlMaximumRedirectCount,
-        maximumResponseBytes: curlMaximumResponseBytes,
-        timeoutSeconds: curlRequestTimeoutSeconds,
-      };
-      writeFileSync(executionPath, JSON.stringify(input), {
-        encoding: "utf8",
-        flag: "wx",
-        mode: 0o600,
-      });
-      chmodSync(executionPath, 0o600);
-      const runnerPath = join(import.meta.dir, "curl-execution-runner.ts");
-      const cleanup = () => {
-        try {
-          authenticated?.cleanup();
-        } finally {
-          if (executionDirectory) {
-            rmSync(executionDirectory, { recursive: true, force: true });
-            executionDirectory = null;
-          }
-        }
-      };
-      return {
-        command: `${quoteCurlShellValue(process.execPath)} ${quoteCurlShellValue(runnerPath)} ${quoteCurlShellValue(executionPath)}`,
-        timeoutMs: curlRequestTimeoutSeconds * 1000,
-        systemLines: [
-          `[redirect policy: up to ${curlMaximumRedirectCount}, exact session origin only]`,
-          ...(authenticated
-            ? [`[session authentication applied: ${authenticated.authenticationOrigin}]`]
-            : []),
-        ],
-        cleanup,
-        ...(authenticated ? { redactOutput: authenticated.redactOutput } : {}),
-      };
-    } catch (error) {
-      authenticated?.cleanup();
-      if (executionDirectory) {
-        rmSync(executionDirectory, { recursive: true, force: true });
-      }
-      throw error;
-    }
+    return this.dependencies.isolatedRunService.prepare(command, targetUrl, curlToolData);
   }
 
   redactCommandForPersistence(command: string) {
     return redactCurlCommand(command);
   }
+
+  getSafeExecutionError(error: unknown): string | null {
+    const message = error instanceof Error ? error.message : "";
+    const safeMessages = new Set([
+      "Authenticated cURL is unavailable with the isolated public worker at this stage.",
+      "Isolated cURL broker is not configured. Set NULLTRACE_EXECUTION_BROKER_DIR to its private directory.",
+      "Isolated cURL broker configuration is missing or invalid. Set NULLTRACE_EXECUTION_BROKER_DIR to a provisioned private directory.",
+      "cURL requires an active session target.",
+      "cURL command is invalid or contains unsupported input.",
+      "cURL JSON body must contain valid JSON.",
+      "cURL request body cannot exceed 256 KiB.",
+      "A cURL request must contain exactly one target URL.",
+      "Isolated cURL broker execution failed.",
+      "Isolated cURL cleanup could not be confirmed.",
+      "Isolated cURL request timed out.",
+      "Broker cleanup remains unconfirmed.",
+    ]);
+    return safeMessages.has(message) ? message : null;
+  }
 }
 
 export const curlCommandService = new CurlCommandService();
-
-function readCurlHeaders(value: string) {
-  return value
-    .split(/\r?\n/)
-    .map((header) => header.trim())
-    .filter(Boolean);
-}
-
-function hasContentTypeHeader(value: string) {
-  return readCurlHeaders(value).some((header) => /^content-type\s*:/i.test(header));
-}

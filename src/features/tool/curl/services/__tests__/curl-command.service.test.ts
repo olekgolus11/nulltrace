@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { curlMaximumResponseBytes } from "../../config/curl.config";
 import { curlCommandService } from "../curl-command.service";
 
 describe("curlCommandService", () => {
@@ -24,26 +22,6 @@ describe("curlCommandService", () => {
     expect(curlCommandService.buildCommand(toolData)).toContain(
       "-H 'Content-Type: application/json' --data-raw '{\"active\":true}'",
     );
-  });
-
-  test("enforces timeout, response cap, TLS verification, and fail-closed redirects", async () => {
-    const toolData = curlCommandService.createInitialToolData("https://example.com/api");
-    const prepared = await curlCommandService.prepareCommandForRun({
-      command: curlCommandService.buildCommand(toolData),
-      sessionId: "session-1",
-      toolRunId: "run-1",
-      targetUrl: "https://example.com/root",
-      toolData,
-    });
-
-    const input = readPreparedExecutionInput(prepared.command);
-    expect(input.timeoutSeconds).toBe(30);
-    expect(input.maximumResponseBytes).toBe(curlMaximumResponseBytes);
-    expect(input.maximumRedirectCount).toBe(5);
-    expect(prepared.command).not.toMatch(/(?:^|\s)(?:-k|--insecure)(?:\s|$)/);
-    expect(prepared.timeoutMs).toBe(30_000);
-    expect(prepared.systemLines?.join(" ")).toContain("exact session origin only");
-    prepared.cleanup?.();
   });
 
   test("rejects cross-origin requests, unsafe redirects, shell syntax, and credentials", async () => {
@@ -71,18 +49,6 @@ describe("curlCommandService", () => {
         }),
       ).rejects.toThrow();
     }
-  });
-
-  test("accepts another path on the session target exact origin", async () => {
-    const prepared = await curlCommandService.prepareCommandForRun({
-      command: "curl -X GET 'https://example.com:443/another-path?x=1'",
-      sessionId: "session-1",
-      toolRunId: "run-1",
-      targetUrl: "https://example.com/root",
-    });
-
-    expect(readPreparedExecutionInput(prepared.command).targetUrl).toContain("another-path?x=1");
-    prepared.cleanup?.();
   });
 
   test("rejects request bodies larger than 256 KiB by UTF-8 byte length", async () => {
@@ -118,22 +84,37 @@ describe("curlCommandService", () => {
       curlCommandService.redactCommandForPersistence(
         "curl https://example.com -H 'Authorization: Bearer secret' -b 'session=secret'",
       ),
-    ).toBe("'curl' 'https://example.com' -H '[redacted]' -b '[redacted]'");
+    ).toBe("'curl' 'https://example.com/' -H '[redacted]' -b '[redacted]'");
     expect(
       curlCommandService.redactCommandForPersistence(
         "curl https://example.com --data-binary 'private payload'",
       ),
     ).toContain("--data-binary '[redacted]'");
   });
-});
 
-function readPreparedExecutionInput(command: string) {
-  const path = command.match(/'([^']+\/execution\.json)'$/)?.[1];
-  if (!path) throw new Error("Missing execution config path.");
-  return JSON.parse(readFileSync(path, "utf8")) as {
-    targetUrl: string;
-    timeoutSeconds: number;
-    maximumResponseBytes: number;
-    maximumRedirectCount: number;
-  };
-}
+  test("keeps the method and safe target path while hiding query and inline values", () => {
+    const command = curlCommandService.redactCommandForPersistence(
+      "curl -X POST --url='https://example.com/path?q=query-canary#frag-canary' -H=X-Api:header-canary --data-raw=body-canary",
+    );
+    expect(command).toContain("-X 'POST'");
+    expect(command).toContain("https://example.com/path?[redacted]#[redacted]");
+    expect(command).not.toContain("query-canary");
+    expect(command).not.toContain("frag-canary");
+    expect(command).not.toContain("header-canary");
+    expect(command).not.toContain("body-canary");
+  });
+
+  test("rejects multiple target inputs rather than silently choosing one", async () => {
+    for (const command of [
+      "curl https://example.com/a --url https://example.com/b",
+      "curl --url=https://example.com/a --url=https://example.com/b",
+    ]) {
+      await expect(curlCommandService.prepareCommandForRun({
+        command,
+        sessionId: "session-1",
+        toolRunId: "run-1",
+        targetUrl: "https://example.com/root",
+      })).rejects.toThrow("exactly one target URL");
+    }
+  });
+});

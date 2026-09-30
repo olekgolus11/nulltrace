@@ -1,9 +1,11 @@
 import { theme } from "../../../../app/theme/theme";
 import { ExecutionStatus } from "../types/tool-screen.types";
+import { getToolExecutionStatusLabel } from "../services/tool-execution-status.helpers";
 
 function getStatusColor(status: ExecutionStatus | string) {
   switch (status) {
     case "running":
+    case "cancelling":
       return theme.accent.warning;
     case "success":
       return theme.accent.low;
@@ -53,7 +55,7 @@ export function CommandEditor({
             <text fg={theme.accent.warning}>Historic preview</text>
           </box>
           <text fg={getStatusColor(executionStatus)}>
-            {lastExitCode === null ? executionStatus : `${executionStatus} (${lastExitCode})`}
+            {getToolExecutionStatusLabel(executionStatus as ExecutionStatus, lastExitCode)}
           </text>
         </box>
 
@@ -82,11 +84,7 @@ export function CommandEditor({
           </text>
         </box>
         <text fg={getStatusColor(executionStatus)}>
-          {executionStatus === "running"
-            ? "running"
-            : lastExitCode === null
-              ? executionStatus
-              : `${executionStatus} (${lastExitCode})`}
+          {getToolExecutionStatusLabel(executionStatus as ExecutionStatus, lastExitCode)}
         </text>
       </box>
 

@@ -19,6 +19,7 @@ function createToolRunRecord() {
 function createToolModule(
   prepareCommandForRun?: ToolModule["prepareCommandForRun"],
   redactCommandForPersistence?: ToolModule["redactCommandForPersistence"],
+  getSafeExecutionError?: ToolModule["getSafeExecutionError"],
 ): ToolModule {
   return {
     id: "nmap",
@@ -32,6 +33,7 @@ function createToolModule(
     buildGeneratedCommand: () => "nmap scanme.nmap.org",
     prepareCommandForRun,
     redactCommandForPersistence,
+    getSafeExecutionError,
   };
 }
 
@@ -380,6 +382,40 @@ describe("ToolRunnerService", () => {
       "",
       "[execution failed] Rejected [local path redacted] [redacted]",
     ]);
+  });
+
+  it("uses an allowlisted tool error for a broker configuration failure", async () => {
+    const appendToolRunLog = mock(() => {});
+    const system = mock(() => {});
+    const service = new ToolRunnerService(
+      { run: mock(async () => 0), stop: mock(() => {}) },
+      { processCompletedRun: mock(async () => {}) },
+      {
+        recordToolRun: mock(() => createToolRunRecord()),
+        appendToolRunLog,
+        finishToolRun: mock(() => {}),
+        cancelToolRun: mock(() => {}),
+      },
+    );
+    const safeAdvice = "Isolated cURL broker is not configured. Set NULLTRACE_EXECUTION_BROKER_DIR to its private directory.";
+
+    await service.run({
+      sessionId: "session-1",
+      toolName: "curl",
+      command: "curl https://approved.test/path?secret-canary",
+      commandSource: "manual",
+      toolModule: createToolModule(
+        () => { throw new Error(`${safeAdvice} secret-canary`); },
+        () => "curl [redacted invalid command]",
+        () => safeAdvice,
+      ),
+      onStdoutLines: mock(() => {}),
+      onStderrLines: mock(() => {}),
+      onSystemLines: system,
+    });
+
+    expect(appendToolRunLog).toHaveBeenCalledWith("run-1", ["", `[execution failed] ${safeAdvice}`]);
+    expect(JSON.stringify(system.mock.calls)).not.toContain("secret-canary");
   });
 
   it("passes a prepared total time limit to the execution boundary", async () => {

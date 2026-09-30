@@ -90,6 +90,17 @@ export class ExecutionReceiptRepository {
       .run(executionId);
   }
 
+  cancelPrepared(executionId: string): void {
+    this.database.transaction(() => {
+      const result = this.database.query(
+        "UPDATE execution_receipts SET status = 'closed', cleanup = 'confirmed', sealed_inputs = '{}' WHERE execution_id = ? AND status = 'prepared' AND cleanup = 'pending'",
+      ).run(executionId);
+      if (result.changes !== 1) throw new ExecutionBrokerError("CONFLICT");
+      this.database.query("INSERT INTO execution_outcomes(execution_id, cause, exit_code, cleanup) VALUES (?, 'cancelled', NULL, 'confirmed')")
+        .run(executionId);
+    }).immediate();
+  }
+
   interruptUnreconciled(): void {
     this.database.exec("UPDATE execution_receipts SET status = 'interrupted' WHERE cleanup = 'pending'");
   }

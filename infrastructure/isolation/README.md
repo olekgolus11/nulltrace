@@ -32,7 +32,20 @@ The native verifier uses immutable local image IDs, not mutable tags. It starts 
 
 The network initializer's eventual short-lived administrative role is owned by F2, not by an image default. Images contain no Docker socket, added capabilities or production entrypoint that starts network activity. A default nonroot image user is not independently sufficient isolation: broker-owned runtime configuration must enforce it.
 
-The tools image preserves an installed shell for future explicitly isolated edited-command profiles. It does not expose a host shell or interpret operator data as Docker arguments. The public cURL worker is a fixed installed entrypoint behind a separate broker profile; its URL, method, headers and ordered inline body operations arrive through one declared private tmpfs input. The legacy public GET-only profile is unchanged. TUI approval wiring, cURL routing and authenticated cURL remain separate work.
+The tools image preserves an installed shell for future explicitly isolated edited-command profiles. It does not expose a host shell or interpret operator data as Docker arguments. The public cURL worker is a fixed installed entrypoint behind a separate broker profile; its URL, method, headers and ordered inline body operations arrive through one declared private tmpfs input. The legacy public GET-only profile is unchanged. The TUI now submits public cURL through the broker; authenticated cURL remains unsupported in this slice.
+
+## Public cURL application prerequisite
+
+Before using public cURL from the TUI, a trusted installer must provision and start the dedicated execution broker. The app does not launch a broker or synthesize daemon policy. Its only setting is the path to the existing broker-owned directory:
+
+```sh
+export NULLTRACE_EXECUTION_BROKER_DIR="/absolute/path/to/private/broker-directory"
+bun run infrastructure/isolation/run-broker.ts "$NULLTRACE_EXECUTION_BROKER_DIR"
+```
+
+The directory must be owned by the current user with mode `0700`, contain the trusted six-field `broker-daemon.json`, `client.token`, `admin.token`, `broker.key` and provisioned receipt journal, and use `0600` for each file. The broker process must remain running while the TUI submits requests. The manifest must come from trusted installation tooling and pin the immutable tools, proxy and network-initializer image IDs; do not create it from operator or model input. The app validates only its local client identity and socket tokens and never loads the daemon HMAC key or Docker policy. Same-user processes on macOS share access to these files and the desktop engine socket, so this is not a separate OS-user security boundary.
+
+The repository currently has no end-user broker installation command that writes the daemon manifest and starts the service. This section describes the interface required by packaging/install tooling; it does not make a manually created directory trusted or provide a supported end-user installation workflow. If no installer has supplied the broker directory, cURL fails with setup guidance and does not run through the host shell. The authentication toggle remains unchanged, and authenticated cURL reports that it is not available with the public worker.
 
 ## Catalog trust boundary
 
@@ -58,7 +71,7 @@ Sources:
 
 The checked-in evidence records the tested OrbStack/Linux ARM64 images, versions, local content IDs and package inventories. Local image IDs are immutable engine content identifiers; they are not published registry manifest digests. Registry publication, attestations/signing and final release digest promotion belong to packaging qualification. Base image digests and upstream archive hashes are already fixed.
 
-Docker Desktop, Linux AMD64 execution, Chromium sandbox launch, exact-origin proxy/firewall enforcement, scanner target behavior, credential delivery, lifecycle cleanup and application-result integration require their respective later tasks. The existing application's unisolated paths remain unchanged. These images alone do not prevent target traffic outside scope; the verifier's `--network none` establishes only the deliberately offline image smoke-test environment.
+Docker Desktop, Linux AMD64 execution, Chromium sandbox launch, authenticated credential delivery for other tools, and production broker installation remain later work. Public cURL application routing, redacted run history/output summaries, redirect denial, missing-broker fail-closed behavior and confirmed cancellation are qualified separately below. Other tools' existing unisolated paths remain unchanged. These images alone do not prevent target traffic outside scope; the verifier's `--network none` establishes only the deliberately offline image smoke-test environment.
 
 
 ## Recorded validation
@@ -68,6 +81,18 @@ Docker Desktop, Linux AMD64 execution, Chromium sandbox launch, exact-origin pro
 - `bunx tsc --noEmit` and `git diff --check`: passed.
 - Six native ARM64 images built and passed the offline verifier on OrbStack. See [the recorded evidence](evidence/orbstack-arm64.json).
 - The existing Nikto authentication-selection unit test now stubs its runner instead of launching an installed scanner. This removes the earlier host-dependent timeout without changing application behavior.
+
+## Public cURL application qualification
+
+The public cURL worker is exercised through the registered tool, `ToolRunnerService`, the real session repository and a separate broker daemon. The OrbStack ARM64 check verifies the approved POST reaches its receiver with its query, header and body intact; persisted command/log/output-summary data redact canaries; a missing broker produces setup guidance without a host-runner call; a redirect reaches only its first approved endpoint; cancellation confirms cleanup; and no installation-owned containers or networks remain. Authenticated cURL remains unsupported. See [the recorded application evidence](evidence/orbstack-curl-application-arm64.json).
+
+Run it after building and qualifying the three worker/network images:
+
+```sh
+TMPDIR=/tmp bun run infrastructure/isolation/qualify-curl-application.ts
+```
+
+The short temporary directory keeps macOS Unix-socket paths within the broker's fixed platform limit. The qualifier uses a numeric controlled host address for the target because trusted address mappings constrain resolution results; they do not override host DNS.
 
 ## HTTP network qualification
 
@@ -79,4 +104,4 @@ TMPDIR=/tmp bun run infrastructure/isolation/qualify-http-network.ts linux/arm64
 
 The test uses controlled host receivers and verifies allowed delivery, blocked cross-origin redirects, blocked direct proxy bypass, blocked worker DNS and blocked unauthorized IPv6. See [the network design](../../docs/design/http-execution-network.md) for the boundary and platform limits.
 
-The broker socket check also uploads a random secret slot through the authenticated `/v1/input` request and starts the supervised worker only after sealing. The worker reads `/work/input-auth` from its private tmpfs, verifies its mode, and sends the value as an Authorization header to the controlled approved receiver. The receiver compares the value with an in-memory canary and records only a boolean; the URL, headers, body and canary are excluded from the access log and evidence. Qualification scans broker host files for the random input bytes and checks that installation-labeled containers and networks are absent after completion. This validates this input transport path on OrbStack ARM64; it does not wire TUI approvals or migrate a production tool.
+The broker socket check also uploads a random secret slot through the authenticated `/v1/input` request and starts the supervised worker only after sealing. The worker reads `/work/input-auth` from its private tmpfs, verifies its mode, and sends the value as an Authorization header to the controlled approved receiver. The receiver compares the value with an in-memory canary and records only a boolean; the URL, headers, body and canary are excluded from the access log and evidence. Qualification scans broker host files for the random input bytes and checks that installation-labeled containers and networks are absent after completion. This validates the generic input transport path on OrbStack ARM64; TUI use of secret slots and authenticated tools remains future work.

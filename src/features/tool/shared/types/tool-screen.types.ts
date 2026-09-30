@@ -10,7 +10,7 @@ export type ToolName = "nmap" | "nuclei" | "ffuf" | "sqlmap" | "nikto" | "curl";
 
 export type ToolPanel = "drafts" | "chat" | "form" | "command" | "output" | "history";
 
-export type ExecutionStatus = "idle" | "running" | "success" | "cancelled" | "error";
+export type ExecutionStatus = "idle" | "running" | "cancelling" | "success" | "cancelled" | "error";
 
 export type CommandSource = "generated" | "manual";
 
@@ -64,9 +64,10 @@ export interface ToolModule {
   ) => boolean;
   prepareCommandForRun?: (
     options: ToolPrepareCommand,
-  ) => string | ToolPreparedCommand | Promise<string | ToolPreparedCommand>;
+  ) => string | ToolPreparedRun | Promise<string | ToolPreparedRun>;
   resetRunScopedState?: (toolData: unknown) => unknown;
   redactCommandForPersistence?: (command: string) => string;
+  getSafeExecutionError?: (error: unknown) => string | null;
   collectArtifacts?: (options: ToolRunCompleted) => Promise<ToolRunArtifactInput[]>;
   processSavedArtifacts?: (options: ToolArtifactsSaved) => void;
 }
@@ -110,6 +111,23 @@ export interface ToolPreparedCommand {
   redactOutput?: (content: string) => string;
   redactArtifact?: (content: string) => string;
 }
+
+export interface ToolPreparedIsolatedRun {
+  execution: {
+    kind: "broker";
+    run: (
+      onStdoutLines: (lines: string[]) => void,
+      onStderrLines: (lines: string[]) => void,
+      onSystemLines: (lines: string[]) => void,
+    ) => Promise<number>;
+    cancel: () => Promise<{ cleanup: "pending" | "confirmed" }>;
+  };
+  systemLines?: string[];
+  redactOutput?: (content: string) => string;
+  redactArtifact?: (content: string) => string;
+}
+
+export type ToolPreparedRun = ToolPreparedCommand | ToolPreparedIsolatedRun;
 
 export interface ToolRunCompleted {
   sessionId: string | null;

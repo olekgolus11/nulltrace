@@ -37,6 +37,8 @@ import { ToolRunConfirmationDialog } from "../shared/components/ToolRunConfirmat
 import { useToolKeyboardNavigation } from "../shared/hooks/use-tool-keyboard-navigation";
 import { toolPanels, toolRegistry } from "../shared/registry/tool-registry";
 import { toolWorkspaceContextService } from "../shared/services/tool-workspace-context.service";
+import { isToolExecutionBusy } from "../shared/services/tool-execution-status.helpers";
+import { isToolWorkspaceForRoute, shouldInitializeToolWorkspace } from "../shared/services/tool-workspace-route.helpers";
 import { getOwnedToolWorkspaceData } from "../shared/store/tool-workspace-data.helpers";
 import { useToolWorkspaceStore } from "../shared/store/tool-workspace.store";
 import { ToolData, ToolName } from "../shared/types/tool-screen.types";
@@ -135,7 +137,14 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
     (state) => state.reportActionDraftApplyError,
   );
   const activeToolName = useToolWorkspaceStore((state) => state.toolName);
+  const activeWorkspaceSessionId = useToolWorkspaceStore((state) => state.sessionId);
   const activeToolData = useToolWorkspaceStore((state) => state.toolData);
+  const isWorkspaceReady = isToolWorkspaceForRoute(
+    activeToolName,
+    activeWorkspaceSessionId,
+    toolName,
+    sessionId,
+  );
   const toolData = getToolData(toolName, activeToolName, targetUrl, activeToolData);
   const toolActionDrafts = drafts.filter((draft) => draft.targetTool === toolName);
   const visibleToolActionDrafts = toolActionDrafts.filter(
@@ -253,6 +262,19 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
       stopCommand();
     };
   }, [initializeWorkspace, sessionId, stopCommand, targetUrl, toolName]);
+
+  useEffect(() => {
+    if (!sessionId || !targetUrl) return;
+    const state = useToolWorkspaceStore.getState();
+    if (!shouldInitializeToolWorkspace(
+      state.toolName,
+      state.sessionId,
+      toolName,
+      sessionId,
+      isToolExecutionBusy(executionStatus),
+    )) return;
+    initializeWorkspace(toolName, targetUrl, sessionId);
+  }, [activeToolName, activeWorkspaceSessionId, executionStatus, initializeWorkspace, sessionId, targetUrl, toolName]);
 
   useEffect(() => {
     if (
@@ -467,7 +489,15 @@ export function ToolScreen({ toolName, onBack, pendingActionDraftId = null }: To
             height={layout.contentHeight}
             flexDirection="column"
           >
-            <ActiveToolWorkspace toolName={toolName} />
+            {isWorkspaceReady ? (
+              <ActiveToolWorkspace toolName={toolName} />
+            ) : (
+              <DashboardPanel title="Tool workspace" flexGrow={1} focused={activePanel === "output"}>
+                <text fg={theme.accent.warning}>
+                  Waiting for the active execution cleanup before switching workspaces.
+                </text>
+              </DashboardPanel>
+            )}
           </box>
           <box
             width={layout.historyPanelWidth}

@@ -457,6 +457,8 @@ export const toolRegistry: Record<string, ToolModule> = {
       curlCommandService.resetRunScopedState(toolData as CurlToolData),
     redactCommandForPersistence: (command: string) =>
       curlCommandService.redactCommandForPersistence(command),
+    getSafeExecutionError: (error: unknown) =>
+      curlCommandService.getSafeExecutionError(error),
     handleFormKey: (key, state, api) => {
       if (state.activePanel !== "form") return false;
       const toolData = state.toolData as CurlToolData;

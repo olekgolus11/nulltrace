@@ -15,6 +15,9 @@ import { requireExecutionId } from "./execution-validation.helpers";
 export class ExecutionBrokerService {
   private readonly plans = new Map<string, ExecutionPlan>();
   private readonly writing = new Set<string>();
+  private readonly cancelling = new Set<string>();
+  private readonly writeWaiters = new Map<string, Promise<void>>();
+  private readonly starting = new Map<string, Promise<void>>();
   private readonly options: ExecutionBrokerOptions;
   private readonly now: () => number;
 
@@ -50,16 +53,65 @@ export class ExecutionBrokerService {
     return this.snapshot(this.owned(principal, executionId));
   }
 
-  cancel(principal: ExecutionPrincipal, executionId: string): ExecutionControlReceipt {
-    const receipt = this.owned(principal, executionId);
-    if (receipt.status === "prepared" || receipt.status === "start_committed") throw new ExecutionBrokerError("CONFLICT");
+  async cancel(principal: ExecutionPrincipal, executionId: string): Promise<ExecutionControlReceipt> {
+    let receipt = this.owned(principal, executionId);
+    if (receipt.status === "closed") return this.status(principal, executionId);
+    this.cancelling.add(executionId);
     const runtime = this.requireRuntime();
+    if (receipt.status === "prepared" && this.writing.has(executionId)) {
+      await this.writeWaiters.get(executionId);
+      receipt = this.owned(principal, executionId);
+    }
+    if (receipt.status === "closed") return this.status(principal, executionId);
+    if (receipt.status === "prepared") {
+      runtime.discardInputs?.(executionId);
+      this.receipts.cancelPrepared(executionId);
+      this.plans.delete(executionId);
+      return { executionId, status: "finished", stopReason: "cancelled", cleanup: "confirmed", exitCode: null };
+    }
+    if (receipt.status === "start_committed") {
+      const starting = this.starting.get(executionId);
+      if (!starting) throw new ExecutionBrokerError("UNAVAILABLE");
+      await starting.catch(() => undefined);
+      receipt = this.owned(principal, executionId);
+      if (receipt.status === "closed") return this.status(principal, executionId);
+      if (receipt.status === "interrupted") return this.status(principal, executionId);
+    }
     if (!runtime.cancel) throw new ExecutionBrokerError("UNAVAILABLE");
     try {
       return runtime.cancel(executionId);
     } catch {
       throw new ExecutionBrokerError("UNAVAILABLE");
     }
+  }
+
+  status(principal: ExecutionPrincipal, executionId: string): ExecutionControlReceipt {
+    const receipt = this.owned(principal, executionId);
+    if (receipt.status === "closed") {
+      const outcome = this.receipts.findOutcome(executionId);
+      if (outcome) return {
+        executionId,
+        status: "finished",
+        stopReason: outcome.cause === "cancelled" || outcome.cause === "lease_expired" || outcome.cause === "deadline" ? outcome.cause : null,
+        cleanup: outcome.cleanup,
+        exitCode: outcome.exitCode,
+      };
+      return { executionId, status: "finished", stopReason: null, cleanup: "confirmed", exitCode: null };
+    }
+    if (receipt.status === "prepared" || receipt.status === "start_committed") {
+      return { executionId, status: "running", stopReason: null, cleanup: "pending", exitCode: null };
+    }
+    if (receipt.status === "interrupted") {
+      try {
+        if (!this.options.runtime?.getControl) throw new Error();
+        return this.options.runtime.getControl(executionId);
+      } catch {
+        return { executionId, status: "interrupted", stopReason: null, cleanup: "pending", exitCode: null };
+      }
+    }
+    if (!this.options.runtime?.getControl) throw new ExecutionBrokerError("UNAVAILABLE");
+    try { return this.options.runtime.getControl(executionId); }
+    catch { throw new ExecutionBrokerError("UNAVAILABLE"); }
   }
 
   renewOwnership(principal: ExecutionPrincipal, executionId: string): ExecutionControlReceipt {
@@ -106,7 +158,7 @@ export class ExecutionBrokerService {
     const runtime = this.requireRuntime();
     const receipt = this.owned(principal, executionId);
     const plan = this.plans.get(executionId);
-    if (!plan || receipt.status !== "prepared" || this.writing.has(executionId)) throw new ExecutionBrokerError("CONFLICT");
+    if (!plan || receipt.status !== "prepared" || this.writing.has(executionId) || this.cancelling.has(executionId)) throw new ExecutionBrokerError("CONFLICT");
     this.requireReconciled();
     this.authorize(principal, plan);
     const slot = plan.inputs.find((slot) => slot.id === slotId);
@@ -119,6 +171,9 @@ export class ExecutionBrokerService {
       return this.snapshot(receipt);
     }
     this.writing.add(executionId);
+    let resolveWrite!: () => void;
+    const writeFinished = new Promise<void>((resolve) => { resolveWrite = resolve; });
+    this.writeWaiters.set(executionId, writeFinished);
     try {
       await runtime.putInput(structuredClone(plan), { ...slot }, copy);
       this.authorize(principal, plan);
@@ -131,6 +186,8 @@ export class ExecutionBrokerService {
     } finally {
       copy.fill(0);
       this.writing.delete(executionId);
+      resolveWrite();
+      this.writeWaiters.delete(executionId);
     }
   }
 
@@ -139,7 +196,7 @@ export class ExecutionBrokerService {
     const receipt = this.owned(principal, executionId);
     if (["start_committed", "started", "interrupted", "closed"].includes(receipt.status)) return this.snapshot(receipt);
     const plan = this.plans.get(executionId);
-    if (!plan || this.writing.has(executionId) || plan.inputs.some((slot) => !Object.hasOwn(receipt.sealedInputs, slot.id))) {
+    if (!plan || this.writing.has(executionId) || this.cancelling.has(executionId) || plan.inputs.some((slot) => !Object.hasOwn(receipt.sealedInputs, slot.id))) {
       throw new ExecutionBrokerError("CONFLICT");
     }
     try {
@@ -153,14 +210,19 @@ export class ExecutionBrokerService {
       }
       throw error;
     }
-    try {
-      await runtime.start(structuredClone(plan));
-      this.receipts.markStarted(executionId);
-    } catch {
-      try { runtime.discardInputs?.(executionId); }
-      finally { this.receipts.markInterrupted(executionId); }
-      throw new ExecutionBrokerError("UNAVAILABLE");
-    }
+    const starting = (async () => {
+      try {
+        await runtime.start(structuredClone(plan));
+        this.receipts.markStarted(executionId);
+      } catch {
+        try { runtime.discardInputs?.(executionId); }
+        finally { this.receipts.markInterrupted(executionId); }
+        throw new ExecutionBrokerError("UNAVAILABLE");
+      }
+    })();
+    this.starting.set(executionId, starting);
+    try { await starting; }
+    finally { if (this.starting.get(executionId) === starting) this.starting.delete(executionId); }
     return this.get(principal, executionId);
   }
 

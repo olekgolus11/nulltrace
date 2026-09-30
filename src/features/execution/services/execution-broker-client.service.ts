@@ -37,6 +37,10 @@ export class ExecutionBrokerClient {
     return this.sendControl("/v1/cancel", executionId);
   }
 
+  status(executionId: string): Promise<ExecutionControlReceipt> {
+    return this.sendControl("/v1/status", executionId);
+  }
+
   renewOwnership(executionId: string): Promise<ExecutionControlReceipt> {
     return this.sendControl("/v1/renew", executionId);
   }

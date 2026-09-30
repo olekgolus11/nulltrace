@@ -118,6 +118,10 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
     return { ...this.requireRun(executionId).result };
   }
 
+  getControl(executionId: string): HttpExecutionSupervisedRun {
+    return this.get(executionId);
+  }
+
   readEvents(executionId: string, afterSequence: number, maximumEvents?: number) {
     return this.requireRun(executionId).events.read(afterSequence, maximumEvents);
   }
