@@ -5,6 +5,7 @@ import { isAbsolute, join } from "node:path";
 import { ExecutionBrokerDaemonStartup } from "../types/execution-broker-daemon.types";
 import { ExecutionPlan, ExecutionProfile } from "../types/execution-plan.types";
 import { requireExecutionId, requireExecutionRecord } from "./execution-validation.helpers";
+import { snapshotReservedControlEndpoints } from "./http-execution-policy.helpers";
 
 const publicCurlProfile: ExecutionProfile = {
   id: "public-curl-v1",
@@ -65,7 +66,7 @@ export async function loadExecutionBrokerDaemonConfiguration(directory: string):
     const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(configBytes));
     const config = requireExecutionRecord(value, [
       "version", "installationId", "instanceId", "dockerExecutable", "images",
-      "trustedNonPublicMappings",
+      "trustedNonPublicMappings", ...(hasOwn(value, "reservedControlEndpoints") ? ["reservedControlEndpoints"] : []),
     ]);
     if (config.version !== 1) throw new Error("Unsupported broker configuration.");
     const installationId = requireExecutionId(config.installationId);
@@ -77,6 +78,9 @@ export async function loadExecutionBrokerDaemonConfiguration(directory: string):
       if (typeof image !== "string" || !/^sha256:[a-f0-9]{64}$/.test(image)) throw new Error("Invalid isolation image ID.");
     }
     const mappings = parseTrustedMappings(config.trustedNonPublicMappings);
+    const reservedControlEndpoints = hasOwn(config, "reservedControlEndpoints")
+      ? snapshotReservedControlEndpoints(config.reservedControlEndpoints)
+      : Object.freeze([]);
     const principal = { installationId, instanceId };
     return {
       dockerExecutable: config.dockerExecutable,
@@ -89,6 +93,7 @@ export async function loadExecutionBrokerDaemonConfiguration(directory: string):
         profiles: [publicCurlProfile, publicCurlWorkerProfile],
         publicDataEventProfileIds: [publicCurlWorkerProfile.id],
         trustedNonPublicMappings: mappings,
+        reservedControlEndpoints,
         useAuthorizationLedger: true,
         authorizationPlanValidator: (plan) => isSupportedPublicCurlPlan(plan) || isSupportedPublicCurlWorkerPlan(plan),
         readAuthorization: () => null,
@@ -105,6 +110,10 @@ export async function loadExecutionBrokerDaemonConfiguration(directory: string):
     tokenBytes?.fill(0);
     adminTokenBytes?.fill(0);
   }
+}
+
+function hasOwn(value: unknown, key: string): boolean {
+  return typeof value === "object" && value !== null && !Array.isArray(value) && Object.hasOwn(value, key);
 }
 
 function isSupportedPublicCurlPlan(plan: ExecutionPlan): boolean {

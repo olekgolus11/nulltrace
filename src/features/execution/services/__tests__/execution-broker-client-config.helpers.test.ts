@@ -47,6 +47,24 @@ describe("execution broker client configuration", () => {
     });
   });
 
+  test("accepts a validated private reservation field without exposing it as client authority", async () => {
+    const directory = await createClientDirectory();
+    const manifestPath = join(directory, "broker-daemon.json");
+    const manifest = JSON.parse(await Bun.file(manifestPath).text()) as Record<string, unknown>;
+    await writeFile(manifestPath, JSON.stringify({
+      ...manifest,
+      reservedControlEndpoints: [{ addresses: ["192.168.1.20"], port: 8443 }],
+    }), { mode: 0o600 });
+    await chmod(manifestPath, 0o600);
+
+    const configuration = await loadExecutionBrokerClientConfiguration(directory);
+    expect(configuration).not.toHaveProperty("reservedControlEndpoints");
+
+    await writeFile(manifestPath, JSON.stringify({ ...manifest, reservedControlEndpoints: null }), { mode: 0o600 });
+    await chmod(manifestPath, 0o600);
+    await expect(loadExecutionBrokerClientConfiguration(directory)).rejects.toThrow("invalid");
+  });
+
   test("reports actionable advice for an unprovisioned broker directory", async () => {
     const directory = await mkdtemp(join(tmpdir(), "nulltrace-broker-empty-"));
     directories.push(directory);
