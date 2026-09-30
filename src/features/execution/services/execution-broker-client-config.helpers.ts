@@ -2,6 +2,7 @@ import { constants } from "node:fs";
 import { lstat, open } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import { ExecutionBrokerClientConfiguration } from "../types/execution-broker-client.types";
+import { snapshotReservedControlEndpoints } from "./http-execution-policy.helpers";
 
 /** Reads only client identity and socket credentials; daemon secrets and image policy stay out of the app. */
 export async function loadExecutionBrokerClientConfiguration(
@@ -23,9 +24,11 @@ export async function loadExecutionBrokerClientConfiguration(
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
     const record = value as Record<string, unknown>;
     const manifestKeys = ["version", "installationId", "instanceId", "dockerExecutable", "images", "trustedNonPublicMappings"];
+    if (Object.hasOwn(record, "reservedControlEndpoints")) manifestKeys.push("reservedControlEndpoints");
     if (Object.keys(record).length !== manifestKeys.length || manifestKeys.some((key) => !(key in record)) || record.version !== 1 ||
       typeof record.installationId !== "string" || !/^[A-Za-z0-9_-]{1,96}$/.test(record.installationId) ||
       typeof record.instanceId !== "string" || !/^[A-Za-z0-9_-]{1,96}$/.test(record.instanceId)) throw new Error();
+    if (Object.hasOwn(record, "reservedControlEndpoints")) snapshotReservedControlEndpoints(record.reservedControlEndpoints);
     const clientToken = clientBytes.toString("ascii");
     const adminToken = adminBytes.toString("ascii");
     if (!/^[a-f0-9]{64}$/.test(clientToken) || !/^[a-f0-9]{64}$/.test(adminToken) || clientToken === adminToken) throw new Error();
