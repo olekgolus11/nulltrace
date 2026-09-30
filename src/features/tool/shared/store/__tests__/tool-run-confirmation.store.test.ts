@@ -11,6 +11,38 @@ afterEach(() => {
 });
 
 describe("tool run confirmation", () => {
+  it("keeps an isolated run busy while broker cleanup is pending", async () => {
+    const toolData = { form: { targetUrl: "https://example.com" }, selectedField: 0 };
+    useToolWorkspaceStore.setState({
+      toolName: "curl",
+      sessionId: "session-1",
+      targetUrl: "https://example.com",
+      toolData,
+      commandInput: "curl https://example.com",
+      generatedCommand: "curl https://example.com",
+      commandSource: "generated",
+      outputLines: ["cleanup pending"],
+      executionStatus: "cancelling",
+      lastExitCode: null,
+      isHistoricPreview: false,
+    });
+
+    await useToolWorkspaceStore.getState().runCommand();
+    const applied = useToolWorkspaceStore.getState().applyActionDraftState({
+      toolData: { form: {}, selectedField: 0 },
+      commandInput: "nmap example.com",
+      generatedCommand: "nmap example.com",
+      commandSource: "generated",
+      message: "draft",
+    });
+    useToolWorkspaceStore.getState().initializeWorkspace("nmap", "https://example.com", "session-1");
+
+    expect(applied).toBe(false);
+    expect(useToolWorkspaceStore.getState().toolName).toBe("curl");
+    expect(useToolWorkspaceStore.getState().executionStatus).toBe("cancelling");
+    expect(useToolWorkspaceStore.getState().toolData).toBe(toolData);
+  });
+
   it("gates disruptive Nikto execution and cancellation preserves workspace state", async () => {
     const base = niktoCommandService.setProfile(
       niktoCommandService.createInitialToolData("https://example.com"),

@@ -4,6 +4,7 @@ import { RefObject } from "react";
 import { useToolWorkspaceStore } from "../store/tool-workspace.store";
 import { toolRegistry } from "../registry/tool-registry";
 import { ActiveSessionConversation } from "../../../chat/services/session-conversation.service";
+import { isToolExecutionBusy } from "../services/tool-execution-status.helpers";
 
 interface UseToolKeyboardNavigationProps {
   onBack: () => void;
@@ -174,7 +175,7 @@ export function useToolKeyboardNavigation({
       return;
     }
 
-    if (key.ctrl && key.name === "c" && state.executionStatus === "running") {
+    if (key.ctrl && key.name === "c" && isToolExecutionBusy(state.executionStatus)) {
       state.stopCommand();
       return;
     }

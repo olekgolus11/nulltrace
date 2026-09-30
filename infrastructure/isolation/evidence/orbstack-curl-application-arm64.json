@@ -1,0 +1,69 @@
+{
+  "checkedAt": "2026-09-30T11:07:08.044Z",
+  "platform": "linux/arm64",
+  "engine": {
+    "version": "29.4.0",
+    "apiVersion": "1.54",
+    "os": "linux",
+    "architecture": "arm64",
+    "kernelVersion": "7.0.14-orbstack-00380-ga7e0a2dc9535"
+  },
+  "imageTags": {
+    "worker": "nulltrace-isolation-tools:2026-09-21-arm64",
+    "proxy": "nulltrace-isolation-proxy:2026-09-21-arm64",
+    "initializer": "nulltrace-isolation-network-init:2026-09-21-arm64"
+  },
+  "imageIds": [
+    "sha256:bea7401b17ddc0f35761a6cfbcf2053437958cd98a99d5c8496e8e150245461a",
+    "sha256:f09182c93bd061a9b848b3f9eb7c1565a7b00f05b72c27d6c5baee4a98cc19f1",
+    "sha256:45217ed397209f25014ac7e1e5d27f4f5146a394b4db40ec560d98a6abb2d2a7"
+  ],
+  "checks": [
+    {
+      "name": "forbidden receiver is observable from a disposable worker image",
+      "passed": true,
+      "detail": "disposable worker reached forbidden receiver once before the isolated redirect check; counter reset"
+    },
+    {
+      "name": "registered application cURL persists a redacted successful request",
+      "passed": true,
+      "detail": "real registry and ToolRunnerService; receiver got POST, query, header and body; persisted success/history/log/output summary redacted all canaries; host runner calls 0"
+    },
+    {
+      "name": "missing broker fails closed without a host command fallback",
+      "passed": true,
+      "detail": "missing broker setup guidance persisted; receiver count unchanged; host runner calls 0"
+    },
+    {
+      "name": "cross-origin redirect is denied before the forbidden receiver",
+      "passed": true,
+      "detail": "approved redirect receiver got one request; worker exited 2 before forbidden receiver; error history and output summary persisted"
+    },
+    {
+      "name": "cancellation confirms cleanup through the application runner",
+      "passed": true,
+      "detail": "live request cancelled by ToolRunnerService; broker cleanup confirmed; container and network counts 0"
+    },
+    {
+      "name": "application data and host execution boundary contain no request canaries",
+      "passed": true,
+      "detail": "temporary SQLite application data has no request canaries; host command runner calls 0"
+    }
+  ],
+  "receiverCounts": {
+    "approved": 2,
+    "forbidden": 0
+  },
+  "persistence": {
+    "runs": 4,
+    "canariesFound": false
+  },
+  "cleanup": {
+    "installationContainers": 0,
+    "installationNetworks": 0
+  },
+  "hostRunnerCalls": {
+    "run": 0,
+    "stop": 0
+  }
+}

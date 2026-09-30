@@ -48,7 +48,7 @@ export class ExecutionBrokerHttpService {
           bytes.fill(0);
         }
       }
-      if (!["/v1/prepare", "/v1/get", "/v1/start", "/v1/events", "/v1/cancel", "/v1/renew"].includes(path) || request.headers.get("content-type") !== "application/json") {
+      if (!["/v1/prepare", "/v1/get", "/v1/start", "/v1/events", "/v1/cancel", "/v1/renew", "/v1/status"].includes(path) || request.headers.get("content-type") !== "application/json") {
         throw new ExecutionBrokerError("INVALID_REQUEST");
       }
       const bytes = await this.readBody(request, 65_536);
@@ -66,7 +66,8 @@ export class ExecutionBrokerHttpService {
       let executionId: string;
       try { executionId = requireExecutionId(requireExecutionRecord(payload, ["executionId"]).executionId); }
       catch { throw new ExecutionBrokerError("INVALID_REQUEST"); }
-      if (path === "/v1/cancel") return Response.json(this.broker.cancel(principal, executionId));
+      if (path === "/v1/cancel") return Response.json(await this.broker.cancel(principal, executionId));
+      if (path === "/v1/status") return Response.json(this.broker.status(principal, executionId));
       if (path === "/v1/renew") return Response.json(this.broker.renewOwnership(principal, executionId));
       return Response.json(path === "/v1/get"
         ? this.broker.get(principal, executionId)

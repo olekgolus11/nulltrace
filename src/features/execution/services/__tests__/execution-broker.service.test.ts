@@ -108,6 +108,55 @@ describe("execution admission", () => {
     expect(ledger.claim(principal, "approval-1", { ...original, executionId: "another-run" })).toBeNull();
   });
 
+  test("cancels a prepared run durably without starting a target process", async () => {
+    let starts = 0;
+    let discarded = 0;
+    const state = fixture(":memory:", {
+      async putInput() {},
+      async start() { starts++; },
+      discardInputs() { discarded++; },
+    });
+    state.broker.prepare(principal, original);
+
+    const cancellation = await state.broker.cancel(principal, original.executionId);
+
+    expect(cancellation).toMatchObject({ status: "finished", stopReason: "cancelled", cleanup: "confirmed", exitCode: null });
+    expect(await state.broker.cancel(principal, original.executionId)).toEqual(cancellation);
+    expect(state.broker.status(principal, original.executionId)).toEqual(cancellation);
+    expect(state.broker.get(principal, original.executionId)).toMatchObject({ status: "closed", cleanup: "confirmed" });
+    expect(starts).toBe(0);
+    expect(discarded).toBe(1);
+  });
+
+  test("cancellation during input upload blocks a concurrent start and discards the staged slot", async () => {
+    let announceWrite!: () => void;
+    let finishWrite!: () => void;
+    const writeStarted = new Promise<void>((resolve) => { announceWrite = resolve; });
+    const writeGate = new Promise<void>((resolve) => { finishWrite = resolve; });
+    let starts = 0;
+    let discarded = 0;
+    const state = fixture(":memory:", {
+      async putInput() { announceWrite(); await writeGate; },
+      async start() { starts++; },
+      discardInputs() { discarded++; },
+    });
+    state.broker.prepare(principal, original);
+    const upload = state.broker.putInput(principal, original.executionId, "credentials", new Uint8Array([1]));
+    await writeStarted;
+
+    const cancellation = state.broker.cancel(principal, original.executionId);
+    const repeatedCancellation = state.broker.cancel(principal, original.executionId);
+    await expect(state.broker.start(principal, original.executionId)).rejects.toThrow("CONFLICT");
+    finishWrite();
+    await upload;
+
+    expect(await cancellation).toMatchObject({ status: "finished", stopReason: "cancelled", cleanup: "confirmed" });
+    expect(await repeatedCancellation).toEqual(await cancellation);
+    expect(starts).toBe(0);
+    expect(discarded).toBe(1);
+    expect(state.broker.get(principal, original.executionId)).toMatchObject({ status: "closed", cleanup: "confirmed" });
+  });
+
   test("rejects a grant that expires after prepare but before start", async () => {
     const database = new Database(":memory:");
     databases.push(database);
@@ -327,7 +376,7 @@ describe("broker transport", () => {
     expect(await client.renewOwnership("run-1")).toMatchObject({ status: "running", cleanup: "pending" });
     expect(await client.cancel("run-1")).toMatchObject({ status: "running", stopReason: "cancelled", cleanup: "pending" });
     expect(await client.cancel("run-1")).toMatchObject({ status: "running", stopReason: "cancelled" });
-    expect(() => state.broker.cancel({ ...principal, instanceId: "other" }, "run-1")).toThrow("NOT_FOUND");
+    await expect(state.broker.cancel({ ...principal, instanceId: "other" }, "run-1")).rejects.toThrow("NOT_FOUND");
     expect(() => state.broker.renewOwnership({ ...principal, instanceId: "other" }, "run-1")).toThrow("NOT_FOUND");
     expect((await http.handle(request("cancel", JSON.stringify({ executionId: "run-1" }), foreignToken))).status).toBe(404);
     expect(starts).toBe(1);

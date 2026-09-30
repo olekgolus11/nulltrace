@@ -26,6 +26,7 @@ export interface ExecutionRuntimeAdapter {
   start(plan: ExecutionPlan): Promise<void>;
   readEvents?(executionId: string, afterSequence: number, maximumEvents?: number): ExecutionEventPage;
   cancel?(executionId: string): ExecutionControlReceipt;
+  getControl?(executionId: string): ExecutionControlReceipt;
   renewOwnership?(executionId: string): ExecutionControlReceipt;
 }
 

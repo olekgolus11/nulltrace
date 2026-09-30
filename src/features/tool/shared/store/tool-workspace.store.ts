@@ -10,6 +10,7 @@ import {
 import { toolPanels, toolRegistry } from "../registry/tool-registry";
 import { cyclePanel as getCycledPanel } from "../../../../shared/model/panel-navigation";
 import { PanelDirection } from "../../../../shared/model/panel-navigation.types";
+import { isToolExecutionBusy } from "../services/tool-execution-status.helpers";
 
 const initialOutputLines = [
   "Awaiting command.",
@@ -79,6 +80,17 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
   confirmedRunCommand: null,
 
   initializeWorkspace: (toolName, targetUrl, sessionId) => {
+    const current = get();
+    if (isToolExecutionBusy(current.executionStatus)) {
+      set({
+        activePanel: "output",
+        outputLines: [
+          ...current.outputLines,
+          "Workspace change is unavailable until the active run or isolated cleanup is complete.",
+        ],
+      });
+      return;
+    }
     const toolModule = toolRegistry[toolName];
     const toolData = toolModule?.createInitialToolData(targetUrl) ?? null;
     const generatedCommand = toolModule?.buildGeneratedCommand(toolData) ?? "";
@@ -175,7 +187,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
   runCommand: async () => {
     const state = get();
     const command = state.commandInput.trim();
-    if (!command || state.executionStatus === "running" || state.isHistoricPreview) {
+    if (!command || isToolExecutionBusy(state.executionStatus) || state.isHistoricPreview) {
       return;
     }
 
@@ -246,6 +258,9 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
         });
         get().loadHistoryRuns();
       },
+      onRunCleanupPending: () => {
+        set({ executionStatus: "cancelling" });
+      },
     });
   },
 
@@ -286,6 +301,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
   },
 
   selectHistoryRun: (toolRunId) => {
+    if (isToolExecutionBusy(get().executionStatus)) return;
     const selectedHistoryRun = sessionRepository.getToolRunWithLogs(toolRunId);
 
     if (!selectedHistoryRun) {
@@ -328,6 +344,7 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
 
   rerunSelectedHistoryRun: () => {
     const state = get();
+    if (isToolExecutionBusy(state.executionStatus)) return;
     const selectedHistoryRun =
       state.selectedHistoryRun ??
       (state.selectedHistoryRunId
@@ -357,13 +374,13 @@ export const useToolWorkspaceStore = create<ToolWorkspaceStore>((set, get) => ({
     })),
 
   applyActionDraftState: (draftState) => {
-    if (get().executionStatus === "running") {
+    if (isToolExecutionBusy(get().executionStatus)) {
       set({
         activePanel: "output",
         outputLines: [
           "Could not apply action draft.",
-          "A scanner is currently running. Stop or wait for it to finish before applying a draft.",
-          "The active scanner process was left running.",
+          "A run or isolated cleanup is still active. Wait for confirmation before applying a draft.",
+          "The current execution state was left unchanged.",
         ],
       });
       return false;

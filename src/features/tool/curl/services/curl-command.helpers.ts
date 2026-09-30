@@ -133,6 +133,7 @@ export function validateCurlCommand(
 
   let method: CurlHttpMethod = "GET";
   let targetUrl: string | null = null;
+  let targetCount = 0;
   let requestBody = "";
   for (let index = 1; index < tokens.length; index += 1) {
     const token = tokens[index]!;
@@ -140,17 +141,21 @@ export function validateCurlCommand(
     const option = equalsIndex > 0 ? token.slice(0, equalsIndex) : token;
     const inlineValue = equalsIndex > 0 ? token.slice(equalsIndex + 1) : null;
     if (blockedOptions.has(option)) {
-      throw new Error(`cURL option ${option} is managed by NullTrace and cannot be edited.`);
+      throw new Error("This cURL option is managed by NullTrace and cannot be edited.");
     }
     if (option.startsWith("-")) {
       if (!valueOptions.has(option)) {
-        throw new Error(`Unsupported cURL option: ${option}.`);
+        throw new Error("Unsupported cURL option.");
       }
       const value = inlineValue ?? tokens[index + 1];
       if (value === undefined) throw new Error(`cURL option ${option} requires a value.`);
       if (inlineValue === null) index += 1;
       if (option === "-X" || option === "--request") method = normalizeCurlMethod(value);
-      else if (option === "--url") targetUrl = value;
+      else if (option === "--url") {
+        targetCount += 1;
+        if (targetCount > 1) throw new Error("A cURL request must contain exactly one target URL.");
+        targetUrl = value;
+      }
       else if (option === "-d" || option.startsWith("--data")) {
         if (value.startsWith("@")) {
           throw new Error("cURL request bodies cannot read from local files.");
@@ -159,7 +164,8 @@ export function validateCurlCommand(
       } else if (option === "-H" || option === "--header") validateCurlHeader(value);
       continue;
     }
-    if (targetUrl) throw new Error("A cURL request must contain exactly one target URL.");
+    targetCount += 1;
+    if (targetCount > 1) throw new Error("A cURL request must contain exactly one target URL.");
     targetUrl = token;
   }
 
@@ -186,47 +192,81 @@ export function validateCurlRequestBodySize(body: string) {
   }
 }
 
+export function readCurlHeaders(value: string): string[] {
+  return value
+    .split(/\r?\n/)
+    .map((header) => header.trim())
+    .filter(Boolean);
+}
+
+export function hasContentTypeHeader(value: string): boolean {
+  return readCurlHeaders(value).some((header) => /^content-type\s*:/i.test(header));
+}
+
 export function normalizeCurlMethod(value: string): CurlHttpMethod {
   const normalized = value.trim().toUpperCase() as CurlHttpMethod;
-  if (!allowedMethods.has(normalized)) throw new Error(`Unsupported HTTP method: ${value}.`);
+  if (!allowedMethods.has(normalized)) throw new Error("Unsupported cURL HTTP method.");
   return normalized;
 }
 
 export function redactCurlCommand(command: string) {
   try {
     const tokens = tokenizeCurlCommand(command);
-    const redacted: string[] = [];
-    for (let index = 0; index < tokens.length; index += 1) {
+    if (tokens[0] !== "curl") return "curl [redacted invalid command]";
+    const redacted: string[] = ["'curl'"];
+    let targetCount = 0;
+    for (let index = 1; index < tokens.length; index += 1) {
       const token = tokens[index]!;
-      if ((token === "-H" || token === "--header") && tokens[index + 1]) {
-        redacted.push(token, "'[redacted]'");
-        index += 1;
+      const equalsIndex = token.indexOf("=");
+      const option = equalsIndex > 0 ? token.slice(0, equalsIndex) : token;
+      const inlineValue = equalsIndex > 0 ? token.slice(equalsIndex + 1) : null;
+      if (option === "-X" || option === "--request") {
+        const method = inlineValue ?? tokens[index + 1];
+        if (!method || !allowedMethods.has(method.toUpperCase() as CurlHttpMethod)) return "curl [redacted invalid command]";
+        redacted.push(option, quoteCurlShellValue(method.toUpperCase()));
+        if (inlineValue === null) index += 1;
         continue;
       }
-      if (/^(?:-H|--header)=/.test(token)) {
-        redacted.push(`${token.slice(0, token.indexOf("="))}='[redacted]'`);
+      if ((option === "-H" || option === "--header") && (inlineValue !== null || tokens[index + 1] !== undefined)) {
+        redacted.push(option, "'[redacted]'");
+        if (inlineValue === null) index += 1;
         continue;
       }
-      if (["-d", "--data", "--data-raw", "--data-binary"].includes(token) && tokens[index + 1]) {
-        redacted.push(token, "'[redacted]'");
-        index += 1;
+      if (["-d", "--data", "--data-raw", "--data-binary"].includes(option) &&
+        (inlineValue !== null || tokens[index + 1] !== undefined)) {
+        redacted.push(option, "'[redacted]'");
+        if (inlineValue === null) index += 1;
         continue;
       }
-      if (/^(?:-d|--data(?:-raw|-binary)?)=/.test(token)) {
-        redacted.push(`${token.slice(0, token.indexOf("="))}='[redacted]'`);
+      if (option === "--url") {
+        const value = inlineValue ?? tokens[index + 1];
+        if (value === undefined || ++targetCount !== 1) return "curl [redacted invalid command]";
+        redacted.push("--url", quoteCurlShellValue(redactUrlForPersistence(value)));
+        if (inlineValue === null) index += 1;
         continue;
       }
-      if (["-b", "--cookie", "-u", "--user", "--oauth2-bearer"].includes(token) && tokens[index + 1]) {
-        redacted.push(token, "'[redacted]'");
-        index += 1;
+      if (["-b", "--cookie", "-u", "--user", "--oauth2-bearer"].includes(option) &&
+        (inlineValue !== null || tokens[index + 1] !== undefined)) {
+        redacted.push(option, "'[redacted]'");
+        if (inlineValue === null) index += 1;
         continue;
       }
-      redacted.push(quoteCurlShellValue(token));
+      if (token.startsWith("-")) return "curl [redacted invalid command]";
+      if (++targetCount !== 1) return "curl [redacted invalid command]";
+      redacted.push(quoteCurlShellValue(redactUrlForPersistence(token)));
     }
     return redacted.join(" ");
   } catch {
     return "curl [redacted invalid command]";
   }
+}
+
+function redactUrlForPersistence(value: string): string {
+  try {
+    const url = new URL(value);
+    if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username || url.password) return "[redacted URL]";
+    return `${url.origin}${url.pathname}${url.search ? "?[redacted]" : ""}${url.hash ? "#[redacted]" : ""}`;
+  } catch { return "[redacted URL]"; }
 }
 
 function assertSafeCurlShell(command: string) {

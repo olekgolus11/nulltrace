@@ -22,10 +22,17 @@ interface SessionRepositoryContract {
 interface ActiveToolRun {
   toolRunId: string | null;
   sessionId: string | null;
+  toolName: string | null;
   toolModule: ToolModule | undefined;
   onSystemLines: (lines: string[]) => void;
   onRunCancelled?: (event: { toolRunId: string | null }) => void;
+  onRunCleanupPending?: (event: { toolRunId: string | null }) => void;
   cancelled: boolean;
+  cancellationRecorded: boolean;
+  isolatedExpected: boolean;
+  isolatedExecution: import("../types/tool-screen.types").ToolPreparedIsolatedRun["execution"] | null;
+  cleanupConfirmed: boolean;
+  cleanupPending: boolean;
   cleanupPreparedRun: (() => void) | null;
   emittedOutputLineCount: number;
   isOutputTruncated: boolean;
@@ -49,6 +56,7 @@ interface RunToolCommandInput {
     exitCode: number | null;
   }) => void;
   onRunCancelled?: (event: { toolRunId: string | null }) => void;
+  onRunCleanupPending?: (event: { toolRunId: string | null }) => void;
 }
 
 export class ToolRunnerService {
@@ -75,7 +83,12 @@ export class ToolRunnerService {
     onSystemLines,
     onRunFinished,
     onRunCancelled,
+    onRunCleanupPending,
   }: RunToolCommandInput) {
+    if (toolName === "curl" && this.activeRun?.toolName === "curl") {
+      onSystemLines(["[previous isolated cURL run is still awaiting broker cleanup]"]);
+      return;
+    }
     const persistedCommand = toolModule?.redactCommandForPersistence?.(command) ?? command;
     const toolRun =
       sessionId && toolName
@@ -91,9 +104,16 @@ export class ToolRunnerService {
       toolRunId,
       sessionId,
       toolModule,
+      toolName,
       onSystemLines,
       onRunCancelled,
+      onRunCleanupPending,
       cancelled: false,
+      cancellationRecorded: false,
+      isolatedExpected: toolName === "curl",
+      isolatedExecution: null,
+      cleanupConfirmed: false,
+      cleanupPending: false,
       cleanupPreparedRun: null,
       emittedOutputLineCount: 0,
       isOutputTruncated: false,
@@ -118,17 +138,22 @@ export class ToolRunnerService {
         typeof preparation === "object" && preparation !== null && "then" in preparation
           ? await preparation
           : preparation;
-      const preparedCommand = typeof prepared === "string" ? prepared : prepared.command;
+      const isIsolated = typeof prepared === "object" && prepared !== null && "execution" in prepared;
+      if (toolName === "curl" && !isIsolated) {
+        throw new Error("cURL requires the isolated public worker; local execution is disabled.");
+      }
+      if (isIsolated && toolName !== "curl") {
+        throw new Error("Isolated execution is unavailable for this tool.");
+      }
+      const preparedCommand = isIsolated ? "" : typeof prepared === "string" ? prepared : prepared.command;
       redactPreparedOutput = typeof prepared === "string" ? undefined : prepared.redactOutput;
       redactPreparedArtifact = typeof prepared === "string" ? undefined : prepared.redactArtifact;
-      preparePreparedArtifacts =
-        typeof prepared === "string" ? undefined : prepared.prepareArtifacts;
-      const preparedSystemLines =
-        typeof prepared === "string" ? [] : prepared.systemLines ?? [];
-      const timeoutMs = typeof prepared === "string" ? undefined : prepared.timeoutMs;
+      preparePreparedArtifacts = typeof prepared === "string" || isIsolated ? undefined : prepared.prepareArtifacts;
+      const preparedSystemLines = typeof prepared === "string" ? [] : prepared.systemLines ?? [];
+      const timeoutMs = typeof prepared === "string" || isIsolated ? undefined : prepared.timeoutMs;
       let hasCleanedPreparedRun = false;
       activeRun.cleanupPreparedRun =
-        typeof prepared === "string" || !prepared.cleanup
+        typeof prepared === "string" || isIsolated || !prepared.cleanup
           ? null
           : () => {
               if (hasCleanedPreparedRun) {
@@ -140,6 +165,18 @@ export class ToolRunnerService {
 
       if (activeRun.cancelled) {
         activeRun.cleanupPreparedRun?.();
+        if (isIsolated) {
+          activeRun.isolatedExecution = prepared.execution;
+          const receipt = await prepared.execution.cancel();
+          if (receipt.cleanup === "confirmed") {
+            activeRun.cleanupConfirmed = true;
+            this.recordCancellation(activeRun);
+          }
+          else onRunCleanupPending?.({ toolRunId });
+        } else {
+          activeRun.cleanupConfirmed = true;
+          this.recordCancellation(activeRun);
+        }
         return;
       }
 
@@ -161,7 +198,14 @@ export class ToolRunnerService {
         const redactedLines = redactPreparedOutput ? lines.map(redactPreparedOutput) : lines;
         this.emitBoundedOutput(activeRun, redactedLines, "stderr", onStderrLines);
       };
-      const exitCode = timeoutMs
+      const handleSystem = (lines: string[]) => {
+        const redactedLines = redactPreparedOutput ? lines.map(redactPreparedOutput) : lines;
+        this.emitBoundedOutput(activeRun, redactedLines, "system", onSystemLines);
+      };
+      if (isIsolated) activeRun.isolatedExecution = prepared.execution;
+      const exitCode = isIsolated
+        ? await prepared.execution.run(handleStdout, handleStderr, handleSystem)
+        : timeoutMs
         ? await this.commandRunner.run(
             preparedCommand,
             handleStdout,
@@ -171,6 +215,8 @@ export class ToolRunnerService {
         : await this.commandRunner.run(preparedCommand, handleStdout, handleStderr);
 
       if (activeRun.cancelled) {
+        activeRun.cleanupConfirmed = true;
+        this.recordCancellation(activeRun);
         if (redactPreparedArtifact || preparePreparedArtifacts) {
           await this.artifactPipeline.processCompletedRun({
             sessionId,
@@ -221,7 +267,24 @@ export class ToolRunnerService {
         exitCode,
       });
     } catch (error) {
+      if (activeRun.isolatedExecution && !activeRun.cleanupConfirmed && !activeRun.cancelled) {
+        const cleanup = await activeRun.isolatedExecution.cancel();
+        if (cleanup.cleanup === "confirmed") activeRun.cleanupConfirmed = true;
+        else {
+          activeRun.cleanupPending = true;
+          onSystemLines(["", "[execution failed; broker cleanup confirmation pending]"]);
+          onRunCleanupPending?.({ toolRunId });
+          return;
+        }
+      }
       if (activeRun.cancelled) {
+        if (activeRun.isolatedExecution && !activeRun.cleanupConfirmed) {
+          onSystemLines(["", "[cancellation requested; broker cleanup confirmation pending]"]);
+          onRunCleanupPending?.({ toolRunId });
+          return;
+        }
+        activeRun.cleanupConfirmed = true;
+        this.recordCancellation(activeRun);
         if (redactPreparedArtifact || preparePreparedArtifacts) {
           await this.artifactPipeline.processCompletedRun({
             sessionId,
@@ -240,10 +303,11 @@ export class ToolRunnerService {
       }
 
       const rawMessage = error instanceof Error ? error.message : "Unknown execution error";
-      const message =
-        redactPreparedOutput?.(rawMessage) ??
-        toolModule?.redactCommandForPersistence?.(rawMessage) ??
-        rawMessage;
+      const message = toolModule?.getSafeExecutionError
+        ? toolModule.getSafeExecutionError(error) ?? "The tool failed with an unrecognized error."
+        : redactPreparedOutput?.(rawMessage) ??
+          toolModule?.redactCommandForPersistence?.(rawMessage) ??
+          rawMessage;
       const failureMessage = `[execution failed] ${message}`;
       if (toolRunId) {
         this.repository.appendToolRunLog(toolRunId, ["", failureMessage]);
@@ -274,36 +338,64 @@ export class ToolRunnerService {
       });
     } finally {
       activeRun.cleanupPreparedRun?.();
-      if (this.activeRun === activeRun) {
+      if (this.activeRun === activeRun && !activeRun.cleanupPending && (!activeRun.cancelled || activeRun.cleanupConfirmed)) {
         this.activeRun = null;
       }
     }
   }
 
   stop() {
-    if (!this.activeRun || this.activeRun.cancelled) {
+    if (!this.activeRun) {
       return;
     }
 
+    if (this.activeRun.cancelled && !this.activeRun.isolatedExecution) return;
+
     this.activeRun.cancelled = true;
 
-    const cancelMessage = "[run cancelled by operator]";
-    if (this.activeRun.toolRunId) {
-      this.repository.appendToolRunLog(this.activeRun.toolRunId, ["", cancelMessage]);
-      this.repository.cancelToolRun(this.activeRun.toolRunId);
+    if (this.activeRun.isolatedExpected) {
+      const activeRun = this.activeRun;
+      activeRun.onSystemLines(["", "[cancellation requested; waiting for isolated cleanup confirmation]"]);
+      if (!activeRun.isolatedExecution) {
+        activeRun.onRunCleanupPending?.({ toolRunId: activeRun.toolRunId });
+        return;
+      }
+      void activeRun.isolatedExecution.cancel().then((receipt) => {
+        if (receipt.cleanup === "confirmed") {
+          activeRun.cleanupConfirmed = true;
+          activeRun.cleanupPending = false;
+          this.recordCancellation(activeRun);
+          if (this.activeRun === activeRun) this.activeRun = null;
+        } else {
+          activeRun.onRunCleanupPending?.({ toolRunId: activeRun.toolRunId });
+        }
+      }).catch(() => {
+        activeRun.onRunCleanupPending?.({ toolRunId: activeRun.toolRunId });
+      });
+      return;
     }
-    this.activeRun.onSystemLines(["", cancelMessage]);
-    this.activeRun.onRunCancelled?.({
-      toolRunId: this.activeRun.toolRunId,
-    });
+
+    this.recordCancellation(this.activeRun);
     this.activeRun.cleanupPreparedRun?.();
     this.commandRunner.stop();
+  }
+
+  private recordCancellation(activeRun: ActiveToolRun): void {
+    if (activeRun.cancellationRecorded) return;
+    activeRun.cancellationRecorded = true;
+    const cancelMessage = "[run cancelled by operator]";
+    if (activeRun.toolRunId) {
+      this.repository.appendToolRunLog(activeRun.toolRunId, ["", cancelMessage]);
+      this.repository.cancelToolRun(activeRun.toolRunId);
+    }
+    activeRun.onSystemLines(["", cancelMessage]);
+    activeRun.onRunCancelled?.({ toolRunId: activeRun.toolRunId });
   }
 
   private emitBoundedOutput(
     activeRun: ActiveToolRun,
     lines: string[],
-    stream: "stdout" | "stderr",
+    stream: "stdout" | "stderr" | "system",
     onLines: (lines: string[]) => void,
   ) {
     const remainingLineCount = this.maxOutputLineCount - activeRun.emittedOutputLineCount;
