@@ -16,7 +16,8 @@ let package = Package(
     ),
     .testTarget(
       name: "NullTraceCredentialCompanionTests",
-      dependencies: ["NullTraceCredentialCompanion", "CredentialLockProbe"]
+      dependencies: ["NullTraceCredentialCompanion", "CredentialLockProbe"],
+      resources: [.copy("Fixtures")]
     ),
   ]
 )
