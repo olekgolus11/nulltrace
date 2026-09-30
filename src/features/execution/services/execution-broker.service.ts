@@ -12,6 +12,9 @@ import { ExecutionBrokerError } from "./execution-broker.error";
 import { parseExecutionPlan } from "./execution-plan.helpers";
 import { ExecutionReceiptRepository } from "./execution-receipt.repository";
 import { requireExecutionId } from "./execution-validation.helpers";
+import { isSupportedAuthCheckExecutionPlan } from "./auth-check-execution-profile.helpers";
+import { parseAuthCheckWorkerConfiguration } from "../../../../infrastructure/isolation/auth-check-worker-protocol.helpers";
+import { sameExecutionCredentialBinding } from "./execution-credential-binding.helpers";
 
 export class ExecutionBrokerService {
   private readonly plans = new Map<string, ExecutionPlan>();
@@ -36,6 +39,9 @@ export class ExecutionBrokerService {
     } catch {
       throw new ExecutionBrokerError("INVALID_REQUEST");
     }
+    if (plan.profileId === "auth-check-worker-v1" && !isSupportedAuthCheckExecutionPlan(plan)) {
+      throw new ExecutionBrokerError("INVALID_REQUEST");
+    }
     this.authorize(principal, plan);
     const binding = this.resolveCredentialBinding(principal, plan);
     const owner = this.owner(principal);
@@ -43,7 +49,7 @@ export class ExecutionBrokerService {
     const existing = this.receipts.find(plan.executionId);
     if (existing) {
       if (existing.owner !== owner || existing.fingerprint !== fingerprint) throw new ExecutionBrokerError("CONFLICT");
-      if (!this.sameBinding(existing.credentialBinding, binding) || existing.credentialRevoked) throw new ExecutionBrokerError("UNAUTHORIZED");
+      if (!sameExecutionCredentialBinding(existing.credentialBinding, binding) || existing.credentialRevoked) throw new ExecutionBrokerError("UNAUTHORIZED");
       return this.snapshot(existing);
     }
     this.requireReconciled();
@@ -198,10 +204,17 @@ export class ExecutionBrokerService {
     const isApprovedPublicDataPlan = plan?.mode === "public-worker" &&
       this.options.publicDataEventProfileIds?.includes(plan.profileId) === true &&
       plan.inputs.length > 0 && plan.inputs.every((input) => input.kind === "data");
-    if ((!isLegacyPublicPlan && !isApprovedPublicDataPlan) || !runtime.readEvents ||
-      receipt.status === "prepared" || receipt.status === "start_committed") {
+    const isApprovedAuthCheckResult = plan?.profileId === this.options.authCheckOutputProfileId &&
+      this.options.authCheckOutputProfileId === "auth-check-worker-v1" && plan !== undefined &&
+      isSupportedAuthCheckExecutionPlan(plan) && receipt.credentialBinding !== null && !receipt.credentialRevoked &&
+      receipt.status === "closed" && receipt.cleanup === "confirmed";
+    const authCheckOutcome = isApprovedAuthCheckResult ? this.receipts.findOutcome(executionId) : null;
+    if ((!isLegacyPublicPlan && !isApprovedPublicDataPlan && !isApprovedAuthCheckResult) || !runtime.readEvents ||
+      receipt.status === "prepared" || receipt.status === "start_committed" ||
+      (isApprovedAuthCheckResult && (authCheckOutcome?.cause !== "normal" || authCheckOutcome.exitCode !== 0 || authCheckOutcome.cleanup !== "confirmed"))) {
       throw new ExecutionBrokerError("CONFLICT");
     }
+    if (isApprovedAuthCheckResult) this.requireCurrentCredentialBinding(principal, receipt);
     if (!Number.isSafeInteger(afterSequence) || afterSequence < -1) throw new ExecutionBrokerError("INVALID_REQUEST");
     try {
       return runtime.readEvents(executionId, afterSequence, 10);
@@ -228,6 +241,19 @@ export class ExecutionBrokerService {
     this.requireCurrentCredentialBinding(principal, receipt);
     const slot = plan.inputs.find((slot) => slot.id === slotId);
     if (!slot || bytes.byteLength > slot.maximumBytes) throw new ExecutionBrokerError("INVALID_REQUEST");
+    if (plan.profileId === "auth-check-worker-v1") {
+      const binding = receipt.credentialBinding;
+      if (!binding || slotId !== "auth-check-config" || !isSupportedAuthCheckExecutionPlan(plan)) {
+        throw new ExecutionBrokerError("UNAUTHORIZED");
+      }
+      try {
+        const config = parseAuthCheckWorkerConfiguration(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)));
+        if (config.contextVersion !== binding.generation || config.targetOrigin !== plan.origins[0] ||
+          config.totalDeadlineMs > plan.limits.timeoutMs) throw new Error("Auth Check input does not match its trusted grant.");
+      } catch {
+        throw new ExecutionBrokerError("INVALID_REQUEST");
+      }
+    }
     const copy = Uint8Array.from(bytes);
     const fingerprint = this.receipts.fingerprint({ slotId, bytes: Buffer.from(copy).toString("base64") });
     if (Object.hasOwn(receipt.sealedInputs, slotId)) {
@@ -240,7 +266,7 @@ export class ExecutionBrokerService {
     const writeFinished = new Promise<void>((resolve) => { resolveWrite = resolve; });
     this.writeWaiters.set(executionId, writeFinished);
     try {
-      await runtime.putInput(structuredClone(plan), { ...slot }, copy);
+      await runtime.putInput(structuredClone(plan), { ...slot }, copy, receipt.credentialBinding);
       this.requireCurrentCredentialBinding(principal, this.owned(principal, executionId));
       this.authorize(principal, plan);
       this.receipts.sealInput(executionId, slotId, fingerprint);
@@ -265,6 +291,9 @@ export class ExecutionBrokerService {
     if (!plan || this.writing.has(executionId) || this.cancelling.has(executionId) || plan.inputs.some((slot) => !Object.hasOwn(receipt.sealedInputs, slot.id))) {
       throw new ExecutionBrokerError("CONFLICT");
     }
+    if (plan.profileId === "auth-check-worker-v1" && !isSupportedAuthCheckExecutionPlan(plan)) {
+      throw new ExecutionBrokerError("INVALID_REQUEST");
+    }
     try {
       this.requireReconciled();
       this.authorize(principal, plan);
@@ -279,7 +308,7 @@ export class ExecutionBrokerService {
     }
     const starting = (async () => {
       try {
-        await runtime.start(structuredClone(plan));
+        await runtime.start(structuredClone(plan), receipt.credentialBinding);
         this.receipts.markStarted(executionId);
       } catch {
         try { runtime.discardInputs?.(executionId); }
@@ -336,10 +365,6 @@ export class ExecutionBrokerService {
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(binding.scopeId) || !Number.isSafeInteger(binding.generation) || binding.generation < 0) {
       throw new ExecutionBrokerError("INVALID_REQUEST");
     }
-  }
-
-  private sameBinding(left: ExecutionCredentialBinding | null, right: ExecutionCredentialBinding | null): boolean {
-    return left?.scopeId === right?.scopeId && left?.generation === right?.generation;
   }
 
   private owned(principal: ExecutionPrincipal, executionId: string): StoredExecutionReceipt {

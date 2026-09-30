@@ -1,4 +1,4 @@
-import { ExecutionAuthorization, ExecutionBrokerIdentity, ExecutionPrincipal } from "./execution-broker.types";
+import { ExecutionAuthorization, ExecutionBrokerIdentity, ExecutionCredentialAuthority, ExecutionPrincipal } from "./execution-broker.types";
 import { ExecutionPlan, ExecutionProfile } from "./execution-plan.types";
 import { DockerCommandAdapter, HttpExecutionNetworkImages, HttpResolvedAddress } from "./http-execution-network.types";
 
@@ -10,7 +10,8 @@ export interface ExecutionBrokerHostOptions {
   identities: ExecutionBrokerIdentity[];
   profiles: ExecutionProfile[];
   publicDataEventProfileIds?: string[];
-  readAuthorization: (principal: ExecutionPrincipal, authorizationId: string) => ExecutionAuthorization | null;
+  readAuthorization: (principal: ExecutionPrincipal, authorizationId: string, requestedPlan?: ExecutionPlan) => ExecutionAuthorization | null;
+  credentialAuthority?: ExecutionCredentialAuthority;
   useAuthorizationLedger?: boolean;
   authorizationPlanValidator?: (plan: ExecutionPlan) => boolean;
   images: HttpExecutionNetworkImages;

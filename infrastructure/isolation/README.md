@@ -104,4 +104,12 @@ TMPDIR=/tmp bun run infrastructure/isolation/qualify-http-network.ts linux/arm64
 
 The test uses controlled host receivers and verifies allowed delivery, blocked cross-origin redirects, blocked direct proxy bypass, blocked worker DNS and blocked unauthorized IPv6. See [the network design](../../docs/design/http-execution-network.md) for the boundary and platform limits.
 
+The Auth Check broker profile has a separate synthetic-receiver qualification. It builds the tools image under a unique temporary tag, exercises approved and off-origin requests, rejects stale configuration before send, and revokes an active generation while checking cleanup and output withholding. Run it on OrbStack with:
+
+```sh
+TMPDIR=/tmp bun run infrastructure/isolation/qualify-auth-check-broker-profile.ts linux/arm64
+```
+
+It removes its temporary tools image after confirming that installation-labeled containers and networks are gone. Recorded ARM64 evidence is in [the profile qualification file](evidence/orbstack-auth-check-broker-profile-arm64.json); the broader HTTP network qualification above remains a separate check.
+
 The broker socket check also uploads a random secret slot through the authenticated `/v1/input` request and starts the supervised worker only after sealing. The worker reads `/work/input-auth` from its private tmpfs, verifies its mode, and sends the value as an Authorization header to the controlled approved receiver. The receiver compares the value with an in-memory canary and records only a boolean; the URL, headers, body and canary are excluded from the access log and evidence. Qualification scans broker host files for the random input bytes and checks that installation-labeled containers and networks are absent after completion. This validates the generic input transport path on OrbStack ARM64; TUI use of secret slots and authenticated tools remains future work.

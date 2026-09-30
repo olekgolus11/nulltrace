@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { ExecutionRuntimeAdapter } from "../types/execution-broker.types";
+import { ExecutionCredentialBinding } from "../types/execution-broker.types";
 import { ExecutionInputSlot, ExecutionPlan } from "../types/execution-plan.types";
 import { HttpExecutionNetworkInput } from "../types/http-execution-network.types";
 import {
@@ -12,6 +13,9 @@ import {
 import { HttpExecutionRunError } from "./http-execution-run.error";
 import { ExecutionEventBufferService } from "./execution-event-buffer.service";
 import { isBoundedSanitizedOutput } from "./execution-secret-output.helpers";
+import { sameExecutionCredentialBinding } from "./execution-credential-binding.helpers";
+import { authCheckExecutionProfile, isSupportedAuthCheckExecutionPlan } from "./auth-check-execution-profile.helpers";
+import { parseAuthCheckWorkerConfiguration } from "../../../../infrastructure/isolation/auth-check-worker-protocol.helpers";
 
 export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
   private readonly runs = new Map<string, SupervisedEntry>();
@@ -39,15 +43,27 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
     }
   }
 
-  async putInput(plan: ExecutionPlan, slot: ExecutionInputSlot, bytes: Uint8Array): Promise<void> {
+  async putInput(plan: ExecutionPlan, slot: ExecutionInputSlot, bytes: Uint8Array, credentialBinding?: ExecutionCredentialBinding | null): Promise<void> {
     if (!plan.inputs.some((declared) => declared.id === slot.id && declared.kind === slot.kind && declared.maximumBytes === slot.maximumBytes) ||
       bytes.byteLength > slot.maximumBytes || this.runs.has(plan.executionId)) {
       this.clearStage(plan.executionId);
       throw new Error("Execution input slot is unsupported or invalid.");
     }
-    const stage = this.stagedInputs.get(plan.executionId) ?? this.createStage(plan);
+    if (plan.profileId === authCheckExecutionProfile.id) {
+      if (!isSupportedAuthCheckExecutionPlan(plan) || !credentialBinding || slot.id !== "auth-check-config") {
+        throw new Error("Auth Check profile authority is unavailable.");
+      }
+      try {
+        const configuration = parseAuthCheckWorkerConfiguration(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)));
+        if (configuration.contextVersion !== credentialBinding.generation || configuration.targetOrigin !== plan.origins[0] ||
+          configuration.totalDeadlineMs > plan.limits.timeoutMs) throw new Error("Auth Check configuration does not match its trusted execution.");
+      } catch {
+        throw new Error("Auth Check configuration is invalid.");
+      }
+    }
+    const stage = this.stagedInputs.get(plan.executionId) ?? this.createStage(plan, credentialBinding);
     if (stage.planFingerprint !== this.planFingerprint(plan) || stage.expiresAt <= Date.now() || stage.inputs.has(slot.id) ||
-      stage.totalBytes + bytes.byteLength > 8 * 1024 * 1024) {
+      stage.totalBytes + bytes.byteLength > 8 * 1024 * 1024 || !sameExecutionCredentialBinding(stage.credentialBinding, credentialBinding ?? null)) {
       this.clearStage(plan.executionId);
       throw new Error("Execution input staging is expired, duplicate, or over capacity.");
     }
@@ -59,13 +75,17 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
     this.clearStage(executionId);
   }
 
-  async start(plan: ExecutionPlan): Promise<void> {
+  async start(plan: ExecutionPlan, credentialBinding?: ExecutionCredentialBinding | null): Promise<void> {
+    if (plan.profileId === authCheckExecutionProfile.id && (!isSupportedAuthCheckExecutionPlan(plan) || !credentialBinding)) {
+      throw new Error("Auth Check execution authority is unavailable.");
+    }
     const stage = this.stagedInputs.get(plan.executionId);
     if (this.runs.has(plan.executionId) || this.hasRunning() ||
       this.runs.size >= (this.options.maximumRetainedRuns ?? 1_000)) {
       throw new Error("Execution runtime is busy.");
     }
-    if (plan.inputs.length && (!stage || stage.planFingerprint !== this.planFingerprint(plan) || stage.expiresAt <= Date.now() || plan.inputs.length !== stage.inputs.size ||
+    if (plan.inputs.length && (!stage || stage.planFingerprint !== this.planFingerprint(plan) || stage.expiresAt <= Date.now() ||
+      !sameExecutionCredentialBinding(stage.credentialBinding, credentialBinding ?? null) || plan.inputs.length !== stage.inputs.size ||
       plan.inputs.some((slot) => {
         const staged = stage.inputs.get(slot.id);
         return !staged || staged.slot.kind !== slot.kind || staged.slot.maximumBytes !== slot.maximumBytes;
@@ -90,6 +110,7 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
       task: null,
       settlementFailed: false,
       events: new ExecutionEventBufferService(plan.executionId, plan.limits.outputBytes),
+      credentialBinding: credentialBinding ? { ...credentialBinding } : null,
     };
     const inputs = stage ? [...stage.inputs.values()] : [];
     if (stage) {
@@ -179,7 +200,7 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
     try {
       if (containsSecret && this.options.secretOutputSanitizer) {
         try {
-          secretOutput = this.options.secretOutputSanitizer.create(plan, inputs);
+          secretOutput = this.options.secretOutputSanitizer.create(plan, inputs, entry.credentialBinding);
           secretOutputFailed = !secretOutput;
         } catch {
           secretOutputFailed = true;
@@ -233,7 +254,11 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
       entry.result.status = entry.result.cleanup === "confirmed" ? "finished" : "interrupted";
     } finally {
       try {
-        if (secretOutput && !secretOutputFailed) {
+        const isSuccessfulAuthCheck = plan.profileId === authCheckExecutionProfile.id &&
+          entry.result.status === "finished" && entry.result.exitCode === 0 && entry.result.cleanup === "confirmed" &&
+          entry.result.stopReason === null;
+        if (secretOutput && !secretOutputFailed &&
+            (plan.profileId !== authCheckExecutionProfile.id || isSuccessfulAuthCheck)) {
           const sanitized = secretOutput.sanitize();
           if (sanitized && isBoundedSanitizedOutput(sanitized, plan.limits.outputBytes)) {
             const buffers: Buffer[] = [];
@@ -294,11 +319,12 @@ export class HttpExecutionSupervisorService implements ExecutionRuntimeAdapter {
     return entry;
   }
 
-  private createStage(plan: ExecutionPlan): StagedExecutionInputs {
+  private createStage(plan: ExecutionPlan, credentialBinding?: ExecutionCredentialBinding | null): StagedExecutionInputs {
     const stage: StagedExecutionInputs = {
       inputs: new Map(),
       totalBytes: 0,
       planFingerprint: this.planFingerprint(plan),
+      credentialBinding: credentialBinding ? { ...credentialBinding } : null,
       expiresAt: Date.now() + (this.options.inputRetentionMs ?? 5 * 60_000),
       timer: setTimeout(() => this.clearStage(plan.executionId), this.options.inputRetentionMs ?? 5 * 60_000),
     };
@@ -323,6 +349,7 @@ interface StagedExecutionInputs {
   inputs: Map<string, HttpExecutionNetworkInput>;
   totalBytes: number;
   planFingerprint: string;
+  credentialBinding: ExecutionCredentialBinding | null;
   expiresAt: number;
   timer: ReturnType<typeof setTimeout>;
 }
@@ -337,4 +364,5 @@ interface SupervisedEntry {
   task: Promise<void> | null;
   settlementFailed: boolean;
   events: ExecutionEventBufferService;
+  credentialBinding: ExecutionCredentialBinding | null;
 }

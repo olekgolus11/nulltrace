@@ -1,10 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
   getAuthCheckWorkerProxyUrl,
-  parseAuthCheckWorkerConfiguration,
-  parseAuthCheckWorkerResult,
   runAuthCheckWorker,
 } from "../auth-check-worker.helpers";
+import { parseAuthCheckWorkerConfiguration, parseAuthCheckWorkerResult } from "../auth-check-worker-protocol.helpers";
 import type { AuthCheckWorkerConfiguration, AuthCheckWorkerResult } from "../auth-check-worker.types";
 
 function createConfiguration(targetOrigin: string): AuthCheckWorkerConfiguration {
