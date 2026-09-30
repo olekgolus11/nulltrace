@@ -7,18 +7,23 @@ import {
 
 export function createAuthenticatedRequestContextOutputRedactor(
   context: AuthenticatedRequestContext,
+  maximumOutputBytes?: number,
 ) {
+  if (maximumOutputBytes !== undefined && (!Number.isSafeInteger(maximumOutputBytes) || maximumOutputBytes < 1)) {
+    throw new Error("Invalid authentication output redaction limit.");
+  }
   const { literalValues, shortValues } = collectSecretValues(context);
 
   return (content: string) => {
-    const literalRedacted = literalValues.reduce(
-      (redacted, secret) => redacted.split(secret).join("[redacted]"),
-      content,
-    );
-    return shortValues.reduce(
-      (redacted, secret) => redactBoundedValue(redacted, secret),
-      literalRedacted,
-    );
+    if (maximumOutputBytes !== undefined && Buffer.byteLength(content) > maximumOutputBytes) {
+      throw new Error("Authentication output redaction limit exceeded.");
+    }
+    const literalRedacted = literalValues.reduce((redacted, secret) => maximumOutputBytes === undefined
+      ? redacted.split(secret).join("[redacted]")
+      : replaceLiteralWithinLimit(redacted, secret, maximumOutputBytes), content);
+    return shortValues.reduce((redacted, secret) => maximumOutputBytes === undefined
+      ? redactBoundedValue(redacted, secret)
+      : redactBoundedValueWithinLimit(redacted, secret, maximumOutputBytes), literalRedacted);
   };
 }
 
@@ -104,6 +109,40 @@ function isLongSecret(value: string) {
 
 function redactBoundedValue(content: string, value: string) {
   const pattern = new RegExp(`(^|[^A-Za-z0-9])${escapeRegex(value)}(?=$|[^A-Za-z0-9])`, "g");
+  return content.replace(pattern, "$1[redacted]");
+}
+
+function replaceLiteralWithinLimit(content: string, value: string, maximumOutputBytes: number) {
+  if (!value) return content;
+  const replacement = "[redacted]";
+  let count = 0;
+  let offset = 0;
+  const baseBytes = Buffer.byteLength(content);
+  const replacementBytes = Buffer.byteLength(replacement);
+  const valueBytes = Buffer.byteLength(value);
+  while ((offset = content.indexOf(value, offset)) !== -1) {
+    count += 1;
+    if (baseBytes + count * (replacementBytes - valueBytes) > maximumOutputBytes) {
+      throw new Error("Authentication output redaction limit exceeded.");
+    }
+    offset += value.length;
+  }
+  return content.split(value).join(replacement);
+}
+
+function redactBoundedValueWithinLimit(content: string, value: string, maximumOutputBytes: number) {
+  if (!value) return content;
+  const pattern = new RegExp(`(^|[^A-Za-z0-9])${escapeRegex(value)}(?=$|[^A-Za-z0-9])`, "g");
+  let count = 0;
+  const baseBytes = Buffer.byteLength(content);
+  const replacementBytes = Buffer.byteLength("[redacted]");
+  const valueBytes = Buffer.byteLength(value);
+  for (const _match of content.matchAll(pattern)) {
+    count += 1;
+    if (baseBytes + count * (replacementBytes - valueBytes) > maximumOutputBytes) {
+      throw new Error("Authentication output redaction limit exceeded.");
+    }
+  }
   return content.replace(pattern, "$1[redacted]");
 }
 

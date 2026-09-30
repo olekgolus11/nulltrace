@@ -7,6 +7,7 @@ import { HttpExecutionRunError } from "../http-execution-run.error";
 import { HttpExecutionSupervisorService } from "../http-execution-supervisor.service";
 import { ExecutionReceiptRepository } from "../execution-receipt.repository";
 import { toExecutionOutcome } from "../execution-outcome.helpers";
+import { ExecutionSecretOutputSanitizerService } from "../execution-secret-output-sanitizer.service";
 
 const plan: ExecutionPlan = {
   version: 1,
@@ -78,6 +79,215 @@ describe("HTTP execution ownership", () => {
     await supervisor.wait("run-1");
     expect([...retained!]).toEqual(new Array("worker-secret-canary".length).fill(0));
     expect(supervisor.readEvents("run-1", -1).events).toEqual([]);
+  });
+
+  test("retains only complete, control-normalized output after trusted secret redaction", async () => {
+    const sanitizer = new ExecutionSecretOutputSanitizerService();
+    const authenticatedPlan: ExecutionPlan = {
+      ...plan,
+      profileId: "authenticated-curl-worker-v1",
+      mode: "authenticated-worker",
+      invocation: { executableId: "bun", argv: ["run", "/opt/nulltrace/workers/curl-worker.ts"] },
+      inputs: [
+        { id: "curl-config", kind: "data", maximumBytes: 2 * 1024 * 1024 },
+        { id: "curl-auth-context", kind: "secret", maximumBytes: 64 * 1024 },
+      ],
+    };
+    const secretInput = new TextEncoder().encode(JSON.stringify({ cookies: "session=COOKIE-CANARY", headers: "Authorization: Bearer HEADER-CANARY" }));
+    const outputChunks: Uint8Array[] = [];
+    const network: HttpExecutionSupervisedNetwork = {
+      async run(_policy, _limits, _executable, _argv, _signal, onOutput) {
+        for (const part of ["body COOKIE-", "CANARY; ", "Bearer [31mHEADER-", "CANARY\nstatus=200\n"]) {
+          const chunk = new TextEncoder().encode(part);
+          outputChunks.push(chunk);
+          onOutput?.("stdout", chunk);
+        }
+        return {
+          command: { exitCode: 0, stdout: "", stderr: "" },
+          evidence: { executionId: "run-1", workerRulesSha256: "", proxyRulesSha256: "", proxyDecisions: [], cleanupConfirmed: true },
+        };
+      },
+    };
+    const supervisor = new HttpExecutionSupervisorService(network, { async resolve() { return policy; } }, {
+      leaseMs: 1_000, secretOutputSanitizer: sanitizer, onSettled() {},
+    });
+    await supervisor.putInput(authenticatedPlan, authenticatedPlan.inputs[0]!, new Uint8Array());
+    await supervisor.putInput(authenticatedPlan, authenticatedPlan.inputs[1]!, secretInput);
+    secretInput.fill(0);
+    await supervisor.start(authenticatedPlan);
+    await supervisor.wait("run-1");
+    const events = supervisor.readEvents("run-1", -1).events.map((event) => event.line);
+    expect(events).toEqual(["body [redacted]; [redacted]", "status=200"]);
+    expect(events.join(" ")).not.toContain("COOKIE-CANARY");
+    expect(events.join(" ")).not.toContain("HEADER-CANARY");
+    expect(outputChunks.every((chunk) => chunk.every((byte) => byte === 0))).toBe(true);
+  });
+
+  test("suppresses every secret output when the fixed profile schema or sanitizer fails", async () => {
+    const sanitizer = new ExecutionSecretOutputSanitizerService();
+    const authenticatedPlan: ExecutionPlan = {
+      ...plan,
+      profileId: "authenticated-curl-worker-v1",
+      mode: "authenticated-worker",
+      invocation: { executableId: "bun", argv: ["run", "/opt/nulltrace/workers/curl-worker.ts"] },
+      inputs: [
+        { id: "curl-config", kind: "data", maximumBytes: 2 * 1024 * 1024 },
+        { id: "curl-auth-context", kind: "secret", maximumBytes: 64 * 1024 },
+      ],
+    };
+    const network: HttpExecutionSupervisedNetwork = {
+      async run(_policy, _limits, _executable, _argv, _signal, onOutput) {
+        onOutput?.("stdout", new TextEncoder().encode("should-not-be-retained"));
+        return {
+          command: { exitCode: 0, stdout: "", stderr: "" },
+          evidence: { executionId: "run-1", workerRulesSha256: "", proxyRulesSha256: "", proxyDecisions: [], cleanupConfirmed: true },
+        };
+      },
+    };
+    const supervisor = new HttpExecutionSupervisorService(network, { async resolve() { return policy; } }, {
+      leaseMs: 1_000, secretOutputSanitizer: sanitizer, onSettled() {},
+    });
+    await supervisor.putInput(authenticatedPlan, authenticatedPlan.inputs[0]!, new Uint8Array());
+    await supervisor.putInput(authenticatedPlan, authenticatedPlan.inputs[1]!, new TextEncoder().encode("{\"cookies\":\"a=b\",\"cookies\":\"x=y\",\"headers\":\"\"}"));
+    await supervisor.start(authenticatedPlan);
+    await supervisor.wait("run-1");
+    expect(supervisor.readEvents("run-1", -1).events).toEqual([]);
+  });
+
+  test("withholds both streams atomically when a trusted sanitizer returns malformed output", async () => {
+    const authenticatedPlan: ExecutionPlan = {
+      ...plan,
+      profileId: "authenticated-curl-worker-v1",
+      mode: "authenticated-worker",
+      invocation: { executableId: "bun", argv: ["run", "/opt/nulltrace/workers/curl-worker.ts"] },
+      inputs: [
+        { id: "curl-config", kind: "data", maximumBytes: 2 * 1024 * 1024 },
+        { id: "curl-auth-context", kind: "secret", maximumBytes: 64 * 1024 },
+      ],
+    };
+    const supervisor = new HttpExecutionSupervisorService({
+      async run() {
+        return {
+          command: { exitCode: 0, stdout: "", stderr: "" },
+          evidence: { executionId: "run-1", workerRulesSha256: "", proxyRulesSha256: "", proxyDecisions: [], cleanupConfirmed: true },
+        };
+      },
+    }, { async resolve() { return policy; } }, {
+      leaseMs: 1_000,
+      secretOutputSanitizer: {
+        create() {
+          return {
+            capture() { return true; },
+            sanitize() { return { stdout: "safe output\n", stderr: "bad\u001b[31mcontrol" }; },
+            destroy() {},
+          };
+        },
+      },
+      onSettled() {},
+    });
+    await supervisor.putInput(authenticatedPlan, authenticatedPlan.inputs[0]!, new Uint8Array());
+    await supervisor.putInput(authenticatedPlan, authenticatedPlan.inputs[1]!, new TextEncoder().encode(JSON.stringify({ cookies: "session=secret", headers: "" })));
+    await supervisor.start(authenticatedPlan);
+    await supervisor.wait("run-1");
+    expect(supervisor.readEvents("run-1", -1).events).toEqual([]);
+  });
+
+  test("wipes inputs and settles when sanitizer setup, capture, or finalization throws", async () => {
+    for (const failure of ["create", "capture", "sanitize"] as const) {
+      const authenticatedPlan: ExecutionPlan = {
+        ...plan,
+        executionId: `run-${failure}`,
+        profileId: "authenticated-curl-worker-v1",
+        mode: "authenticated-worker",
+        invocation: { executableId: "bun", argv: ["run", "/opt/nulltrace/workers/curl-worker.ts"] },
+        inputs: [
+          { id: "curl-config", kind: "data", maximumBytes: 2 * 1024 * 1024 },
+          { id: "curl-auth-context", kind: "secret", maximumBytes: 64 * 1024 },
+        ],
+      };
+      let retainedInput: Uint8Array | undefined;
+      let sourceChunk: Uint8Array | undefined;
+      let settled = false;
+      const supervisor = new HttpExecutionSupervisorService({
+        async run(_policy, _limits, _executable, _argv, _signal, onOutput, inputs) {
+          retainedInput = inputs?.[1]?.bytes;
+          if (failure !== "create") {
+            sourceChunk = new TextEncoder().encode("session=secret-value");
+            onOutput?.("stdout", sourceChunk);
+          }
+          return {
+            command: { exitCode: 0, stdout: "", stderr: "" },
+            evidence: { executionId: authenticatedPlan.executionId, workerRulesSha256: "", proxyRulesSha256: "", proxyDecisions: [], cleanupConfirmed: true },
+          };
+        },
+      }, { async resolve() { return policy; } }, {
+        leaseMs: 1_000,
+        secretOutputSanitizer: {
+          create(_plan, inputs) {
+            retainedInput = inputs[1]?.bytes;
+            if (failure === "create") throw new Error("private failure");
+            return {
+              capture() { if (failure === "capture") throw new Error("private failure"); return true; },
+              sanitize() { if (failure === "sanitize") throw new Error("private failure"); return { stdout: "safe", stderr: "" }; },
+              destroy() { if (failure === "sanitize") throw new Error("private failure"); },
+            };
+          },
+        },
+        onSettled() { settled = true; },
+      });
+      await supervisor.putInput(authenticatedPlan, authenticatedPlan.inputs[0]!, new Uint8Array());
+      await supervisor.putInput(authenticatedPlan, authenticatedPlan.inputs[1]!, new TextEncoder().encode(JSON.stringify({ cookies: "session=secret-value", headers: "" })));
+      await supervisor.start(authenticatedPlan);
+      await supervisor.wait(authenticatedPlan.executionId);
+      expect(settled).toBe(true);
+      expect(retainedInput?.every((byte) => byte === 0)).toBe(true);
+      expect(sourceChunk?.every((byte) => byte === 0) ?? true).toBe(true);
+      expect(supervisor.readEvents(authenticatedPlan.executionId, -1).events).toEqual([]);
+    }
+  });
+
+  test("sanitizes only complete output on cancellation and deadline settlement", async () => {
+    for (const stop of ["cancel", "deadline", "pending-cleanup"] as const) {
+      let notifyStarted: (() => void) | undefined;
+      const started = new Promise<void>((resolve) => { notifyStarted = resolve; });
+      const authenticatedPlan: ExecutionPlan = {
+        ...plan,
+        executionId: `run-${stop}`,
+        limits: { ...plan.limits, timeoutMs: stop === "deadline" ? 80 : 5_000 },
+        profileId: "authenticated-curl-worker-v1",
+        mode: "authenticated-worker",
+        invocation: { executableId: "bun", argv: ["run", "/opt/nulltrace/workers/curl-worker.ts"] },
+        inputs: [
+          { id: "curl-config", kind: "data", maximumBytes: 2 * 1024 * 1024 },
+          { id: "curl-auth-context", kind: "secret", maximumBytes: 64 * 1024 },
+        ],
+      };
+      const supervisor = new HttpExecutionSupervisorService({
+        async run(_policy, _limits, _executable, _argv, signal, onOutput, inputs) {
+          onOutput?.("stdout", new TextEncoder().encode("session=secret-value\nstatus=200\n"));
+          notifyStarted?.();
+          await new Promise<void>((resolve) => signal!.addEventListener("abort", () => resolve(), { once: true }));
+          expect(inputs?.[1]?.bytes.every((byte) => byte !== 0)).toBe(true);
+          return {
+            command: { exitCode: 0, stdout: "", stderr: "" },
+            evidence: { executionId: authenticatedPlan.executionId, workerRulesSha256: "", proxyRulesSha256: "", proxyDecisions: [], cleanupConfirmed: stop !== "pending-cleanup" },
+          };
+        },
+      }, { async resolve() { return policy; } }, { leaseMs: 1_000, secretOutputSanitizer: new ExecutionSecretOutputSanitizerService(), onSettled() {} });
+      await supervisor.putInput(authenticatedPlan, authenticatedPlan.inputs[0]!, new Uint8Array());
+      await supervisor.putInput(authenticatedPlan, authenticatedPlan.inputs[1]!, new TextEncoder().encode(JSON.stringify({ cookies: "session=secret-value", headers: "" })));
+      await supervisor.start(authenticatedPlan);
+      await started;
+      if (stop !== "deadline") supervisor.cancel(authenticatedPlan.executionId);
+      const result = await supervisor.wait(authenticatedPlan.executionId);
+      expect(result.cleanup).toBe(stop === "pending-cleanup" ? "pending" : "confirmed");
+      const lines = supervisor.readEvents(authenticatedPlan.executionId, -1).events.map((event) => event.line);
+      expect(lines).toEqual(["[redacted]", "status=200"]);
+      expect(lines.join(" ")).not.toContain("secret-value");
+      if (stop === "pending-cleanup") {
+        await expect(supervisor.start({ ...authenticatedPlan, executionId: "run-after-pending" })).rejects.toThrow("busy");
+      }
+    }
   });
 
   test("discards all earlier staged slots when a later slot is rejected", async () => {

@@ -120,6 +120,12 @@ export class ExecutionEventBufferService {
   private truncate(): void {
     if (this.truncated) return;
     this.truncated = true;
+    for (const stream of ["stdout", "stderr"] as const) {
+      this.fragments[stream] = "";
+      this.fragmentBytes[stream] = 0;
+      this.controlState[stream] = "text";
+      this.decoders[stream] = new TextDecoder();
+    }
     this.events.push({
       executionId: this.executionId,
       sequence: this.events.length,
