@@ -67,7 +67,8 @@ describe("private broker daemon configuration", () => {
     const { directory } = await fixture();
     try {
       const startup = await loadExecutionBrokerDaemonConfiguration(directory);
-      expect(startup.hostOptions.profiles.map((profile) => profile.id)).toEqual(["public-curl-v1"]);
+      expect(startup.hostOptions.profiles.map((profile) => profile.id)).toEqual(["public-curl-v1", "public-curl-worker-v1"]);
+      expect(startup.hostOptions.publicDataEventProfileIds).toEqual(["public-curl-worker-v1"]);
       expect(startup.hostOptions.hmacKey).toEqual(key);
       expect(startup.hostOptions.adminToken).toBe(adminToken);
       expect(startup.hostOptions.adminToken).not.toBe(token);
@@ -79,6 +80,23 @@ describe("private broker daemon configuration", () => {
           timeoutMs: 1000, memoryBytes: 1024, cpuMilliCores: 100, processCount: 4,
           scratchBytes: 1024, fileBytes: 512, outputBytes: 512,
         },
+      })).toBe(false);
+      const workerPlan = {
+        ...plan,
+        profileId: "public-curl-worker-v1",
+        mode: "public-worker",
+        invocation: { executableId: "bun", argv: ["run", "/opt/nulltrace/workers/curl-worker.ts"] },
+        inputs: [{ id: "curl-config", kind: "data" as const, maximumBytes: 2 * 1024 * 1024 }],
+      };
+      expect(startup.hostOptions.authorizationPlanValidator?.(workerPlan)).toBe(true);
+      expect(startup.hostOptions.authorizationPlanValidator?.({
+        ...workerPlan,
+        invocation: { executableId: "bun", argv: ["run", "/opt/nulltrace/workers/curl-worker.ts", "https://other.test"] },
+      })).toBe(false);
+      expect(startup.hostOptions.authorizationPlanValidator?.({
+        ...workerPlan,
+        profileId: "public-curl-v1",
+        invocation: plan.invocation,
       })).toBe(false);
       expect(startup.hostOptions.authorizationPlanValidator?.({
         ...plan, origins: [...plan.origins, "https://other.test"],
@@ -122,7 +140,7 @@ describe("private broker daemon configuration", () => {
         if (child.exitCode !== null) break;
         await Bun.sleep(50);
       }
-      expect(ready).toBe(true);
+      expect(ready, ready ? "" : await new Response(child.stderr).text()).toBe(true);
       for (let attempt = 0; attempt < 100 && !(await lstat(adminSocket).catch(() => null))?.isSocket(); attempt++) await Bun.sleep(50);
       expect((await lstat(socket)).mode & 0o777).toBe(0o600);
       expect((await lstat(adminSocket)).mode & 0o777).toBe(0o600);

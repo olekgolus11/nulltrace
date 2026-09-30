@@ -22,12 +22,22 @@ The caller cannot choose images, container/network names, subnets, mounts, users
 
 The image IDs must use the local immutable `sha256:` form produced by the pinned image build. Runtime limits are taken from the admitted execution plan and applied externally by Docker. A fixed ceiling also bounds Docker command output and setup, command, resolver and cleanup durations.
 
+## Public cURL worker profile
+
+The release-owned tools image includes a fixed cURL worker entrypoint and the broker exposes it as `public-curl-worker-v1`. Its invocation is exactly Bun plus the installed worker path; URL, method, inline headers and ordered body operations arrive in one bounded `data` slot and are materialized on the worker's private `/work` tmpfs. The worker rejects extra schema fields, credentials, secret or transport headers, file-based body inputs, unsupported methods, and URLs whose origin differs from the origin stated in the input. The network policy remains independently bound to the single origin in the admitted execution plan, so changing the input alone cannot expand broker-approved destinations.
+
+The grant binds the plan and origin, not the input bytes. Until approval issuance is wired to the trusted application boundary, only that trusted administrative application may construct and seal a per-run request configuration after operator approval. The worker is not exposed by the current TUI command runner and authenticated cURL is not part of this profile. It writes a private temporary libcurl config/body representation to tmpfs; libcurl receives only fixed safety/resource controls and those sandbox file paths in argv. `.curlrc`, URL globbing, automatic redirects and cURL's default proxy bypasses are disabled or replaced by the broker's manual exact-origin redirect loop. Request values are redacted from worker output when they are echoed by the target.
+
+Response files are watched during transfer and checked before reading. The 20 ms file-size monitor may observe a short overshoot; Docker's independent per-file ulimit and tmpfs ceiling bound it. Status and diagnostic pipes are read with fixed byte limits and terminate cURL on overflow. The qualification exercises GET, POST with ordered inline body operations and headers, same-origin redirects, forbidden redirects, and a forged input origin against the broker-scoped network.
+
+The worker's response-file ceiling is 2 MiB, while the current broker event buffer retains at most 1 MiB. Larger responses are safely truncated in the event stream and do not yet have an artifact-transfer path. The 2 MiB ceiling preserves the request-side tool bound; full response compatibility for outputs above 1 MiB requires the separately planned bounded artifact import.
+
 ## Qualification
 
 Build and verify the pinned images first, then run:
 
 ```sh
-bun run infrastructure/isolation/qualify-http-network.ts linux/arm64
+TMPDIR=/tmp bun run infrastructure/isolation/qualify-http-network.ts linux/arm64
 ```
 
 Use `linux/amd64` only after building that architecture. The qualification starts two controlled host receivers. It proves that the approved request arrives, a redirect to the forbidden receiver produces zero receiver requests, a `--noproxy` direct attempt produces zero receiver requests, and direct DNS plus unauthorized IPv6 fail. It reads the worker's applied memory, PID, CPU and file-size limits, and actively exercises memory, process-count and individual-file caps. Timeout, cancellation and normal runs must confirm cleanup. The generated local evidence is ignored; sanitized reviewed evidence is stored under `infrastructure/isolation/evidence/`.
@@ -36,4 +46,4 @@ OrbStack 2026-09-24 on Linux ARM64 is qualified in this change. Docker Desktop, 
 
 ## Remaining stages
 
-The runtime still needs production broker-daemon installation and restart reconciliation, bounded artifact transfer and per-tool adapters. cURL is the first vertical slice; its current OrbStack checks cover cancellation and timeout cleanup. Playwright must additionally cover redirects, subresources, `fetch`, frames, popups, WebSockets, service workers and downloads. Nmap requires its own non-proxy profile. Nuclei credentials must retain ephemeral secret-file delivery and exact-origin semantics.
+The public cURL worker/profile is implemented as a release-owned prerequisite, while TUI approval wiring and routing remain pending; authenticated cURL is separate. Production broker-daemon installation, bounded artifact transfer and result import also remain. Playwright must additionally cover redirects, subresources, `fetch`, frames, popups, WebSockets, service workers and downloads. Nmap requires its own non-proxy profile. Nuclei credentials must retain ephemeral secret-file delivery and exact-origin semantics.

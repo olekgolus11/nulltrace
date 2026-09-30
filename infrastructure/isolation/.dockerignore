@@ -9,3 +9,7 @@
 !browser/bun.lock
 !licenses/
 !licenses/*
+!curl-worker.ts
+!curl-worker.service.ts
+!curl-worker.helpers.ts
+!curl-worker.types.ts

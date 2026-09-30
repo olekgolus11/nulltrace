@@ -78,7 +78,11 @@ export class ExecutionBrokerService {
     const receipt = this.owned(principal, executionId);
     const runtime = this.requireRuntime();
     const plan = this.plans.get(executionId);
-    if (plan?.mode !== "public" || plan.inputs.length || !runtime.readEvents ||
+    const isLegacyPublicPlan = plan?.mode === "public" && plan.inputs.length === 0;
+    const isApprovedPublicDataPlan = plan?.mode === "public-worker" &&
+      this.options.publicDataEventProfileIds?.includes(plan.profileId) === true &&
+      plan.inputs.length > 0 && plan.inputs.every((input) => input.kind === "data");
+    if ((!isLegacyPublicPlan && !isApprovedPublicDataPlan) || !runtime.readEvents ||
       receipt.status === "prepared" || receipt.status === "start_committed") {
       throw new ExecutionBrokerError("CONFLICT");
     }

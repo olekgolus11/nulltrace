@@ -380,6 +380,67 @@ describe("broker transport", () => {
     expect((await http.handle(request("events", JSON.stringify({ executionId: "run-1", afterSequence: -2 })))).status).toBe(400);
   });
 
+  test("allows events only for the release-approved public cURL data profile", async () => {
+    const workerProfile: ExecutionProfile = {
+      id: "public-curl-worker-v1", tool: "curl", mode: "public-worker", executableIds: ["bun"],
+      inputs: [{ id: "curl-config", kind: "data", maximumBytes: 2 * 1024 * 1024 }], maximumLimits: limits,
+    };
+    const workerPlan: ExecutionPlan = {
+      ...original,
+      profileId: workerProfile.id,
+      mode: workerProfile.mode,
+      invocation: { executableId: "bun", argv: ["run", "/opt/nulltrace/workers/curl-worker.ts"] },
+      inputs: workerProfile.inputs,
+    };
+    const createWorkerBroker = (selectedProfile: ExecutionProfile, selectedPlan: ExecutionPlan, eventProfiles: string[]) => {
+      const database = new Database(":memory:");
+      databases.push(database);
+      const receipts = new ExecutionReceiptRepository(database, new Uint8Array(32).fill(7));
+      const broker = new ExecutionBrokerService(receipts, {
+        profiles: [selectedProfile],
+        publicDataEventProfileIds: eventProfiles,
+        now: () => 1000,
+        readAuthorization: () => ({ principal, plan: selectedPlan, expiresAt: 2000 }),
+        runtime: {
+          async putInput() {},
+          async start() {},
+          readEvents(executionId, afterSequence) {
+            return {
+              executionId,
+              events: afterSequence < 0 ? [{ executionId, sequence: 0, stream: "stdout", line: "worker-output" }] : [],
+              nextSequence: Math.max(afterSequence, 0),
+              hasMore: false,
+            };
+          },
+        },
+      });
+      return broker;
+    };
+    const allowed = createWorkerBroker(workerProfile, workerPlan, [workerProfile.id]);
+    allowed.prepare(principal, workerPlan);
+    await allowed.putInput(principal, workerPlan.executionId, "curl-config", new TextEncoder().encode("{}"));
+    await allowed.start(principal, workerPlan.executionId);
+    expect(allowed.readEvents(principal, workerPlan.executionId, -1).events[0]?.line).toBe("worker-output");
+
+    const mismatchedProfile = { ...workerProfile, id: "other-public-worker-v1" };
+    const mismatchedPlan = { ...workerPlan, profileId: mismatchedProfile.id };
+    const mismatched = createWorkerBroker(mismatchedProfile, mismatchedPlan, [workerProfile.id]);
+    mismatched.prepare(principal, mismatchedPlan);
+    await mismatched.putInput(principal, mismatchedPlan.executionId, "curl-config", new TextEncoder().encode("{}"));
+    await mismatched.start(principal, mismatchedPlan.executionId);
+    expect(() => mismatched.readEvents(principal, mismatchedPlan.executionId, -1)).toThrow("CONFLICT");
+
+    const secretProfile: ExecutionProfile = {
+      ...workerProfile, inputs: [{ id: "curl-config", kind: "secret", maximumBytes: 2 * 1024 * 1024 }],
+    };
+    const secretPlan = { ...workerPlan, inputs: secretProfile.inputs };
+    const secretBroker = createWorkerBroker(secretProfile, secretPlan, [workerProfile.id]);
+    secretBroker.prepare(principal, secretPlan);
+    await secretBroker.putInput(principal, secretPlan.executionId, "curl-config", new TextEncoder().encode("{}"));
+    await secretBroker.start(principal, secretPlan.executionId);
+    expect(() => secretBroker.readEvents(principal, secretPlan.executionId, -1)).toThrow("CONFLICT");
+  });
+
   test("rejects broker event pages with control bytes or sequence gaps", async () => {
     for (const event of [
       { executionId: "run-1", sequence: 2, stream: "stdout", line: "safe" },

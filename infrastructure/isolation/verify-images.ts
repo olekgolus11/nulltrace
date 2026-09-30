@@ -49,6 +49,10 @@ for (const target of ["tools", "proxy", "network-init", "datasets", "browser", "
       await run(id, ["sh", "-c", '! touch "$1"', "probe", path]);
     }
   }
+  if (target === "tools") {
+    await run(id, ["sh", "-c", 'test -r /opt/nulltrace/workers/curl-worker.ts && test ! -w /opt/nulltrace/workers/curl-worker.ts && test -r /opt/nulltrace/workers/curl-worker.service.ts && test -r /opt/nulltrace/workers/curl-worker.helpers.ts && test -r /opt/nulltrace/workers/curl-worker.types.ts']);
+    versions["public-curl-worker"] = (await run(id, ["sha256sum", "/opt/nulltrace/workers/curl-worker.ts"])).split(" ")[0]!;
+  }
   if (target === "tools" && (!versions.bun?.includes(release.images.bun.version) ||
     !versions.ffuf?.includes(release.ffuf.version) || !versions.nuclei?.includes(release.images.nuclei.version.slice(1)))) {
     throw new Error("Bundled scanner version mismatch.");

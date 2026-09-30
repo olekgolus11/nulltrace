@@ -23,7 +23,7 @@ The native verifier uses immutable local image IDs, not mutable tags. It starts 
 
 | Target | Contents | Default user |
 | --- | --- | --- |
-| `tools` | Bun, cURL, ffuf, Nmap, Nuclei, Nikto, sqlmap, zsh; scanner sources and license notices | 65532:65532 |
+| `tools` | Bun, cURL, ffuf, Nmap, Nuclei, Nikto, sqlmap, zsh; fixed public cURL worker, scanner sources and license notices | 65532:65532 |
 | `proxy` | Squid and package/license inventory | 65532:65532 |
 | `network-init` | nftables and iproute2; no active firewall policy | 65532:65532 |
 | `datasets` | Complete pinned SecLists and official Nuclei-template archives as regular files, plus catalogs | 65532:65532 |
@@ -32,7 +32,7 @@ The native verifier uses immutable local image IDs, not mutable tags. It starts 
 
 The network initializer's eventual short-lived administrative role is owned by F2, not by an image default. Images contain no Docker socket, added capabilities or production entrypoint that starts network activity. A default nonroot image user is not independently sufficient isolation: broker-owned runtime configuration must enforce it.
 
-The tools image preserves an installed shell for future explicitly isolated edited-command profiles. It does not expose a host shell or interpret operator data as Docker arguments. Individual migrations still own supported command flags, fixed executable paths, update-disable options, authentication preparation and artifact compatibility. No tool migration or approval workflow changes are included here.
+The tools image preserves an installed shell for future explicitly isolated edited-command profiles. It does not expose a host shell or interpret operator data as Docker arguments. The public cURL worker is a fixed installed entrypoint behind a separate broker profile; its URL, method, headers and ordered inline body operations arrive through one declared private tmpfs input. The legacy public GET-only profile is unchanged. TUI approval wiring, cURL routing and authenticated cURL remain separate work.
 
 ## Catalog trust boundary
 
@@ -74,7 +74,7 @@ Docker Desktop, Linux AMD64 execution, Chromium sandbox launch, exact-origin pro
 After building the `tools`, `proxy` and `network-init` images, run the receiver-side HTTP containment checks with:
 
 ```sh
-bun run infrastructure/isolation/qualify-http-network.ts linux/arm64
+TMPDIR=/tmp bun run infrastructure/isolation/qualify-http-network.ts linux/arm64
 ```
 
 The test uses controlled host receivers and verifies allowed delivery, blocked cross-origin redirects, blocked direct proxy bypass, blocked worker DNS and blocked unauthorized IPv6. See [the network design](../../docs/design/http-execution-network.md) for the boundary and platform limits.
