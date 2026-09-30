@@ -6,12 +6,15 @@ import { fileURLToPath } from "node:url";
 import { Database } from "bun:sqlite";
 import { DockerCommandService } from "../../src/features/execution/services/docker-command.service";
 import { ExecutionBrokerClient } from "../../src/features/execution/services/execution-broker-client.service";
+import { ExecutionBrokerError } from "../../src/features/execution/services/execution-broker.error";
 import { ExecutionBrokerHostService } from "../../src/features/execution/services/execution-broker-host.service";
 import { provisionExecutionBrokerJournal } from "../../src/features/execution/services/execution-broker-journal.helpers";
 import { ExecutionBrokerLockService } from "../../src/features/execution/services/execution-broker-lock.service";
 import { ExecutionEventBufferService } from "../../src/features/execution/services/execution-event-buffer.service";
+import { ExecutionCredentialAuthority } from "../../src/features/execution/types/execution-broker.types";
 import { HttpExecutionNetworkService } from "../../src/features/execution/services/http-execution-network.service";
 import { createHttpExecutionNetworkPolicy } from "../../src/features/execution/services/http-execution-policy.helpers";
+import { DockerCommandAdapter, HttpExecutionNetworkPolicy } from "../../src/features/execution/types/http-execution-network.types";
 import { ExecutionLimits, ExecutionPlan, ExecutionProfile } from "../../src/features/execution/types/execution-plan.types";
 import release from "./release.lock.json";
 
@@ -21,7 +24,14 @@ if (platform !== "linux/arm64" && platform !== "linux/amd64") {
 }
 const architecture = platform.slice(6);
 const suffix = `${release.resolvedAt}-${architecture}`;
-const docker = new DockerCommandService("docker", 8 * 1024 * 1024);
+const dockerRuntime = new DockerCommandService("docker", 8 * 1024 * 1024);
+let dockerInvocationCount = 0;
+const docker: DockerCommandAdapter = {
+  run(args, options) {
+    dockerInvocationCount++;
+    return dockerRuntime.run(args, options);
+  },
+};
 const workerImage = await imageId(`nulltrace-isolation-tools:${suffix}`);
 const proxyImage = await imageId(`nulltrace-isolation-proxy:${suffix}`);
 const initializerImage = await imageId(`nulltrace-isolation-network-init:${suffix}`);
@@ -31,6 +41,7 @@ const deniedEvents: Array<{ host: string | null; path: string }> = [];
 const curlWorkerRequests: Array<{ method: string; path: string; header: string | null; body: string }> = [];
 let onHeldRequest: (() => void) | null = null;
 let deniedPort = 0;
+let reservedPositiveControlCount = 0;
 let inputSecret: string | null = null;
 const secretReceiverChecks: boolean[] = [];
 const denied = Bun.serve({
@@ -99,6 +110,7 @@ const service = new HttpExecutionNetworkService(docker, {
   installationId: "http-network-qualification",
   ownershipLock,
   trustedNonPublicMappings: { "approved.test": [hostAddress] },
+  reservedControlEndpoints: [{ addresses: [hostAddress], port: deniedPort }],
   commandTimeoutMs: 20_000,
   setupTimeoutMs: 30_000,
   cleanupTimeoutMs: 30_000,
@@ -132,10 +144,36 @@ try {
     expect(orphanAfter.exitCode !== 0, "A labeled orphan network survived startup reconciliation.");
     return `receiver count ${allowedEvents.length}; cleanup confirmed`;
   });
+  await check("reserved host endpoint is denied before Docker execution", async () => {
+    const positiveBefore = deniedEvents.length;
+    const positive = await fetch("http://127.0.0.1:" + deniedPort + "/positive-control");
+    expect(positive.status === 200 && deniedEvents.length === positiveBefore + 1,
+      "Synthetic reserved receiver positive control failed.");
+    reservedPositiveControlCount = deniedEvents.length - positiveBefore;
+    deniedEvents.length = 0;
+
+    const origin = "http://approved.test:" + deniedPort;
+    const callsBefore = dockerInvocationCount;
+    const policy = {
+      executionId: "qualification-reserved-endpoint",
+      origins: [origin],
+      endpoints: [{ origin, hostname: "approved.test", address: hostAddress, family: 4, port: deniedPort }],
+    } as HttpExecutionNetworkPolicy;
+    let rejected = false;
+    try {
+      await service.run(policy, limits, "curl", ["--silent", origin + "/blocked"]);
+    } catch (error) {
+      rejected = error instanceof Error && error.message.includes("reserved control endpoint");
+    }
+    expect(rejected, "Target policy did not reject the reserved host tuple.");
+    expect(dockerInvocationCount === callsBefore && deniedEvents.length === 0,
+      "Reserved endpoint qualification unexpectedly reached Docker or the receiver.");
+    return "positive control " + reservedPositiveControlCount + "; target-policy reservation configured";
+  });
   await check("bounded worker events drain without stopping the approved request", async () => {
     const events = new ExecutionEventBufferService("qualification-events", 1024);
     const result = await service.run(allowedPolicy("qualification-events"), limits, "curl", [
-      "--silent", "--show-error", "--fail", "--max-time", "10", `${allowedOrigin}/large`,
+      "--silent", "--show-error", "--fail", "--max-time", "10", allowedOrigin + "/large",
     ], undefined, (stream, chunk) => events.append(stream, chunk));
     events.finish();
     expect(result.command.exitCode === 0, "A large approved response stopped the worker.");
@@ -290,12 +328,28 @@ try {
       invocation: { executableId: "python3", argv: ["-c", verifyInputAndRequest, "/work/input-auth", `${allowedOrigin}/secret-input`] },
       origins: [allowedOrigin], inputs: profile.inputs, limits,
     };
+    const syntheticBinding = { scopeId: "qualification-synthetic-scope", generation: 1 };
+    const credentialAuthority: ExecutionCredentialAuthority = {
+      resolveBinding(requestedPrincipal, authorizationId, requestedPlan) {
+        if (requestedPrincipal.installationId !== principal.installationId ||
+            requestedPrincipal.instanceId !== principal.instanceId || authorizationId !== plan.authorizationId ||
+            !requestedPlan || JSON.stringify(requestedPlan) !== JSON.stringify(plan)) return null;
+        return { ...syntheticBinding };
+      },
+      isCurrent(requestedPrincipal, binding) {
+        return requestedPrincipal.installationId === principal.installationId &&
+          requestedPrincipal.instanceId === principal.instanceId &&
+          binding.scopeId === syntheticBinding.scopeId && binding.generation === syntheticBinding.generation;
+      },
+    };
     const brokerHost = new ExecutionBrokerHostService({
       directory, installationId: principal.installationId, hmacKey: key,
       identities: [{ token, principal }], profiles: [profile],
       readAuthorization: () => ({ principal, plan, expiresAt: Date.now() + 60_000 }),
+      credentialAuthority,
       images: { worker: workerImage, proxy: proxyImage, initializer: initializerImage },
       trustedNonPublicMappings: { "approved.test": [hostAddress] }, docker, leaseMs: 10_000,
+      reservedControlEndpoints: [{ addresses: [hostAddress], port: deniedPort }],
       async lookup(hostname) {
         if (hostname !== "approved.test") throw new Error("Qualification resolver received an unexpected hostname.");
         return [{ address: hostAddress, family: 4 }];
@@ -315,6 +369,14 @@ try {
         receipt = await client.get(plan.executionId);
       }
       expect(receipt.status === "closed" && receipt.cleanup === "confirmed", "Broker did not confirm cleanup.");
+      let secretProfileOutputRefused = false;
+      try {
+        await client.readEvents(plan.executionId, -1);
+      } catch (error) {
+        secretProfileOutputRefused = error instanceof ExecutionBrokerError && error.code === "CONFLICT";
+        if (!secretProfileOutputRefused) throw error;
+      }
+      expect(secretProfileOutputRefused, "Broker did not refuse output for the unsupported custom secret-input profile.");
       expect(allowedEvents.length === before + 1, "Worker did not verify its private input before sending the approved request.");
       expect(allowedEvents.at(-1)?.path === "/secret-input", "Worker sent a request outside the approved qualification path.");
       expect(secretReceiverChecks.length === 1 && secretReceiverChecks[0], "Controlled receiver did not match the exact in-memory input canary.");
@@ -327,7 +389,7 @@ try {
       const networks = await docker.run(["network", "ls", "-q", "--filter", "label=nulltrace.installation=broker-qualification"], { timeoutMs: 10_000 });
       expect(containers.exitCode === 0 && !containers.stdout.trim(), "Qualification left a container behind.");
       expect(networks.exitCode === 0 && !networks.stdout.trim(), "Qualification left a network behind.");
-      return "broker putInput -> worker tmpfs read mode-0600 input; controlled receiver matched exact authorization canary; host files clean; containers/networks 0";
+      return "synthetic exact-plan credential binding; broker putInput -> worker tmpfs read mode-0600 input; controlled receiver matched exact canary; unsupported secret-profile output release refused with CONFLICT; reserved endpoint passed kernel firewall verification; host files clean; containers/networks 0";
     } finally {
       await brokerHost.close();
       key.fill(0);
@@ -624,6 +686,8 @@ const evidence = {
   )).digest("hex"),
   images: { workerImage, proxyImage, initializerImage },
   hostMapping: { address: hostAddress, binding: "127.0.0.1", allowedPort, deniedPort },
+  reservedControlEndpoint: { address: hostAddress, port: deniedPort, positiveControlCount: reservedPositiveControlCount,
+    proxyFirewallDenyVerified: checks.some((check) => check.name === "allowed exact-origin request" && check.passed) },
   checks,
   receivers: { allowedEvents, deniedEvents },
 };

@@ -10,10 +10,22 @@ export interface HttpExecutionEndpoint {
   port: number;
 }
 
+export interface HttpReservedControlEndpoint {
+  addresses: readonly string[];
+  port: number;
+}
+
 export interface HttpExecutionNetworkPolicy {
   executionId: string;
   origins: string[];
   endpoints: HttpExecutionEndpoint[];
+}
+
+export interface HttpExecutionFirewallRequirements {
+  addresses: string[];
+  ports: number[];
+  minimumAcceptRules: number;
+  reservedControlEndpoints?: readonly HttpReservedControlEndpoint[];
 }
 
 export interface HttpExecutionNetworkImages {
@@ -27,6 +39,7 @@ export interface HttpExecutionNetworkOptions {
   installationId: string;
   ownershipLock: ExecutionBrokerOwnershipLock;
   trustedNonPublicMappings: Record<string, string[]>;
+  reservedControlEndpoints?: readonly HttpReservedControlEndpoint[];
   commandTimeoutMs: number;
   setupTimeoutMs: number;
   cleanupTimeoutMs: number;
@@ -39,6 +52,7 @@ export interface HttpResolvedAddress {
 
 export interface HttpExecutionResolverOptions {
   trustedNonPublicMappings: Record<string, string[]>;
+  reservedControlEndpoints?: readonly HttpReservedControlEndpoint[];
   timeoutMs?: number;
   lookup?: (hostname: string) => Promise<HttpResolvedAddress[]>;
 }

@@ -61,4 +61,18 @@ describe("trusted HTTP target resolution", () => {
     expect(calls).toBe(0);
     await expect(resolver.resolve("run-1", ["https://example.test"])).rejects.toThrow("timed out");
   });
+
+  test("rejects a reserved host tuple after resolution despite trusted aliases and snapshots configuration", async () => {
+    const addresses = ["192.168.1.20"];
+    const reservedControlEndpoints = [{ addresses, port: 8443 }];
+    const resolver = new HttpExecutionResolverService({
+      trustedNonPublicMappings: { "target-alias.test": ["192.168.1.20"] },
+      reservedControlEndpoints,
+      async lookup() {
+        return [{ address: "192.168.1.20", family: 4 }];
+      },
+    });
+    addresses[0] = "192.168.1.21";
+    await expect(resolver.resolve("run-1", ["https://target-alias.test:8443"])).rejects.toThrow("reserved control endpoint");
+  });
 });

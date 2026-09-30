@@ -7,6 +7,8 @@ import {
   HttpExecutionNetworkPolicy,
   HttpExecutionNetworkResult,
   HttpExecutionNetworkRunResult,
+  HttpExecutionFirewallRequirements,
+  HttpReservedControlEndpoint,
 } from "../types/http-execution-network.types";
 import { ExecutionLimits } from "../types/execution-plan.types";
 import { ExecutionOutputStream } from "../types/execution-event.types";
@@ -19,15 +21,18 @@ import {
   compileWorkerFirewall,
   createHttpExecutionNetworkPolicy,
   normalizeNetworkAddress,
+  snapshotReservedControlEndpoints,
 } from "./http-execution-policy.helpers";
 
 export class HttpExecutionNetworkService {
+  private readonly reservedControlEndpoints: readonly HttpReservedControlEndpoint[];
   private readonly active = new Set<string>();
   private reconciliation: Promise<void> | null = null;
   private recoveryRequired = false;
   private reconciling = false;
 
   constructor(private readonly docker: DockerCommandAdapter, private readonly options: HttpExecutionNetworkOptions) {
+    this.reservedControlEndpoints = snapshotReservedControlEndpoints(options.reservedControlEndpoints);
     requireExecutionId(options.installationId);
     for (const image of Object.values(options.images)) {
       if (!/^sha256:[a-f0-9]{64}$/.test(image)) throw new Error("Isolation images must use immutable local IDs.");
@@ -47,15 +52,16 @@ export class HttpExecutionNetworkService {
     inputs: HttpExecutionNetworkInput[] = [],
   ): Promise<HttpExecutionNetworkRunResult> {
     this.options.ownershipLock.assertHeld();
-    await this.ensureReconciled();
-    if (this.reconciling) throw new Error("Execution recovery is in progress.");
-    if (this.recoveryRequired) throw new Error("Execution cleanup requires reconciliation.");
     policy = createHttpExecutionNetworkPolicy(
       policy.executionId,
       policy.origins,
       policy.endpoints,
       this.options.trustedNonPublicMappings,
+      this.reservedControlEndpoints,
     );
+    await this.ensureReconciled();
+    if (this.reconciling) throw new Error("Execution recovery is in progress.");
+    if (this.recoveryRequired) throw new Error("Execution cleanup requires reconciliation.");
     if (this.active.size) throw new Error("Execution environment is busy.");
     if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$/.test(executable) || argv.length > 256 || argv.some((value) => value.includes("\0"))) {
       throw new Error("Invalid isolated command.");
@@ -75,7 +81,7 @@ export class HttpExecutionNetworkService {
       environment = await this.provision(policy, limits, names, signal);
       this.requireActive(signal);
       const workerRules = compileWorkerFirewall(names.proxyIpv4, names.proxyIpv6);
-      const proxyRules = compileProxyFirewall(names.workerIpv4, names.workerIpv6, policy.endpoints);
+      const proxyRules = compileProxyFirewall(names.workerIpv4, names.workerIpv6, policy.endpoints, this.reservedControlEndpoints);
       workerRulesHash = this.hash(workerRules);
       proxyRulesHash = this.hash(proxyRules);
       await this.installAndVerifyFirewall(environment.workerContainerId, workerRules, {
@@ -88,6 +94,7 @@ export class HttpExecutionNetworkService {
         addresses: [names.workerIpv4, normalizeNetworkAddress(names.workerIpv6), ...policy.endpoints.map((endpoint) => endpoint.address)],
         ports: [3128, ...policy.endpoints.map((endpoint) => endpoint.port)],
         minimumAcceptRules: 5 + policy.endpoints.length,
+        reservedControlEndpoints: this.reservedControlEndpoints,
       }, names, signal);
       this.requireActive(signal);
       await this.startProxy(environment.proxyContainerId, policy, signal);
@@ -260,7 +267,7 @@ export class HttpExecutionNetworkService {
   private async installAndVerifyFirewall(
     container: string,
     rules: string,
-    requirements: { addresses: string[]; ports: number[]; minimumAcceptRules: number },
+    requirements: HttpExecutionFirewallRequirements,
     names: EnvironmentNames,
     signal?: AbortSignal,
   ): Promise<void> {

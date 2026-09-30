@@ -97,13 +97,40 @@ class RecordingDocker implements DockerCommandAdapter {
       const addresses = (input.match(/(?:\d{1,3}\.){3}\d{1,3}|(?:[a-f0-9]{0,4}:){2,}[a-f0-9:]+/gi) ?? [])
         .map(normalizeNetworkAddress);
       const ports = input.match(/dport (\d+)/g)?.map((value) => Number(value.slice(6))) ?? [];
-      const accepts = (input.match(/ accept/g) ?? []).map(() => ({ rule: { table: "nulltrace", expr: [{ accept: null }] } }));
+      const outputRules: unknown[] = [];
+      let chain = "";
+      for (const line of input.split("\n")) {
+        const chainMatch = line.match(/^\s*chain (input|forward|output) \{/);
+        if (chainMatch) chain = chainMatch[1]!;
+        if (chain === "output") {
+          const destination = line.match(/^\s*(ip6?) daddr (\S+) tcp dport (\d+) (drop|accept)$/);
+          if (destination) {
+            outputRules.push({ rule: {
+              family: "inet",
+              table: "nulltrace",
+              chain: "output",
+              expr: [
+                { match: { op: "==", left: { payload: { protocol: destination[1], field: "daddr" } }, right: destination[2] } },
+                { match: { op: "==", left: { payload: { protocol: "tcp", field: "dport" } }, right: Number(destination[3]) } },
+                destination[4] === "drop" ? { drop: null } : { accept: null },
+              ],
+            } });
+          } else if (/^\s*ct state established,related accept$/.test(line)) {
+            outputRules.push({ rule: { family: "inet", table: "nulltrace", chain: "output", expr: [{ accept: null }] } });
+          }
+        }
+        if (line.includes("}") && !line.includes("chain forward {")) chain = "";
+      }
+      const acceptCount = (input.match(/ accept/g) ?? []).length;
+      const outputAcceptCount = outputRules.filter((record) => JSON.stringify(record).includes('"accept":null')).length;
+      const otherAccepts = Array.from({ length: Math.max(0, acceptCount - outputAcceptCount) }, () => ({ rule: { expr: [{ accept: null }] } }));
       return {
         exitCode: 0,
         stdout: JSON.stringify({ nftables: [
-          ...["input", "forward", "output"].map((name) => ({ chain: { table: "nulltrace", name, policy: "drop" } })),
+          ...["input", "forward", "output"].map((name) => ({ chain: { family: "inet", table: "nulltrace", name, policy: "drop" } })),
           { rule: { values: [...addresses, ...ports] } },
-          ...accepts,
+          ...outputRules,
+          ...otherAccepts,
         ] }),
         stderr: "",
       };
@@ -138,6 +165,24 @@ function service(docker: RecordingDocker) {
 }
 
 describe("HTTP execution network provisioning", () => {
+  test("revalidates reserved endpoints from a constructor snapshot before Docker calls", async () => {
+    const docker = new RecordingDocker();
+    const addresses = ["93.184.216.34"];
+    const network = new HttpExecutionNetworkService(docker, {
+      images: { worker: image, proxy: image, initializer: image },
+      installationId: "test-installation",
+      ownershipLock: { assertHeld() {} },
+      trustedNonPublicMappings: {},
+      reservedControlEndpoints: [{ addresses, port: 8080 }],
+      commandTimeoutMs: 5000,
+      setupTimeoutMs: 5000,
+      cleanupTimeoutMs: 5000,
+    });
+    addresses[0] = "93.184.216.35";
+    await expect(network.run(policy, limits, "curl", ["http://approved.test:8080/"])).rejects.toThrow("reserved control endpoint");
+    expect(docker.calls).toHaveLength(0);
+  });
+
   test("verifies both firewalls before starting proxy or worker command and confirms cleanup", async () => {
     const docker = new RecordingDocker();
     const result = await service(docker).run(policy, limits, "curl", ["http://approved.test:8080/"]);

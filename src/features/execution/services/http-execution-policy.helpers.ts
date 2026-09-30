@@ -1,5 +1,10 @@
 import { isIP } from "node:net";
-import { HttpExecutionEndpoint, HttpExecutionNetworkPolicy } from "../types/http-execution-network.types";
+import {
+  HttpExecutionEndpoint,
+  HttpExecutionFirewallRequirements,
+  HttpExecutionNetworkPolicy,
+  HttpReservedControlEndpoint,
+} from "../types/http-execution-network.types";
 import { requireExecutionId } from "./execution-validation.helpers";
 
 const forbiddenIpv4 = [
@@ -24,6 +29,7 @@ export function createHttpExecutionNetworkPolicy(
   origins: readonly string[],
   endpoints: readonly HttpExecutionEndpoint[],
   trustedNonPublicMappings: Readonly<Record<string, readonly string[]>> = {},
+  reservedControlEndpoints: readonly HttpReservedControlEndpoint[] = [],
 ): HttpExecutionNetworkPolicy {
   requireExecutionId(executionId);
   if (!origins.length || origins.length > 32 || !endpoints.length || endpoints.length > 128) {
@@ -45,11 +51,15 @@ export function createHttpExecutionNetworkPolicy(
       return normalizedAddress;
     }))];
   }));
+  const reservedEndpoints = snapshotReservedControlEndpoints(reservedControlEndpoints);
   const keys = new Set<string>();
   const normalizedEndpoints = endpoints.map((endpoint) => {
     const origin = parseOrigin(endpoint.origin);
     const allowed = allowedOrigins.get(origin.origin);
     const address = normalizeNetworkAddress(endpoint.address);
+    if (isReservedControlEndpoint(address, endpoint.port, reservedEndpoints)) {
+      throw new Error("Target endpoint conflicts with a reserved control endpoint.");
+    }
     if (!allowed || normalizeHostname(endpoint.hostname) !== allowed.hostname || endpoint.port !== allowed.port ||
       endpoint.family !== isIP(address) ||
       isForbiddenInfrastructureAddress(address) ||
@@ -71,6 +81,56 @@ export function createHttpExecutionNetworkPolicy(
     origins: normalizedOrigins.map((origin) => origin.origin),
     endpoints: normalizedEndpoints,
   };
+}
+
+export function snapshotReservedControlEndpoints(
+  endpoints: unknown = [],
+): readonly HttpReservedControlEndpoint[] {
+  if (!Array.isArray(endpoints) || endpoints.length > 8) {
+    throw new Error("Invalid reserved control endpoint list.");
+  }
+  let totalAddresses = 0;
+  const tuples = new Set<string>();
+  const snapshots = endpoints.map((value: unknown) => {
+    const endpoint = value as Partial<HttpReservedControlEndpoint> & Record<string, unknown>;
+    if (!endpoint || typeof endpoint !== "object" || Array.isArray(endpoint) ||
+        Object.keys(endpoint).length !== 2 || !Object.hasOwn(endpoint, "addresses") || !Object.hasOwn(endpoint, "port") ||
+        !Array.isArray(endpoint.addresses) || endpoint.addresses.length < 1 || endpoint.addresses.length > 16 ||
+        typeof endpoint.port !== "number" ||
+        !Number.isSafeInteger(endpoint.port) || endpoint.port < 1 || endpoint.port > 65_535) {
+      throw new Error("Invalid reserved control endpoint.");
+    }
+    totalAddresses += endpoint.addresses.length;
+    if (totalAddresses > 32) throw new Error("Too many reserved control endpoint addresses.");
+    const addresses = endpoint.addresses.map((address: unknown) => {
+      if (typeof address !== "string" || isIP(address) === 0) throw new Error("Invalid reserved control endpoint address.");
+      const normalized = normalizeNetworkAddress(address);
+      if (isForbiddenReservationAddress(normalized)) throw new Error("Invalid reserved control endpoint address.");
+      const tuple = `${normalized}|${endpoint.port}`;
+      if (tuples.has(tuple)) throw new Error("Duplicate reserved control endpoint tuple.");
+      tuples.add(tuple);
+      return normalized;
+    });
+    if (new Set(addresses).size !== addresses.length) throw new Error("Duplicate reserved control endpoint address.");
+    return Object.freeze({ addresses: Object.freeze(addresses), port: endpoint.port });
+  });
+  return Object.freeze(snapshots);
+}
+
+function isReservedControlEndpoint(
+  address: string,
+  port: number,
+  reservations: readonly HttpReservedControlEndpoint[],
+): boolean {
+  return reservations.some((reservation) => reservation.port === port && reservation.addresses.includes(address));
+}
+
+function isForbiddenReservationAddress(address: string): boolean {
+  const family = isIP(address);
+  if (family === 4) {
+    return address === "0.0.0.0" || address === "255.255.255.255" || inIpv4Network(address, "224.0.0.0", 4);
+  }
+  return address === "::" || address.toLowerCase().startsWith("ff") || address.toLowerCase().startsWith("::ffff:");
 }
 
 export function compileWorkerFirewall(proxyIpv4: string, proxyIpv6: string): string {
@@ -102,10 +162,19 @@ export function normalizeNetworkAddress(value: string): string {
   throw new Error("Invalid network address.");
 }
 
-export function compileProxyFirewall(workerIpv4: string, workerIpv6: string, endpoints: readonly HttpExecutionEndpoint[]): string {
+export function compileProxyFirewall(
+  workerIpv4: string,
+  workerIpv6: string,
+  endpoints: readonly HttpExecutionEndpoint[],
+  reservedControlEndpoints: readonly HttpReservedControlEndpoint[] = [],
+): string {
   requireAddress(workerIpv4, 4);
   requireAddress(workerIpv6, 6);
   if (!endpoints.length) throw new Error("Proxy requires endpoints.");
+  const reservations = snapshotReservedControlEndpoints(reservedControlEndpoints);
+  const reservedRules = reservations.flatMap(({ addresses, port }) => addresses.map((address) =>
+    `    ${isIP(address) === 4 ? "ip" : "ip6"} daddr ${address} tcp dport ${port} drop\n`,
+  )).join("");
   const ipv4Rules = endpointRules(endpoints, 4, "ip");
   const ipv6Rules = endpointRules(endpoints, 6, "ip6");
   const ipv6Neighbors = [...new Set(endpoints.filter((endpoint) => endpoint.family === 6).map((endpoint) => endpoint.address))]
@@ -123,7 +192,7 @@ table inet nulltrace {
   chain forward { type filter hook forward priority 0; policy drop; }
   chain output {
     type filter hook output priority 0; policy drop;
-    ct state established,related accept
+${reservedRules}    ct state established,related accept
 ${ipv4Rules}${ipv6Rules}${ipv6Neighbors ? `${ipv6Neighbors}\n` : ""}  }
 }
 `;
@@ -173,7 +242,7 @@ access_log stdio:/work/access.log decisions
 
 export function assertVerifiedFirewall(
   value: unknown,
-  requirements: { addresses: string[]; ports: number[]; minimumAcceptRules: number },
+  requirements: HttpExecutionFirewallRequirements,
 ): void {
   if (!value || typeof value !== "object" || !Array.isArray((value as { nftables?: unknown }).nftables)) {
     throw new Error("Firewall verification failed.");
@@ -184,6 +253,7 @@ export function assertVerifiedFirewall(
       if (!record || typeof record !== "object") return false;
       const candidate = (record as { chain?: unknown }).chain;
       return Boolean(candidate && typeof candidate === "object" &&
+        (candidate as { family?: unknown }).family === "inet" &&
         (candidate as { table?: unknown }).table === "nulltrace" &&
         (candidate as { name?: unknown }).name === chain &&
         (candidate as { policy?: unknown }).policy === "drop");
@@ -199,6 +269,44 @@ export function assertVerifiedFirewall(
     (encoded.match(/"accept"/g)?.length ?? 0) < requirements.minimumAcceptRules) {
     throw new Error("Firewall allow rules do not match the compiled policy.");
   }
+  const reservations = snapshotReservedControlEndpoints(requirements.reservedControlEndpoints ?? []);
+  if (reservations.length === 0) return;
+  const outputRules = records.flatMap((record, index) => {
+    if (!isRecord(record) || !isRecord(record.rule)) return [];
+    const rule = record.rule;
+    if (rule.family !== "inet" || rule.table !== "nulltrace" || rule.chain !== "output") return [];
+    return [{ index, expressions: Array.isArray(rule.expr) ? rule.expr : [] }];
+  });
+  const expectedDenies = reservations.flatMap(({ addresses, port }) => addresses.map((address) => ({
+    address,
+    family: isIP(address) === 4 ? "ip" : "ip6",
+    port,
+  })));
+  if (outputRules.length < expectedDenies.length || expectedDenies.some(({ address, family, port }, index) => {
+    const expressions = outputRules[index]?.expressions;
+    return !expressions || expressions.length !== 3 ||
+      !matchesPayload(expressions[0], family, "daddr", address) ||
+      !matchesPayload(expressions[1], "tcp", "dport", port) ||
+      !isDropExpression(expressions[2]);
+  })) {
+    throw new Error("Reserved control endpoint firewall deny is missing or shadowed.");
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function matchesPayload(value: unknown, protocol: string, field: string, expected: string | number): boolean {
+  if (!isRecord(value) || !isRecord(value.match) || !isRecord(value.match.left) ||
+      !isRecord(value.match.left.payload) || Object.keys(value.match).length !== 3 ||
+      Object.keys(value.match.left).length !== 1 || Object.keys(value.match.left.payload).length !== 2) return false;
+  return value.match.op === "==" && value.match.left.payload.protocol === protocol && value.match.left.payload.field === field &&
+    value.match.right === expected;
+}
+
+function isDropExpression(value: unknown): boolean {
+  return isRecord(value) && Object.keys(value).length === 1 && value.drop === null;
 }
 
 function parseOrigin(value: string): { origin: string; hostname: string; port: number; protocol: "http:" | "https:" } {

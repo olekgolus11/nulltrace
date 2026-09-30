@@ -17,8 +17,11 @@ import { HttpExecutionResolverService } from "./http-execution-resolver.service"
 import { HttpExecutionSupervisorService } from "./http-execution-supervisor.service";
 import { authCheckExecutionProfile, isSupportedAuthCheckExecutionPlan } from "./auth-check-execution-profile.helpers";
 import { ExecutionAuthCheckOutputSanitizerService } from "./execution-auth-check-output-sanitizer.service";
+import { snapshotReservedControlEndpoints } from "./http-execution-policy.helpers";
+import { HttpReservedControlEndpoint } from "../types/http-execution-network.types";
 
 export class ExecutionBrokerHostService {
+  private readonly reservedControlEndpoints: readonly HttpReservedControlEndpoint[];
   private server: ReturnType<typeof Bun.serve> | null = null;
   private database: Database | null = null;
   private lock: ExecutionBrokerLockService | null = null;
@@ -28,7 +31,9 @@ export class ExecutionBrokerHostService {
   private adminServer: ReturnType<typeof Bun.serve> | null = null;
   private adminHandler: ExecutionBrokerAdminHttpService | null = null;
 
-  constructor(private readonly options: ExecutionBrokerHostOptions) {}
+  constructor(private readonly options: ExecutionBrokerHostOptions) {
+    this.reservedControlEndpoints = snapshotReservedControlEndpoints(options.reservedControlEndpoints);
+  }
 
   async start(): Promise<string> {
     if (this.server || this.lock) throw new Error("Execution broker is already starting or running.");
@@ -83,12 +88,14 @@ export class ExecutionBrokerHostService {
         installationId: this.options.installationId,
         ownershipLock: this.lock,
         trustedNonPublicMappings: this.options.trustedNonPublicMappings,
+        reservedControlEndpoints: this.reservedControlEndpoints,
         commandTimeoutMs: 30 * 60_000,
         setupTimeoutMs: 30_000,
         cleanupTimeoutMs: 30_000,
       });
       this.supervisor = new HttpExecutionSupervisorService(network, new HttpExecutionResolverService({
         trustedNonPublicMappings: this.options.trustedNonPublicMappings,
+        reservedControlEndpoints: this.reservedControlEndpoints,
         ...(this.options.lookup ? { lookup: this.options.lookup } : {}),
       }), {
         leaseMs: this.options.leaseMs ?? 30_000,
