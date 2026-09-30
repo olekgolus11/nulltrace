@@ -23,6 +23,23 @@ const publicCurlProfile: ExecutionProfile = {
   },
 };
 
+const publicCurlWorkerProfile: ExecutionProfile = {
+  id: "public-curl-worker-v1",
+  tool: "curl",
+  mode: "public-worker",
+  executableIds: ["bun"],
+  inputs: [{ id: "curl-config", kind: "data", maximumBytes: 2 * 1024 * 1024 }],
+  maximumLimits: {
+    timeoutMs: 30_000,
+    memoryBytes: 512 * 1024 * 1024,
+    cpuMilliCores: 1_000,
+    processCount: 128,
+    scratchBytes: 64 * 1024 * 1024,
+    fileBytes: 16 * 1024 * 1024,
+    outputBytes: 1024 * 1024,
+  },
+};
+
 export async function loadExecutionBrokerDaemonConfiguration(directory: string): Promise<ExecutionBrokerDaemonStartup> {
   if (!isAbsolute(directory)) throw new Error("Broker directory must be absolute.");
   await requirePrivatePath(directory, "directory", 0o700);
@@ -68,10 +85,11 @@ export async function loadExecutionBrokerDaemonConfiguration(directory: string):
         installationId,
         hmacKey: Uint8Array.from(key),
         identities: [{ token, principal }],
-        profiles: [publicCurlProfile],
+        profiles: [publicCurlProfile, publicCurlWorkerProfile],
+        publicDataEventProfileIds: [publicCurlWorkerProfile.id],
         trustedNonPublicMappings: mappings,
         useAuthorizationLedger: true,
-        authorizationPlanValidator: isSupportedPublicCurlPlan,
+        authorizationPlanValidator: (plan) => isSupportedPublicCurlPlan(plan) || isSupportedPublicCurlWorkerPlan(plan),
         readAuthorization: () => null,
         images: {
           worker: images.worker as string,
@@ -90,6 +108,8 @@ export async function loadExecutionBrokerDaemonConfiguration(directory: string):
 
 function isSupportedPublicCurlPlan(plan: ExecutionPlan): boolean {
   try {
+    if (plan.profileId !== publicCurlProfile.id || plan.tool !== "curl" || plan.mode !== "public" ||
+      plan.invocation.executableId !== "curl" || plan.inputs.length !== 0) return false;
     const argv = plan.invocation.argv;
     const prefix = ["--silent", "--show-error", "--fail"];
     if (prefix.some((value, index) => argv[index] !== value)) return false;
@@ -99,6 +119,22 @@ function isSupportedPublicCurlPlan(plan: ExecutionPlan): boolean {
     const target = new URL(argv[5 + offset]!);
     return plan.origins.length === 1 && plan.origins[0] === target.origin &&
       !target.username && !target.password && !target.search && !target.hash;
+  } catch { return false; }
+}
+
+function isSupportedPublicCurlWorkerPlan(plan: ExecutionPlan): boolean {
+  try {
+    if (plan.profileId !== publicCurlWorkerProfile.id || plan.tool !== "curl" ||
+      plan.mode !== "public-worker" || plan.invocation.executableId !== "bun" ||
+      plan.invocation.argv.length !== 2 || plan.invocation.argv[0] !== "run" ||
+      plan.invocation.argv[1] !== "/opt/nulltrace/workers/curl-worker.ts" ||
+      plan.origins.length !== 1 || plan.inputs.length !== 1 ||
+      plan.inputs[0]?.id !== "curl-config" || plan.inputs[0]?.kind !== "data" ||
+      plan.inputs[0]?.maximumBytes !== 2 * 1024 * 1024) return false;
+    const origin = new URL(plan.origins[0]!);
+    return origin.origin === plan.origins[0] &&
+      (origin.protocol === "http:" || origin.protocol === "https:") &&
+      !origin.username && !origin.password && !origin.search && !origin.hash && origin.pathname === "/";
   } catch { return false; }
 }
 

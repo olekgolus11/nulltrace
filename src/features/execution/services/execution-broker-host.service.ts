@@ -85,6 +85,7 @@ export class ExecutionBrokerHostService {
       });
       const broker = new ExecutionBrokerService(receipts, {
         profiles: this.options.profiles,
+        ...(this.options.publicDataEventProfileIds ? { publicDataEventProfileIds: this.options.publicDataEventProfileIds } : {}),
         readAuthorization: authorizationLedger
           ? (principal, authorizationId, plan) => plan ? authorizationLedger.claim(principal, authorizationId, plan) : null
           : this.options.readAuthorization,

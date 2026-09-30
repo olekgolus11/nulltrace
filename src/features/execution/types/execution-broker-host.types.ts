@@ -9,6 +9,7 @@ export interface ExecutionBrokerHostOptions {
   adminToken?: string;
   identities: ExecutionBrokerIdentity[];
   profiles: ExecutionProfile[];
+  publicDataEventProfileIds?: string[];
   readAuthorization: (principal: ExecutionPrincipal, authorizationId: string) => ExecutionAuthorization | null;
   useAuthorizationLedger?: boolean;
   authorizationPlanValidator?: (plan: ExecutionPlan) => boolean;

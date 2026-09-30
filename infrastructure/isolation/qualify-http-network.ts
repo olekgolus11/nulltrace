@@ -28,6 +28,7 @@ const initializerImage = await imageId(`nulltrace-isolation-network-init:${suffi
 const hostAddress = await resolveDockerHost(workerImage);
 const allowedEvents: Array<{ host: string | null; path: string }> = [];
 const deniedEvents: Array<{ host: string | null; path: string }> = [];
+const curlWorkerRequests: Array<{ method: string; path: string; header: string | null; body: string }> = [];
 let onHeldRequest: (() => void) | null = null;
 let deniedPort = 0;
 let inputSecret: string | null = null;
@@ -44,7 +45,7 @@ deniedPort = denied.port!;
 const allowed = Bun.serve({
   hostname: "127.0.0.1",
   port: 0,
-  fetch(request) {
+  async fetch(request) {
     const url = new URL(request.url);
     allowedEvents.push({ host: request.headers.get("host"), path: url.pathname });
     if (url.pathname === "/hold") {
@@ -54,6 +55,23 @@ const allowed = Bun.serve({
     if (url.pathname === "/redirect") {
       return new Response(null, { status: 302, headers: { location: `http://forbidden.test:${deniedPort}/redirect-target` } });
     }
+    if (url.pathname.startsWith("/curl-worker")) {
+      curlWorkerRequests.push({
+        method: request.method,
+        path: url.pathname,
+        header: request.headers.get("x-worker-test"),
+        body: await request.text(),
+      });
+    }
+    if (url.pathname === "/curl-worker-redirect") {
+      return new Response(null, { status: 302, headers: { location: "/curl-worker-final?token=redirect-canary" } });
+    }
+    if (url.pathname === "/curl-worker-cross-redirect") {
+      return new Response(null, { status: 302, headers: { location: `http://forbidden.test:${deniedPort}/curl-worker-blocked` } });
+    }
+    if (url.pathname === "/curl-worker-get") return new Response("echo query-canary header-canary\n");
+    if (url.pathname === "/curl-worker-post") return new Response("echo body-canary\n");
+    if (url.pathname === "/curl-worker-final") return new Response("echo redirect-canary\n");
     if (url.pathname === "/secret-input") {
       const matched = inputSecret !== null && request.headers.get("authorization") === `Bearer ${inputSecret}`;
       secretReceiverChecks.push(matched);
@@ -318,6 +336,61 @@ try {
       await rm(directory, { recursive: true, force: true });
     }
   });
+  await check("public cURL worker preserves requests and blocks an unapproved redirect", async () => {
+    const slot = { id: "curl-config", kind: "data" as const, maximumBytes: 2 * 1024 * 1024 };
+    const runWorker = async (executionId: string, configuration: Record<string, unknown>) => {
+      const bytes = new TextEncoder().encode(JSON.stringify(configuration));
+      const output: string[] = [];
+      try {
+        return await service.run(
+          allowedPolicy(executionId), limits, "bun", ["run", "/opt/nulltrace/workers/curl-worker.ts"], undefined,
+          (_stream, chunk) => output.push(new TextDecoder().decode(chunk)),
+          [{ slot, bytes }],
+        ).then((result) => ({ result, output: output.join("") }));
+      } finally { bytes.fill(0); }
+    };
+    const beforeAllowed = allowedEvents.length;
+    const common = {
+      version: 1, targetUrl: `${allowedOrigin}/curl-worker-get?token=query-canary`, exactOrigin: allowedOrigin,
+      method: "GET", headers: ["X-Worker-Test: header-canary"], bodyOperations: [],
+      maximumRedirectCount: 5, maximumResponseBytes: 2 * 1024 * 1024, timeoutSeconds: 10,
+    };
+    const get = await runWorker("qualification-curl-worker-get", common);
+    expect(get.result.command.exitCode === 0, "cURL worker GET failed.");
+    expect(curlWorkerRequests.at(-1)?.method === "GET" && curlWorkerRequests.at(-1)?.header === "header-canary",
+      "cURL worker did not preserve the GET method and inline header.");
+    expect(get.output.includes("echo [redacted] [redacted]") && !get.output.includes("query-canary") && !get.output.includes("header-canary"),
+      "cURL worker output did not redact echoed query and header values.");
+    const post = await runWorker("qualification-curl-worker-post", {
+      ...common, targetUrl: `${allowedOrigin}/curl-worker-post`, method: "POST",
+      bodyOperations: [{ kind: "data-raw", value: "body-" }, { kind: "data-raw", value: "canary" }],
+    });
+    expect(post.result.command.exitCode === 0, "cURL worker POST failed.");
+    expect(curlWorkerRequests.at(-1)?.method === "POST" && curlWorkerRequests.at(-1)?.body === "body-&canary",
+      "cURL worker did not preserve ordered body operations.");
+    expect(post.output.includes("echo [redacted]") && !post.output.includes("body-canary"), "cURL worker output did not redact echoed body values.");
+    const redirected = await runWorker("qualification-curl-worker-redirect", {
+      ...common, targetUrl: `${allowedOrigin}/curl-worker-redirect`,
+    });
+    expect(redirected.result.command.exitCode === 0 && curlWorkerRequests.some((request) => request.path === "/curl-worker-final"),
+      "cURL worker did not follow the approved same-origin redirect.");
+    expect(redirected.output.includes("echo [redacted]") && !redirected.output.includes("redirect-canary"),
+      "cURL worker output did not redact an echoed redirect query value.");
+    const beforeDenied = deniedEvents.length;
+    const crossRedirect = await runWorker("qualification-curl-worker-cross-redirect", {
+      ...common, targetUrl: `${allowedOrigin}/curl-worker-cross-redirect`,
+    });
+    expect(crossRedirect.result.command.exitCode !== 0, "cURL worker accepted a cross-origin redirect.");
+    expect(deniedEvents.length === beforeDenied, "Forbidden redirect receiver observed a cURL worker request.");
+    const forgedOrigin = `http://forbidden.test:${deniedPort}`;
+    const forgedScope = await runWorker("qualification-curl-worker-forged-input-origin", {
+      ...common, targetUrl: `${forgedOrigin}/forged-scope`, exactOrigin: forgedOrigin,
+    });
+    expect(forgedScope.output.includes("[http 403]"), "Broker network policy did not reject the forged input origin with HTTP 403.");
+    expect(deniedEvents.length === beforeDenied, "Broker network policy allowed a forged input origin to reach the receiver.");
+    expect(allowedEvents.length === beforeAllowed + 5, "cURL worker request count did not match the expected GET, POST, redirects.");
+    return "GET, POST headers and ordered body, same-origin redirect passed; cross-origin redirect and forged input origin receiver count 0; output redacted request canaries; tmpfs cleaned";
+  });
   await check("dedicated broker process delivers an approved isolated request", async () => {
     const directory = await mkdtemp(join(tmpdir(), "nulltrace-daemon-qualification-"));
     await chmod(directory, 0o700);
@@ -330,11 +403,16 @@ try {
     database.close();
     await chmod(journal, 0o600);
     const targetOrigin = `http://${hostAddress}:${allowedPort}`;
+    const requestConfig = Buffer.from(JSON.stringify({
+      version: 1, targetUrl: `${targetOrigin}/curl-worker-get?token=query-canary`, exactOrigin: targetOrigin,
+      method: "GET", headers: ["X-Worker-Test: header-canary"], bodyOperations: [],
+      maximumRedirectCount: 5, maximumResponseBytes: 2 * 1024 * 1024, timeoutSeconds: 5,
+    }));
     const plan: ExecutionPlan = {
       version: 1, executionId: "daemon-qualification-run", authorizationId: "approved-run",
-      profileId: "public-curl-v1", tool: "curl", mode: "public",
-      invocation: { executableId: "curl", argv: ["--silent", "--show-error", "--fail", "--max-time", "5", `${targetOrigin}/daemon`] },
-      origins: [targetOrigin], inputs: [], limits,
+      profileId: "public-curl-worker-v1", tool: "curl", mode: "public-worker",
+      invocation: { executableId: "bun", argv: ["run", "/opt/nulltrace/workers/curl-worker.ts"] },
+      origins: [targetOrigin], inputs: [{ id: "curl-config", kind: "data", maximumBytes: 2 * 1024 * 1024 }], limits,
     };
     const executable = Bun.which("docker");
     if (!executable) throw new Error("Docker executable is unavailable.");
@@ -387,7 +465,7 @@ try {
         "Administrator token was accepted on the execution socket.");
       expect((await administratorGrant({ ...grant, plan: { ...plan, origins: [...plan.origins, "https://outside.test"] } }, adminToken, adminSocket)).status === 400,
         "Administrator channel accepted multiple origins.");
-      expect((await administratorGrant({ ...grant, plan: { ...plan, invocation: { ...plan.invocation, argv: [...plan.invocation.argv, "--proxy", "http://outside.test"] } } }, adminToken, adminSocket)).status === 400,
+      expect((await administratorGrant({ ...grant, plan: { ...plan, invocation: { ...plan.invocation, argv: [...plan.invocation.argv, "http://outside.test"] } } }, adminToken, adminSocket)).status === 400,
         "Administrator channel accepted an unqualified cURL argument.");
       expect((await administratorGrant(grant, adminToken, adminSocket)).status === 201,
         "Administrator channel rejected a valid structured grant.");
@@ -395,6 +473,9 @@ try {
         "Administrator channel accepted a duplicate authorization ID.");
       const client = new ExecutionBrokerClient((request) => fetch(request, { unix: socket }), token);
       expect((await client.prepare(plan)).status === "prepared", "Dedicated broker rejected the approved plan.");
+      expect((await client.putInput(plan.executionId, "curl-config", requestConfig)).status === "prepared",
+        "Dedicated broker did not accept the declared cURL request slot.");
+      requestConfig.fill(0);
       await client.start(plan.executionId);
       let receipt = await client.get(plan.executionId);
       for (let attempt = 0; attempt < 100 && receipt.status !== "closed"; attempt++) {
@@ -403,15 +484,20 @@ try {
       }
       expect(receipt.status === "closed" && receipt.cleanup === "confirmed", "Dedicated broker did not confirm cleanup.");
       const events = await client.readEvents(plan.executionId, -1);
-      expect(events.events.some((event) => event.line === "approved-server"), "Dedicated broker did not return the approved response event.");
+      expect(events.events.some((event) => event.line === "echo [redacted] [redacted]"), "Dedicated broker did not return redacted cURL worker output.");
+      expect(events.events.every((event) => !event.line.includes("query-canary") && !event.line.includes("header-canary")),
+        "Dedicated broker exposed cURL request values in its output events.");
       expect(allowedEvents.length === before + 1, "Approved receiver did not observe the daemon request.");
-      return "separate broker process; admin token only grants on admin socket; wide origins/argv rejected; duplicate denied; approved receiver count +1; cleanup confirmed";
+      expect(curlWorkerRequests.at(-1)?.path === "/curl-worker-get" && curlWorkerRequests.at(-1)?.header === "header-canary",
+        "Approved cURL request did not reach the controlled receiver with its inline header.");
+      return "separate broker process; worker profile granted on admin socket; input slot sealed; query/header output redacted; cleanup confirmed";
     } finally {
       child.kill("SIGTERM");
       const timeout = setTimeout(() => child.kill("SIGKILL"), 10_000);
       try { await child.exited; }
       finally { clearTimeout(timeout); }
       key.fill(0);
+      requestConfig.fill(0);
       await rm(directory, { recursive: true, force: true });
     }
   });

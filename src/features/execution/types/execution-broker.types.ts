@@ -39,6 +39,7 @@ export interface ExecutionControlReceipt {
 
 export interface ExecutionBrokerOptions {
   profiles: ExecutionProfile[];
+  publicDataEventProfileIds?: string[];
   readAuthorization: (principal: ExecutionPrincipal, authorizationId: string, requestedPlan?: ExecutionPlan) => ExecutionAuthorization | null;
   runtime?: ExecutionRuntimeAdapter;
   now?: () => number;
