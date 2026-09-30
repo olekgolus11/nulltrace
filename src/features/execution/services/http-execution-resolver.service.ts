@@ -4,16 +4,19 @@ import {
   HttpExecutionEndpoint,
   HttpExecutionNetworkPolicy,
   HttpExecutionResolverOptions,
+  HttpReservedControlEndpoint,
   HttpResolvedAddress,
 } from "../types/http-execution-network.types";
-import { createHttpExecutionNetworkPolicy } from "./http-execution-policy.helpers";
+import { createHttpExecutionNetworkPolicy, snapshotReservedControlEndpoints } from "./http-execution-policy.helpers";
 import { requireExecutionId } from "./execution-validation.helpers";
 
 export class HttpExecutionResolverService {
   private readonly lookup: (hostname: string) => Promise<HttpResolvedAddress[]>;
   private readonly timeoutMs: number;
+  private readonly reservedControlEndpoints: readonly HttpReservedControlEndpoint[];
 
   constructor(private readonly options: HttpExecutionResolverOptions) {
+    this.reservedControlEndpoints = snapshotReservedControlEndpoints(options.reservedControlEndpoints);
     this.timeoutMs = options.timeoutMs ?? 5_000;
     if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 100 || this.timeoutMs > 30_000) {
       throw new Error("Invalid target resolution timeout.");
@@ -46,7 +49,13 @@ export class HttpExecutionResolverService {
         endpoints.push({ origin, hostname, address: candidate.address, family: candidate.family, port });
       }
     }
-    return createHttpExecutionNetworkPolicy(executionId, origins, endpoints, this.options.trustedNonPublicMappings);
+    return createHttpExecutionNetworkPolicy(
+      executionId,
+      origins,
+      endpoints,
+      this.options.trustedNonPublicMappings,
+      this.reservedControlEndpoints,
+    );
   }
 
   private async lookupBounded(hostname: string): Promise<HttpResolvedAddress[]> {
