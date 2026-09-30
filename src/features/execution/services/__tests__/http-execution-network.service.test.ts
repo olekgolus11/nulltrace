@@ -39,8 +39,13 @@ class RecordingDocker implements DockerCommandAdapter {
   onWorkerStart?: () => void;
   ownedContainers: string[] = [];
   ownedNetworks: string[] = [];
+  proxyContainers: string[] = [];
+  stoppedContainers = new Set<string>();
   inventoryUnavailable = false;
   cleanupBlocked = false;
+  egressBlocked = false;
+  malformedEgressInventory = false;
+  legacyProxyId: string | null = null;
 
   async run(args: string[], options: DockerCommandOptions = {}): Promise<DockerCommandResult> {
     this.calls.push({
@@ -48,6 +53,26 @@ class RecordingDocker implements DockerCommandAdapter {
       input: options.input ? new TextDecoder().decode(options.input) : undefined,
       outputLimitBytes: options.outputLimitBytes,
     });
+    if (args[0] === "run" && args.includes("nulltrace.role=proxy")) {
+      this.proxyContainers.push("d".repeat(12));
+    }
+    if (args[0] === "ps" && args.includes("label=nulltrace.role=proxy")) {
+      if (this.malformedEgressInventory && args.some((argument) => argument.startsWith("label=nulltrace.execution="))) {
+        return { exitCode: 0, stdout: "malformed", stderr: "" };
+      }
+      return { exitCode: this.inventoryUnavailable ? 1 : 0, stdout: this.proxyContainers.join("\n"), stderr: "" };
+    }
+    if (args[0] === "stop") {
+      if (this.egressBlocked) return { exitCode: 1, stdout: "", stderr: "blocked" };
+      this.stoppedContainers.add(args.at(-1)!);
+      return { exitCode: 0, stdout: args.at(-1)!, stderr: "" };
+    }
+    if (args[0] === "inspect") {
+      if (args[2]?.includes(".Name") && args.at(-1) === this.legacyProxyId) {
+        return { exitCode: 0, stdout: "/nt-abcdef-123456-proxy <no value>", stderr: "" };
+      }
+      return { exitCode: 0, stdout: "false", stderr: "" };
+    }
     if (this.failInput && args.includes("/work/input-auth")) return { exitCode: 1, stdout: "", stderr: "failed" };
     if (args.includes("label=nulltrace.installation=test-installation")) {
       if (this.inventoryUnavailable) return { exitCode: 1, stdout: "", stderr: "unavailable" };
@@ -239,6 +264,41 @@ describe("HTTP execution network provisioning", () => {
     const firstProvision = docker.calls.findIndex((call) => call.args[0] === "network" && call.args[1] === "create");
     const oldNetworkRemoval = docker.calls.findIndex((call) => call.args[0] === "network" && call.args.includes("b".repeat(12)));
     expect(oldNetworkRemoval).toBeLessThan(firstProvision);
+  });
+
+  test("revokes legacy roleless proxy egress before removing the owned worker", async () => {
+    const docker = new RecordingDocker();
+    docker.ownedContainers = ["c".repeat(12), "a".repeat(12)];
+    docker.legacyProxyId = "a".repeat(12);
+    await service(docker).run(policy, limits, "curl", ["http://approved.test:8080/"]);
+    const proxyStop = docker.calls.findIndex((call) => call.args[0] === "stop" && call.args.at(-1) === docker.legacyProxyId);
+    const bulkRemoval = docker.calls.findIndex((call) => call.args[0] === "rm" && call.args.includes("c".repeat(12)));
+    expect(proxyStop).toBeGreaterThanOrEqual(0);
+    expect(proxyStop).toBeLessThan(bulkRemoval);
+  });
+
+  test("stops the run proxy before terminating its worker and leaves cleanup uncertain when egress cannot be revoked", async () => {
+    const docker = new RecordingDocker();
+    await service(docker).run(policy, limits, "curl", ["http://approved.test:8080/"]);
+    const proxyStop = docker.calls.findIndex((call) => call.args[0] === "stop");
+    const workerRemoval = docker.calls.findIndex((call) => call.args[0] === "rm" && call.args.some((argument) => argument.endsWith("-worker")));
+    expect(proxyStop).toBeGreaterThanOrEqual(0);
+    expect(proxyStop).toBeLessThan(workerRemoval);
+
+    const blocked = new RecordingDocker();
+    blocked.egressBlocked = true;
+    const isolated = service(blocked);
+    await expect(isolated.run(policy, limits, "curl", ["http://approved.test:8080/"]))
+      .rejects.toThrow("cleanup could not be confirmed");
+    expect(blocked.calls.some((call) => call.args[0] === "rm" && call.args.some((argument) => argument.endsWith("-worker")))).toBe(true);
+    await expect(isolated.run({ ...policy, executionId: "run-2" }, limits, "curl", ["http://approved.test:8080/"]))
+      .rejects.toThrow("requires reconciliation");
+
+    const malformed = new RecordingDocker();
+    malformed.malformedEgressInventory = true;
+    await expect(service(malformed).run(policy, limits, "curl", ["http://approved.test:8080/"]))
+      .rejects.toThrow("cleanup could not be confirmed");
+    expect(malformed.calls.some((call) => call.args[0] === "rm" && call.args.some((argument) => argument.endsWith("-worker")))).toBe(true);
   });
 
   test("fails closed when the installation inventory cannot be verified", async () => {

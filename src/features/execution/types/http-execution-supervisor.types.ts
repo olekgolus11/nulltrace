@@ -15,6 +15,7 @@ export interface HttpExecutionSupervisedRun {
 
 export interface HttpExecutionSupervisorOptions {
   leaseMs: number;
+  cleanupWaitMs?: number;
   inputRetentionMs?: number;
   maximumRetainedRuns?: number;
   secretOutputSanitizer?: HttpExecutionSecretOutputSanitizer;

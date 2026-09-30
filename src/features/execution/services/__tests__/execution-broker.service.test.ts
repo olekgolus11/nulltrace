@@ -9,7 +9,7 @@ import { ExecutionAuthorizationLedgerRepository } from "../execution-authorizati
 import { ExecutionBrokerHttpService } from "../execution-broker-http.service";
 import { ExecutionBrokerClient } from "../execution-broker-client.service";
 import { parseExecutionPlan } from "../execution-plan.helpers";
-import { ExecutionAuthorization, ExecutionRuntimeAdapter } from "../../types/execution-broker.types";
+import { ExecutionAuthorization, ExecutionBrokerOptions, ExecutionRuntimeAdapter } from "../../types/execution-broker.types";
 import { ExecutionPlan, ExecutionProfile } from "../../types/execution-plan.types";
 import { HttpExecutionSupervisorService } from "../http-execution-supervisor.service";
 import { HttpExecutionNetworkPolicy } from "../../types/http-execution-network.types";
@@ -34,19 +34,35 @@ function fixture(path = ":memory:", runtime?: ExecutionRuntimeAdapter) {
   databases.push(database);
   const receipts = new ExecutionReceiptRepository(database, new Uint8Array(32).fill(7));
   let approval: ExecutionAuthorization | null = { principal, plan: structuredClone(original), expiresAt: 2000 };
+  let currentGeneration = 1;
   const starts: ExecutionPlan[] = [];
   const inputs: Uint8Array[] = [];
-  const options = {
+  const selectedRuntime = runtime ?? {
+    async putInput(_plan: ExecutionPlan, _slot: ExecutionPlan["inputs"][number], bytes: Uint8Array) { inputs.push(Uint8Array.from(bytes)); },
+    discardInputs() {},
+    async start(plan: ExecutionPlan) { starts.push(plan); },
+  } satisfies ExecutionRuntimeAdapter;
+  const runtimeWithLifecycle: ExecutionRuntimeAdapter = {
+    ...selectedRuntime,
+    discardInputs: selectedRuntime.discardInputs ?? (() => {}),
+    cancel: selectedRuntime.cancel ?? ((executionId) => ({
+      executionId, status: "running", stopReason: "cancelled", cleanup: "pending", exitCode: null,
+    })),
+    waitForCleanup: selectedRuntime.waitForCleanup ?? (async () => { throw new Error("Cleanup confirmation is unavailable."); }),
+  };
+  const options: ExecutionBrokerOptions = {
     profiles: [profile], now: () => 1000, readAuthorization: () => approval,
-    runtime: runtime ?? {
-      async putInput(_plan, _slot, bytes) { inputs.push(Uint8Array.from(bytes)); },
-      async start(plan) { starts.push(plan); },
-    } satisfies ExecutionRuntimeAdapter,
+    credentialAuthority: {
+      resolveBinding: (caller) => ({ scopeId: caller.instanceId === "other-instance" ? "session-2" : "session-1", generation: 1 }),
+      isCurrent: (_principal, binding) => binding.generation === currentGeneration,
+    },
+    runtime: runtimeWithLifecycle,
   };
   return { database, receipts, options, starts, inputs,
     broker: new ExecutionBrokerService(receipts, options),
     revoke: () => { approval = null; },
-    approve: (plan: ExecutionPlan) => { approval = { principal, plan, expiresAt: 2000 }; },
+    approve: (plan: ExecutionPlan, caller = principal) => { approval = { principal: caller, plan, expiresAt: 2000 }; },
+    setGeneration: (generation: number) => { currentGeneration = generation; },
   };
 }
 
@@ -95,11 +111,21 @@ describe("execution admission", () => {
     let starts = 0;
     const broker = new ExecutionBrokerService(receipts, {
       profiles: [profile],
+      credentialAuthority: {
+        resolveBinding: () => ({ scopeId: "session-1", generation: 1 }),
+        isCurrent: () => true,
+      },
       now: () => 1000,
       readAuthorization(caller, authorizationId, requestedPlan) {
         return requestedPlan ? ledger.claim(caller, authorizationId, requestedPlan) : null;
       },
-      runtime: { async putInput() {}, async start() { starts++; } },
+      runtime: {
+        async putInput() {},
+        discardInputs() {},
+        async start() { starts++; },
+        cancel(executionId) { return { executionId, status: "running", stopReason: "cancelled", cleanup: "pending", exitCode: null }; },
+        async waitForCleanup(executionId) { return { executionId, status: "finished", stopReason: "cancelled", cleanup: "confirmed", exitCode: null }; },
+      },
     });
     broker.prepare(principal, original);
     await broker.putInput(principal, original.executionId, "credentials", new Uint8Array([1]));
@@ -226,9 +252,15 @@ describe("execution admission", () => {
       },
       discardInputs(executionId) { supervisor.discardInputs(executionId); },
       async start(runPlan) { await supervisor.start(runPlan); },
+      cancel(executionId) { return supervisor.cancel(executionId); },
+      waitForCleanup(executionId) { return supervisor.waitForCleanup(executionId); },
     };
     const broker = new ExecutionBrokerService(receipts, {
       profiles: [profileWithInputs],
+      credentialAuthority: {
+        resolveBinding: () => ({ scopeId: "session-1", generation: 1 }),
+        isCurrent: () => true,
+      },
       readAuthorization: () => ({ principal, plan, expiresAt: 2000 }),
       runtime,
       now: () => 1000,
@@ -276,6 +308,135 @@ describe("execution admission", () => {
     state.revoke();
     await expect(state.broker.start(principal, "run-1")).rejects.toThrow("UNAUTHORIZED");
     expect(state.starts).toHaveLength(0);
+  });
+
+  test("generation revocation closes prepared inputs and leaves public or other-scope receipts alone", async () => {
+    const state = fixture();
+    state.broker.prepare(principal, original);
+    await state.broker.putInput(principal, original.executionId, "credentials", new Uint8Array([1, 2]));
+    const otherPrincipal = { ...principal, instanceId: "other-instance" };
+    const otherPlan = { ...original, executionId: "run-other", authorizationId: "approval-other" };
+    state.approve(otherPlan, otherPrincipal);
+    state.broker.prepare(otherPrincipal, otherPlan);
+    const sameSessionPrincipal = { ...principal, instanceId: "same-session-instance" };
+    const sameSessionPlan = { ...original, executionId: "run-same-session", authorizationId: "approval-same-session" };
+    state.approve(sameSessionPlan, sameSessionPrincipal);
+    state.broker.prepare(sameSessionPrincipal, sameSessionPlan);
+    const publicOwner = state.receipts.fingerprint([principal.installationId, "public-instance"]);
+    state.receipts.reserve(publicOwner, "run-public", "public-fingerprint", null, state.receipts.fingerprint([principal.installationId]));
+
+    await state.broker.revokeCredentialGeneration(principal, { scopeId: "session-1", generation: 1 });
+
+    expect(state.broker.get(principal, original.executionId)).toMatchObject({ status: "closed", cleanup: "confirmed" });
+    expect(state.broker.get(sameSessionPrincipal, sameSessionPlan.executionId)).toMatchObject({ status: "closed", cleanup: "confirmed" });
+    expect(state.broker.get(otherPrincipal, otherPlan.executionId)).toMatchObject({ status: "prepared", cleanup: "pending" });
+    expect(state.receipts.find("run-public")).toMatchObject({ status: "prepared", credentialRevoked: false });
+    state.setGeneration(2);
+    const newPlan = { ...original, executionId: "run-new" };
+    state.approve(newPlan);
+    expect(() => state.broker.prepare(principal, newPlan)).toThrow("UNAUTHORIZED");
+  });
+
+  test("generation revocation wins against an in-flight secret upload", async () => {
+    let release!: () => void;
+    let entered!: () => void;
+    const writing = new Promise<void>((resolve) => { entered = resolve; });
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let discarded = 0;
+    const state = fixture(":memory:", {
+      async putInput() { entered(); await gate; },
+      discardInputs() { discarded++; },
+      async start() { throw new Error("must not start"); },
+    });
+    state.broker.prepare(principal, original);
+    const upload = state.broker.putInput(principal, original.executionId, "credentials", new Uint8Array([1]));
+    await writing;
+    state.setGeneration(2);
+    const revocation = state.broker.revokeCredentialGeneration(principal, { scopeId: "session-1", generation: 1 });
+    await expect(state.broker.start(principal, original.executionId)).rejects.toThrow("CONFLICT");
+    release();
+    await expect(upload).rejects.toThrow("UNAVAILABLE");
+    await revocation;
+    expect(discarded).toBeGreaterThanOrEqual(1);
+    expect(state.broker.get(principal, original.executionId)).toMatchObject({ status: "closed", cleanup: "confirmed" });
+  });
+
+  test("generation revocation waits for durable settlement after runtime cleanup reports confirmed", async () => {
+    let finishStart!: () => void;
+    const startGate = new Promise<void>((resolve) => { finishStart = resolve; });
+    let finishCleanup!: () => void;
+    const cleanupGate = new Promise<void>((resolve) => { finishCleanup = resolve; });
+    let receipts!: ExecutionReceiptRepository;
+    let cancelCount = 0;
+    const state = fixture(":memory:", {
+      async putInput() {},
+      async start() { await startGate; },
+      cancel() {
+        cancelCount++;
+        return { executionId: original.executionId, status: "finished", stopReason: "cancelled", cleanup: "confirmed", exitCode: null };
+      },
+      async waitForCleanup(executionId) {
+        await cleanupGate;
+        receipts.recordOutcome({ executionId, cause: "cancelled", exitCode: null, cleanup: "confirmed" });
+        return { executionId, status: "finished", stopReason: "cancelled", cleanup: "confirmed", exitCode: null };
+      },
+    });
+    receipts = state.receipts;
+    state.broker.prepare(principal, original);
+    await state.broker.putInput(principal, original.executionId, "credentials", new Uint8Array([1]));
+    const starting = state.broker.start(principal, original.executionId);
+    await Bun.sleep(0);
+    state.setGeneration(2);
+    let revocationFinished = false;
+    const revocation = state.broker.revokeCredentialGeneration(principal, { scopeId: "session-1", generation: 1 })
+      .then(() => { revocationFinished = true; });
+    expect(cancelCount).toBeGreaterThan(0);
+    finishStart();
+    await starting;
+    await Bun.sleep(0);
+    expect(revocationFinished).toBe(false);
+    finishCleanup();
+    await revocation;
+    expect(revocationFinished).toBe(true);
+    expect(cancelCount).toBeGreaterThanOrEqual(1);
+    expect(state.broker.get(principal, original.executionId)).toMatchObject({ status: "closed", cleanup: "confirmed" });
+  });
+
+  test("failed revoked-run cleanup keeps the broker locked", async () => {
+    const state = fixture(":memory:", {
+      async putInput() {},
+      async start() {},
+      cancel(executionId) {
+        return { executionId, status: "running", stopReason: "cancelled", cleanup: "pending", exitCode: null };
+      },
+      async waitForCleanup() { throw new Error("injected cleanup uncertainty"); },
+    });
+    state.broker.prepare(principal, original);
+    await state.broker.putInput(principal, original.executionId, "credentials", new Uint8Array([1]));
+    await state.broker.start(principal, original.executionId);
+    await expect(state.broker.revokeCredentialGeneration(principal, { scopeId: "session-1", generation: 1 }))
+      .rejects.toThrow("UNAVAILABLE");
+    expect(state.receipts.find(original.executionId)).toMatchObject({ status: "interrupted", cleanup: "pending", credentialRevoked: true });
+    const nextPlan = { ...original, executionId: "run-next" };
+    state.approve(nextPlan);
+    expect(() => state.broker.prepare(principal, nextPlan)).toThrow("UNAVAILABLE");
+  });
+
+  test("authenticated profiles fail closed without trusted authority and reject caller-supplied bindings", () => {
+    const state = fixture();
+    const { credentialAuthority: _authority, ...untrustedOptions } = state.options;
+    const broker = new ExecutionBrokerService(state.receipts, untrustedOptions);
+    expect(() => broker.prepare(principal, original)).toThrow("UNAVAILABLE");
+    expect(() => broker.prepare(principal, { ...original, credentialBinding: { scopeId: "session-1", generation: 1 } }))
+      .toThrow("INVALID_REQUEST");
+  });
+
+  test("rejects structurally corrupt persisted credential bindings", () => {
+    const state = fixture();
+    state.broker.prepare(principal, original);
+    state.database.query("UPDATE execution_receipts SET credential_generation = NULL WHERE execution_id = ?")
+      .run(original.executionId);
+    expect(() => state.receipts.find(original.executionId)).toThrow("credential binding journal is malformed");
   });
 
   test("an uncertain start is never retried and requires cleanup reconciliation", async () => {
@@ -448,11 +609,18 @@ describe("broker transport", () => {
       const broker = new ExecutionBrokerService(receipts, {
         profiles: [selectedProfile],
         publicDataEventProfileIds: eventProfiles,
+        credentialAuthority: {
+          resolveBinding: () => ({ scopeId: "session-1", generation: 1 }),
+          isCurrent: () => true,
+        },
         now: () => 1000,
         readAuthorization: () => ({ principal, plan: selectedPlan, expiresAt: 2000 }),
         runtime: {
           async putInput() {},
+          discardInputs() {},
           async start() {},
+          cancel(executionId) { return { executionId, status: "running", stopReason: "cancelled", cleanup: "pending", exitCode: null }; },
+          async waitForCleanup(executionId) { return { executionId, status: "finished", stopReason: "cancelled", cleanup: "confirmed", exitCode: null }; },
           readEvents(executionId, afterSequence) {
             return {
               executionId,

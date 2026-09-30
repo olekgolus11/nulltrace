@@ -1,6 +1,7 @@
 import {
   ExecutionBrokerOptions,
   ExecutionControlReceipt,
+  ExecutionCredentialBinding,
   ExecutionPrincipal,
   ExecutionReceipt,
   StoredExecutionReceipt,
@@ -36,15 +37,17 @@ export class ExecutionBrokerService {
       throw new ExecutionBrokerError("INVALID_REQUEST");
     }
     this.authorize(principal, plan);
+    const binding = this.resolveCredentialBinding(principal, plan);
     const owner = this.owner(principal);
     const fingerprint = this.receipts.fingerprint(plan);
     const existing = this.receipts.find(plan.executionId);
     if (existing) {
       if (existing.owner !== owner || existing.fingerprint !== fingerprint) throw new ExecutionBrokerError("CONFLICT");
+      if (!this.sameBinding(existing.credentialBinding, binding) || existing.credentialRevoked) throw new ExecutionBrokerError("UNAUTHORIZED");
       return this.snapshot(existing);
     }
     this.requireReconciled();
-    const receipt = this.receipts.reserve(owner, plan.executionId, fingerprint);
+    const receipt = this.receipts.reserve(owner, plan.executionId, fingerprint, binding, this.installationOwner(principal));
     this.plans.set(plan.executionId, plan);
     return this.snapshot(receipt);
   }
@@ -72,10 +75,6 @@ export class ExecutionBrokerService {
     if (receipt.status === "start_committed") {
       const starting = this.starting.get(executionId);
       if (!starting) throw new ExecutionBrokerError("UNAVAILABLE");
-      await starting.catch(() => undefined);
-      receipt = this.owned(principal, executionId);
-      if (receipt.status === "closed") return this.status(principal, executionId);
-      if (receipt.status === "interrupted") return this.status(principal, executionId);
     }
     if (!runtime.cancel) throw new ExecutionBrokerError("UNAVAILABLE");
     try {
@@ -83,6 +82,71 @@ export class ExecutionBrokerService {
     } catch {
       throw new ExecutionBrokerError("UNAVAILABLE");
     }
+  }
+
+  async revokeCredentialGeneration(principal: ExecutionPrincipal, binding: ExecutionCredentialBinding): Promise<void> {
+    this.validateCredentialBinding(binding);
+    const affected = this.receipts.revokeCredentialBinding(this.installationOwner(principal), binding);
+    const runtime = this.requireRuntime();
+    const cancellationResults = new Map<string, ExecutionControlReceipt | null>();
+    let preparedCleanupFailed = false;
+    for (const receipt of affected) {
+      this.cancelling.add(receipt.executionId);
+      if (receipt.status !== "start_committed" && receipt.status !== "started" && receipt.status !== "interrupted") continue;
+      if (!runtime.cancel) {
+        cancellationResults.set(receipt.executionId, null);
+        continue;
+      }
+      try { cancellationResults.set(receipt.executionId, runtime.cancel(receipt.executionId)); }
+      catch { cancellationResults.set(receipt.executionId, null); }
+    }
+    for (const receipt of affected) {
+      if (receipt.status === "prepared") {
+        if (this.writing.has(receipt.executionId)) await this.writeWaiters.get(receipt.executionId);
+        try {
+          const plan = this.plans.get(receipt.executionId);
+          if (plan?.inputs.length && !runtime.discardInputs) throw new Error("Prepared input cleanup is unavailable.");
+          runtime.discardInputs?.(receipt.executionId);
+          this.receipts.closeRevokedPrepared(receipt.executionId);
+          this.plans.delete(receipt.executionId);
+        } catch {
+          this.receipts.markInterrupted(receipt.executionId);
+          preparedCleanupFailed = true;
+        }
+        continue;
+      }
+      if (receipt.status === "start_committed" || receipt.status === "started" || receipt.status === "interrupted") {
+        const starting = this.starting.get(receipt.executionId);
+        if (starting) {
+          await starting.catch(() => undefined);
+        }
+        let result = cancellationResults.get(receipt.executionId) ?? null;
+        let persisted = this.receipts.find(receipt.executionId);
+        if (persisted?.cleanup === "confirmed") {
+          result = { executionId: receipt.executionId, status: "finished", stopReason: null, cleanup: "confirmed", exitCode: null };
+        } else {
+          if ((!result || result.cleanup !== "confirmed") && persisted?.cleanup === "pending" && runtime.cancel) {
+            try { result = runtime.cancel(receipt.executionId); }
+            catch { result = null; }
+          }
+          if (!runtime.waitForCleanup) {
+            this.receipts.markInterrupted(receipt.executionId);
+            throw new ExecutionBrokerError("UNAVAILABLE");
+          }
+          try { result = await runtime.waitForCleanup(receipt.executionId); }
+          catch {
+            this.receipts.markInterrupted(receipt.executionId);
+            throw new ExecutionBrokerError("UNAVAILABLE");
+          }
+          persisted = this.receipts.find(receipt.executionId);
+        }
+        if (result?.status !== "finished" || result.cleanup !== "confirmed" || persisted?.cleanup !== "confirmed") {
+          this.receipts.markInterrupted(receipt.executionId);
+          throw new ExecutionBrokerError("UNAVAILABLE");
+        }
+      }
+    }
+    if (preparedCleanupFailed) throw new ExecutionBrokerError("UNAVAILABLE");
   }
 
   status(principal: ExecutionPrincipal, executionId: string): ExecutionControlReceipt {
@@ -161,6 +225,7 @@ export class ExecutionBrokerService {
     if (!plan || receipt.status !== "prepared" || this.writing.has(executionId) || this.cancelling.has(executionId)) throw new ExecutionBrokerError("CONFLICT");
     this.requireReconciled();
     this.authorize(principal, plan);
+    this.requireCurrentCredentialBinding(principal, receipt);
     const slot = plan.inputs.find((slot) => slot.id === slotId);
     if (!slot || bytes.byteLength > slot.maximumBytes) throw new ExecutionBrokerError("INVALID_REQUEST");
     const copy = Uint8Array.from(bytes);
@@ -176,6 +241,7 @@ export class ExecutionBrokerService {
     this.writeWaiters.set(executionId, writeFinished);
     try {
       await runtime.putInput(structuredClone(plan), { ...slot }, copy);
+      this.requireCurrentCredentialBinding(principal, this.owned(principal, executionId));
       this.authorize(principal, plan);
       this.receipts.sealInput(executionId, slotId, fingerprint);
       return this.get(principal, executionId);
@@ -202,6 +268,7 @@ export class ExecutionBrokerService {
     try {
       this.requireReconciled();
       this.authorize(principal, plan);
+      this.requireCurrentCredentialBinding(principal, receipt);
       this.receipts.commitStart(executionId);
     } catch (error) {
       if (plan.inputs.length) {
@@ -239,6 +306,42 @@ export class ExecutionBrokerService {
     if (this.receipts.fingerprint(approved) !== this.receipts.fingerprint(plan)) throw new ExecutionBrokerError("UNAUTHORIZED");
   }
 
+  private resolveCredentialBinding(principal: ExecutionPrincipal, plan: ExecutionPlan): ExecutionCredentialBinding | null {
+    const profile = this.options.profiles.find(({ id }) => id === plan.profileId);
+    const requiresBinding = plan.mode.startsWith("authenticated-") || profile?.inputs.some(({ kind }) => kind === "secret") === true;
+    if (!requiresBinding) return null;
+    const authority = this.options.credentialAuthority;
+    if (!authority) throw new ExecutionBrokerError("UNAVAILABLE");
+    const runtime = this.options.runtime;
+    if (!runtime?.cancel || !runtime.waitForCleanup ||
+      (profile?.inputs.some(({ kind }) => kind === "secret") && !runtime.discardInputs)) {
+      throw new ExecutionBrokerError("UNAVAILABLE");
+    }
+    const binding = authority.resolveBinding(principal, plan.authorizationId, structuredClone(plan));
+    if (!binding) throw new ExecutionBrokerError("UNAUTHORIZED");
+    this.validateCredentialBinding(binding);
+    if (!authority.isCurrent(principal, binding)) throw new ExecutionBrokerError("UNAUTHORIZED");
+    return { ...binding };
+  }
+
+  private requireCurrentCredentialBinding(principal: ExecutionPrincipal, receipt: StoredExecutionReceipt): void {
+    const binding = receipt.credentialBinding;
+    if (!binding) return;
+    if (receipt.credentialRevoked || !this.options.credentialAuthority?.isCurrent(principal, binding)) {
+      throw new ExecutionBrokerError("UNAUTHORIZED");
+    }
+  }
+
+  private validateCredentialBinding(binding: ExecutionCredentialBinding): void {
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(binding.scopeId) || !Number.isSafeInteger(binding.generation) || binding.generation < 0) {
+      throw new ExecutionBrokerError("INVALID_REQUEST");
+    }
+  }
+
+  private sameBinding(left: ExecutionCredentialBinding | null, right: ExecutionCredentialBinding | null): boolean {
+    return left?.scopeId === right?.scopeId && left?.generation === right?.generation;
+  }
+
   private owned(principal: ExecutionPrincipal, executionId: string): StoredExecutionReceipt {
     try { requireExecutionId(executionId); } catch { throw new ExecutionBrokerError("INVALID_REQUEST"); }
     const receipt = this.receipts.find(executionId);
@@ -248,6 +351,10 @@ export class ExecutionBrokerService {
 
   private owner(principal: ExecutionPrincipal): string {
     return this.receipts.fingerprint([principal.installationId, principal.instanceId]);
+  }
+
+  private installationOwner(principal: ExecutionPrincipal): string {
+    return this.receipts.fingerprint([principal.installationId]);
   }
 
   private snapshot(receipt: StoredExecutionReceipt): ExecutionReceipt {
