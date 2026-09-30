@@ -16,6 +16,15 @@ RUN rm -f /etc/apt/sources.list.d/* && \
 COPY release.lock.json /opt/nulltrace/provenance/release.lock.json
 COPY licenses/ /opt/nulltrace/licenses/
 
+FROM ${BUN_IMAGE} AS auth-check-worker-build
+WORKDIR /worker
+COPY auth-check-worker-deps/package.json auth-check-worker-deps/bun.lock ./
+RUN bun install --frozen-lockfile --ignore-scripts --production
+COPY auth-check-worker.ts auth-check-worker.helpers.ts auth-check-worker.types.ts ./
+RUN mkdir -p /out && bun build auth-check-worker.ts --target=bun --outfile=/out/auth-check-worker.js && \
+    mkdir -p /out/licenses && \
+    find -L node_modules -type f \( -iname 'LICENSE*' -o -iname 'COPYING*' \) -exec cp --parents '{}' /out/licenses/ \;
+
 FROM base AS scanner-source
 RUN apt-get update && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/*
 COPY build-catalog.py /build-catalog.py
@@ -34,6 +43,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl nmap pytho
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=nuclei /usr/local/bin/nuclei /usr/local/bin/nuclei
 COPY curl-worker.ts curl-worker.service.ts curl-worker.helpers.ts curl-worker-output.helpers.ts curl-worker.types.ts /opt/nulltrace/workers/
+COPY --from=auth-check-worker-build /out/auth-check-worker.js /opt/nulltrace/workers/auth-check-worker.js
+COPY --from=auth-check-worker-build /out/licenses/ /opt/nulltrace/licenses/auth-check-worker-deps/
 COPY --from=scanner-source /sources /opt/nulltrace/scanner-sources
 RUN printf '#!/bin/sh\nexec /usr/bin/perl /opt/nulltrace/scanner-sources/nikto/files/program/nikto.pl "$@"\n' > /usr/local/bin/nikto && \
     printf '#!/bin/sh\nexec /usr/bin/python3 /opt/nulltrace/scanner-sources/sqlmap/files/sqlmap.py "$@"\n' > /usr/local/bin/sqlmap && \
