@@ -1,6 +1,7 @@
 import { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import { RefObject } from "react";
+import { clamp } from "../../../../shared/model/number.helpers";
 import { useToolWorkspaceStore } from "../store/tool-workspace.store";
 import { toolRegistry } from "../registry/tool-registry";
 import { ActiveSessionConversation } from "../../../chat/services/session-conversation.service";
@@ -19,10 +20,6 @@ interface UseToolKeyboardNavigationProps {
   onSelectConversation: (conversationId: string) => void;
   onCreateConversation: () => void;
   onArchiveActiveConversation: () => void;
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
 }
 
 export function useToolKeyboardNavigation({

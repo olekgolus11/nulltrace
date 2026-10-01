@@ -1,4 +1,5 @@
 import { theme } from "../../../app/theme/theme";
+import { formatSessionTimestamp } from "../../../shared/model/date-time.helpers";
 import { SessionSummary } from "../model/session.types";
 
 interface SessionItemProps {
@@ -7,15 +8,6 @@ interface SessionItemProps {
   isCurrent?: boolean;
   isLatest?: boolean;
   onMouseDown?: () => void;
-}
-
-function formatTimestamp(value: string) {
-  return new Date(value).toLocaleString([], {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 function getSessionBadges({ isCurrent, isLatest }: { isCurrent: boolean; isLatest: boolean }) {
@@ -56,9 +48,9 @@ export function SessionItem({
     >
       <text fg={isSelected ? theme.accent.primary : theme.text.secondary}>
         {isSelected ? (
-          <strong>└─ {formatTimestamp(session.createdAt)}</strong>
+          <strong>└─ {formatSessionTimestamp(session.createdAt)}</strong>
         ) : (
-          `└─ ${formatTimestamp(session.createdAt)}`
+          `└─ ${formatSessionTimestamp(session.createdAt)}`
         )}
       </text>
       {badgeText ? (

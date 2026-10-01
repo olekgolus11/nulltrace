@@ -1,4 +1,5 @@
 import { theme } from "../../../app/theme/theme";
+import { formatSessionTimestamp } from "../../../shared/model/date-time.helpers";
 import { TargetSummary } from "../model/session.types";
 
 interface SessionTargetItemProps {
@@ -12,18 +13,9 @@ function formatRelativeCount(count: number) {
   return `${count} ${count === 1 ? "session" : "sessions"}`;
 }
 
-function formatLastActivity(value: string) {
-  return new Date(value).toLocaleString([], {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 export function SessionTargetItem({ target, isExpanded, isSelected, onMouseDown }: SessionTargetItemProps) {
   const marker = isExpanded ? "▾" : "▸";
-  const summaryText = `${formatRelativeCount(target.sessionCount)} · ${formatLastActivity(target.lastActivityAt)}`;
+  const summaryText = `${formatRelativeCount(target.sessionCount)} · ${formatSessionTimestamp(target.lastActivityAt)}`;
 
   return (
     <box

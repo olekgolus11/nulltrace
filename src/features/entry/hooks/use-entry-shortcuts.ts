@@ -8,6 +8,7 @@ import { useSessionContextStore } from "../../session/store/session-context.stor
 import { entryPanels, initialEntryState } from "../model/entry.state";
 import { EntryPanel, EntryState } from "../model/entry.types";
 import { cyclePanel } from "../../../shared/model/panel-navigation";
+import { clamp } from "../../../shared/model/number.helpers";
 import { TargetSummary } from "../../session/model/session.types";
 
 type EntryAction =
@@ -25,10 +26,6 @@ interface UseEntryShortcutsProps {
   onStartPentestForNewTarget: (targetUrl: string) => Promise<void>;
   onOpenSession: (sessionId: string) => void;
   onStartPentestForExistingTarget: (target: TargetSummary) => void;
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
 }
 
 function createEntryReducer() {
