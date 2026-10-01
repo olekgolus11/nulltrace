@@ -14,9 +14,18 @@ let package = Package(
       dependencies: ["NullTraceCredentialCompanion"],
       path: "Tests/CredentialLockProbe"
     ),
+    .executableTarget(
+      name: "CredentialCompanionPeerProbe",
+      path: "Tests/CredentialCompanionPeerProbe",
+      linkerSettings: [.linkedLibrary("bsm")]
+    ),
     .testTarget(
       name: "NullTraceCredentialCompanionTests",
-      dependencies: ["NullTraceCredentialCompanion", "CredentialLockProbe"],
+      dependencies: [
+        "NullTraceCredentialCompanion",
+        "CredentialLockProbe",
+        "CredentialCompanionPeerProbe",
+      ],
       resources: [.copy("Fixtures")]
     ),
   ]
