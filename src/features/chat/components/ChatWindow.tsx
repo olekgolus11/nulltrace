@@ -21,7 +21,7 @@ function SpinnerAiMessage() {
   return (
     <ChatMessage sender="ai" content="">
       <box flexDirection="row" gap={1}>
-        <spinner name="dots" color="white" />
+        <spinner name="dots" color={theme.text.primary} />
         <text fg={theme.text.secondary}>Thinking…</text>
       </box>
     </ChatMessage>

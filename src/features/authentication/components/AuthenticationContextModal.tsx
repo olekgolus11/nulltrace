@@ -471,7 +471,14 @@ export function AuthenticationContextModal({
           <text fg={theme.text.dim}>Esc close</text>
         </box>
 
-        <scrollbox ref={bodyScrollRef} width="100%" height={Math.max(1, height - 6)}>
+        <scrollbox
+          ref={bodyScrollRef}
+          width="100%"
+          height={Math.max(1, height - 6)}
+          verticalScrollbarOptions={{
+            trackOptions: standardScrollbarTrackOptions,
+          }}
+        >
           <box flexDirection="column" width="100%" flexShrink={0}>
             <text fg={theme.text.dim}>PgUp/PgDn scroll</text>
             <text fg={theme.text.secondary}>Exact origin: {preview.origin}</text>
